@@ -9,8 +9,8 @@
 project = "ToolRegistry"
 copyright = "2024-2025, Peng Ding"
 author = "Peng Ding"
-html_title = "Tool Registry Library"
-release = "0.1"
+html_title = "ToolRegistry"
+release = "0.2.0"
 
 import os
 import sys
