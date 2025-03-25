@@ -1,5 +1,7 @@
 # ToolRegistry
 
+[中文版](README_zh.md)
+
 A Python library for managing and executing tools in a structured way.
 
 ## Features
