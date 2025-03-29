@@ -1,5 +1,7 @@
 # MCP SSE Mode Usage Guide
 
+[中文版](README_zh.md)
+
 ## Server Implementation
 
 1. Create SSE server using FastMCP:

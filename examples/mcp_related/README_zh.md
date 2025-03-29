@@ -1,5 +1,7 @@
 # MCP SSE 模式使用指南
 
+[English](README_en.md)
+
 ## 服务器端实现
 
 1. 使用 FastMCP 创建 SSE 服务器：
