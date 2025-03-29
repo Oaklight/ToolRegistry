@@ -48,7 +48,7 @@ class AnnotatedMessageInput(BaseModel):
     include_image: bool = Field(False, description="Include example image")
 
 
-mcp = FastMCP("Everything Server")
+mcp = FastMCP("Everything Server", sse_path="/mcp/sse", message_path="/mcp/messages/")
 
 
 # Echo functionality
@@ -150,5 +150,4 @@ async def annotated_message(input: AnnotatedMessageInput):
 
 
 # Create SSE endpoint
-app = Starlette(routes=[])
-app.mount("/mcp/sse", mcp.sse_app())
+app = mcp.sse_app()
