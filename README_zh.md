@@ -13,8 +13,16 @@
 
 ## 安装
 
+基础安装:
+
 ```bash
 pip install toolregistry
+```
+
+安装 MCP 扩展 (需要 **Python >= 3.10**):
+
+```bash
+pip install "toolregistry[mcp]"
 ```
 
 ## 示例

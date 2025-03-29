@@ -13,8 +13,16 @@ A Python library for managing and executing tools in a structured way.
 
 ## Installation
 
+Basic installation:
+
 ```bash
 pip install toolregistry
+```
+
+With MCP extension (requires **Python >= 3.10**):
+
+```bash
+pip install "toolregistry[mcp]"
 ```
 
 ## Examples

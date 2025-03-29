@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "toolregistry"
-version = "0.2.0"
+version = "0.3.0"
 authors = [{ name = "Oaklight", email = "oaklight@gmx.com" }]
 description = "A library for managing tool registries"
 readme = "README.md"
@@ -22,8 +22,14 @@ classifiers = [
 ]
 dependencies = ["pydantic>=1.5.1"]
 
+[project.optional-dependencies]
+mcp = ["mcp>=1.6.0"] # Add mcp optional dependencies here
+
 [project.urls]
 Homepage = "https://github.com/Oaklight/ToolRegistry"
 
+# Note: Standard TOML does not support imports from other TOML files
+# When installing with mcp extras (toolregistry[mcp]), Python >= 3.10 is required
+# The mcp package dependencies should be listed in this file
 [tool.setuptools.packages.find]
 where = ["src"]
