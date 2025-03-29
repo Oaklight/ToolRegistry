@@ -177,7 +177,8 @@ class ToolRegistry:
 
     def execute_tool_calls(self, tool_calls: List[Any]) -> Dict[str, str]:
         """
-        Execute tool calls and return results.
+        Execute tool calls and return results. Uses parallel execution for multiple tool calls
+        and sequential execution for less than 3 tool calls to avoid thread pool overhead.
 
         Args:
             tool_calls (List[Any]): List of tool calls
@@ -185,9 +186,8 @@ class ToolRegistry:
         Returns:
             Dict[str, str]: Dictionary mapping tool call IDs to results
         """
-        tool_responses = {}
-        for tool_call in tool_calls:
-            tool_result = None
+
+        def process_tool_call(tool_call):
             try:
                 function_name = tool_call.function.name
                 function_args = json.loads(tool_call.function.arguments)
@@ -202,8 +202,26 @@ class ToolRegistry:
                     tool_result = f"Error: Tool '{function_name}' not found"
             except Exception as e:
                 tool_result = f"Error executing {function_name}: {str(e)}"
+            return (tool_call_id, tool_result)
 
-            tool_responses[tool_call_id] = tool_result
+        tool_responses = {}
+
+        if len(tool_calls) > 2:
+            # only use concurrency if more than 2 tool calls at a time
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                futures = [
+                    executor.submit(process_tool_call, tool_call)
+                    for tool_call in tool_calls
+                ]
+                for future in concurrent.futures.as_completed(futures):
+                    tool_call_id, tool_result = future.result()
+                    tool_responses[tool_call_id] = tool_result
+        else:
+            for tool_call in tool_calls:
+                tool_call_id, tool_result = process_tool_call(tool_call)
+                tool_responses[tool_call_id] = tool_result
 
         return tool_responses
 
