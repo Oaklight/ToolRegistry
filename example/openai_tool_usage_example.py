@@ -1,5 +1,9 @@
+import os
+from dotenv import load_dotenv
 from openai import OpenAI
 
+# Load environment variables from .env file
+load_dotenv()
 from toolregistry import ToolRegistry
 
 # Initialize ToolRegistry
@@ -22,8 +26,8 @@ def c_to_f(celsius: float) -> float:
 
 # Set up OpenAI client
 client = OpenAI(
-    api_key="your-api-key",
-    base_url="https://api.deepseek.com/",
+    api_key=os.getenv("API_KEY", "your-api-key"),
+    base_url=os.getenv("BASE_URL", "https://api.deepseek.com/"),
 )
 
 

@@ -1,4 +1,8 @@
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # pip install cicada-agent
 from cicada.core.model import MultiModalModel
@@ -7,8 +11,8 @@ from cicada.core.utils import cprint
 model_name = os.getenv("MODEL", "deepseek-v3")
 stream = os.getenv("STREAM", "True").lower() == "true"  # Configurable stream option
 
-API_KEY = "your-api-key"
-BASE_URL = "https://api.deepseek.com/"
+API_KEY = os.getenv("API_KEY", "your-api-key")
+BASE_URL = os.getenv("BASE_URL", "https://api.deepseek.com/")
 
 llm = MultiModalModel(
     api_key=API_KEY,
