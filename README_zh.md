@@ -21,11 +21,11 @@ pip install toolregistry
 
 ### OpenAI 实现
 
-文件 [openai_tool_usage_example.py](example/openai_tool_usage_example.py) 展示了如何将 ToolRegistry 与 OpenAI 的 API 集成。
+文件 [openai_tool_usage_example.py](examples/openai_tool_usage_example.py) 展示了如何将 ToolRegistry 与 OpenAI 的 API 集成。
 
 ### Cicada 实现
 
-文件 [cicada_tool_usage_example.py](example/cicada_tool_usage_example.py) 演示了如何使用 ToolRegistry 与 Cicada 多模态模型。
+文件 [cicada_tool_usage_example.py](examples/cicada_tool_usage_example.py) 演示了如何使用 ToolRegistry 与 Cicada 多模态模型。
 
 ## OpenAI 集成
 

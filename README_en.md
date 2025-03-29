@@ -21,11 +21,11 @@ pip install toolregistry
 
 ### OpenAI Implementation
 
-The [openai_tool_usage_example.py](example/openai_tool_usage_example.py) shows how to integrate ToolRegistry with OpenAI's API.
+The [openai_tool_usage_example.py](examples/openai_tool_usage_example.py) shows how to integrate ToolRegistry with OpenAI's API.
 
 ### Cicada Implementation
 
-The [cicada_tool_usage_example.py](example/cicada_tool_usage_example.py) demonstrates how to use ToolRegistry with the Cicada MultiModalModel.
+The [cicada_tool_usage_example.py](examples/cicada_tool_usage_example.py) demonstrates how to use ToolRegistry with the Cicada MultiModalModel.
 
 ## OpenAI Integration
 
