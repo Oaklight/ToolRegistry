@@ -1,7 +1,7 @@
 from mcp.server.fastmcp import FastMCP
 
 # Create a string manipulation test server
-mcp = FastMCP("String Test Server")
+mcp = FastMCP("String Test Server", sse_path="/mcp/sse", message_path="/mcp/messages/")
 
 
 @mcp.tool()
@@ -38,3 +38,7 @@ def get_hello() -> str:
 def get_goodbye() -> str:
     """Get a goodbye greeting"""
     return "Goodbye, world!"
+
+
+# Create SSE endpoint
+app = mcp.sse_app()

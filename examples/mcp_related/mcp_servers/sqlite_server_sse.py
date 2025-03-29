@@ -2,7 +2,7 @@ import sqlite3
 
 from mcp.server.fastmcp import FastMCP
 
-mcp = FastMCP("SQLite Explorer")
+mcp = FastMCP("SQLite Explorer SSE", sse_path="/mcp/sse", message_path="/mcp/messages/")
 
 
 @mcp.resource("schema://main")
@@ -22,3 +22,6 @@ def query_data(sql: str) -> str:
         return "\n".join(str(row) for row in result)
     except Exception as e:
         return f"Error: {str(e)}"
+
+
+app = mcp.sse_app()

@@ -1,8 +1,9 @@
 from mcp.server.fastmcp import FastMCP
-from starlette.applications import Starlette
 
 # Create a calculator test server
-mcp = FastMCP("Calculator Test Server")
+mcp = FastMCP(
+    "Calculator Test Server", sse_path="/mcp/sse", message_path="/mcp/messages/"
+)
 
 
 @mcp.tool()
@@ -42,5 +43,4 @@ def get_e() -> float:
 
 
 # Create SSE endpoint
-app = Starlette()
-app.mount("/mcp/sse", mcp.sse_app())
+app = mcp.sse_app()

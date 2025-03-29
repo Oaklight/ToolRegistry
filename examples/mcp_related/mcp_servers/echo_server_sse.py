@@ -1,7 +1,6 @@
 from mcp.server.fastmcp import FastMCP
-from starlette.applications import Starlette
 
-mcp = FastMCP("Echo SSE")
+mcp = FastMCP("Echo SSE", sse_path="/mcp/sse", message_path="/mcp/messages/")
 
 
 @mcp.resource("echo://{message}")
@@ -16,5 +15,4 @@ def echo_tool(message: str) -> str:
     return f"Tool echo: {message}"
 
 
-app = Starlette(routes=[])
-app.mount("/mcp", mcp.sse_app())
+app = mcp.sse_app()
