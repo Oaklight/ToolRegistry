@@ -18,8 +18,42 @@ class MCPToolWrapper:
         self.name = name
         self.params = params or []
 
-    async def call_async(self, **kwargs):
-        """Async implementation of MCP tool call"""
+    def _process_args(self, *args, **kwargs):
+        """Process positional and keyword arguments.
+        Maps positional args to parameter names and validates input.
+        Returns processed kwargs.
+        """
+        if args:
+            if not self.params:
+                raise ValueError("Tool parameters not initialized")
+            if len(args) > len(self.params):
+                raise TypeError(
+                    f"Expected at most {len(self.params)} positional arguments, got {len(args)}"
+                )
+            # Map positional args to their corresponding parameter names
+            for i, arg in enumerate(args):
+                param_name = self.params[i]
+                if param_name in kwargs:
+                    raise TypeError(
+                        f"Parameter '{param_name}' passed both as positional and keyword argument"
+                    )
+                kwargs[param_name] = arg
+        return kwargs
+
+    def call_sync(self, *args, **kwargs):
+        """Synchronous implementation of MCP tool call.
+        Handles both positional and keyword arguments.
+        Positional args are mapped to params in order, keyword args are passed directly.
+        """
+        kwargs = self._process_args(*args, **kwargs)
+
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        return loop.run_until_complete(self.call_async(**kwargs))
         if not self.url or not self.name:
             raise ValueError("URL and name must be set before calling")
 
@@ -42,37 +76,9 @@ class MCPToolWrapper:
             print(f"Error calling tool {self.name}: {str(e)}")
             raise
 
-    def call_sync(self, **kwargs):
-        """Synchronous implementation of MCP tool call"""
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        return loop.run_until_complete(self.call_async(**kwargs))
-
     def __call__(self, *args, **kwargs):
-        """Make the wrapper directly callable, using sync version by default.
-        Handles both positional and keyword arguments.
-        Positional args are mapped to params in order, keyword args are passed directly.
-        """
-        if args:
-            if not self.params:
-                raise ValueError("Tool parameters not initialized")
-            if len(args) > len(self.params):
-                raise TypeError(
-                    f"Expected at most {len(self.params)} positional arguments, got {len(args)}"
-                )
-            # Map positional args to their corresponding parameter names
-            for i, arg in enumerate(args):
-                param_name = self.params[i]
-                if param_name in kwargs:
-                    raise TypeError(
-                        f"Parameter '{param_name}' passed both as positional and keyword argument"
-                    )
-                kwargs[param_name] = arg
-        return self.call_sync(**kwargs)
+        """Make the wrapper directly callable, using sync version by default."""
+        return self.call_sync(*args, **kwargs)
 
 
 class MCPTool(Tool):
