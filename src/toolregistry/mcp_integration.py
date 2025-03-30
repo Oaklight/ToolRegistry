@@ -5,50 +5,41 @@ from typing import Dict, Optional
 
 from mcp.client.session import ClientSession
 from mcp.client.sse import sse_client
-from mcp.types import Tool as MCPTool
+from typing import Dict, Any, Callable, Optional
 
-from .tool_registry import ToolRegistry
-
-from typing import Dict, Any
+from toolregistry import Tool, ToolRegistry
 
 
-def convert_mcptool_to_json(tool: MCPTool) -> Dict:
-    """
-    Convert a Tool object to the desired JSON format.
-
-    Args:
-        tool: A dictionary representing the Tool object with keys 'name', 'description', and 'inputSchema'.
-
-    Returns:
-        A dictionary in the desired JSON format.
-    """
-    return {
-        "type": "function",
-        "function": {
-            "name": tool.name,
-            "description": tool.description,
-            "parameters": {
-                "type": "object",
-                "properties": tool.inputSchema.get("properties", {}),
-                "required": tool.inputSchema.get("required", []),
-                "additionalProperties": False,
-            },
-        },
-    }
-
-
-def parse_mcp_tool_parameters(tool_params: Dict):
-    tool_params = vars(tool_params)
-    required_params = tool_params.required
+def _make_mcp_tool_wrapper(url, name) -> Callable[..., Any]:
     pass
 
+    def wrapper():
+        return 0
 
-def parse_mcp_tool(mcp_tool: MCPTool):
-    tool_name = mcp_tool.name
-    tool_description = mcp_tool.description
-    tool_parameters: Dict = mcp_tool.parameters
+    return wrapper
 
-    pass
+
+class MCPTool(Tool):
+    """Wrapper class for MCP tools that preserves original function metadata."""
+
+    @classmethod
+    def from_tool_json(
+        cls,
+        name: Optional[str],
+        description: Optional[str],
+        input_schema: Optional[Dict[str, Any]],
+        url: str = None,
+    ):
+        """Create an MCPToolWrapper from a function."""
+
+        func = _make_mcp_tool_wrapper(url, name)
+        return cls(
+            name=name,
+            description=description,
+            parameters=input_schema,
+            callable=func,
+            is_async=True,  # mcp functions are by nature async
+        )
 
 
 class MCPIntegration:
@@ -57,27 +48,6 @@ class MCPIntegration:
     def __init__(self, registry: ToolRegistry):
         self.registry = registry
         self._mcp_server_url: Optional[str] = None
-
-    # def _create_mcp_tool_wrapper(self, tool_name: str, server_url: str):
-    #     """Create an async wrapper function for an MCP tool."""
-
-    #     async def tool_wrapper(**params):
-    #         """Wrapper function for MCP tool"""
-    #         try:
-    #             async with sse_client(server_url) as (rs, ws):
-    #                 async with ClientSession(rs, ws) as s:
-    #                     await s.initialize()
-    #                     # Get tool schema to validate params
-    #                     tools = await s.list_tools()
-
-    #                     return await s.call_tool(tool_name, params)
-    #         except Exception as e:
-    #             print(f"Error calling tool {tool_name}: {str(e)}")
-    #             raise
-
-    #     # Set the wrapper's name to match the original tool name
-    #     tool_wrapper.__name__ = tool_name
-    #     return tool_wrapper
 
     async def register_mcp_tools_async(self, server_url: str):
         """
@@ -101,15 +71,16 @@ class MCPIntegration:
                 # Register each tool with a wrapper function
                 for tool in tools_response.tools:
                     pprint(tool)
-                    print(json.dumps(convert_mcptool_to_json(tool), indent=2))
-                    # wrapper = (
-                    #     tool.name, self._mcp_server_url
-                    # )
-                #     self.registry.register(
-                #         wrapper,
-                #         description=tool.description,
-                #     )
-                #     print(f"Registered tool: {tool.name}")
+                    # print(json.dumps(convert_mcptool_to_json(tool), indent=2))
+                    mcptool_from_json = MCPTool.from_tool_json(
+                        name=tool.name,
+                        description=tool.description,
+                        input_schema=tool.inputSchema,
+                    )
+
+                    # Register the tool wrapper function
+                    self.registry.register(mcptool_from_json)
+                    print(f"Registered tool: {tool.name}")
 
     def register_mcp_tools(self, server_url: str):
         """
