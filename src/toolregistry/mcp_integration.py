@@ -78,8 +78,6 @@ class MCPToolWrapper:
 class MCPTool(Tool):
     """Wrapper class for MCP tools that preserves original function metadata."""
 
-    url: str
-
     @classmethod
     def from_tool_json(
         cls,
@@ -102,7 +100,6 @@ class MCPTool(Tool):
             parameters=input_schema,
             callable=wrapper,
             is_async=False,
-            url=url,
         )
 
     def run(self, **kwargs):
