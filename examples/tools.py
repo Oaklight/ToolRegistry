@@ -9,27 +9,27 @@ tool_registry = ToolRegistry()
 
 # Example usage
 if __name__ == "__main__":
-    from cicada.tools.code_dochelper import doc_helper
 
-    # Register a function
-    def add(a: int, b: int) -> int:
-        """Add two numbers."""
-        return a + b
-
-    tool_registry.register(add)
-
+    @tool_registry.register
     def get_weather(location: str, void_param: None = None) -> str:
         """Get the current weather for a given location."""
         return f"Weather in {location}: Sunny, 25°C"
 
-    tool_registry.register(get_weather)
+    @tool_registry.register
+    def calculate_price(price: float, discount: float = 0.1) -> float:
+        """Calculate final price with optional discount."""
+        return price * (1 - discount)
 
-    # Register another function
-    def get_news(topic: str) -> str:
-        """Get the latest news on a given topic."""
-        return f"Latest news about {topic}."
+    @tool_registry.register
+    def format_name(first: str, last: str, middle: str = None) -> str:
+        """Format a full name with optional middle name."""
+        return f"{first} {middle + ' ' if middle else ''}{last}"
 
-    tool_registry.register(get_news)
+    def process_data(data: dict, strict: bool = True) -> str:
+        """Process data with strict mode flag."""
+        return "Strict processing" if strict else "Loose processing"
+
+    tool_registry.register(process_data)
 
     # Get the JSON representation of all tools
     print("Tools JSON:")
@@ -37,18 +37,45 @@ if __name__ == "__main__":
 
     # Get a callable function by name
     print("\nCalling 'get_weather':")
+    get_weather_fn = tool_registry["get_weather"]
     print(tool_registry["get_weather"]("San Francisco"))
+    print(get_weather_fn("New York"))
 
-    # Import and register another function
+    # Test the new Tool.run method
+    print("\nTesting Tool.run method:")
 
-    tool_registry.register(doc_helper)
+    # Test get_weather
+    weather_tool = tool_registry._tools["get_weather"]
+    print("1. get_weather normal call:")
+    print(weather_tool.run({"location": "New York"}))
+    print("\n2. get_weather invalid type:")
+    print(weather_tool.run({"location": 123}))
+    print("\n3. get_weather missing required:")
+    print(weather_tool.run({}))
 
-    # Get the JSON representation of all tools again
-    print("\nUpdated Tools JSON:")
-    print(json.dumps(tool_registry.get_tools_json(), indent=2))
+    # Test calculate_price
+    price_tool = tool_registry._tools["calculate_price"]
+    print("\n4. calculate_price with default:")
+    print(price_tool.run({"price": 100}))
+    print("\n5. calculate_price custom discount:")
+    print(price_tool.run({"price": 100, "discount": 0.2}))
+    print("\n6. calculate_price invalid discount:")
+    print(price_tool.run({"price": 100, "discount": "20%"}))
 
-    # Call the 'doc_helper' function
-    print("\nCalling 'doc_helper':")
-    pprint(tool_registry["doc_helper"]("build123d.Box", with_docstring=False))
+    # Test format_name
+    name_tool = tool_registry._tools["format_name"]
+    print("\n7. format_name without middle:")
+    print(name_tool.run({"first": "John", "last": "Doe"}))
+    print("\n8. format_name with middle:")
+    print(name_tool.run({"first": "John", "middle": "Q", "last": "Doe"}))
+    print("\n9. format_name invalid middle:")
+    print(name_tool.run({"first": "John", "middle": 123, "last": "Doe"}))
 
-    print(len(tool_registry))
+    # Test process_data
+    data_tool = tool_registry._tools["process_data"]
+    print("\n10. process_data strict mode:")
+    print(data_tool.run({"data": {"key": "value"}}))
+    print("\n11. process_data loose mode:")
+    print(data_tool.run({"data": {"key": "value"}, "strict": False}))
+    print("\n12. process_data invalid strict:")
+    print(data_tool.run({"data": {"key": "value"}, "strict": "yes"}))

@@ -114,24 +114,35 @@ def _generate_parameters_schema(func: Callable) -> Dict[str, Any]:
         )  # this pattern is intentional
 
         # some note about Optional: https://docs.python.org/3/library/typing.html#typing.Optional
-        # Case 1: No annotation (untyped field)
-        if param.annotation is inspect.Parameter.empty:
-            field_info = Field(default=default, title=param.name)
-            dynamic_model_creation_dict[param.name] = (Optional[Any], field_info)
-            # dynamic_model_creation_dict[param.name] = (str, field_info)
+        # Common field creation logic
+        def create_field(annotation_type: Any) -> tuple[Any, Field]:
+            if param.default is inspect.Parameter.empty:
+                # Required parameter
+                field_info = (
+                    Field(title=param.name)
+                    if param.annotation is inspect.Parameter.empty
+                    else Field()
+                )
+                return (annotation_type, field_info)
+            else:
+                # Optional parameter
+                field_info = (
+                    Field(default=default, title=param.name)
+                    if param.annotation is inspect.Parameter.empty
+                    else Field(default=default)
+                )
+                return (Optional[annotation_type], field_info)
 
-        # Case 2: Annotation is None (e.g., `x: None = None`)
+        # Handle all cases with unified logic
+        if param.annotation is inspect.Parameter.empty:
+            # Untyped field
+            dynamic_model_creation_dict[param.name] = create_field(Any)
         elif param.annotation is None:
-            field_info = Field(default=default)
-            dynamic_model_creation_dict[param.name] = (None, field_info)
-            # dynamic_model_creation_dict[param.name] = (Optional[Any], field_info)
-        # Case 3: Typed field
+            # None-typed field
+            dynamic_model_creation_dict[param.name] = create_field(None)
         else:
-            field_info = Field(default=default)
-            dynamic_model_creation_dict[param.name] = (
-                param.annotation,
-                field_info,
-            )
+            # Typed field
+            dynamic_model_creation_dict[param.name] = create_field(param.annotation)
 
     pydantic_params_model = create_model(
         f"{func.__name__}Parameters",
@@ -179,6 +190,17 @@ class Tool(BaseModel):
             is_async=is_async,
             parameters_model=parameters_model,
         )
+
+    def run(self, parameters: Dict[str, Any]) -> Any:
+        """Run the tool with the given parameters."""
+        try:
+            # Convert parameters to model instance for validation
+            model = self.parameters_model(**parameters)
+            # Call the underlying function with validated parameters
+            result = self.callable(**model.model_dump_one_level())
+            return f"{self.name} -> {result}"
+        except Exception as e:
+            return f"Error executing {self.name}: {str(e)}"
 
 
 class ToolRegistry:
@@ -317,8 +339,9 @@ class ToolRegistry:
 
     def execute_tool_calls(self, tool_calls: List[Any]) -> Dict[str, str]:
         """
-        Execute tool calls and return results. Uses parallel execution for multiple tool calls
-        and sequential execution for less than 3 tool calls to avoid thread pool overhead.
+        Execute tool calls by delegating to each Tool's run method. Uses parallel execution
+        for multiple tool calls and sequential execution for less than 3 tool calls to avoid
+        thread pool overhead.
 
         Args:
             tool_calls (List[Any]): List of tool calls
@@ -334,10 +357,9 @@ class ToolRegistry:
                 tool_call_id = tool_call.id
 
                 # Get the tool from registry
-                tool = self.get_callable(function_name)
+                tool = self._tools.get(function_name)
                 if tool:
-                    function_response = tool(**function_args)
-                    tool_result = f"{function_name} -> {function_response}"
+                    tool_result = tool.run(function_args)
                 else:
                     tool_result = f"Error: Tool '{function_name}' not found"
             except Exception as e:
