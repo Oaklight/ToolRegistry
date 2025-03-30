@@ -54,6 +54,14 @@ class MCPToolWrapper:
             asyncio.set_event_loop(loop)
 
         return loop.run_until_complete(self.call_async(**kwargs))
+
+    async def call_async(self, *args, **kwargs):
+        """Async implementation of MCP tool call.
+        Handles both positional and keyword arguments.
+        Positional args are mapped to params in order, keyword args are passed directly.
+        """
+        kwargs = self._process_args(*args, **kwargs)
+
         if not self.url or not self.name:
             raise ValueError("URL and name must be set before calling")
 
@@ -79,6 +87,12 @@ class MCPToolWrapper:
     def __call__(self, *args, **kwargs):
         """Make the wrapper directly callable, using sync version by default."""
         return self.call_sync(*args, **kwargs)
+
+    async def __acall__(self, *args, **kwargs):
+        """Async version of __call__, allows await wrapper() syntax.
+        Simply delegates to call_async which now handles all parameter processing.
+        """
+        return await self.call_async(*args, **kwargs)
 
 
 class MCPTool(Tool):
@@ -111,6 +125,17 @@ class MCPTool(Tool):
     def run(self, **kwargs):
         """Synchronous execution of the tool"""
         return self.callable(**kwargs)
+
+    async def arun(self, **kwargs):
+        """Async execution of the tool"""
+        if hasattr(self.callable, "__acall__"):
+            return await self.callable.__acall__(**kwargs)
+        elif asyncio.iscoroutinefunction(self.callable):
+            return await self.callable(**kwargs)
+        raise NotImplementedError(
+            "Async execution requires either __acall__ implementation "
+            "or the callable to be a coroutine function"
+        )
 
 
 class MCPIntegration:
