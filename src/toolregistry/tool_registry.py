@@ -163,7 +163,7 @@ class Tool(BaseModel):
     parameters: Dict[str, Any] = Field(description="JSON schema for tool parameters")
     callable: Callable[..., Any] = Field(exclude=True)
     is_async: bool = Field(default=False, description="Whether the tool is async")
-    parameters_model: Annotated[type[ArgModelBase], WithJsonSchema(None)]
+    parameters_model: Annotated[type[ArgModelBase], WithJsonSchema(None)] = None
 
     @classmethod
     def from_function(
@@ -248,6 +248,15 @@ class ToolRegistry:
 
         # # Add the tool to the registry
         # self._tools[name] = tool
+
+    def register(self, tool: Tool):
+        """
+        Register a Tool instance.
+
+        Args:
+           tool (Tool): The Tool instance to register.
+        """
+        self._tools[tool.name] = tool
 
     def merge(self, other: "ToolRegistry", keep_existing: bool = False):
         """
