@@ -158,4 +158,11 @@ class MCPIntegration:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
-        return loop.run_until_complete(self.register_mcp_tools_async(server_url))
+        if loop.is_running():
+            # if event loop is already running, use run_coroutine_threadsafe
+            future = asyncio.run_coroutine_threadsafe(
+                self.register_mcp_tools_async(server_url), loop
+            )
+            return future.result()
+        else:
+            return loop.run_until_complete(self.register_mcp_tools_async(server_url))
