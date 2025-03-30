@@ -1,23 +1,31 @@
-import asyncio
 import inspect
 import json
-from typing import Annotated, Any, Callable, Dict, ForwardRef, List, Optional, Union
+from pprint import pprint
+from typing import Annotated, Any, Callable, Dict, ForwardRef, List, Optional
 
+from pydantic import BaseModel, ConfigDict, Field, WithJsonSchema, create_model
 from pydantic._internal._typing_extra import eval_type_backport
-
-
-# 延迟导入 cicada 模块以避免循环导入
-def cprint(*args, **kwargs):
-    from cicada.core.utils import cprint as _cprint
-
-    return _cprint(*args, **kwargs)
-
-
-from pydantic import BaseModel, Field, WithJsonSchema
 
 
 class InvalidSignature(Exception):
     """Invalid signature for use with FastMCP."""
+
+
+class ArgModelBase(BaseModel):
+    """A model representing the arguments to a function.
+
+    Features:
+    - Supports arbitrary types in fields.
+    - Provides a method to dump fields one level deep.
+    """
+
+    def model_dump_one_level(self) -> Dict[str, Any]:
+        """Dump model fields one level deep, keeping sub-models as-is."""
+        return {field: getattr(self, field) for field in self.__pydantic_fields__}
+
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+    )
 
 
 def _get_typed_annotation(annotation: Any, globalns: dict[str, Any]) -> Any:
@@ -51,7 +59,7 @@ def _map_type_annotation_to_json_schema(type_annotation: Any) -> str:
     Returns:
         str: The corresponding JSON Schema type.
     """
-    cprint(type_annotation)
+    # pprint(type_annotation)
     type_mapping = {
         "str": "string",
         "int": "integer",
@@ -90,39 +98,48 @@ def _generate_parameters_schema(func: Callable) -> Dict[str, Any]:
         )
         for param in signature.parameters.values()
     ]
-    typed_signature = inspect.Signature(typed_params)
-    properties = {}
-    required = []
 
-    for name, param in typed_signature.parameters.items():
-        if name == "self":
+    dynamic_model_creation_dict: Dict[str, Any] = {}
+    for param in typed_params:
+        if param.name == "self":
             continue  # Skip 'self' for methods
 
-        # Map Python types to JSON Schema types
-        param_type = (
-            _map_type_annotation_to_json_schema(param.annotation)
-            if param.annotation != inspect.Parameter.empty
-            else "string"
-        )
+        pprint(f"{param.name}: {param.annotation}={param.default}")
 
-        # Add the parameter to the properties
-        properties[name] = {
-            "type": param_type,
-            # "type": param.annotation,
-            "description": f"The {name} parameter.",
-            # "default": param.default,
-        }
+        # for parameter that has no default value, explicitly set to None
+        # this ensures that the JSON Schema does not have undefined values
+        # while maintaining the same semantics as Python function calls
+        default = (
+            param.default if param.default is not inspect.Parameter.empty else None
+        )  # this pattern is intentional
 
-        # Check if the parameter is required
-        if param.default == inspect.Parameter.empty:
-            required.append(name)
+        # some note about Optional: https://docs.python.org/3/library/typing.html#typing.Optional
+        # Case 1: No annotation (untyped field)
+        if param.annotation is inspect.Parameter.empty:
+            field_info = Field(default=default, title=param.name)
+            dynamic_model_creation_dict[param.name] = (Optional[Any], field_info)
+            # dynamic_model_creation_dict[param.name] = (str, field_info)
 
-    return {
-        "type": "object",
-        "properties": properties,
-        "required": required,
-        "additionalProperties": False,  # Enforce strict parameter validation
-    }
+        # Case 2: Annotation is None (e.g., `x: None = None`)
+        elif param.annotation is None:
+            field_info = Field(default=default)
+            dynamic_model_creation_dict[param.name] = (None, field_info)
+            # dynamic_model_creation_dict[param.name] = (Optional[Any], field_info)
+        # Case 3: Typed field
+        else:
+            field_info = Field(default=default)
+            dynamic_model_creation_dict[param.name] = (
+                param.annotation,
+                field_info,
+            )
+
+    pydantic_params_model = create_model(
+        f"{func.__name__}Parameters",
+        **dynamic_model_creation_dict,
+        __base__=ArgModelBase,
+    )
+
+    return pydantic_params_model
 
 
 class Tool(BaseModel):
@@ -135,7 +152,7 @@ class Tool(BaseModel):
     parameters: Dict[str, Any] = Field(description="JSON schema for tool parameters")
     callable: Callable[..., Any] = Field(exclude=True)
     is_async: bool = Field(default=False, description="Whether the tool is async")
-    # parameters_model: Annotated[type[ArgModelBase], WithJsonSchema(None)]
+    parameters_model: Annotated[type[ArgModelBase], WithJsonSchema(None)]
 
     @classmethod
     def from_function(
@@ -145,7 +162,7 @@ class Tool(BaseModel):
         description: str | None = None,
     ):
         """Create a Tool from a function."""
-        parameters = _generate_parameters_schema(func)
+        parameters_model = _generate_parameters_schema(func)
         func_name = name or func.__name__
 
         if func_name == "<lambda>":
@@ -157,9 +174,10 @@ class Tool(BaseModel):
         return cls(
             name=func_name,
             description=func_doc,
-            parameters=parameters,
+            parameters=parameters_model.model_json_schema(),
             callable=func,
             is_async=is_async,
+            parameters_model=parameters_model,
         )
 
 
