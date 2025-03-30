@@ -1,8 +1,128 @@
+import asyncio
 import inspect
 import json
-from typing import Any, Callable, Dict, List, Optional
+from typing import Annotated, Any, Callable, Dict, ForwardRef, List, Optional, Union
 
-from pydantic import BaseModel
+from pydantic._internal._typing_extra import eval_type_backport
+
+
+# 延迟导入 cicada 模块以避免循环导入
+def cprint(*args, **kwargs):
+    from cicada.core.utils import cprint as _cprint
+
+    return _cprint(*args, **kwargs)
+
+
+from pydantic import BaseModel, Field, WithJsonSchema
+
+
+class InvalidSignature(Exception):
+    """Invalid signature for use with FastMCP."""
+
+
+def _get_typed_annotation(annotation: Any, globalns: dict[str, Any]) -> Any:
+    def try_eval_type(
+        value: Any, globalns: dict[str, Any], localns: dict[str, Any]
+    ) -> tuple[Any, bool]:
+        try:
+            return eval_type_backport(value, globalns, localns), True
+        except NameError:
+            return value, False
+
+    if isinstance(annotation, str):
+        annotation = ForwardRef(annotation)
+        annotation, status = try_eval_type(annotation, globalns, globalns)
+
+        # This check and raise could perhaps be skipped, and we (FastMCP) just call
+        # model_rebuild right before using it 🤷
+        if status is False:
+            raise InvalidSignature(f"Unable to evaluate type annotation {annotation}")
+
+    return annotation
+
+
+def _map_type_annotation_to_json_schema(type_annotation: Any) -> str:
+    """
+    Map Python types to JSON Schema types.
+
+    Args:
+        type_annotation (Any): The Python type to map.
+
+    Returns:
+        str: The corresponding JSON Schema type.
+    """
+    cprint(type_annotation)
+    type_mapping = {
+        "str": "string",
+        "int": "integer",
+        "float": "number",
+        "bool": "boolean",
+        "list": "array",
+        "dict": "object",
+    }
+
+    # Handle cases where the type is a class (e.g., `int`, `str`)
+    if hasattr(type_annotation, "__name__"):
+        return type_mapping.get(type_annotation.__name__, "string")
+
+    # Default to "string" if the type is not recognized
+    return "string"
+
+
+def _generate_parameters_schema(func: Callable) -> Dict[str, Any]:
+    """
+    Generate a JSON Schema-compliant schema for the function's parameters.
+
+    Args:
+        func (Callable): The function to generate the schema for.
+
+    Returns:
+        Dict[str, Any]: The JSON Schema for the function's parameters.
+    """
+    signature = inspect.signature(func)
+    globalns = getattr(func, "__globals__", {})
+    typed_params = [
+        inspect.Parameter(
+            name=param.name,
+            kind=param.kind,
+            default=param.default,
+            annotation=_get_typed_annotation(param.annotation, globalns),
+        )
+        for param in signature.parameters.values()
+    ]
+    typed_signature = inspect.Signature(typed_params)
+    properties = {}
+    required = []
+
+    for name, param in typed_signature.parameters.items():
+        if name == "self":
+            continue  # Skip 'self' for methods
+
+        # Map Python types to JSON Schema types
+        param_type = (
+            _map_type_annotation_to_json_schema(param.annotation)
+            if param.annotation != inspect.Parameter.empty
+            else "string"
+        )
+
+        # Add the parameter to the properties
+        properties[name] = {
+            "type": param_type,
+            # "type": param.annotation,
+            "description": f"The {name} parameter.",
+            # "default": param.default,
+        }
+
+        # Check if the parameter is required
+        if param.default == inspect.Parameter.empty:
+            required.append(name)
+
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": required,
+        "additionalProperties": False,  # Enforce strict parameter validation
+    }
 
 
 class Tool(BaseModel):
@@ -10,10 +130,37 @@ class Tool(BaseModel):
     Represents a tool (function) that can be called by the language model.
     """
 
-    name: str
-    description: str
-    parameters: Dict[str, Any]
-    callable: Callable
+    name: str = Field(description="Name of the tool")
+    description: str = Field(description="Description of what the tool does")
+    parameters: Dict[str, Any] = Field(description="JSON schema for tool parameters")
+    callable: Callable[..., Any] = Field(exclude=True)
+    is_async: bool = Field(default=False, description="Whether the tool is async")
+    # parameters_model: Annotated[type[ArgModelBase], WithJsonSchema(None)]
+
+    @classmethod
+    def from_function(
+        cls,
+        func: Callable[..., Any],
+        name: str | None = None,
+        description: str | None = None,
+    ):
+        """Create a Tool from a function."""
+        parameters = _generate_parameters_schema(func)
+        func_name = name or func.__name__
+
+        if func_name == "<lambda>":
+            raise ValueError("You must provide a name for lambda functions")
+
+        func_doc = description or func.__doc__ or ""
+        is_async = inspect.iscoroutinefunction(func)
+
+        return cls(
+            name=func_name,
+            description=func_doc,
+            parameters=parameters,
+            callable=func,
+            is_async=is_async,
+        )
 
 
 class ToolRegistry:
@@ -23,6 +170,7 @@ class ToolRegistry:
 
     def __init__(self):
         self._tools: Dict[str, Tool] = {}
+        self._mcp_server_url: Optional[str] = None
 
     def __len__(self):
         return len(self._tools)
@@ -43,20 +191,23 @@ class ToolRegistry:
                                         the function's docstring will be used.
         """
         # Generate the function's JSON schema based on its signature
-        parameters = self._generate_parameters_schema(func)
-        name = func.__name__
-        description = description or func.__doc__ or "No description provided."
+        tool_from_fn = Tool.from_function(func)
+        self._tools[tool_from_fn.name] = tool_from_fn
 
-        # Create a Tool instance
-        tool = Tool(
-            name=name,
-            description=description,
-            parameters=parameters,
-            callable=func,
-        )
+        # parameters = self._generate_parameters_schema(func)
+        # name = func.__name__
+        # description = description or func.__doc__ or "No description provided."
 
-        # Add the tool to the registry
-        self._tools[name] = tool
+        # # Create a Tool instance
+        # tool = Tool(
+        #     name=name,
+        #     description=description,
+        #     parameters=parameters,
+        #     callable=func,
+        # )
+
+        # # Add the tool to the registry
+        # self._tools[name] = tool
 
     def merge(self, other: "ToolRegistry", keep_existing: bool = False):
         """
@@ -75,73 +226,43 @@ class ToolRegistry:
         else:
             self._tools.update(other._tools)
 
-    def _generate_parameters_schema(self, func: Callable) -> Dict[str, Any]:
+    def register_mcp_tools(self, server_url: str):
         """
-        Generate a JSON Schema-compliant schema for the function's parameters.
+        Register all tools from an MCP server (synchronous entry point).
+        Requires the [mcp] extra to be installed.
 
         Args:
-            func (Callable): The function to generate the schema for.
-
-        Returns:
-            Dict[str, Any]: The JSON Schema for the function's parameters.
+            server_url (str): URL of the MCP server
         """
-        signature = inspect.signature(func)
-        properties = {}
-        required = []
+        try:
+            from .mcp_integration import MCPIntegration
 
-        for name, param in signature.parameters.items():
-            if name == "self":
-                continue  # Skip 'self' for methods
-
-            # Map Python types to JSON Schema types
-            param_type = (
-                self._map_python_type_to_json_schema(param.annotation)
-                if param.annotation != inspect.Parameter.empty
-                else "string"
+            mcp = MCPIntegration(self)
+            return mcp.register_mcp_tools(server_url)
+        except ImportError:
+            raise ImportError(
+                "MCP integration requires the [mcp] extra. "
+                "Install with: pip install toolregistry[mcp]"
             )
 
-            # Add the parameter to the properties
-            properties[name] = {
-                "type": param_type,
-                "description": f"The {name} parameter.",
-            }
-
-            # Check if the parameter is required
-            if param.default == inspect.Parameter.empty:
-                required.append(name)
-
-        return {
-            "type": "object",
-            "properties": properties,
-            "required": required,
-            "additionalProperties": False,  # Enforce strict parameter validation
-        }
-
-    def _map_python_type_to_json_schema(self, python_type: Any) -> str:
+    async def register_mcp_tools_async(self, server_url: str):
         """
-        Map Python types to JSON Schema types.
+        Async implementation to register all tools from an MCP server.
+        Requires the [mcp] extra to be installed.
 
         Args:
-            python_type (Any): The Python type to map.
-
-        Returns:
-            str: The corresponding JSON Schema type.
+            server_url (str): URL of the MCP server
         """
-        type_mapping = {
-            "str": "string",
-            "int": "integer",
-            "float": "number",
-            "bool": "boolean",
-            "list": "array",
-            "dict": "object",
-        }
+        try:
+            from .mcp_integration import MCPIntegration
 
-        # Handle cases where the type is a class (e.g., `int`, `str`)
-        if hasattr(python_type, "__name__"):
-            return type_mapping.get(python_type.__name__, "string")
-
-        # Default to "string" if the type is not recognized
-        return "string"
+            mcp = MCPIntegration(self)
+            return await mcp.register_mcp_tools_async(server_url)
+        except ImportError:
+            raise ImportError(
+                "MCP integration requires the [mcp] extra. "
+                "Install with: pip install toolregistry[mcp]"
+            )
 
     def get_tools_json(self) -> List[Dict[str, Any]]:
         """
@@ -157,6 +278,7 @@ class ToolRegistry:
                     "name": tool.name,
                     "description": tool.description,
                     "parameters": tool.parameters,
+                    "is_async": tool.is_async,
                 },
             }
             for tool in self._tools.values()
