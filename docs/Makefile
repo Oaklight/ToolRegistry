@@ -39,3 +39,8 @@ html: clean regenerate
 regenerate:
 	@echo "Regenerating API templates..."
 	@./regenerate_api_template.sh
+
+# Live HTML preview with auto-reload
+livehtml:
+	@echo "Starting live HTML preview..."
+	@sphinx-autobuild "$(SOURCEDIR)" "$(BUILDDIR)/html" --port 8000 --open-browser
