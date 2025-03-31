@@ -79,3 +79,27 @@ if __name__ == "__main__":
     print(data_tool.run({"data": {"key": "value"}, "strict": False}))
     print("\n12. process_data invalid strict:")
     print(data_tool.run({"data": {"key": "value"}, "strict": "yes"}))
+
+    # Add async function for testing
+    @tool_registry.register
+    async def async_echo(message: str) -> str:
+        """Async echo function for testing."""
+        await asyncio.sleep(10)  # Simulate async work
+        return f"Echo: {message}"
+
+    # Async test functions
+    async def test_async_tool():
+        try:
+            print("\nTesting async tool...")
+            echo_tool = tool_registry._tools["async_echo"]
+            result = await echo_tool.arun({"message": "test async call"})
+            print(f"Async call result: {result}")
+            return True
+        except Exception as e:
+            print(f"Error: {str(e)}")
+            return False
+
+    # Run async tests
+    import asyncio
+
+    asyncio.run(test_async_tool())
