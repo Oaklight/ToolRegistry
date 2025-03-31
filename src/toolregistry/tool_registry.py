@@ -202,6 +202,25 @@ class Tool(BaseModel):
         except Exception as e:
             return f"Error executing {self.name}: {str(e)}"
 
+    async def arun(self, parameters: Dict[str, Any]) -> Any:
+        """Async run the tool with the given parameters."""
+        try:
+            # Convert parameters to model instance for validation
+            model = self.parameters_model(**parameters)
+            # Call the underlying async function with validated parameters
+            if inspect.iscoroutinefunction(self.callable):
+                result = await self.callable(**model.model_dump_one_level())
+            elif hasattr(self.callable, "__acall__"):
+                result = await self.callable.__acall__(**model.model_dump_one_level())
+            else:
+                raise NotImplementedError(
+                    "Async execution requires either __acall__ implementation "
+                    "or the callable to be a coroutine function"
+                )
+            return f"{self.name} -> {result}"
+        except Exception as e:
+            return f"Error executing {self.name}: {str(e)}"
+
 
 class ToolRegistry:
     """
