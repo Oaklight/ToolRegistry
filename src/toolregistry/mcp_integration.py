@@ -1,11 +1,12 @@
 import asyncio
 from pprint import pprint
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from mcp.client.session import ClientSession
 from mcp.client.sse import sse_client
 
-from toolregistry import Tool, ToolRegistry
+from .tool import Tool
+from .tool_registry import ToolRegistry
 
 
 class MCPToolWrapper:
