@@ -3,7 +3,7 @@ from typing import Any, Callable, Dict, Optional
 
 from pydantic import BaseModel, Field
 
-from toolregistry.parameter_models import _generate_parameters_model
+from .parameter_models import _generate_parameters_model
 
 
 class Tool(BaseModel):

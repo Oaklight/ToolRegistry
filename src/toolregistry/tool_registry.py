@@ -1,7 +1,7 @@
 import json
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from toolregistry.tool import Tool
+from .tool import Tool
 
 
 class ToolRegistry:
