@@ -1,11 +1,9 @@
 import asyncio
-import json
 from pprint import pprint
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from mcp.client.session import ClientSession
 from mcp.client.sse import sse_client
-from typing import Dict, Any, Callable, Optional
 
 from toolregistry import Tool, ToolRegistry
 
