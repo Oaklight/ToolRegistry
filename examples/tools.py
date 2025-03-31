@@ -84,7 +84,7 @@ if __name__ == "__main__":
     @tool_registry.register
     async def async_echo(message: str) -> str:
         """Async echo function for testing."""
-        await asyncio.sleep(10)  # Simulate async work
+        await asyncio.sleep(0.1)  # Simulate async work
         return f"Echo: {message}"
 
     # Async test functions
