@@ -49,34 +49,6 @@ def _get_typed_annotation(annotation: Any, globalns: dict[str, Any]) -> Any:
     return annotation
 
 
-def _map_type_annotation_to_json_schema(type_annotation: Any) -> str:
-    """
-    Map Python types to JSON Schema types.
-
-    Args:
-        type_annotation (Any): The Python type to map.
-
-    Returns:
-        str: The corresponding JSON Schema type.
-    """
-    # pprint(type_annotation)
-    type_mapping = {
-        "str": "string",
-        "int": "integer",
-        "float": "number",
-        "bool": "boolean",
-        "list": "array",
-        "dict": "object",
-    }
-
-    # Handle cases where the type is a class (e.g., `int`, `str`)
-    if hasattr(type_annotation, "__name__"):
-        return type_mapping.get(type_annotation.__name__, "string")
-
-    # Default to "string" if the type is not recognized
-    return "string"
-
-
 def _generate_parameters_schema(func: Callable) -> Dict[str, Any]:
     """
     Generate a JSON Schema-compliant schema for the function's parameters.
