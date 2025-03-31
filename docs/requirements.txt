@@ -1,0 +1,6 @@
+sphinx>=7.3.7
+furo
+myst-parser==2.0.0
+sphinx-multitoc-numbering
+sphinx-copybutton
+sphinx-autobuild>=2024.1.0
