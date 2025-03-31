@@ -39,6 +39,9 @@ exclude_patterns = []
 
 html_theme = "furo"
 html_static_path = ["_static"]
+
+html_logo = "_static/logo/toolregistry_logo_6.jpeg"
+
 autosummary_generate = True
 html_search_options = {"type": "default"}
 

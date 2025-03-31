@@ -4,11 +4,8 @@
 
 Welcome to the documentation for **ToolRegistry**, a Python library that provides a structured way to register, manage, and execute tools (functions). This page hosts the API documentation and usage guides for the project.
 
-## Indices and Tables
-
 ```{toctree}
-:maxdepth: 2
-:caption: Contents:
+:hidden:
 
 usage
 api/index
