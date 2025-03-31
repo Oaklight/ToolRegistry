@@ -5,6 +5,7 @@ from typing import Annotated, Any, Callable, Dict, ForwardRef, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, WithJsonSchema, create_model
 from pydantic._internal._typing_extra import eval_type_backport
+from pydantic.fields import FieldInfo
 
 
 class InvalidSignature(Exception):
@@ -49,7 +50,37 @@ def _get_typed_annotation(annotation: Any, globalns: dict[str, Any]) -> Any:
     return annotation
 
 
-def _generate_parameters_schema(func: Callable) -> Dict[str, Any]:
+def _create_field(
+    param: inspect.Parameter, annotation_type: Any
+) -> tuple[Any, FieldInfo]:
+    """
+    Create a Pydantic field for a function parameter.
+
+    Args:
+        param (inspect.Parameter): The parameter to create a field for.
+        annotation_type (Any): The type annotation for the parameter.
+
+    Returns:
+        tuple[Any, FieldInfo]: A tuple of the annotated type and the field info.
+    """
+    default = param.default if param.default is not inspect.Parameter.empty else None
+    if param.default is inspect.Parameter.empty:
+        field_info = (
+            Field(title=param.name)
+            if param.annotation is inspect.Parameter.empty
+            else Field()
+        )
+        return (annotation_type, field_info)
+    else:
+        field_info = (
+            Field(default=default, title=param.name)
+            if param.annotation is inspect.Parameter.empty
+            else Field(default=default)
+        )
+        return (Optional[annotation_type], field_info)
+
+
+def _generate_parameters_model(func: Callable) -> Optional[type[ArgModelBase]]:
     """
     Generate a JSON Schema-compliant schema for the function's parameters.
 
@@ -57,72 +88,35 @@ def _generate_parameters_schema(func: Callable) -> Dict[str, Any]:
         func (Callable): The function to generate the schema for.
 
     Returns:
-        Dict[str, Any]: The JSON Schema for the function's parameters.
+        Optional[type[ArgModelBase]]: The Pydantic model representing the function's parameters,
+        or None if an error occurs.
     """
-    signature = inspect.signature(func)
-    globalns = getattr(func, "__globals__", {})
-    typed_params = [
-        inspect.Parameter(
-            name=param.name,
-            kind=param.kind,
-            default=param.default,
-            annotation=_get_typed_annotation(param.annotation, globalns),
-        )
-        for param in signature.parameters.values()
-    ]
+    try:
+        signature = inspect.signature(func)
+        globalns = getattr(func, "__globals__", {})
+        dynamic_model_creation_dict: Dict[str, Any] = {}
 
-    dynamic_model_creation_dict: Dict[str, Any] = {}
-    for param in typed_params:
-        if param.name == "self":
-            continue  # Skip 'self' for methods
+        for param in signature.parameters.values():
+            if param.name == "self":
+                continue
 
-        pprint(f"{param.name}: {param.annotation}={param.default}")
-
-        # for parameter that has no default value, explicitly set to None
-        # this ensures that the JSON Schema does not have undefined values
-        # while maintaining the same semantics as Python function calls
-        default = (
-            param.default if param.default is not inspect.Parameter.empty else None
-        )  # this pattern is intentional
-
-        # some note about Optional: https://docs.python.org/3/library/typing.html#typing.Optional
-        # Common field creation logic
-        def create_field(annotation_type: Any) -> tuple[Any, Field]:
-            if param.default is inspect.Parameter.empty:
-                # Required parameter
-                field_info = (
-                    Field(title=param.name)
-                    if param.annotation is inspect.Parameter.empty
-                    else Field()
-                )
-                return (annotation_type, field_info)
+            annotation = _get_typed_annotation(param.annotation, globalns)
+            if param.annotation is inspect.Parameter.empty:
+                dynamic_model_creation_dict[param.name] = _create_field(param, Any)
+            elif param.annotation is None:
+                dynamic_model_creation_dict[param.name] = _create_field(param, None)
             else:
-                # Optional parameter
-                field_info = (
-                    Field(default=default, title=param.name)
-                    if param.annotation is inspect.Parameter.empty
-                    else Field(default=default)
+                dynamic_model_creation_dict[param.name] = _create_field(
+                    param, annotation
                 )
-                return (Optional[annotation_type], field_info)
 
-        # Handle all cases with unified logic
-        if param.annotation is inspect.Parameter.empty:
-            # Untyped field
-            dynamic_model_creation_dict[param.name] = create_field(Any)
-        elif param.annotation is None:
-            # None-typed field
-            dynamic_model_creation_dict[param.name] = create_field(None)
-        else:
-            # Typed field
-            dynamic_model_creation_dict[param.name] = create_field(param.annotation)
-
-    pydantic_params_model = create_model(
-        f"{func.__name__}Parameters",
-        **dynamic_model_creation_dict,
-        __base__=ArgModelBase,
-    )
-
-    return pydantic_params_model
+        return create_model(
+            f"{func.__name__}Parameters",
+            **dynamic_model_creation_dict,
+            __base__=ArgModelBase,
+        )
+    except Exception as e:
+        return None
 
 
 class Tool(BaseModel):
@@ -135,7 +129,9 @@ class Tool(BaseModel):
     parameters: Dict[str, Any] = Field(description="JSON schema for tool parameters")
     callable: Callable[..., Any] = Field(exclude=True)
     is_async: bool = Field(default=False, description="Whether the tool is async")
-    parameters_model: Annotated[type[ArgModelBase], WithJsonSchema(None)] = None
+    parameters_model: Optional[Annotated[type[ArgModelBase], WithJsonSchema(None)]] = (
+        Field(default=None, description="Pydantic Model for tool parameters")
+    )
 
     @classmethod
     def from_function(
@@ -143,9 +139,8 @@ class Tool(BaseModel):
         func: Callable[..., Any],
         name: str | None = None,
         description: str | None = None,
-    ):
+    ) -> "Tool":
         """Create a Tool from a function."""
-        parameters_model = _generate_parameters_schema(func)
         func_name = name or func.__name__
 
         if func_name == "<lambda>":
@@ -154,22 +149,34 @@ class Tool(BaseModel):
         func_doc = description or func.__doc__ or ""
         is_async = inspect.iscoroutinefunction(func)
 
+        parameters_model = None
+        try:
+            parameters_model = _generate_parameters_model(func)
+        except Exception:
+            parameters_model = None
+        parameters_schema = (
+            parameters_model.model_json_schema() if parameters_model else {}
+        )
         return cls(
             name=func_name,
             description=func_doc,
-            parameters=parameters_model.model_json_schema(),
+            parameters=parameters_schema,
             callable=func,
             is_async=is_async,
-            parameters_model=parameters_model,
+            parameters_model=parameters_model if parameters_model is not None else None,
         )
 
     def run(self, parameters: Dict[str, Any]) -> Any:
         """Run the tool with the given parameters."""
         try:
-            # Convert parameters to model instance for validation
-            model = self.parameters_model(**parameters)
-            # Call the underlying function with validated parameters
-            result = self.callable(**model.model_dump_one_level())
+            if self.parameters_model is None:
+                # Directly call the function if no parameters model is defined
+                result = self.callable(**parameters)
+            else:
+                # Convert parameters to model instance for validation
+                model = self.parameters_model(**parameters)
+                # Call the underlying function with validated parameters
+                result = self.callable(**model.model_dump_one_level())
             return f"{self.name} -> {result}"
         except Exception as e:
             return f"Error executing {self.name}: {str(e)}"
@@ -177,18 +184,32 @@ class Tool(BaseModel):
     async def arun(self, parameters: Dict[str, Any]) -> Any:
         """Async run the tool with the given parameters."""
         try:
-            # Convert parameters to model instance for validation
-            model = self.parameters_model(**parameters)
-            # Call the underlying async function with validated parameters
-            if inspect.iscoroutinefunction(self.callable):
-                result = await self.callable(**model.model_dump_one_level())
-            elif hasattr(self.callable, "__acall__"):
-                result = await self.callable.__acall__(**model.model_dump_one_level())
+            if self.parameters_model is None:
+                # Directly call the async function if no parameters model is defined
+                if inspect.iscoroutinefunction(self.callable):
+                    result = await self.callable(**parameters)
+                elif hasattr(self.callable, "__acall__"):
+                    result = await self.callable.__acall__(**parameters)
+                else:
+                    raise NotImplementedError(
+                        "Async execution requires either __acall__ implementation "
+                        "or the callable to be a coroutine function"
+                    )
             else:
-                raise NotImplementedError(
-                    "Async execution requires either __acall__ implementation "
-                    "or the callable to be a coroutine function"
-                )
+                # Convert parameters to model instance for validation
+                model = self.parameters_model(**parameters)
+                # Call the underlying async function with validated parameters
+                if inspect.iscoroutinefunction(self.callable):
+                    result = await self.callable(**model.model_dump_one_level())
+                elif hasattr(self.callable, "__acall__"):
+                    result = await self.callable.__acall__(
+                        **model.model_dump_one_level()
+                    )
+                else:
+                    raise NotImplementedError(
+                        "Async execution requires either __acall__ implementation "
+                        "or the callable to be a coroutine function"
+                    )
             return f"{self.name} -> {result}"
         except Exception as e:
             return f"Error executing {self.name}: {str(e)}"
@@ -199,11 +220,10 @@ class ToolRegistry:
     A registry for managing tools (functions) and their metadata.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._tools: Dict[str, Tool] = {}
-        self._mcp_server_url: Optional[str] = None
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._tools)
 
     def __contains__(self, name: str) -> bool:
@@ -304,7 +324,7 @@ class ToolRegistry:
             for tool in self._tools.values()
         ]
 
-    def get_callable(self, function_name: str) -> Callable:
+    def get_callable(self, function_name: str) -> Optional[Callable[..., Any]]:
         """
         Get a callable function by its name.
 
@@ -419,7 +439,7 @@ class ToolRegistry:
         """
         return json.dumps(self.get_tools_json(), indent=2)
 
-    def __getitem__(self, key: str) -> Callable:
+    def __getitem__(self, key: str) -> Optional[Callable[..., Any]]:
         """
         Enable key-value access to retrieve callables.
 
@@ -427,6 +447,6 @@ class ToolRegistry:
             key (str): The name of the function.
 
         Returns:
-            Callable: The function to call, or None if not found.
+            Optional[Callable[..., Any]]: The function to call, or None if not found.
         """
         return self.get_callable(key)

@@ -1,6 +1,6 @@
 import asyncio
 from pprint import pprint
-from typing import Any, Dict, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from mcp.client.session import ClientSession
 from mcp.client.sse import sse_client
@@ -11,12 +11,12 @@ from toolregistry import Tool, ToolRegistry
 class MCPToolWrapper:
     """Wrapper class providing both async and sync versions of MCP tool calls."""
 
-    def __init__(self, url: str = None, name: str = None, params: list = None):
+    def __init__(self, url: str, name: str, params: Optional[List[str]]) -> None:
         self.url = url
         self.name = name
-        self.params = params or []
+        self.params = params
 
-    def _process_args(self, *args, **kwargs):
+    def _process_args(self, *args: Any, **kwargs: Any) -> Dict[str, Any]:
         """Process positional and keyword arguments.
         Maps positional args to parameter names and validates input.
         Returns processed kwargs.
@@ -38,7 +38,7 @@ class MCPToolWrapper:
                 kwargs[param_name] = arg
         return kwargs
 
-    def call_sync(self, *args, **kwargs):
+    def call_sync(self, *args: Any, **kwargs: Any) -> Any:
         """Synchronous implementation of MCP tool call.
         Handles both positional and keyword arguments.
         Positional args are mapped to params in order, keyword args are passed directly.
@@ -53,7 +53,7 @@ class MCPToolWrapper:
 
         return loop.run_until_complete(self.call_async(**kwargs))
 
-    async def call_async(self, *args, **kwargs):
+    async def call_async(self, *args: Any, **kwargs: Any) -> Any:
         """Async implementation of MCP tool call.
         Handles both positional and keyword arguments.
         Positional args are mapped to params in order, keyword args are passed directly.
@@ -82,11 +82,11 @@ class MCPToolWrapper:
             print(f"Error calling tool {self.name}: {str(e)}")
             raise
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
         """Make the wrapper directly callable, using sync version by default."""
         return self.call_sync(*args, **kwargs)
 
-    async def __acall__(self, *args, **kwargs):
+    async def __acall__(self, *args: Any, **kwargs: Any) -> Any:
         """Async version of __call__, allows await wrapper() syntax.
         Simply delegates to call_async which now handles all parameter processing.
         """
@@ -99,11 +99,11 @@ class MCPTool(Tool):
     @classmethod
     def from_tool_json(
         cls,
-        name: Optional[str],
-        description: Optional[str],
-        input_schema: Optional[Dict[str, Any]],
-        url: str = None,
-    ):
+        name: str,
+        description: str,
+        input_schema: Dict[str, Any],
+        url: str,
+    ) -> "MCPTool":
         """Create an MCPToolWrapper from a function."""
         wrapper = MCPToolWrapper(
             url=url,
@@ -120,11 +120,11 @@ class MCPTool(Tool):
             is_async=False,
         )
 
-    def run(self, *args, **kwargs):
+    def run(self, *args: Any, **kwargs: Any) -> Any:
         """Synchronous execution of the tool"""
         return self.callable(*args, **kwargs)
 
-    async def arun(self, *args, **kwargs):
+    async def arun(self, *args: Any, **kwargs: Any) -> Any:
         """Async execution of the tool"""
         if hasattr(self.callable, "__acall__"):
             return await self.callable.__acall__(*args, **kwargs)
@@ -142,7 +142,7 @@ class MCPIntegration:
     def __init__(self, registry: ToolRegistry):
         self.registry = registry
 
-    async def register_mcp_tools_async(self, server_url: str):
+    async def register_mcp_tools_async(self, server_url: str) -> None:
         """
         Async implementation to register all tools from an MCP server.
 
@@ -165,7 +165,7 @@ class MCPIntegration:
                     pprint(tool)
                     mcptool_from_json = MCPTool.from_tool_json(
                         name=tool.name,
-                        description=tool.description,
+                        description=tool.description or "",
                         input_schema=tool.inputSchema,
                         url=server_url,
                     )
@@ -174,7 +174,7 @@ class MCPIntegration:
                     self.registry.register(mcptool_from_json)
                     print(f"Registered tool: {tool.name}")
 
-    def register_mcp_tools(self, server_url: str):
+    def register_mcp_tools(self, server_url: str) -> None:
         """
         Register all tools from an MCP server (synchronous entry point).
 
