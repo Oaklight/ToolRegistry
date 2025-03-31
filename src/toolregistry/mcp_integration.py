@@ -122,16 +122,16 @@ class MCPTool(Tool):
             is_async=False,
         )
 
-    def run(self, **kwargs):
+    def run(self, *args, **kwargs):
         """Synchronous execution of the tool"""
-        return self.callable(**kwargs)
+        return self.callable(*args, **kwargs)
 
-    async def arun(self, **kwargs):
+    async def arun(self, *args, **kwargs):
         """Async execution of the tool"""
         if hasattr(self.callable, "__acall__"):
-            return await self.callable.__acall__(**kwargs)
+            return await self.callable.__acall__(*args, **kwargs)
         elif asyncio.iscoroutinefunction(self.callable):
-            return await self.callable(**kwargs)
+            return await self.callable(*args, **kwargs)
         raise NotImplementedError(
             "Async execution requires either __acall__ implementation "
             "or the callable to be a coroutine function"
