@@ -1,7 +1,7 @@
 import inspect
 import json
 from pprint import pprint
-from typing import Annotated, Any, Callable, Dict, ForwardRef, List, Optional
+from typing import Annotated, Any, Callable, Dict, ForwardRef, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, WithJsonSchema, create_model
 from pydantic._internal._typing_extra import eval_type_backport
@@ -137,8 +137,8 @@ class Tool(BaseModel):
     def from_function(
         cls,
         func: Callable[..., Any],
-        name: str | None = None,
-        description: str | None = None,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
     ) -> "Tool":
         """Create a Tool from a function."""
         func_name = name or func.__name__
@@ -233,13 +233,13 @@ class ToolRegistry:
         return name in self._tools
 
     def register(
-        self, tool_or_func: Callable | Tool, description: Optional[str] = None
+        self, tool_or_func: Union[Callable, Tool], description: Optional[str] = None
     ):
         """
         Register a tool, either as a function or Tool instance.
 
         Args:
-            tool_or_func (Callable | Tool): The tool to register, either as a function or Tool instance.
+            tool_or_func (Union[Callable, Tool]): The tool to register, either as a function or Tool instance.
             description (str, optional): Description for function tools. If not provided,
                                        the function's docstring will be used.
         """
