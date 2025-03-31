@@ -240,42 +240,22 @@ class ToolRegistry:
         """
         return name in self._tools
 
-    def register(self, func: Callable, description: Optional[str] = None):
+    def register(
+        self, tool_or_func: Callable | Tool, description: Optional[str] = None
+    ):
         """
-        Register a function as a tool.
+        Register a tool, either as a function or Tool instance.
 
         Args:
-            func (Callable): The function to register.
-            description (str, optional): A description of the function. If not provided,
-                                        the function's docstring will be used.
+            tool_or_func (Callable | Tool): The tool to register, either as a function or Tool instance.
+            description (str, optional): Description for function tools. If not provided,
+                                       the function's docstring will be used.
         """
-        # Generate the function's JSON schema based on its signature
-        tool_from_fn = Tool.from_function(func)
-        self._tools[tool_from_fn.name] = tool_from_fn
-
-        # parameters = self._generate_parameters_schema(func)
-        # name = func.__name__
-        # description = description or func.__doc__ or "No description provided."
-
-        # # Create a Tool instance
-        # tool = Tool(
-        #     name=name,
-        #     description=description,
-        #     parameters=parameters,
-        #     callable=func,
-        # )
-
-        # # Add the tool to the registry
-        # self._tools[name] = tool
-
-    def register(self, tool: Tool):
-        """
-        Register a Tool instance.
-
-        Args:
-           tool (Tool): The Tool instance to register.
-        """
-        self._tools[tool.name] = tool
+        if isinstance(tool_or_func, Tool):
+            self._tools[tool_or_func.name] = tool_or_func
+        else:
+            tool = Tool.from_function(tool_or_func, description=description)
+            self._tools[tool.name] = tool
 
     def merge(self, other: "ToolRegistry", keep_existing: bool = False):
         """
