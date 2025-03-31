@@ -1,5 +1,5 @@
 import inspect
-from typing import Any, Dict, ForwardRef, Optional
+from typing import Any, Callable, Dict, ForwardRef, Optional, Tuple, Type
 
 from pydantic import BaseModel, ConfigDict, Field, create_model
 from pydantic._internal._typing_extra import eval_type_backport
@@ -27,10 +27,10 @@ class ArgModelBase(BaseModel):
     )
 
 
-def _get_typed_annotation(annotation: Any, globalns: dict[str, Any]) -> Any:
+def _get_typed_annotation(annotation: Any, globalns: Dict[str, Any]) -> Any:
     def try_eval_type(
-        value: Any, globalns: dict[str, Any], localns: dict[str, Any]
-    ) -> tuple[Any, bool]:
+        value: Any, globalns: Dict[str, Any], localns: Dict[str, Any]
+    ) -> Tuple[Any, bool]:
         try:
             return eval_type_backport(value, globalns, localns), True
         except NameError:
@@ -50,7 +50,7 @@ def _get_typed_annotation(annotation: Any, globalns: dict[str, Any]) -> Any:
 
 def _create_field(
     param: inspect.Parameter, annotation_type: Any
-) -> tuple[Any, FieldInfo]:
+) -> Tuple[Any, FieldInfo]:
     """
     Create a Pydantic field for a function parameter.
 
@@ -59,7 +59,7 @@ def _create_field(
         annotation_type (Any): The type annotation for the parameter.
 
     Returns:
-        tuple[Any, FieldInfo]: A tuple of the annotated type and the field info.
+        Tuple[Any, FieldInfo]: A tuple of the annotated type and the field info.
     """
     default = param.default if param.default is not inspect.Parameter.empty else None
     if param.default is inspect.Parameter.empty:
@@ -78,7 +78,7 @@ def _create_field(
         return (Optional[annotation_type], field_info)
 
 
-def _generate_parameters_model(func: Callable) -> Optional[type[ArgModelBase]]:
+def _generate_parameters_model(func: Callable) -> Optional[Type[ArgModelBase]]:
     """
     Generate a JSON Schema-compliant schema for the function's parameters.
 
