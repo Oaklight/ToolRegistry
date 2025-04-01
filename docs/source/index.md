@@ -8,28 +8,28 @@ Welcome to the official documentation for **ToolRegistry**, a Python library des
 
 Here are brief introductions and links to each section:
 
-- **Installation Guide**  
+- [**Installation Guide**](installation)
   Detailed instructions for installing ToolRegistry, including basic installation and MCP-supported installation.
 
-- **Usage Guide**  
+- [**Usage Guide**](usage)
   Provides getting started examples and tutorials to help you quickly learn tool registration, invocation, and management.
 
-  - **OpenAI Integration**  
+  - [**OpenAI Integration**](openai)
      Explains how to use ToolRegistry with OpenAI API through function calling.
-  
-  - **MCP Tool Usage**  
+
+  - [**MCP Tool Usage**](mcp)
      Guides on integrating MCP (Modular Component Protocol) with ToolRegistry to register and call MCP tools.
 
-  - **Examples**  
+  - [**Examples**](examples)
      Demonstrates practical use cases, including consecutive tool call examples.
 
-  - **Best Practices**  
+  - [**Best Practices**](best-practices)
      Offers principles and recommendations for designing and implementing tools.
 
 <!-- - **Dependencies**
   Lists auxiliary projects that provide additional functionality. -->
 
-- **API References**
+- [**API References**](api/index)
   Comprehensive API documentation for all classes and methods in ToolRegistry.
 
 ```{toctree}
@@ -60,7 +60,7 @@ Quickly start using ToolRegistry by installing it with this command:
 
 ```bash
 pip install toolregistry
-```
+````
 
 [Detailed setup instructions →](./installation)
 
