@@ -29,8 +29,8 @@ def test_sync_call():
 def test_sync_tool():
     try:
         print("Testing echo sync tool...")
-        echo_tool = registry._tools["echo_tool"]
-        result = echo_tool.run("test echo sync tool")
+        echo_tool = registry.get_tool("echo_tool")
+        result = echo_tool.run({"message": "test echo sync tool"})
         print(f"Sync tool result: {result}")
         return True
     except Exception as e:
@@ -52,8 +52,8 @@ async def test_async_call():
 async def test_async_tool():
     try:
         print("Testing echo async tool...")
-        echo_tool = registry._tools["echo_tool"]
-        result = await echo_tool.arun("test echo async tool")
+        echo_tool = registry.get_tool("echo_tool")
+        result = await echo_tool.arun({"message": "test echo async tool"})
         print(f"Async tool result: {result}")
         return True
     except Exception as e:
