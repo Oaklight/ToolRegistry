@@ -57,7 +57,7 @@ You can access the available tools in the following ways:
    print(add_result) # 3
    ```
 
-   You can also access via `__item__` method
+   You can also access via `__getitem__` method
 
    ```python
    add_func = registry['add']

@@ -41,7 +41,7 @@ html_theme = "furo"
 html_static_path = ["_static"]
 
 # html_logo = "_static/logo/toolregistry_logo_9.jpeg"
-html_logo = "https://em-content.zobj.net/source/animated-noto-color-emoji/356/mechanical-arm_1f9be.gif"
+# html_logo = "https://em-content.zobj.net/source/animated-noto-color-emoji/356/mechanical-arm_1f9be.gif"
 
 autosummary_generate = True
 html_search_options = {"type": "default"}
