@@ -174,7 +174,7 @@ class ToolRegistry:
                 tool_call_id = tool_call.id
 
                 # Get the tool from registry
-                tool = self._tools.get(function_name)
+                tool = self.get_tool(function_name)
                 if tool:
                     tool_result = tool.run(function_args)
                 else:
