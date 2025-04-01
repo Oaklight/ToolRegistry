@@ -98,6 +98,6 @@ class Tool(BaseModel):
                         "Async execution requires either __acall__ implementation "
                         "or the callable to be a coroutine function"
                     )
-            return f"{self.name} -> {result}"
+            return result
         except Exception as e:
             return f"Error executing {self.name}: {str(e)}"
