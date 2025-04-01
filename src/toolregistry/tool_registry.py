@@ -93,13 +93,28 @@ class ToolRegistry:
                 "Install with: pip install toolregistry[mcp]"
             )
 
-    def get_tools_json(self) -> List[Dict[str, Any]]:
+    def get_available_tools(self) -> List[str]:
+        """
+        List all registered tools.
+        Returns:
+            List[str]: A list of tool names.
+        """
+
+        return list(self._tools.keys())
+
+    def get_tools_json(self, tool_name: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Get the JSON representation of all registered tools, following JSON Schema.
 
         Returns:
             List[Dict[str, Any]]: A list of tools in JSON format, compliant with JSON Schema.
         """
+        if tool_name:
+            target_tool = self.get_tool(tool_name)
+            tools = [target_tool] if target_tool else []
+        else:
+            tools = self._tools.values()
+
         return [
             {
                 "type": "function",
@@ -110,20 +125,33 @@ class ToolRegistry:
                     "is_async": tool.is_async,
                 },
             }
-            for tool in self._tools.values()
+            for tool in tools
         ]
 
-    def get_callable(self, function_name: str) -> Optional[Callable[..., Any]]:
+    def get_tool(self, tool_name: str) -> Optional[Tool]:
+        """
+        Get a tool by its name.
+
+        Args:
+            tool_name (str): The name of the tool.
+
+        Returns:
+           Tool: The tool, or None if not found.
+        """
+        tool = self._tools.get(tool_name)
+        return tool
+
+    def get_callable(self, tool_name: str) -> Optional[Callable[..., Any]]:
         """
         Get a callable function by its name.
 
         Args:
-            function_name (str): The name of the function.
+            tool_name (str): The name of the function.
 
         Returns:
             Callable: The function to call, or None if not found.
         """
-        tool = self._tools.get(function_name)
+        tool = self.get_tool(tool_name)
         return tool.callable if tool else None
 
     def execute_tool_calls(self, tool_calls: List[Any]) -> Dict[str, str]:
@@ -210,7 +238,7 @@ class ToolRegistry:
             messages.append(
                 {
                     "role": "tool",
-                    "content": tool_responses[tool_call.id],
+                    "content": f"{tool_call.function.name} --> {tool_responses[tool_call.id]}",
                     "tool_call_id": tool_call.id,
                 }
             )
