@@ -39,7 +39,7 @@ messages = [
 
 # Make the chat completion request
 response = client.chat.completions.create(
-    model="deepseek-chat",
+    model="deepseek-v3",
     messages=messages,
     tools=registry.get_tools_json(),
     tool_choice="auto",
@@ -63,7 +63,7 @@ if response.choices[0].message.tool_calls:
     # Send the results back to the model
     messages.extend(assistant_tool_messages)
     second_response = client.chat.completions.create(
-        model="deepseek-chat", messages=messages
+        model="deepseek-v3", messages=messages
     )
 
     # Print final response
