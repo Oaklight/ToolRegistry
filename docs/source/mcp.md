@@ -109,9 +109,9 @@ Follow the examples above to easily integrate and call MCP tools in your project
 
 ---
 
-## Integrating MCP with OpenAI
+## Integrating MCP with OpenAI Client
 
-The following section extends the MCP tool usage guide by demonstrating how to use MCP tools within an OpenAI-compatible API workflow. This example is inspired by the code in `examples/openai_toolregistry_mcp_math.py` and follows a similar style to the [Function Calling](openai.md) document.
+This section provides an example of integrating MCP tool registration into an OpenAI-compatible API workflow. For detailed information on OpenAI function calling, please refer to the [Function Calling](openai) guideline. Note that apart from the MCP tool registration step, the integrated script provided below is identical to standard tool usage with ToolRegistry.
 
 ### Set Up OpenAI Client and Supply Tool Schema
 
@@ -155,7 +155,7 @@ messages = [
 
 # Send the chat completion request with the tool schema
 response = client.chat.completions.create(
-    model="deepseek-v3",
+    model="deepseek-chat",
     messages=messages,
     tools=registry.get_tools_json(),  # Supply the MCP tool JSON schema
     tool_choice="auto",
@@ -172,10 +172,10 @@ if response.choices[0].message.tool_calls:
     print(tool_calls)
 ```
 
-For example, the output might look like this:
+For example, the output looks like
 
 ```python
-[ChatCompletionMessageToolCall(id='call_xyz', function=Function(arguments='{"a":15,"b":3}', name='subtract'), type='function', index=0)]
+[ChatCompletionMessageToolCall(id='call_ckxzx0cg0jzhfxm98tv1qjvw', function=Function(arguments='{"a":15,"b":3}', name='subtract'), type='function', index=0)]
 ```
 
 ### Executing Tool Calls
@@ -188,6 +188,10 @@ tool_responses = registry.execute_tool_calls(tool_calls)
 print(tool_responses)
 ```
 
+```json
+{"call_ckxzx0cg0jzhfxm98tv1qjvw": "12"}
+```
+
 The results are returned as a dictionary mapping tool call IDs to their corresponding outputs.
 
 ### Feeding Results Back to the LLM
@@ -197,18 +201,54 @@ After executing the tool calls, construct assistant messages that include the to
 ```python
 # Construct assistant messages with the tool call results
 assistant_tool_messages = registry.recover_tool_call_assistant_message(tool_calls, tool_responses)
-print(assistant_tool_messages)
+print(json.dumps(assistant_tool_messages, indent=2))
+```
 
+```json
+[
+  {
+    "role": "assistant",
+    "content": null,
+    "tool_calls": [
+      {
+        "id": "call_ckxzx0cg0jzhfxm98tv1qjvw",
+        "type": "function",
+        "function": {
+          "name": "subtract",
+          "arguments": "{'a':15,'b':3}"
+        }
+      }
+    ]
+  },
+  {
+    "role": "tool",
+    "content": "subtract --> 12",
+    "tool_call_id": "call_ckxzx0cg0jzhfxm98tv1qjvw"
+  }
+]
+```
+
+continue to extend the existing messages and feed back to llm.
+
+```python
 # Extend the conversation with these messages
 messages.extend(assistant_tool_messages)
 
 # Send the updated messages back to the model
 second_response = client.chat.completions.create(
-    model="deepseek-v3", messages=messages
+    model="deepseek-chat", messages=messages
 )
 
 # Print the final response from the model
 print(second_response.choices[0].message.content)
+```
+
+### Final Result
+
+The LLM will process the tool execution results and return the final answer, which in this example should indicate the number of chestnuts remaining.
+
+```markdown
+You have **12 chestnuts** left after Joe ate 3.
 ```
 
 ### Complete Python Script
@@ -253,7 +293,7 @@ messages = [
 
 # Make the chat completion request with MCP tools
 response = client.chat.completions.create(
-    model="deepseek-v3",
+    model="deepseek-chat",
     messages=messages,
     tools=registry.get_tools_json(),
     tool_choice="auto",
@@ -276,17 +316,9 @@ if response.choices[0].message.tool_calls:
 
     # Send the updated conversation back to the model
     second_response = client.chat.completions.create(
-        model="deepseek-v3", messages=messages
+        model="deepseek-chat", messages=messages
     )
 
     # Print the final answer
     print(second_response.choices[0].message.content)
 ```
-
-### Final Result
-
-The LLM will process the tool execution results and return the final answer, which in this example should indicate the number of chestnuts remaining.
-
----
-
-This extended section demonstrates how MCP tools can be integrated and utilized with an OpenAI-compatible API in a tool-assisted chat workflow.
