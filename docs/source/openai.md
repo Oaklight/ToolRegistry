@@ -191,28 +191,13 @@ You have **12 chestnuts** left after Joe ate 3.
 
 ### Important Implementation Notes:
 
-1. **Consecutive Function Calls**:
+The implementation should handle [consecutive function calls](examples) as the conversation may require multiple rounds of tool calls, with each response from the LLM potentially triggering new tool calls.
 
-   - The conversation may require multiple rounds of tool calls
-   - Each response from the LLM could trigger new tool calls
-   - Your implementation should handle this recursive nature
+Error handling is crucial; always validate tool call arguments before execution, as the ToolRegistry does this for you. Handle cases where tools might fail or return errors, and consider timeout mechanisms for long-running operations.
 
-2. **Error Handling**:
+State management involves maintaining conversation history, including all tool calls and responses, tracking the sequence of tool executions for debugging, and considering conversation state persistence.
 
-   - Always validate tool call arguments before execution. **ToolRegistry does this for you.**
-   - Handle cases where tools might fail or return errors
-   - Consider timeout mechanisms for long-running operations
-
-3. **State Management**:
-
-   - Maintain conversation history including all tool calls/responses
-   - Track the sequence of tool executions for debugging
-   - Consider implementing conversation state persistence
-
-4. **Performance Considerations**:
-   - Minimize unnecessary tool calls
-   - Cache frequent tool responses when appropriate
-   - Monitor and optimize tool execution time
+Performance considerations include minimizing unnecessary tool calls, caching frequent tool responses when appropriate, and monitoring and optimizing tool execution time.
 
 ## Complete Python Script
 
