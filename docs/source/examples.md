@@ -1,4 +1,4 @@
-# Consecutive Tool Call Examples
+# Examples of Consecutive Tool Calls
 
 ## Cicada `MultiModalModel` Implementation
 
@@ -48,8 +48,11 @@ cprint(json.dumps(response,indent=2))
 
 response reads
 
-```json
+```python
 The current temperature in Shanghai is 77°F.
+```
+
+```json
 {
   "content": "The current temperature in Shanghai is 77\u00b0F.",
   "formatted_response": "[Response]: The current temperature in Shanghai is 77\u00b0F.",
