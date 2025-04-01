@@ -56,6 +56,7 @@ class Tool(BaseModel):
     def run(self, parameters: Dict[str, Any]) -> Any:
         """Run the tool with the given parameters."""
         try:
+            result = None
             if self.parameters_model is None:
                 # Directly call the function if no parameters model is defined
                 result = self.callable(**parameters)
@@ -64,7 +65,7 @@ class Tool(BaseModel):
                 model = self.parameters_model(**parameters)
                 # Call the underlying function with validated parameters
                 result = self.callable(**model.model_dump_one_level())
-            return f"{self.name} -> {result}"
+            return result
         except Exception as e:
             return f"Error executing {self.name}: {str(e)}"
 
