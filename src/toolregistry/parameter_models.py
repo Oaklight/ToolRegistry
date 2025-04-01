@@ -1,8 +1,7 @@
 import inspect
-from typing import Any, Callable, Dict, ForwardRef, Optional, Tuple, Type
+from typing import Any, Callable, Dict, Optional, Tuple, Type, get_type_hints
 
 from pydantic import BaseModel, ConfigDict, Field, create_model
-from pydantic._internal._typing_extra import eval_type_backport
 from pydantic.fields import FieldInfo
 
 
@@ -28,22 +27,33 @@ class ArgModelBase(BaseModel):
 
 
 def _get_typed_annotation(annotation: Any, globalns: Dict[str, Any]) -> Any:
-    def try_eval_type(
-        value: Any, globalns: Dict[str, Any], localns: Dict[str, Any]
-    ) -> Tuple[Any, bool]:
-        try:
-            return eval_type_backport(value, globalns, localns), True
-        except NameError:
-            return value, False
+    """
+    Evaluate the annotation if it is a string (a forward reference) using Python's
+    public get_type_hints function rather than relying on a pydantic internal function.
+
+    Args:
+       annotation: The annotation to evaluate.
+       globalns: The global namespace to use for evaluating the annotation.
+
+    Returns:
+      The evaluated annotation.
+
+    """
 
     if isinstance(annotation, str):
-        annotation = ForwardRef(annotation)
-        annotation, status = try_eval_type(annotation, globalns, globalns)
+        # Create a dummy function with a parameter annotated by the string.
+        def dummy(a: Any):
+            pass
 
-        # This check and raise could perhaps be skipped, and we (FastMCP) just call
-        # model_rebuild right before using it 🤷
-        if status is False:
-            raise InvalidSignature(f"Unable to evaluate type annotation {annotation}")
+        # Manually set the annotation on the dummy function.
+        dummy.__annotations__ = {"a": annotation}
+        try:
+            hints = get_type_hints(dummy, globalns)
+            return hints["a"]
+        except Exception as e:
+            raise InvalidSignature(
+                f"Unable to evaluate type annotation {annotation}"
+            ) from e
 
     return annotation
 
