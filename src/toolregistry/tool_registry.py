@@ -113,7 +113,7 @@ class ToolRegistry:
             target_tool = self.get_tool(tool_name)
             tools = [target_tool] if target_tool else []
         else:
-            tools = self._tools.values()
+            tools = list(self._tools.values())
 
         return [
             {
