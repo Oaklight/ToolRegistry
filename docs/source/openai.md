@@ -1,4 +1,4 @@
-# OpenAI (Compatible) Function Calling
+# Function Calling
 
 Following our simple math example from the [Usage Guide](usage), this document explains how to use a tool registry with the OpenAI API. Note that you can use the OpenAI client with any API provider that offers OpenAI-compatible APIs. In this guide, we'll use DeepSeek as an example.
 
