@@ -4,6 +4,13 @@ from typing import Any, Dict, List, Optional
 
 from mcp.client.session import ClientSession
 from mcp.client.sse import sse_client
+from mcp.types import (
+    BlobResourceContents,
+    EmbeddedResource,
+    ImageContent,
+    TextContent,
+    TextResourceContents,
+)
 
 from .tool import Tool
 from .tool_registry import ToolRegistry
@@ -78,7 +85,8 @@ class MCPToolWrapper:
                         if param_name in kwargs:
                             validated_params[param_name] = kwargs[param_name]
 
-                    return await session.call_tool(self.name, validated_params)
+                    result = await session.call_tool(self.name, validated_params)
+                    return self._post_process_result(result)
         except Exception as e:
             print(f"Error calling tool {self.name}: {str(e)}")
             raise
@@ -92,6 +100,48 @@ class MCPToolWrapper:
         Simply delegates to call_async which now handles all parameter processing.
         """
         return await self.call_async(*args, **kwargs)
+
+    def _post_process_result(self, result: Any) -> Any:
+        """Post-process the result from an MCP tool call.
+        If result is not an error and contains content, processes each content item.
+        Returns a single value if only one processed output exists, otherwise returns a list.
+        """
+        if result.isError or not result.content:
+            return result
+
+        def process_text(content: TextContent) -> str:
+            return content.text
+
+        def process_image(content: ImageContent) -> dict:
+            return {
+                "type": "image",
+                "data": content.data,
+                "mimeType": content.mimeType,
+            }
+
+        def process_embedded(content: EmbeddedResource) -> Any:
+            if isinstance(content.resource, TextResourceContents):
+                return content.resource.text
+            elif isinstance(content.resource, BlobResourceContents):
+                return {
+                    "type": "blob",
+                    "data": content.resource.blob,
+                    "mimeType": content.resource.mimeType,
+                }
+            return content
+
+        handlers = {
+            TextContent: process_text,
+            ImageContent: process_image,
+            EmbeddedResource: process_embedded,
+        }
+
+        processed = [
+            handlers.get(type(content), lambda x: x)(content)
+            for content in result.content
+        ]
+
+        return processed[0] if len(processed) == 1 else processed
 
 
 class MCPTool(Tool):
@@ -163,7 +213,7 @@ class MCPIntegration:
 
                 # Register each tool with a wrapper function
                 for tool in tools_response.tools:
-                    pprint(tool)
+                    # pprint(tool)
                     mcptool_from_json = MCPTool.from_tool_json(
                         name=tool.name,
                         description=tool.description or "",
@@ -173,7 +223,7 @@ class MCPIntegration:
 
                     # Register the tool wrapper function
                     self.registry.register(mcptool_from_json)
-                    print(f"Registered tool: {tool.name}")
+                    # print(f"Registered tool: {tool.name}")
 
     def register_mcp_tools(self, server_url: str) -> None:
         """
