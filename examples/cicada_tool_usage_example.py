@@ -1,5 +1,7 @@
+import json
 import os
 from dotenv import load_dotenv
+from pprint import pprint
 
 # Load environment variables from .env file
 load_dotenv()
@@ -40,10 +42,10 @@ def c_to_f(celsius: float) -> float:
 
 # query the model with tools
 response = llm.query(
-    "上海的气温如何，用华氏度回答我?",
+    "What's the temperature of Shanghai, reply using Fahrenheit?",
     tools=tool_registry,
-    stream=True,
+    stream=llm.stream,
 )
 print(response["content"])
 
-cprint(response)
+cprint(json.dumps(response, indent=2))
