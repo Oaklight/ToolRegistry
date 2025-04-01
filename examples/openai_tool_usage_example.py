@@ -1,4 +1,5 @@
 import os
+
 from dotenv import load_dotenv
 from openai import OpenAI
 
@@ -31,7 +32,12 @@ client = OpenAI(
 )
 
 
-messages = [{"role": "user", "content": "上海的气温如何，用华氏度回答我?"}]
+messages = [
+    {
+        "role": "user",
+        "content": "What's the temperature of Shanghai, reply using Fahrenheit?",
+    }
+]
 # Make the chat completion request
 response = client.chat.completions.create(
     model="deepseek-v3",
@@ -40,24 +46,36 @@ response = client.chat.completions.create(
     tool_choice="auto",
 )
 
-# Handle tool calls using ToolRegistry
-if response.choices[0].message.tool_calls:
-    tool_calls = response.choices[0].message.tool_calls
 
-    # Execute tool calls
-    tool_responses = tool_registry.execute_tool_calls(tool_calls)
+def handle_tool_calls(response, messages):
+    """Handle tool calls in a loop until no more tool calls are needed"""
+    while response.choices[0].message.tool_calls:
+        tool_calls = response.choices[0].message.tool_calls
+        print("Tool calls:", tool_calls)
 
-    # Construct assistant messages with results
-    assistant_tool_messages = tool_registry.recover_tool_call_assistant_message(
-        tool_calls, tool_responses
-    )
+        # Execute tool calls
+        tool_responses = tool_registry.execute_tool_calls(tool_calls)
 
-    messages.extend(assistant_tool_messages)
+        # Construct assistant messages with results
+        assistant_tool_messages = tool_registry.recover_tool_call_assistant_message(
+            tool_calls, tool_responses
+        )
 
-    # Send the results back to the model
-    second_response = client.chat.completions.create(
-        model="deepseek-v3", messages=messages
-    )
+        messages.extend(assistant_tool_messages)
 
-    # Print final response
-    print(second_response.choices[0].message.content)
+        # Send the results back to the model
+        response = client.chat.completions.create(
+            model="deepseek-v3",
+            messages=messages,
+            tools=tool_registry.get_tools_json(),
+            tool_choice="auto",
+        )
+    return response
+
+
+# Handle tool calls using the new function (without iteration limit)
+response = handle_tool_calls(response, messages)
+
+# Print final response
+if response.choices[0].message.content:
+    print(response.choices[0].message.content)
