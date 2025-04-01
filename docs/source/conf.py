@@ -39,12 +39,18 @@ exclude_patterns = []
 
 html_theme = "furo"
 html_static_path = ["_static"]
+autosummary_generate = True
+html_search_options = {"type": "default"}
 
 # html_logo = "_static/logo/toolregistry_logo_9.jpeg"
 # html_logo = "https://em-content.zobj.net/source/animated-noto-color-emoji/356/mechanical-arm_1f9be.gif"
 
-autosummary_generate = True
-html_search_options = {"type": "default"}
+
+html_css_files = [
+    "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/fontawesome.min.css",
+    "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/solid.min.css",
+    "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/brands.min.css",
+]
 
 html_theme_options = {
     "announcement": (
