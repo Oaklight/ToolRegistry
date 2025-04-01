@@ -13,7 +13,7 @@ A Python library for managing and executing tools in a structured way.
 
 ## Installation
 
-Basic installation:
+Basic installation (requires **Python >= 3.8**):
 
 ```bash
 pip install toolregistry
@@ -37,7 +37,7 @@ The [cicada_tool_usage_example.py](examples/cicada_tool_usage_example.py) demons
 
 ## OpenAI Integration
 
-The ToolRegistry integrates seamlessly with OpenAI's API. Here are some common usage patterns:
+The ToolRegistry also integrates seamlessly with OpenAI's API. Here are some common usage patterns:
 
 ### Getting Tools JSON for OpenAI
 
@@ -67,6 +67,41 @@ messages = registry.recover_tool_call_assistant_message(tool_calls, tool_respons
 # Get a callable function
 add_fn = registry.get_callable("add")
 result = add_fn(a=1, b=2)  # Output: 3
+```
+
+
+## MCP Integration
+
+The ToolRegistry provides first-class support for MCP (Model Context Protocol) tools:
+
+### Basic Usage
+
+```python
+from toolregistry import ToolRegistry
+
+# Create registry and register MCP tools
+registry = ToolRegistry()
+registry.register_mcp_tools("http://localhost:8000/mcp/sse")
+
+# Get all tools JSON including MCP tools
+tools_json = registry.get_tools_json()
+```
+
+### Calling MCP Tools
+
+```python
+# Sync call using registry
+result = registry["echo_tool"]("test sync message")
+
+# Sync call using tool directly
+echo_tool = registry.get_callable("echo_tool")
+result = echo_tool.run({"message": "test sync message"})
+
+# Async call using registry (requires await and asyncio.run)
+result = await registry["echo_tool"].__acall__("test message")
+
+# Async call using tool directly (requires await and asyncio.run)
+result = await echo_tool.arun({"message": "test sync message"})
 ```
 
 ## Documentation
