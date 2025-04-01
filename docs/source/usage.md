@@ -1,49 +1,148 @@
-# Usage
+# Usage Guide
 
-This page explains how to set up and use the **ToolRegistry** library.
-
----
-
-## Installation
-
-### Prerequisites
-
-Before setting up ToolRegistry, ensure you have the following installed:
-
-- **Python 3.8+**
-- **pip** (for dependency management)
-
-### Installation
-
-```bash
-pip install toolregistry
+```{toctree}
+:hidden:
+openai
+mcp
+examples
+best_practices
 ```
 
-### Installation from Source
+This page covers the basic usage of registering tools, processing tool calls, and bridging a tool registry to the OpenAI API.
+Let's use a simple math tool registry for demonstration purpose.
 
-```bash
-git clone https://github.com/Oaklight/ToolRegistry.git
-cd ToolRegistry
-pip install .
-```
-
----
-
-## Basic Usage
+## Basic Use Cases
 
 ### Registering Tools
 
 ```python
-from tool_registry import ToolRegistry
+from toolregistry import ToolRegistry
 
-# Create a registry instance
 registry = ToolRegistry()
 
-# Register a tool
+
 @registry.register
-def add(a: int, b: int) -> int:
-    """Add two numbers."""
+def add(a: float, b: float) -> float:
+    """Add two numbers together."""
     return a + b
+
+
+@registry.register
+def subtract(a: int, b: int) -> int:
+    """Subtract the second number from the first."""
+    return a - b
+```
+
+### Get and Access Available Tool Names
+
+You can access the list of available tools by calling the `get_available_tools()` function:
+
+```python
+available_tools = registry.get_available_tools()
+
+print(available_tools) # ['add', 'subtract']
+```
+
+You can access the available tools in the following ways:
+
+1. as a Python `Callable`
+
+   You can do it explicitly via `get_callable`
+
+   ```python
+   add_func = registry.get_callable('add')
+   print(type(add_func)) # <class 'function'>
+
+   add_result = add_func(1, 2)
+   print(add_result) # 3
+   ```
+
+   You can also access via `__item__` method
+
+   ```python
+   add_func = registry['add']
+   print(type(add_func)) # <class 'function'>
+
+   add_result = add_func(4, 5)
+   print(add_result) # 9
+   ```
+
+2. as a `toolregistry.tool.Tool`
+
+   Use `get_tool` to explicitly expose the Tool interface.
+
+   ```python
+   add_tool = registry.get_tool("add")
+   print(type(add_tool)) # <class 'toolregistry.tool.Tool'>
+
+   value = add_tool.run({"a": 7, "b": 8})
+   print(value) # 15.0
+   ```
+
+   Note that the result is 15.0 instead of 15 because the `add` function's type hints specify both `a` and `b` as floats. During schema validation in `toolregistry.tool.Tool`, integer inputs are converted to floats (7.0 and 8.0), resulting in a float output.
+
+### JSON Schema of Tools
+
+You can use the `get_tools_json` method to retrieve the tools' JSON schemas that are compatible with OpenAI's function calling interface.
+
+```python
+# Get tools JSON for OpenAI
+tools_json = registry.get_tools_json()
+
+print(tool_json)
+```
+
+You will see the following. Meanwhile, you can see the difference of parameter `a`'s `type` in function `add` and `subtract`, one as `number`, another as `integer`.
+
+```json
+[
+  {
+    "type": "function",
+    "function": {
+      "name": "add",
+      "description": "Add two numbers together.",
+      "parameters": {
+        "properties": {
+          "a": {
+            "title": "A",
+            "type": "number"
+          },
+          "b": {
+            "title": "B",
+            "type": "number"
+          }
+        },
+        "required": ["a", "b"],
+        "title": "addParameters",
+        "type": "object"
+      },
+      "is_async": false
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "subtract",
+      "description": "Subtract the second number from the first.",
+      "parameters": {
+        "properties": {
+          "a": {
+            "title": "A",
+            "type": "integer"
+          },
+          "b": {
+            "title": "B",
+            "type": "integer"
+          }
+        },
+        "required": ["a", "b"],
+        "title": "subtractParameters",
+        "type": "object"
+      },
+      "is_async": false
+    }
+  }
+]
 ```
 
 ### Executing Tools
@@ -64,18 +163,7 @@ tool_responses = registry.execute_tool_calls(tool_calls)
 print(tool_responses[0].result)  # Output: 3
 ```
 
-### OpenAI Integration
-
-```python
-# Get tools JSON for OpenAI
-tools_json = registry.get_tools_json()
-
-# Execute tool calls from OpenAI
-tool_responses = registry.execute_tool_calls(tool_calls)
-
-# Recover assistant messages
-messages = registry.recover_tool_call_assistant_message(tool_calls, tool_responses)
-```
+Please read [OpenAI Function Calling](openai) for detailed example and step-by-step breakdown with explanation.
 
 ### Manual Tool Execution
 
@@ -103,113 +191,18 @@ registry1.merge(registry2)
 
 ```python
 # Get the JSON schema for a tool's parameters
-tool_schema = registry.get_tools_json()[0]['function']['parameters']
+tool_params_schema = registry.get_tools_json("subtract")[0]['function']['parameters']
+print(tool_params_schema)
 ```
 
----
-
-## Implementation Examples
-
-### Cicada Implementation
-
-This example shows how to use ToolRegistry with the Cicada MultiModalModel:
-
-```python
-import os
-from cicada.core.model import MultiModalModel
-from cicada.core.utils import cprint
-from toolregistry import ToolRegistry
-
-# Initialize Cicada model
-model_name = os.getenv("MODEL", "deepseek-v3")
-stream = os.getenv("STREAM", "True").lower() == "true"
-
-llm = MultiModalModel(
-    api_key="your-api-key",
-    api_base_url="https://api.deepseek.com/",
-    model_name=model_name,
-    stream=stream,
-)
-
-# Initialize ToolRegistry
-tool_registry = ToolRegistry()
-
-# Register tools
-@tool_registry.register
-def get_weather(location: str):
-    return f"Weather in {location}: Sunny, 25°C"
-
-@tool_registry.register
-def c_to_f(celsius: float) -> float:
-    fahrenheit = (celsius * 1.8) + 32
-    return f"{celsius} celsius degree == {fahrenheit} fahrenheit degree"
-
-# Query the model with tools
-response = llm.query(
-    "上海的气温如何，用华氏度回答我?",
-    tools=tool_registry,
-    stream=True,
-)
-print(response["content"])
+```json
+{
+  "properties": {
+    "a": { "title": "A", "type": "integer" },
+    "b": { "title": "B", "type": "integer" }
+  },
+  "required": ["a", "b"],
+  "title": "subtractParameters",
+  "type": "object"
+}
 ```
-
-### OpenAI Implementation
-
-This example demonstrates integration with OpenAI's API:
-
-```python
-from openai import OpenAI
-from toolregistry import ToolRegistry
-
-# Initialize ToolRegistry
-tool_registry = ToolRegistry()
-
-# Register tools
-@tool_registry.register
-def get_weather(location: str):
-    """Get the weather for a specific location"""
-    return f"Weather in {location}: Sunny, 25°C"
-
-@tool_registry.register
-def c_to_f(celsius: float) -> float:
-    """Convert Celsius to Fahrenheit"""
-    fahrenheit = (celsius * 1.8) + 32
-    return f"{celsius} celsius degree == {fahrenheit} fahrenheit degree"
-
-# Set up OpenAI client
-client = OpenAI(
-    api_key="your-api-key",
-    base_url="https://api.deepseek.com/",
-)
-
-# Make chat completion request
-messages = [{"role": "user", "content": "上海的气温如何，用华氏度回答我?"}]
-response = client.chat.completions.create(
-    model="deepseek-v3",
-    messages=messages,
-    tools=tool_registry.get_tools_json(),
-    tool_choice="auto",
-)
-
-# Handle tool calls
-if response.choices[0].message.tool_calls:
-    tool_calls = response.choices[0].message.tool_calls
-    tool_responses = tool_registry.execute_tool_calls(tool_calls)
-    messages.extend(tool_registry.recover_tool_call_assistant_message(
-        tool_calls, tool_responses
-    ))
-
-    # Get final response
-    second_response = client.chat.completions.create(
-        model="deepseek-v3", messages=messages
-    )
-    print(second_response.choices[0].message.content)
-```
-
-## Best Practices
-
-1. Use descriptive tool names and documentation
-2. Keep tool functions focused on single responsibilities
-3. Validate tool parameters before execution
-4. Handle errors gracefully in tool implementations
-5. Use type hints for better documentation and validation
