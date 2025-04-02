@@ -1,0 +1,6 @@
+# ignore certain files
+openapi_integration.py
+
+# ignore certain directory
+# /examples/
+
