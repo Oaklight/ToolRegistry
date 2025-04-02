@@ -23,7 +23,7 @@ Here are brief introductions and links to each section:
   - [**Examples**](examples)
      Demonstrates practical use cases, including consecutive tool call examples.
 
-  - [**Best Practices**](best-practices)
+  - [**Best Practices**](best_practices)
      Offers principles and recommendations for designing and implementing tools.
 
 <!-- - **Dependencies**
