@@ -93,13 +93,14 @@ class MCPToolWrapper:
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         """Make the wrapper directly callable, using sync version by default."""
-        return self.call_sync(*args, **kwargs)
-
-    async def __acall__(self, *args: Any, **kwargs: Any) -> Any:
-        """Async version of __call__, allows await wrapper() syntax.
-        Simply delegates to call_async which now handles all parameter processing.
-        """
-        return await self.call_async(*args, **kwargs)
+        try:
+            # 尝试获取当前的 event loop
+            asyncio.get_running_loop()
+            # 如果成功，说明在异步环境中
+            return self.call_async(*args, **kwargs)
+        except RuntimeError:
+            # 捕获异常，说明在同步环境中
+            return self.call_sync(*args, **kwargs)
 
     def _post_process_result(self, result: Any) -> Any:
         """Post-process the result from an MCP tool call.
