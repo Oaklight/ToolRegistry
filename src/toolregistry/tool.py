@@ -1,4 +1,3 @@
-import asyncio
 import inspect
 from typing import Any, Callable, Dict, List, Optional
 
@@ -73,6 +72,11 @@ class Tool(BaseModel):
         }
 
         return description_json
+
+    describe = get_json_schema
+    """
+    Alias for get_json_schema.    
+    """
 
     def _validate_parameters(self, parameters):
         if self.parameters_model is None:
