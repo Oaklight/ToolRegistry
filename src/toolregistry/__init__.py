@@ -3,4 +3,4 @@ from .tool_registry import ToolRegistry
 
 __all__ = ["ToolRegistry", "Tool"]
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"

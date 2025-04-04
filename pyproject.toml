@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "toolregistry"
-version = "0.3.0"
+version = "0.3.1"
 authors = [{ name = "Oaklight", email = "oaklight@gmx.com" }]
 description = "A library for managing tool registries"
 readme = "README.md"
@@ -24,6 +24,10 @@ dependencies = ["pydantic>=1.5.1"]
 
 [project.optional-dependencies]
 mcp = ["mcp>=1.6.0"] # Add mcp optional dependencies here
+openapi = [
+    "prance>=23.6.21.0",
+    "openapi-spec-validator>=0.7.1",
+] # Add openapi optional dependencies here
 
 [project.urls]
 Homepage = "https://github.com/Oaklight/ToolRegistry"
