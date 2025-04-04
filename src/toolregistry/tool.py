@@ -14,24 +14,52 @@ class Tool(BaseModel):
         - Parameter validation using Pydantic
         - Synchronous/asynchronous execution
         - JSON schema generation
-
-    Attributes:
-        name (str): Name of the tool.
-        description (str): Description of tool functionality.
-        parameters (Dict[str, Any]): JSON schema for tool parameters.
-        callable (Callable[..., Any]): The wrapped callable function.
-        is_async (bool): Whether tool supports async execution.
-        parameters_model (Optional[Any]): Pydantic model for parameter validation.
     """
 
     name: str = Field(description="Name of the tool")
+    """The name of the tool.
+    
+    Used as the primary identifier when calling the tool.
+    Must be unique within a tool registry.
+    """
+
     description: str = Field(description="Description of what the tool does")
+    """Detailed description of the tool's functionality.
+    
+    Should clearly explain what the tool does, its purpose,
+    and any important usage considerations.
+    """
+
     parameters: Dict[str, Any] = Field(description="JSON schema for tool parameters")
+    """Parameter schema defining the tool's expected inputs.
+    
+    Follows JSON Schema format. Automatically generated from
+    the wrapped function's type hints when using from_function().
+    """
+
     callable: Callable[..., Any] = Field(exclude=True)
+    """The underlying function/method that implements the tool's logic.
+    
+    This is excluded from serialization to prevent accidental exposure
+    of sensitive implementation details.
+    """
+
     is_async: bool = Field(default=False, description="Whether the tool is async")
+    """Flag indicating if the tool requires async execution.
+    
+    Automatically detected from the wrapped function when using
+    from_function(). Defaults to False for synchronous tools.
+    """
+
     parameters_model: Optional[Any] = Field(
         default=None, description="Pydantic Model for tool parameters"
     )
+    """Pydantic model used for parameter validation.
+    
+    Automatically generated from the wrapped function's type hints
+    when using from_function(). Can be None for tools without
+    parameter validation.
+    """
 
     @classmethod
     def from_function(

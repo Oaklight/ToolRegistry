@@ -24,7 +24,7 @@ print("Current sys.path:", sys.path)
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.viewcode",
-    "sphinx.ext.napoleon",
+    "sphinx.ext.napoleon",  # for Google & Numpy style docstring
     "sphinx.ext.autosummary",
     "myst_parser",
     "sphinx_multitoc_numbering",
@@ -33,6 +33,9 @@ extensions = [
 
 templates_path = ["_templates"]
 exclude_patterns = []
+
+# -- Options for autodoc -----------------------------------------------------
+autodoc_member_order = "bysource"
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
