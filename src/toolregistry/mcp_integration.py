@@ -1,6 +1,5 @@
 import asyncio
-from pprint import pprint
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Type
 
 from mcp.client.session import ClientSession
 from mcp.client.sse import sse_client
@@ -131,16 +130,21 @@ class MCPToolWrapper:
                 }
             return content
 
-        handlers = {
+        handlers: dict[Any, Callable] = {
             TextContent: process_text,
             ImageContent: process_image,
             EmbeddedResource: process_embedded,
         }
 
-        processed = [
-            handlers.get(type(content), lambda x: x)(content)
-            for content in result.content
-        ]
+        processed = []
+        for content in result.content:
+            content_type = type(content)
+            handler = handlers.get(content_type)
+            if handler is None:
+                raise NotImplementedError(
+                    f"No handler for content type: {content_type}"
+                )
+            processed.append(handler(content))
 
         return processed[0] if len(processed) == 1 else processed
 
