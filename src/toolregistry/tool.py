@@ -1,3 +1,4 @@
+import asyncio
 import inspect
 from typing import Any, Callable, Dict, Optional
 
@@ -53,51 +54,34 @@ class Tool(BaseModel):
             parameters_model=parameters_model if parameters_model is not None else None,
         )
 
+    def _validate_parameters(self, parameters):
+        if self.parameters_model is None:
+            validated_params = parameters
+        else:
+            model = self.parameters_model(**parameters)
+            validated_params = model.model_dump_one_level()
+        return validated_params
+
     def run(self, parameters: Dict[str, Any]) -> Any:
         """Run the tool with the given parameters."""
         try:
-            result = None
-            if self.parameters_model is None:
-                # Directly call the function if no parameters model is defined
-                result = self.callable(**parameters)
-            else:
-                # Convert parameters to model instance for validation
-                model = self.parameters_model(**parameters)
-                # Call the underlying function with validated parameters
-                result = self.callable(**model.model_dump_one_level())
-            return result
+            validated_params = self._validate_parameters(parameters)
+            return self.callable(**validated_params)
         except Exception as e:
             return f"Error executing {self.name}: {str(e)}"
 
     async def arun(self, parameters: Dict[str, Any]) -> Any:
         """Async run the tool with the given parameters."""
         try:
-            if self.parameters_model is None:
-                # Directly call the async function if no parameters model is defined
-                if inspect.iscoroutinefunction(self.callable):
-                    result = await self.callable(**parameters)
-                elif hasattr(self.callable, "__acall__"):
-                    result = await self.callable.__acall__(**parameters)
-                else:
-                    raise NotImplementedError(
-                        "Async execution requires either __acall__ implementation "
-                        "or the callable to be a coroutine function"
-                    )
-            else:
-                # Convert parameters to model instance for validation
-                model = self.parameters_model(**parameters)
-                # Call the underlying async function with validated parameters
-                if inspect.iscoroutinefunction(self.callable):
-                    result = await self.callable(**model.model_dump_one_level())
-                elif hasattr(self.callable, "__acall__"):
-                    result = await self.callable.__acall__(
-                        **model.model_dump_one_level()
-                    )
-                else:
-                    raise NotImplementedError(
-                        "Async execution requires either __acall__ implementation "
-                        "or the callable to be a coroutine function"
-                    )
-            return result
+            validated_params = self._validate_parameters(parameters)
+
+            if inspect.iscoroutinefunction(self.callable):
+                return await self.callable(**validated_params)
+            elif hasattr(self.callable, "__call__"):
+                return await self.callable(**validated_params)
+            raise NotImplementedError(
+                "Async execution requires either an async function (coroutine) "
+                "or a callable whose __call__ method is async or returns an awaitable object."
+            )
         except Exception as e:
             return f"Error executing {self.name}: {str(e)}"
