@@ -41,7 +41,7 @@ def test_sync_tool():
 async def test_async_call():
     try:
         print("Testing echo async call...")
-        result = await registry["echo_tool"].__acall__("test echo async call")
+        result = await registry["echo_tool"]("test echo async call")
         print(f"Async call result: {result}")
         return True
     except Exception as e:
