@@ -43,11 +43,11 @@ print(result)
 # async access:
 async def call_async_add_func():
     add_func = registry.get_callable("add")
-    result = await add_func.__acall__(7, 7)
+    result = await add_func(7, 7)
     print(result)
 
     add_func2 = registry["add"]
-    result = await add_func2.__acall__(7, 8)
+    result = await add_func2(7, 8)
     print(result)
 
 

@@ -40,7 +40,7 @@ def test_add_sync():
 async def test_long_running_async():
     try:
         print("Testing long_running async call...")
-        result = await registry["long_running"].__acall__(duration=2, steps=4)
+        result = await registry["long_running"](duration=2, steps=4)
         print(f"Long running async result: {result}")
         return True
     except Exception as e:
@@ -51,7 +51,7 @@ async def test_long_running_async():
 async def test_sample_llm_async():
     try:
         print("Testing sample_llm async call...")
-        result = await registry["sample_llm"].__acall__(
+        result = await registry["sample_llm"](
             prompt="What is the meaning of life?", max_tokens=50
         )
         print(f"Sample LLM async result: {result}")
@@ -64,7 +64,7 @@ async def test_sample_llm_async():
 async def test_annotated_message_async():
     try:
         print("Testing annotated_message async call...")
-        result = await registry["annotated_message"].__acall__(
+        result = await registry["annotated_message"](
             message_type="success", include_image=True
         )
         print(f"Annotated message async result: {result}")
