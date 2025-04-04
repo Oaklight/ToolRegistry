@@ -42,6 +42,8 @@ async def main():
     tools_json = registry.get_tools_json()
     print(json.dumps(tools_json, indent=2))
 
+    print(json.dumps(add_tool.describe(), indent=2))
+
 
 if __name__ == "__main__":
     asyncio.run(main())

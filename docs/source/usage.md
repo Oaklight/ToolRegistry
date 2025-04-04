@@ -83,7 +83,7 @@ You can access the available tools in the following ways:
 
 ### JSON Schema of Tools
 
-You can use the `get_tools_json` method to retrieve the tools' JSON schemas that are compatible with OpenAI's function calling interface.
+You can use the `get_tools_json` method **at ToolRegistry-level** to retrieve the tools' JSON schemas that are compatible with OpenAI's function calling interface.
 
 ```python
 # Get tools JSON for OpenAI
@@ -143,6 +143,39 @@ You will see the following. Meanwhile, you can see the difference of parameter `
     }
   }
 ]
+```
+
+If you are interested in **Tool-level** JSON schema, then you can use `get_json_schema` (or `describe`, actually this is an alias to `get_json_schema`)
+
+```python
+add_tool.get_json_schema()
+add_tool.describe() # simpler interface
+```
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "add",
+    "description": "Add two numbers together.",
+    "parameters": {
+      "properties": {
+        "a": {
+          "title": "A",
+          "type": "number"
+        },
+        "b": {
+          "title": "B",
+          "type": "number"
+        }
+      },
+      "required": ["a", "b"],
+      "title": "addParameters",
+      "type": "object"
+    },
+    "is_async": true
+  }
+}
 ```
 
 ### Executing Tools
