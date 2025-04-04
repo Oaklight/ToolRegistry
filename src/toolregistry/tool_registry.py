@@ -115,18 +115,7 @@ class ToolRegistry:
         else:
             tools = list(self._tools.values())
 
-        return [
-            {
-                "type": "function",
-                "function": {
-                    "name": tool.name,
-                    "description": tool.description,
-                    "parameters": tool.parameters,
-                    "is_async": tool.is_async,
-                },
-            }
-            for tool in tools
-        ]
+        return [tool.get_json_schema() for tool in tools]
 
     def get_tool(self, tool_name: str) -> Optional[Tool]:
         """
