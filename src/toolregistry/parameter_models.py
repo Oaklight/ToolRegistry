@@ -6,19 +6,31 @@ from pydantic.fields import FieldInfo
 
 
 class InvalidSignature(Exception):
-    """Invalid signature for use with FastMCP."""
+    """Exception raised when a function signature cannot be processed for FastMCP.
+
+    Attributes:
+        message (str): Explanation of the error.
+    """
 
 
 class ArgModelBase(BaseModel):
-    """A model representing the arguments to a function.
+    """Base model for function argument validation with Pydantic.
 
     Features:
-    - Supports arbitrary types in fields.
-    - Provides a method to dump fields one level deep.
+        - Supports arbitrary types in fields
+        - Provides method to dump fields one level deep
+        - Configures Pydantic model behavior
+
+    Attributes:
+        model_config (ConfigDict): Pydantic model configuration.
     """
 
     def model_dump_one_level(self) -> Dict[str, Any]:
-        """Dump model fields one level deep, keeping sub-models as-is."""
+        """Dump model fields one level deep, keeping sub-models as-is.
+
+        Returns:
+            Dict[str, Any]: Dictionary of field names to values.
+        """
         return {field: getattr(self, field) for field in self.__pydantic_fields__}
 
     model_config = ConfigDict(
@@ -27,17 +39,19 @@ class ArgModelBase(BaseModel):
 
 
 def _get_typed_annotation(annotation: Any, globalns: Dict[str, Any]) -> Any:
-    """
-    Evaluate the annotation if it is a string (a forward reference) using Python's
-    public get_type_hints function rather than relying on a pydantic internal function.
+    """Evaluate type annotation, handling forward references.
+
+    Uses Python's public get_type_hints function rather than relying on a pydantic internal function.
 
     Args:
-       annotation: The annotation to evaluate.
-       globalns: The global namespace to use for evaluating the annotation.
+        annotation (Any): The annotation to evaluate (can be string forward reference).
+        globalns (Dict[str, Any]): The global namespace to use for evaluating the annotation.
 
     Returns:
-      The evaluated annotation.
+        Any: The evaluated annotation.
 
+    Raises:
+        InvalidSignature: If unable to evaluate type annotation.
     """
 
     if isinstance(annotation, str):
@@ -61,15 +75,16 @@ def _get_typed_annotation(annotation: Any, globalns: Dict[str, Any]) -> Any:
 def _create_field(
     param: inspect.Parameter, annotation_type: Any
 ) -> Tuple[Any, FieldInfo]:
-    """
-    Create a Pydantic field for a function parameter.
+    """Create a Pydantic field for a function parameter.
+
+    Handles both annotated and unannotated parameters, with and without defaults.
 
     Args:
         param (inspect.Parameter): The parameter to create a field for.
         annotation_type (Any): The type annotation for the parameter.
 
     Returns:
-        Tuple[Any, FieldInfo]: A tuple of the annotated type and the field info.
+        Tuple[Any, FieldInfo]: A tuple of (annotated_type, field_info).
     """
     default = param.default if param.default is not inspect.Parameter.empty else None
     if param.default is inspect.Parameter.empty:
@@ -89,15 +104,18 @@ def _create_field(
 
 
 def _generate_parameters_model(func: Callable) -> Optional[Type[ArgModelBase]]:
-    """
-    Generate a JSON Schema-compliant schema for the function's parameters.
+    """Generate a Pydantic model from a function's parameters.
+
+    Creates a JSON Schema-compliant model that can validate the function's parameters.
 
     Args:
-        func (Callable): The function to generate the schema for.
+        func (Callable): The function to generate the parameter model for.
 
     Returns:
-        Optional[type[ArgModelBase]]: The Pydantic model representing the function's parameters,
-        or None if an error occurs.
+        Optional[Type[ArgModelBase]]: Pydantic model class for the parameters, or None on error.
+
+    Raises:
+        InvalidSignature: If unable to process function signature.
     """
     try:
         signature = inspect.signature(func)

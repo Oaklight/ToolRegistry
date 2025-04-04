@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Callable, Dict, List, Optional, Type
+from typing import Any, Callable, Dict, List, Optional
 
 from mcp.client.session import ClientSession
 from mcp.client.sse import sse_client
@@ -16,7 +16,13 @@ from .tool_registry import ToolRegistry
 
 
 class MCPToolWrapper:
-    """Wrapper class providing both async and sync versions of MCP tool calls."""
+    """Wrapper class providing both async and sync versions of MCP tool calls.
+
+    Attributes:
+        url (str): URL of the MCP server.
+        name (str): Name of the tool/operation.
+        params (Optional[List[str]]): List of parameter names.
+    """
 
     def __init__(self, url: str, name: str, params: Optional[List[str]]) -> None:
         self.url = url
@@ -24,9 +30,18 @@ class MCPToolWrapper:
         self.params = params
 
     def _process_args(self, *args: Any, **kwargs: Any) -> Dict[str, Any]:
-        """Process positional and keyword arguments.
-        Maps positional args to parameter names and validates input.
-        Returns processed kwargs.
+        """Process positional and keyword arguments into validated kwargs.
+
+        Args:
+            args (Any): Positional arguments to process.
+            kwargs (Any): Keyword arguments to process.
+
+        Returns:
+            Dict[str, Any]: Validated keyword arguments.
+
+        Raises:
+            ValueError: If tool parameters not initialized.
+            TypeError: If arguments are invalid or duplicated.
         """
         if args:
             if not self.params:
@@ -47,8 +62,17 @@ class MCPToolWrapper:
 
     def call_sync(self, *args: Any, **kwargs: Any) -> Any:
         """Synchronous implementation of MCP tool call.
-        Handles both positional and keyword arguments.
-        Positional args are mapped to params in order, keyword args are passed directly.
+
+        Args:
+            args (Any): Positional arguments to pass to the tool.
+            kwargs (Any): Keyword arguments to pass to the tool.
+
+        Returns:
+            Any: Result from tool execution.
+
+        Raises:
+            ValueError: If URL or name not set.
+            Exception: If tool execution fails.
         """
         kwargs = self._process_args(*args, **kwargs)
 
@@ -62,8 +86,17 @@ class MCPToolWrapper:
 
     async def call_async(self, *args: Any, **kwargs: Any) -> Any:
         """Async implementation of MCP tool call.
-        Handles both positional and keyword arguments.
-        Positional args are mapped to params in order, keyword args are passed directly.
+
+        Args:
+            args (Any): Positional arguments to pass to the tool.
+            kwargs (Any): Keyword arguments to pass to the tool.
+
+        Returns:
+            Any: Result from tool execution.
+
+        Raises:
+            ValueError: If URL or name not set.
+            Exception: If tool execution fails.
         """
         kwargs = self._process_args(*args, **kwargs)
 
@@ -91,7 +124,19 @@ class MCPToolWrapper:
             raise
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        """Make the wrapper directly callable, using sync version by default."""
+        """Make the wrapper directly callable, automatically choosing sync/async version.
+
+        Args:
+            args (Any): Positional arguments to pass to the tool.
+            kwargs (Any): Keyword arguments to pass to the tool.
+
+        Returns:
+            Any: Result from tool execution.
+
+        Raises:
+            ValueError: If URL or name not set.
+            Exception: If tool execution fails.
+        """
         try:
             # 尝试获取当前的 event loop
             asyncio.get_running_loop()
@@ -103,8 +148,15 @@ class MCPToolWrapper:
 
     def _post_process_result(self, result: Any) -> Any:
         """Post-process the result from an MCP tool call.
-        If result is not an error and contains content, processes each content item.
-        Returns a single value if only one processed output exists, otherwise returns a list.
+
+        Args:
+            result (Any): Raw result from MCP tool call.
+
+        Returns:
+            Any: Processed result (single value or list).
+
+        Raises:
+            NotImplementedError: If content type is not supported.
         """
         if result.isError or not result.content:
             return result
@@ -150,7 +202,15 @@ class MCPToolWrapper:
 
 
 class MCPTool(Tool):
-    """Wrapper class for MCP tools that preserves original function metadata."""
+    """Wrapper class for MCP tools that preserves original function metadata.
+
+    Attributes:
+        name (str): Name of the tool.
+        description (str): Description of the tool.
+        parameters (Dict[str, Any]): Parameter schema definition.
+        callable (Callable[..., Any]): The wrapped callable function.
+        is_async (bool): Whether the tool is async, defaults to False.
+    """
 
     @classmethod
     def from_tool_json(
@@ -178,17 +238,23 @@ class MCPTool(Tool):
 
 
 class MCPIntegration:
-    """Handles integration with MCP server for tool registration."""
+    """Handles integration with MCP server for tool registration.
+
+    Attributes:
+        registry (ToolRegistry): Tool registry instance.
+    """
 
     def __init__(self, registry: ToolRegistry):
         self.registry = registry
 
     async def register_mcp_tools_async(self, server_url: str) -> None:
-        """
-        Async implementation to register all tools from an MCP server.
+        """Async implementation to register all tools from an MCP server.
 
         Args:
-            server_url (str): URL of the MCP server (e.g. "http://localhost:8000/mcp/sse")
+            server_url (str): URL of the MCP server (e.g. "http://localhost:8000/mcp/sse").
+
+        Raises:
+            RuntimeError: If connection to server fails.
         """
         print(f"Connecting to MCP server at {server_url}")
 
@@ -216,11 +282,10 @@ class MCPIntegration:
                     # print(f"Registered tool: {tool.name}")
 
     def register_mcp_tools(self, server_url: str) -> None:
-        """
-        Register all tools from an MCP server (synchronous entry point).
+        """Register all tools from an MCP server (synchronous entry point).
 
         Args:
-            server_url (str): URL of the MCP server
+            server_url (str): URL of the MCP server.
         """
         try:
             loop = asyncio.get_event_loop()

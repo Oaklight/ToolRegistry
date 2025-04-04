@@ -1,5 +1,5 @@
 import inspect
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Optional
 
 from pydantic import BaseModel, Field
 
@@ -7,8 +7,21 @@ from .parameter_models import _generate_parameters_model
 
 
 class Tool(BaseModel):
-    """
-    Represents a tool (function) that can be called by the language model.
+    """Base class representing an executable tool/function.
+
+    Provides core functionality for:
+        - Function wrapping and metadata management
+        - Parameter validation using Pydantic
+        - Synchronous/asynchronous execution
+        - JSON schema generation
+
+    Attributes:
+        name (str): Name of the tool.
+        description (str): Description of tool functionality.
+        parameters (Dict[str, Any]): JSON schema for tool parameters.
+        callable (Callable[..., Any]): The wrapped callable function.
+        is_async (bool): Whether tool supports async execution.
+        parameters_model (Optional[Any]): Pydantic model for parameter validation.
     """
 
     name: str = Field(description="Name of the tool")
@@ -27,7 +40,24 @@ class Tool(BaseModel):
         name: Optional[str] = None,
         description: Optional[str] = None,
     ) -> "Tool":
-        """Create a Tool from a function."""
+        """Factory method to create Tool from callable.
+
+        Automatically:
+            - Extracts function metadata
+            - Generates parameter schema
+            - Handles async/sync detection
+
+        Args:
+            func (Callable[..., Any]): Function to convert to tool.
+            name (Optional[str]): Override tool name (defaults to function name).
+            description (Optional[str]): Override description (defaults to docstring).
+
+        Returns:
+            Tool: Configured Tool instance.
+
+        Raises:
+            ValueError: For unnamed lambda functions.
+        """
         func_name = name or func.__name__
 
         if func_name == "<lambda>":
@@ -54,11 +84,15 @@ class Tool(BaseModel):
         )
 
     def get_json_schema(self) -> Dict[str, Any]:
-        """
-        Get the JSON representation of all registered tools, following JSON Schema.
+        """Generate JSON Schema representation of tool.
+
+        Schema includes:
+            - Name and description
+            - Parameter definitions
+            - Async flag
 
         Returns:
-            List[Dict[str, Any]]: A list of tools in JSON format, compliant with JSON Schema.
+            Dict[str, Any]: JSON Schema compliant tool definition.
         """
 
         description_json = {
@@ -74,11 +108,23 @@ class Tool(BaseModel):
         return description_json
 
     describe = get_json_schema
-    """
-    Alias for get_json_schema.    
+    """Alias for get_json_schema.
+
+    :return: JSON schema representation of the tool
+    :rtype: Dict[str, Any]
     """
 
-    def _validate_parameters(self, parameters):
+    def _validate_parameters(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate parameters against tool schema.
+
+        Uses Pydantic model if available, otherwise performs basic validation.
+
+        Args:
+            parameters (Dict[str, Any]): Raw input parameters.
+
+        Returns:
+            Dict[str, Any]: Validated and normalized parameters.
+        """
         if self.parameters_model is None:
             validated_params = parameters
         else:
@@ -87,7 +133,17 @@ class Tool(BaseModel):
         return validated_params
 
     def run(self, parameters: Dict[str, Any]) -> Any:
-        """Run the tool with the given parameters."""
+        """Execute tool synchronously.
+
+        Args:
+            parameters (Dict[str, Any]): Validated input parameters.
+
+        Returns:
+            Any: Tool execution result.
+
+        Raises:
+            Exception: On execution failure.
+        """
         try:
             validated_params = self._validate_parameters(parameters)
             return self.callable(**validated_params)
@@ -95,7 +151,18 @@ class Tool(BaseModel):
             return f"Error executing {self.name}: {str(e)}"
 
     async def arun(self, parameters: Dict[str, Any]) -> Any:
-        """Async run the tool with the given parameters."""
+        """Execute tool asynchronously.
+
+        Args:
+            parameters (Dict[str, Any]): Validated input parameters.
+
+        Returns:
+            Any: Tool execution result.
+
+        Raises:
+            NotImplementedError: If async execution unsupported.
+            Exception: On execution failure.
+        """
         try:
             validated_params = self._validate_parameters(parameters)
 
