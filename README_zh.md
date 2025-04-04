@@ -97,7 +97,7 @@ echo_tool = registry.get_callable("echo_tool")
 result = echo_tool.run({"message": "测试同步消息"})
 
 # 使用注册表异步调用 (需要await和asyncio.run)
-result = await registry["echo_tool"].__acall__("测试消息")
+result = await registry["echo_tool"]("测试消息")
 
 # 直接使用工具异步调用 (需要await和asyncio.run)
 result = await echo_tool.arun({"message": "测试同步消息"})
