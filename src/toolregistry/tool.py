@@ -1,6 +1,6 @@
 import asyncio
 import inspect
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -53,6 +53,26 @@ class Tool(BaseModel):
             is_async=is_async,
             parameters_model=parameters_model if parameters_model is not None else None,
         )
+
+    def get_json_schema(self) -> Dict[str, Any]:
+        """
+        Get the JSON representation of all registered tools, following JSON Schema.
+
+        Returns:
+            List[Dict[str, Any]]: A list of tools in JSON format, compliant with JSON Schema.
+        """
+
+        description_json = {
+            "type": "function",
+            "function": {
+                "name": self.name,
+                "description": self.description,
+                "parameters": self.parameters,
+                "is_async": self.is_async,
+            },
+        }
+
+        return description_json
 
     def _validate_parameters(self, parameters):
         if self.parameters_model is None:
