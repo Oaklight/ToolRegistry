@@ -98,7 +98,7 @@ echo_tool = registry.get_callable("echo_tool")
 result = echo_tool.run({"message": "test sync message"})
 
 # Async call using registry (requires await and asyncio.run)
-result = await registry["echo_tool"].__acall__("test message")
+result = await registry["echo_tool"]("test message")
 
 # Async call using tool directly (requires await and asyncio.run)
 result = await echo_tool.arun({"message": "test sync message"})
