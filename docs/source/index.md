@@ -15,16 +15,19 @@ Here are brief introductions and links to each section:
   Provides getting started examples and tutorials to help you quickly learn tool registration, invocation, and management.
 
   - [**OpenAI Integration**](openai)
-     Explains how to use ToolRegistry with OpenAI API through function calling.
+    Explains how to use ToolRegistry with OpenAI API through function calling.
 
   - [**MCP Tool Usage**](mcp)
-     Guides on integrating MCP (Modular Component Protocol) with ToolRegistry to register and call MCP tools.
+    Guides on integrating MCP (Modular Component Protocol) with ToolRegistry to register and call MCP tools.
+
+  - [**OpenAPI Integration**](openapi)
+    Guides on integrating OpenAPI specifications with ToolRegistry to register and call OpenAPI tools.
 
   - [**Examples**](examples)
-     Demonstrates practical use cases, including consecutive tool call examples.
+    Demonstrates practical use cases, including consecutive tool call examples.
 
   - [**Best Practices**](best_practices)
-     Offers principles and recommendations for designing and implementing tools.
+    Offers principles and recommendations for designing and implementing tools.
 
 <!-- - **Dependencies**
   Lists auxiliary projects that provide additional functionality. -->
@@ -60,7 +63,7 @@ Quickly start using ToolRegistry by installing it with this command:
 
 ```bash
 pip install toolregistry
-````
+```
 
 [Detailed setup instructions →](./installation)
 
