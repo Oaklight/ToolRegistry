@@ -128,6 +128,54 @@ class ToolRegistry:
                 "Install with: pip install toolregistry[mcp]"
             )
 
+    def register_openapi_tools(self, spec_url: str, base_url: Optional[str] = None):
+        """Register all tools from an OpenAPI specification (synchronous entry point).
+
+        Requires the [openapi] extra to be installed.
+
+        Args:
+            spec_url (str): URL or path to the OpenAPI specification.
+            base_url (Optional[str]): Optional base URL to use if the spec does not provide a server.
+
+        Raises:
+            ImportError: If [openapi] extra is not installed.
+        """
+        try:
+            from .openapi_integration import OpenAPIIntegration
+
+            openapi = OpenAPIIntegration(self)
+            return openapi.register_openapi_tools(spec_url, base_url)
+        except ImportError:
+            raise ImportError(
+                "OpenAPI integration requires the [openapi] extra. "
+                "Install with: pip install toolregistry[openapi]"
+            )
+
+    async def register_openapi_tools_async(
+        self, spec_url: str, base_url: Optional[str] = None
+    ):
+        """Async implementation to register all tools from an OpenAPI specification.
+
+        Requires the [openapi] extra to be installed.
+
+        Args:
+            spec_url (str): URL or path to the OpenAPI specification.
+            base_url (Optional[str]): Optional base URL to use if the spec does not provide a server.
+
+        Raises:
+            ImportError: If [openapi] extra is not installed.
+        """
+        try:
+            from .openapi_integration import OpenAPIIntegration
+
+            openapi = OpenAPIIntegration(self)
+            return await openapi.register_openapi_tools_async(spec_url, base_url)
+        except ImportError:
+            raise ImportError(
+                "OpenAPI integration requires the [openapi] extra. "
+                "Install with: pip install toolregistry[openapi]"
+            )
+
     def get_available_tools(self) -> List[str]:
         """List all registered tools.
 
