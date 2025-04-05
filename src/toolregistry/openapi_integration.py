@@ -102,13 +102,8 @@ def get_openapi_spec(source: str) -> Dict:
         with open(source, "r", encoding="utf-8") as file:
             content = file.read()
 
-        # 3. Parse JSON files
-        if source.endswith(".json"):
-            parser = ResolvingParser(content)
-            return parser.specification
-
-        # 4. Parse YAML files
-        if source.endswith((".yaml", ".yml")):
+        # 3. Parse JSON, YAML files
+        if source.endswith(".json", ".yaml", ".yml"):
             parser = ResolvingParser(content)
             return parser.specification
 
