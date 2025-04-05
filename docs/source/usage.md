@@ -4,6 +4,7 @@
 :hidden:
 openai
 mcp
+openapi
 examples
 best_practices
 ```
