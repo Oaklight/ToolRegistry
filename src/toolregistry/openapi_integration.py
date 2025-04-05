@@ -148,7 +148,6 @@ class OpenAPIToolWrapper:
         self.method = method.lower()
         self.path = path
         self.params = params
-        print(self.__dict__)
 
     def _process_args(self, *args: Any, **kwargs: Any) -> Dict[str, Any]:
         """Map positional arguments to parameter names and validate input.
