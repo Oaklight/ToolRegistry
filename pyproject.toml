@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "toolregistry"
-version = "0.3.1"
+version = "0.4.0"
 authors = [{ name = "Oaklight", email = "oaklight@gmx.com" }]
 description = "A library for managing tool registries"
 readme = "README.md"
@@ -28,6 +28,7 @@ openapi = [
     "prance>=23.6.21.0",
     "openapi-spec-validator>=0.7.1",
     "PyYAML>=6.0.2",
+    "httpx>=0.28.1"
 ] # Add openapi optional dependencies here
 
 [project.urls]
