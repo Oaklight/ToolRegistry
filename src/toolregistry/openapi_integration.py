@@ -1,65 +1,69 @@
 import asyncio
 import json
 import os
-import tempfile
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 import httpx
-import jsonref
 import yaml
+from openapi_spec_validator import validate_spec_url
 from prance import ResolvingParser
 from prance.util.url import ResolutionError
-from openapi_spec_validator import validate_spec_url
-from pydantic import BaseModel
 
 from .tool import Tool
 from .tool_registry import ToolRegistry
 
 
-def check_common_endpoints(url: str) -> Dict:
-    """
-    Check common endpoints to locate the OpenAPI schema.
-    
+def check_common_endpoints(url: str) -> Dict[str, Any]:
+    """Check common endpoints to locate the OpenAPI schema.
+
+    This function appends a set of common endpoint paths to the provided base URL
+    and checks if any of them return a valid response indicating the presence of an OpenAPI specification.
+
     Args:
-        url: Base URL of the web service.
+        url (str): Base URL of the web service.
+
     Returns:
-        Dictionary with 'found': bool and, if found, 'schema_url'
+        Dict[str, Any]: A dictionary with key "found" (bool). If a valid endpoint is found,
+        the dictionary also contains "schema_url" (str) with the full URL of the schema.
     """
     common_endpoints = [
-        '/openapi.json',
-        '/swagger.json',
-        '/api-docs',
-        '/v3/api-docs',
-        '/swagger.yaml',
-        '/openapi.yaml'
+        "/openapi.json",
+        "/swagger.json",
+        "/api-docs",
+        "/v3/api-docs",
+        "/swagger.yaml",
+        "/openapi.yaml",
     ]
-    base_url = url.rstrip('/')
+    base_url = url.rstrip("/")
     with httpx.Client(timeout=5.0) as client:
         for endpoint in common_endpoints:
             full_url = f"{base_url}{endpoint}"
             try:
                 response = client.get(full_url)
                 if response.status_code == 200:
-                    content_type = response.headers.get('Content-Type', '').lower()
-                    if 'json' in content_type or 'yaml' in content_type:
-                        return {'found': True, 'schema_url': full_url}
+                    content_type = response.headers.get("Content-Type", "").lower()
+                    if "json" in content_type or "yaml" in content_type:
+                        return {"found": True, "schema_url": full_url}
             except Exception:
                 continue
-    return {'found': False}
+    return {"found": False}
 
-def parse_openapi_spec_from_url(url: str) -> Dict:
-    """
-    Retrieve and parse OpenAPI specification from a URL.
-    
-    This function first attempts common endpoints to locate the schema.
-    If that fails, it falls back to the original URL.
-    
+
+def parse_openapi_spec_from_url(url: str) -> Dict[str, Any]:
+    """Retrieve and parse an OpenAPI specification from a URL.
+
+    The function first attempts to locate the schema by checking common endpoints.
+    If a valid schema is found there, it is returned; otherwise, it falls back to the original URL.
+
     Args:
-        url: URL to OpenAPI spec (JSON/YAML)
+        url (str): URL to the OpenAPI specification (in JSON or YAML format).
+
     Returns:
-        Parsed OpenAPI specification as a dictionary.
+        Dict[str, Any]: The parsed OpenAPI specification.
+
     Raises:
-        ValueError: If unable to validate and parse the specification.
+        ValueError: If the specification cannot be validated or parsed.
     """
     endpoint_result = check_common_endpoints(url)
     if endpoint_result.get("found"):
@@ -78,32 +82,36 @@ def parse_openapi_spec_from_url(url: str) -> Dict:
     except Exception as e:
         raise ValueError(f"Could not retrieve a valid OpenAPI spec from URL: {e}")
 
-def get_openapi_spec(source: str) -> Dict:
-    """Parse OpenAPI specification from file path or URL.
+
+def get_openapi_spec(source: str) -> Dict[str, Any]:
+    """Parse the OpenAPI specification from a file path or URL.
+
+    This function determines whether the source is a URL or a local file.
+    For URLs, it retrieves and parses the specification over HTTP.
+    For local files, it reads and parses the file content.
 
     Args:
-        source: Path or URL to OpenAPI spec (JSON/YAML)
+        source (str): The file path or URL to the OpenAPI specification (JSON/YAML).
+
     Returns:
-        Fully resolved OpenAPI specification
+        Dict[str, Any]: The fully resolved OpenAPI specification.
+
     Raises:
-        FileNotFoundError: If local file not found
-        ValueError: If parsing fails
-        RuntimeError: For unexpected errors
+        FileNotFoundError: If the local file is not found.
+        ValueError: If the specification cannot be parsed.
+        RuntimeError: For any unexpected errors.
     """
     try:
-        # 1. If the source is a URL, use the dedicated HTTP parsing function
         if source.startswith("http"):
             return parse_openapi_spec_from_url(source)
 
-        # 2. If the source is a local file, check if it exists
         if not os.path.exists(source):
             raise FileNotFoundError(f"File not found: {source}")
 
         with open(source, "r", encoding="utf-8") as file:
             content = file.read()
 
-        # 3. Parse JSON, YAML files
-        if source.endswith(".json", ".yaml", ".yml"):
+        if source.endswith((".json", ".yaml", ".yml")):
             parser = ResolvingParser(content)
             return parser.specification
 
@@ -116,7 +124,15 @@ def get_openapi_spec(source: str) -> Dict:
 
 
 class OpenAPIToolWrapper:
-    """Wrapper class providing both async and sync versions of OpenAPI tool calls."""
+    """Wrapper class that provides both synchronous and asynchronous methods for OpenAPI tool calls.
+
+    Attributes:
+        base_url (str): The base URL of the API.
+        name (str): The name of the tool.
+        method (str): The HTTP method (e.g. "get", "post").
+        path (str): The API endpoint path.
+        params (Optional[List[str]]): List of parameter names for the API call.
+    """
 
     def __init__(
         self,
@@ -124,18 +140,28 @@ class OpenAPIToolWrapper:
         name: str,
         method: str,
         path: str,
-        params: Optional[List[str]] = None,
+        params: Optional[List[str]],
     ) -> None:
         self.base_url = base_url
         self.name = name
         self.method = method.lower()
         self.path = path
-        self.params = params or []
+        self.params = params
+        print(self.__dict__)
 
     def _process_args(self, *args: Any, **kwargs: Any) -> Dict[str, Any]:
-        """Process positional and keyword arguments.
-        Maps positional args to parameter names and validates input.
-        Returns processed kwargs.
+        """Map positional arguments to parameter names and validate input.
+
+        Args:
+            *args: Positional arguments.
+            **kwargs: Keyword arguments.
+
+        Returns:
+            Dict[str, Any]: Processed keyword arguments with positional arguments mapped.
+
+        Raises:
+            ValueError: If the tool parameters are not initialized.
+            TypeError: If too many positional arguments are provided or a parameter is passed twice.
         """
         if args:
             if not self.params:
@@ -144,7 +170,6 @@ class OpenAPIToolWrapper:
                 raise TypeError(
                     f"Expected at most {len(self.params)} positional arguments, got {len(args)}"
                 )
-            # Map positional args to their corresponding parameter names
             for i, arg in enumerate(args):
                 param_name = self.params[i]
                 if param_name in kwargs:
@@ -155,9 +180,18 @@ class OpenAPIToolWrapper:
         return kwargs
 
     def call_sync(self, *args: Any, **kwargs: Any) -> Any:
-        """Synchronous implementation of OpenAPI tool call.
-        Handles both positional and keyword arguments.
-        Positional args are mapped to params in order, keyword args are passed directly.
+        """Synchronously call the API using httpx.
+
+        Args:
+            *args: Positional arguments for the API call.
+            **kwargs: Keyword arguments for the API call.
+
+        Returns:
+            Any: The JSON response from the API.
+
+        Raises:
+            ValueError: If the base URL or tool name is not set.
+            httpx.HTTPStatusError: If an HTTP error occurs.
         """
         kwargs = self._process_args(*args, **kwargs)
 
@@ -174,9 +208,18 @@ class OpenAPIToolWrapper:
             return response.json()
 
     async def call_async(self, *args: Any, **kwargs: Any) -> Any:
-        """Async implementation of OpenAPI tool call.
-        Handles both positional and keyword arguments.
-        Positional args are mapped to params in order, keyword args are passed directly.
+        """Asynchronously call the API using httpx.
+
+        Args:
+            *args: Positional arguments for the API call.
+            **kwargs: Keyword arguments for the API call.
+
+        Returns:
+            Any: The JSON response from the API.
+
+        Raises:
+            ValueError: If the base URL or tool name is not set.
+            httpx.HTTPStatusError: If an HTTP error occurs.
         """
         kwargs = self._process_args(*args, **kwargs)
 
@@ -192,24 +235,29 @@ class OpenAPIToolWrapper:
                 response = await client.request(
                     self.method, f"{self.base_url}{self.path}", json=kwargs
                 )
-
             response.raise_for_status()
             return response.json()
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        """Make the wrapper directly callable, using sync version by default."""
+        """Invoke the API call. Uses asynchronous call if in an async context,
+        otherwise defaults to the synchronous version.
+
+        Args:
+            *args: Positional arguments.
+            **kwargs: Keyword arguments.
+
+        Returns:
+            Any: The result of the API call.
+        """
         try:
-            # 尝试获取当前的 event loop
             asyncio.get_running_loop()
-            # 如果成功，说明在异步环境中
             return self.call_async(*args, **kwargs)
         except RuntimeError:
-            # 捕获异常，说明在同步环境中
             return self.call_sync(*args, **kwargs)
 
 
 class OpenAPITool(Tool):
-    """Wrapper class for OpenAPI tools that preserves original function metadata."""
+    """Wrapper class for OpenAPI tools preserving function metadata."""
 
     @classmethod
     def from_openapi_spec(
@@ -219,15 +267,27 @@ class OpenAPITool(Tool):
         method: str,
         spec: Dict[str, Any],
     ) -> "OpenAPITool":
-        """Create an OpenAPITool from OpenAPI specification."""
+        """Create an OpenAPITool instance from an OpenAPI specification.
+
+        Args:
+            base_url (str): Base URL of the service.
+            path (str): API endpoint path.
+            method (str): HTTP method.
+            spec (Dict[str, Any]): The OpenAPI operation specification.
+
+        Returns:
+            OpenAPITool: An instance of OpenAPITool configured for the specified operation.
+        """
         operation_id = spec.get("operationId", f'{method}_{path.replace("/", "_")}')
         description = spec.get("description", spec.get("summary", ""))
 
-        # Convert OpenAPI parameters to function parameters schema
-        parameters = {"type": "object", "properties": {}, "required": []}
-        param_names = []
+        parameters: Dict[str, Any] = {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        }
+        param_names: List[str] = []
 
-        # Handle path/query parameters
         for param in spec.get("parameters", []):
             param_schema = param.get("schema", {})
             param_name = param["name"]
@@ -239,7 +299,6 @@ class OpenAPITool(Tool):
             if param.get("required", False):
                 parameters["required"].append(param_name)
 
-        # Handle request body
         if "requestBody" in spec:
             content = spec["requestBody"].get("content", {})
             if "application/json" in content:
@@ -271,20 +330,35 @@ class OpenAPITool(Tool):
 
 
 class OpenAPIIntegration:
-    """Handles integration with OpenAPI services for tool registration."""
+    """Handles integration with OpenAPI services for tool registration.
 
-    def __init__(self, registry: ToolRegistry):
-        self.registry = registry
+    Attributes:
+        registry (ToolRegistry): The tool registry where tools are registered.
+    """
 
-    async def register_openapi_tools_async(self, spec_source: str) -> None:
-        """
-        Async implementation to register all tools from an OpenAPI specification.
+    def __init__(self, registry: ToolRegistry) -> None:
+        self.registry: ToolRegistry = registry
+
+    async def register_openapi_tools_async(
+        self, spec_source: str, base_url: Optional[str] = None
+    ) -> None:
+        """Asynchronously register all tools defined in an OpenAPI specification.
 
         Args:
-            spec_source: Path or URL to OpenAPI spec (JSON/YAML)
+            spec_source (str): File path or URL to the OpenAPI specification (JSON/YAML).
+
+        Returns:
+            None
         """
         openapi_spec = get_openapi_spec(spec_source)
-        base_url = openapi_spec.get("servers", [{}])[0].get("url", "")
+        if not base_url:
+            if spec_source.startswith("http"):
+
+                parsed = urlparse(spec_source)
+                base_url = f"{parsed.scheme}://{parsed.netloc}"
+            else:
+                base_url = openapi_spec.get("servers", [{}])[0].get("url", "")
+        assert base_url != "", "base_url must be specified"
 
         for path, methods in openapi_spec.get("paths", {}).items():
             for method, spec in methods.items():
@@ -299,12 +373,16 @@ class OpenAPIIntegration:
                 )
                 self.registry.register(tool)
 
-    def register_openapi_tools(self, spec_source: str) -> None:
-        """
-        Register all tools from an OpenAPI specification (synchronous entry point).
+    def register_openapi_tools(
+        self, spec_source: str, base_url: Optional[str] = None
+    ) -> None:
+        """Register all tools defined in an OpenAPI specification synchronously.
 
         Args:
-            spec_source: Path or URL to OpenAPI spec (JSON/YAML)
+            spec_source (str): File path or URL to the OpenAPI specification (JSON/YAML).
+
+        Returns:
+            None
         """
         try:
             loop = asyncio.get_event_loop()
@@ -314,8 +392,10 @@ class OpenAPIIntegration:
 
         if loop.is_running():
             future = asyncio.run_coroutine_threadsafe(
-                self.register_openapi_tools_async(spec_source), loop
+                self.register_openapi_tools_async(spec_source, base_url), loop
             )
             future.result()
         else:
-            loop.run_until_complete(self.register_openapi_tools_async(spec_source))
+            loop.run_until_complete(
+                self.register_openapi_tools_async(spec_source, base_url)
+            )
