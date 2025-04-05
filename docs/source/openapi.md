@@ -23,7 +23,7 @@ registry.register_openapi_tools(spec_url)
 print(registry)  # Output: A ToolRegistry object with the registered OpenAPI tools
 ```
 
-You should see a schema printed as follow:
+You should see a schema printed as follow. Here, we only display the first entry for clarity.
 
 ```json
 [
@@ -52,7 +52,6 @@ You should see a schema printed as follow:
       "is_async": false
     }
   },
-  ... # omitted for clarity
 ]
 ```
 
