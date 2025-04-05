@@ -4,27 +4,39 @@
 
 Before setting up ToolRegistry, ensure you have the following installed:
 
-- **Python 3.8+** is required for basic functionality, **Python 3.10+** is required for MCP support.
-- We recommend using `conda/mamba` or `pipx` to manage isolated environments. \
+- **Python 3.8+** is required for basic functionality. For modules requiring higher versions, see the table below.
+- We recommend using `conda/mamba` or `pipx` to manage isolated environments.  
   Download Conda/Mamba from: [Conda Forge](https://conda-forge.org/download/)
 
 ## Installation via pip
 
-Basic installation (requires **Python >= 3.8**):
+### Basic Installation
+
+Install the core package (requires **Python >= 3.8**):
 
 ```bash
 pip install toolregistry
 ```
 
-Installation with MCP support (requires **Python >= 3.10**):
+### Installing with Extra Support Modules
 
+Extra modules can be installed by specifying extras in brackets. This method accommodates additional modules as the project evolves.
+
+For example, to install specific extra supports:
 ```bash
-pip install toolregistry[mcp]
+pip install toolregistry[mcp,openapi]
 ```
+
+Below is a table summarizing available extra modules:
+
+| Extra Module | Python Requirement | Example Command                   |
+|--------------|--------------------|-----------------------------------|
+| mcp          | Python >= 3.10     | pip install toolregistry[mcp]     |
+| openapi      | Python >= 3.8      | pip install toolregistry[openapi] |
 
 ### Installation from Source
 
-Basic installation from source (requires **Python >= 3.8**):
+#### Basic Installation from Source
 
 ```bash
 git clone https://github.com/Oaklight/ToolRegistry.git
@@ -32,10 +44,11 @@ cd ToolRegistry
 pip install .
 ```
 
-Installation from source with MCP support (requires **Python >= 3.10**):
+#### Installing from Source with Extra Support Modules
+
+Clone the repository and install the package with desired extras. For instance, to install both MCP and OpenAPI supports:
 
 ```bash
 git clone https://github.com/Oaklight/ToolRegistry.git
 cd ToolRegistry
-pip install .[mcp]
-```
+pip install .[mcp,openapi]

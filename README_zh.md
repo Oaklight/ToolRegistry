@@ -13,17 +13,28 @@
 
 ## 安装
 
-基础安装 (需要 **Python >= 3.8**):
+### 基础安装
+
+安装核心包 (需要 **Python >= 3.8**):
 
 ```bash
 pip install toolregistry
 ```
 
-包含 MCP 扩展 (需要 **Python >= 3.10**):
+### 安装额外支持模块
+
+额外模块可以通过在方括号内指定扩展名进行安装。例如，要安装特定的额外支持模块:
 
 ```bash
-pip install "toolregistry[mcp]"
+pip install toolregistry[mcp,openapi]
 ```
+
+下表总结了可用的扩展模块:
+
+| 扩展模块 | Python 版本要求   | 示例命令                          |
+|----------|-------------------|-----------------------------------|
+| mcp      | Python >= 3.10    | pip install toolregistry[mcp]     |
+| openapi  | Python >= 3.8     | pip install toolregistry[openapi] |
 
 ## 示例
 
@@ -43,13 +54,13 @@ ToolRegistry 可以无缝集成 OpenAI API，以下是常见使用模式：
 
 ```python
 tools_json = registry.get_tools_json()
-# 将此与OpenAI API一起使用以提供可用工具
+# 将此与 OpenAI API 一起使用以提供可用工具
 ```
 
 ### 执行工具调用
 
 ```python
-# 假设tool_calls是从OpenAI API接收的
+# 假设 tool_calls 是从 OpenAI API 接收的
 tool_responses = registry.execute_tool_calls(tool_calls)
 ```
 
@@ -78,11 +89,11 @@ ToolRegistry 为 MCP (Model Context Protocol) 工具提供一流支持：
 ```python
 from toolregistry import ToolRegistry
 
-# 创建注册表并注册MCP工具
+# 创建注册表并注册 MCP 工具
 registry = ToolRegistry()
 registry.register_mcp_tools("http://localhost:8000/mcp/sse")
 
-# 获取包含MCP工具的所有工具JSON
+# 获取包含 MCP 工具的所有工具 JSON
 tools_json = registry.get_tools_json()
 ```
 
@@ -96,10 +107,10 @@ result = registry["echo_tool"]("测试同步消息")
 echo_tool = registry.get_callable("echo_tool")
 result = echo_tool.run({"message": "测试同步消息"})
 
-# 使用注册表异步调用 (需要await和asyncio.run)
+# 使用注册表异步调用 (需要 await 和 asyncio.run)
 result = await registry["echo_tool"]("测试消息")
 
-# 直接使用工具异步调用 (需要await和asyncio.run)
+# 直接使用工具异步调用 (需要 await 和 asyncio.run)
 result = await echo_tool.arun({"message": "测试同步消息"})
 ```
 

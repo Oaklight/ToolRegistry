@@ -13,17 +13,28 @@ A Python library for managing and executing tools in a structured way.
 
 ## Installation
 
-Basic installation (requires **Python >= 3.8**):
+### Basic Installation
+
+Install the core package (requires **Python >= 3.8**):
 
 ```bash
 pip install toolregistry
 ```
 
-With MCP extension (requires **Python >= 3.10**):
+### Installing with Extra Support Modules
+
+Extra modules can be installed by specifying extras in brackets. For example, to install specific extra supports:
 
 ```bash
-pip install "toolregistry[mcp]"
+pip install toolregistry[mcp,openapi]
 ```
+
+Below is a table summarizing available extra modules:
+
+| Extra Module | Python Requirement | Example Command                   |
+|--------------|--------------------|-----------------------------------|
+| mcp          | Python >= 3.10     | pip install toolregistry[mcp]     |
+| openapi      | Python >= 3.8      | pip install toolregistry[openapi] |
 
 ## Examples
 
@@ -68,7 +79,6 @@ messages = registry.recover_tool_call_assistant_message(tool_calls, tool_respons
 add_fn = registry.get_callable("add")
 result = add_fn(a=1, b=2)  # Output: 3
 ```
-
 
 ## MCP Integration
 
