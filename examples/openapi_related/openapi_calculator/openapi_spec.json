@@ -1,0 +1,179 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "OpenAPI Calculator",
+    "description": "Provides OpenAPI calculator service for addition, subtraction, multiplication, and division.",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/add": {
+      "get": {
+        "summary": "Addition",
+        "description": "Calculate a + b and return the result.\n\nArgs:\n    a (float): The first operand.\n    b (float): The second operand.\n\nReturns:\n    dict: A dictionary containing the key \"result\" with the sum of a and b.",
+        "operationId": "add_add_get",
+        "parameters": [
+          {
+            "name": "a",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "number", "title": "A" }
+          },
+          {
+            "name": "b",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "number", "title": "B" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/subtract": {
+      "get": {
+        "summary": "Subtraction",
+        "description": "Calculate a - b and return the result.\n\nArgs:\n    a (float): The first operand.\n    b (float): The second operand.\n\nReturns:\n    dict: A dictionary containing the key \"result\" with the difference of a and b.",
+        "operationId": "subtract_subtract_get",
+        "parameters": [
+          {
+            "name": "a",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "number", "title": "A" }
+          },
+          {
+            "name": "b",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "number", "title": "B" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/multiply": {
+      "get": {
+        "summary": "Multiplication",
+        "description": "Calculate a * b and return the result.\n\nArgs:\n    a (float): The first operand.\n    b (float): The second operand.\n\nReturns:\n    dict: A dictionary containing the key \"result\" with the product of a and b.",
+        "operationId": "multiply_multiply_get",
+        "parameters": [
+          {
+            "name": "a",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "number", "title": "A" }
+          },
+          {
+            "name": "b",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "number", "title": "B" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/divide": {
+      "get": {
+        "summary": "Division",
+        "description": "Calculate a / b and return the result.\n\nArgs:\n    a (float): The numerator.\n    b (float): The denominator.\n\nReturns:\n    dict: A dictionary containing the key \"result\" with the quotient of a and b.\n\nRaises:\n    HTTPException: If b is zero.",
+        "operationId": "divide_divide_get",
+        "parameters": [
+          {
+            "name": "a",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "number", "title": "A" }
+          },
+          {
+            "name": "b",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "number", "title": "B" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": { "$ref": "#/components/schemas/ValidationError" },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": { "anyOf": [{ "type": "string" }, { "type": "integer" }] },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": { "type": "string", "title": "Message" },
+          "type": { "type": "string", "title": "Error Type" }
+        },
+        "type": "object",
+        "required": ["loc", "msg", "type"],
+        "title": "ValidationError"
+      }
+    }
+  }
+}
