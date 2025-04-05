@@ -161,13 +161,17 @@ class OpenAPIToolWrapper:
         """
         kwargs = self._process_args(*args, **kwargs)
 
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+        if not self.base_url or not self.name:
+            raise ValueError("Base URL and name must be set before calling")
 
-        return loop.run_until_complete(self.call_async(**kwargs))
+        with httpx.Client() as client:
+            url = f"{self.base_url}{self.path}"
+            if self.method == "get":
+                response = client.get(url, params=kwargs)
+            else:
+                response = client.request(self.method, url, json=kwargs)
+            response.raise_for_status()
+            return response.json()
 
     async def call_async(self, *args: Any, **kwargs: Any) -> Any:
         """Async implementation of OpenAPI tool call.
