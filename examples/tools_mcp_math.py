@@ -4,7 +4,7 @@ from pprint import pprint
 
 from toolregistry import ToolRegistry
 
-PORT = os.getenv("PORT", 8000)  # 默认端口8000，可通过环境变量覆盖
+PORT = os.getenv("PORT", 8000)  # default port 8000, change via environment variable
 
 registry = ToolRegistry()
 
