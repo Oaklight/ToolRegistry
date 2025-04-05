@@ -19,7 +19,7 @@ def add(a: float, b: float):
     Returns:
         dict: A dictionary containing the key "result" with the sum of a and b.
     """
-    return {"result": a + b}
+    return a + b
 
 
 @app.get("/subtract", summary="Subtraction")
@@ -34,7 +34,7 @@ def subtract(a: float, b: float):
     Returns:
         dict: A dictionary containing the key "result" with the difference of a and b.
     """
-    return {"result": a - b}
+    return a - b
 
 
 @app.get("/multiply", summary="Multiplication")
@@ -49,7 +49,7 @@ def multiply(a: float, b: float):
     Returns:
         dict: A dictionary containing the key "result" with the product of a and b.
     """
-    return {"result": a * b}
+    return a * b
 
 
 @app.get("/divide", summary="Division")
@@ -69,7 +69,7 @@ def divide(a: float, b: float):
     """
     if b == 0:
         raise HTTPException(status_code=400, detail="Divisor cannot be zero")
-    return {"result": a / b}
+    return a / b
 
 
 if __name__ == "__main__":
