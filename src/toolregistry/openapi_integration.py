@@ -7,8 +7,8 @@ from urllib.parse import urlparse
 import httpx
 import yaml
 from openapi_spec_validator import validate_spec_url
-from prance import ResolvingParser
-from prance.util.url import ResolutionError
+from prance import ResolvingParser  # type: ignore
+from prance.util.url import ResolutionError  # type: ignore
 
 from .tool import Tool
 from .tool_registry import ToolRegistry
@@ -67,7 +67,7 @@ def parse_openapi_spec_from_url(url: str) -> Dict[str, Any]:
     """
     endpoint_result = check_common_endpoints(url)
     if endpoint_result.get("found"):
-        schema_url = endpoint_result.get("schema_url")
+        schema_url = endpoint_result.get("schema_url", "")
         try:
             validate_spec_url(schema_url)
             parser = ResolvingParser(schema_url)
@@ -114,6 +114,7 @@ def get_openapi_spec(source: str) -> Dict[str, Any]:
         if source.endswith((".json", ".yaml", ".yml")):
             parser = ResolvingParser(content)
             return parser.specification
+        raise ValueError("Unsupported file format for OpenAPI specification.")
 
     except (json.JSONDecodeError, yaml.YAMLError) as e:
         raise ValueError(f"Failed to parse OpenAPI specification: {e}")
@@ -366,7 +367,7 @@ class OpenAPIIntegration:
                     continue
 
                 tool = OpenAPITool.from_openapi_spec(
-                    base_url=base_url,
+                    base_url=base_url or "",
                     path=path,
                     method=method,
                     spec=spec,
