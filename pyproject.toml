@@ -27,6 +27,7 @@ mcp = ["mcp>=1.6.0"] # Add mcp optional dependencies here
 openapi = [
     "prance>=23.6.21.0",
     "openapi-spec-validator>=0.7.1",
+    "PyYAML>=6.0.2",
 ] # Add openapi optional dependencies here
 
 [project.urls]
