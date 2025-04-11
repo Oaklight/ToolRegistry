@@ -1,1 +1,1 @@
-examples/openapi_related/openapi_calculator/README_en.md
+README_en.md
