@@ -133,15 +133,49 @@ class ToolRegistry:
         # Replace the current registry with the new one
         self.__dict__.update(new_registry.__dict__)
 
-    def spin_off(self, registry_name: str):
+    def spinoff(self, prefix: str) -> "ToolRegistry":
+        """Spin off tools with the specified prefix into a new registry.
+
+        This method creates a new ToolRegistry, transferring tools that belong
+        to the specified prefix to it, and removing them from the current registry.
+
+        Args:
+            prefix (str): Prefix to identify tools to spin off.
+
+        Returns:
+            ToolRegistry: A new registry containing the spun-off tools.
+
+        Raises:
+            ValueError: If no tools with the specified prefix are found.
         """
-        Spin off provided registry name from current registry
-        returns the spun-off registry, and self should be flatten if only one subregistry remains
-        spun-off registry tools should have no prefix of that registry name. spun-off registry should have no subregistries.
-        """
-        if registry_name not in self._sub_registries:
-            raise ValueError(f"Registry {registry_name} not found in current registry")
-        new_registry = ToolRegistry()
+        # Filter tools with the specified prefix
+        spun_off_tools = {
+            name: tool
+            for name, tool in self._tools.items()
+            if name.startswith(f"{prefix}.")
+        }
+
+        if not spun_off_tools:
+            raise ValueError(f"No tools with prefix '{prefix}' found in the registry.")
+
+        # Create a new registry for the spun-off tools
+        new_registry = ToolRegistry(name=prefix)
+        new_registry._tools = {
+            name[len(prefix) + 1 :]: tool  # Remove prefix from spun-off tool names
+            for name, tool in spun_off_tools.items()
+        }
+
+        # Remove the spun-off tools from the current registry
+        self._tools = {
+            name: tool
+            for name, tool in self._tools.items()
+            if not name.startswith(f"{prefix}.")
+        }
+
+        # Remove the prefix from sub-registries if it exists
+        self._sub_registries.discard(prefix)
+
+        return new_registry
 
     def register_mcp_tools(self, server_url: str):
         """Register all tools from an MCP server (synchronous entry point).
