@@ -1,10 +1,10 @@
 import inspect
-import re
 from typing import Any, Callable, Dict, Optional
 
 from pydantic import BaseModel, Field
 
 from .parameter_models import _generate_parameters_model
+from .utils import normalize_tool_name
 
 
 class Tool(BaseModel):
@@ -62,29 +62,6 @@ class Tool(BaseModel):
     parameter validation.
     """
 
-    @staticmethod
-    def normalize_tool_name(name: str) -> str:
-        """Normalize tool name to snake_case format and remove dots and spaces.
-
-        Args:
-            name: Original tool name in various formats (including CamelCase, UpperCamelCase, or containing spaces)
-
-        Returns:
-            str: Normalized name in snake_case without dots or spaces
-        """
-
-        # Remove spaces and collapse multiple spaces into a single space first
-        name = re.sub(r"\s+", " ", name).strip()
-
-        # Replace spaces with underscores
-        name = name.replace(" ", "_")
-
-        # Convert CamelCase and UpperCamelCase to snake_case
-        name = re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
-
-        # Remove dots
-        return name.replace(".", "")
-
     @classmethod
     def from_function(
         cls,
@@ -115,7 +92,7 @@ class Tool(BaseModel):
         if func_name == "<lambda>":
             raise ValueError("You must provide a name for lambda functions")
 
-        func_name = Tool.normalize_tool_name(func_name)
+        func_name = normalize_tool_name(func_name)
 
         func_doc = description or func.__doc__ or ""
         is_async = inspect.iscoroutinefunction(func)
