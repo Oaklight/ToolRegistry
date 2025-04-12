@@ -64,16 +64,25 @@ class Tool(BaseModel):
 
     @staticmethod
     def normalize_tool_name(name: str) -> str:
-        """Normalize tool name to snake_case format and remove dots.
+        """Normalize tool name to snake_case format and remove dots and spaces.
 
         Args:
-            name: Original tool name
+            name: Original tool name in various formats (including CamelCase, UpperCamelCase, or containing spaces)
 
         Returns:
-            str: Normalized name in snake_case without dots
+            str: Normalized name in snake_case without dots or spaces
         """
 
+        # Remove spaces and collapse multiple spaces into a single space first
+        name = re.sub(r"\s+", " ", name).strip()
+
+        # Replace spaces with underscores
+        name = name.replace(" ", "_")
+
+        # Convert CamelCase and UpperCamelCase to snake_case
         name = re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
+
+        # Remove dots
         return name.replace(".", "")
 
     @classmethod
