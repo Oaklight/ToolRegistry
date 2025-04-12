@@ -17,3 +17,4 @@ Submodules
    toolregistry.parameter_models
    toolregistry.tool
    toolregistry.tool_registry
+   toolregistry.utils
