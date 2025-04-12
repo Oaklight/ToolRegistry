@@ -175,6 +175,17 @@ class ToolRegistry:
         # Remove the prefix from sub-registries if it exists
         self._sub_registries.discard(prefix)
 
+        # Check if only one sub-registry remains; if so, flatten its tools
+        if len(self._sub_registries) == 1:
+            remaining_prefix = next(
+                iter(self._sub_registries)
+            )  # Get the remaining prefix
+            self._tools = {
+                name[len(remaining_prefix) + 1 :]: tool  # Remove prefix
+                for name, tool in self._tools.items()
+            }
+            self._sub_registries.clear()  # Clear sub-registries as flattening occurred
+
         return new_registry
 
     def register_mcp_tools(self, server_url: str):
