@@ -1,4 +1,6 @@
 import json
+import random
+import string
 from typing import Any, Callable, Dict, List, Optional, Set, Union
 
 from .tool import Tool
@@ -18,14 +20,14 @@ class ToolRegistry:
         _tools (Dict[str, Tool]): Internal dictionary mapping tool names to Tool instances.
     """
 
-    def __init__(self, name: Optional[str] = "UnamedRegistry") -> None:
+    def __init__(self, name: Optional[str] = None) -> None:
         """Initialize an empty ToolRegistry.
 
         This method initializes an empty ToolRegistry with a name and internal
         structures for storing tools and sub-registries.
 
         Args:
-            name (Optional[str]): Name of the tool registry. Defaults to "UnamedRegistry".
+            name (Optional[str]): Name of the tool registry. Defaults to a random "reg_<4-char>" string. For instance, "reg_1a3c".
 
         Attributes:
             name (str): Name of the tool registry.
@@ -35,6 +37,8 @@ class ToolRegistry:
             to manage registered tools and sub-registries. These are not intended for
             external use.
         """
+        if name is None:
+            name = f"reg_{''.join(random.sample(string.hexdigits.lower(), 4))}"
         self.name = name
         self._tools: Dict[str, Tool] = {}
         self._sub_registries: Set = set()
