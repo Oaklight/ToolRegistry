@@ -89,18 +89,22 @@ class ToolRegistry:
         return name in self._tools
 
     def register(
-        self, tool_or_func: Union[Callable, Tool], description: Optional[str] = None
+        self,
+        tool_or_func: Union[Callable, Tool],
+        description: Optional[str] = None,
+        name: Optional[str] = None,
     ):
         """Register a tool, either as a function or Tool instance.
 
         Args:
             tool_or_func (Union[Callable, Tool]): The tool to register, either as a function or Tool instance.
             description (Optional[str]): Description for function tools. If not provided, the function's docstring will be used.
+            name (Optional[str]): Custom name for the tool. If not provided, defaults to function name for functions or tool.name for Tool instances.
         """
         if isinstance(tool_or_func, Tool):
             self._tools[tool_or_func.name] = tool_or_func
         else:
-            tool = Tool.from_function(tool_or_func, description=description)
+            tool = Tool.from_function(tool_or_func, description=description, name=name)
             self._tools[tool.name] = tool
 
     def _prefix_tools_namespace(self):
