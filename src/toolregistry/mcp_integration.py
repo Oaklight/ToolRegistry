@@ -13,6 +13,7 @@ from mcp.types import (
 
 from .tool import Tool
 from .tool_registry import ToolRegistry
+from .utils import normalize_tool_name
 
 
 class MCPToolWrapper:
@@ -221,7 +222,7 @@ class MCPTool(Tool):
         url: str,
     ) -> "MCPTool":
         """Create an MCPToolWrapper from a function."""
-        name = Tool.normalize_tool_name(name)
+        name = normalize_tool_name(name)
         wrapper = MCPToolWrapper(
             url=url,
             name=name,
