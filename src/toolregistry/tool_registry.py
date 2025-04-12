@@ -41,7 +41,7 @@ class ToolRegistry:
             name = f"reg_{''.join(random.sample(string.hexdigits.lower(), 4))}"
         self.name = name
         self._tools: Dict[str, Tool] = {}
-        self._sub_registries: Set = set()
+        self._sub_registries: Set[str] = set()
 
     def _find_sub_registries(self) -> Set:
         """
@@ -111,7 +111,7 @@ class ToolRegistry:
             tool = Tool.from_function(tool_or_func, description=description, name=name)
             self._tools[tool.name] = tool
 
-    def _prefix_tools_namespace(self):
+    def _prefix_tools_namespace(self) -> None:
         """Add the registry name as a prefix to the names of tools in the registry.
 
         This method updates the names of tools in the `_tools` dictionary by prefixing

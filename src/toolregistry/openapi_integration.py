@@ -128,7 +128,7 @@ def get_openapi_spec(source: str) -> Dict[str, Any]:
 class OpenAPIToolWrapper:
     """Wrapper class that provides both synchronous and asynchronous methods for OpenAPI tool calls.
 
-    Attributes:
+    Args:
         base_url (str): The base URL of the API.
         name (str): The name of the tool.
         method (str): The HTTP method (e.g. "get", "post").
