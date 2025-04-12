@@ -1,5 +1,5 @@
 import json
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Set, Union
 
 from .tool import Tool
 
@@ -18,23 +18,26 @@ class ToolRegistry:
         _tools (Dict[str, Tool]): Internal dictionary mapping tool names to Tool instances.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, name: Optional[str] = "UnamedRegistry") -> None:
         """Initialize an empty ToolRegistry.
 
-        Creates an empty dictionary to store tools.
+        This method initializes an empty ToolRegistry with a name and internal
+        structures for storing tools and sub-registries.
+
+        Args:
+            name (Optional[str]): Name of the tool registry. Defaults to "UnamedRegistry".
 
         Attributes:
-            _tools (Dict[str, Tool]): Internal dictionary to store registered tools.
+            name (str): Name of the tool registry.
+
+        Notes:
+            This class uses private attributes `_tools` and `_sub_registries` internally
+            to manage registered tools and sub-registries. These are not intended for
+            external use.
         """
+        self.name = name
         self._tools: Dict[str, Tool] = {}
-
-    def __len__(self) -> int:
-        """Return the number of registered tools.
-
-        Returns:
-            int: Count of registered tools.
-        """
-        return len(self._tools)
+        self._sub_registries: Set = {}
 
     def __contains__(self, name: str) -> bool:
         """Check if a tool with the given name is registered.
@@ -62,10 +65,38 @@ class ToolRegistry:
             tool = Tool.from_function(tool_or_func, description=description)
             self._tools[tool.name] = tool
 
+    def _prefix_tools_namespace(self):
+        """Add the registry name as a prefix to the names of tools in the registry.
+
+        This method updates the names of tools in the `_tools` dictionary by prefixing
+        them with the registry's name if they don't already have a prefix. Tools that
+        already have a prefix retain their existing name.
+
+        Side Effects:
+            Updates the `_tools` dictionary with potentially modified tool names.
+
+        Example:
+            If the registry name is "MainRegistry":
+            - A tool with the name "ToolA" will be updated to "MainRegistry.ToolA".
+            - A tool with the name "OtherRegistry.ToolB" will remain unchanged.
+
+        Raises:
+            None
+        """
+        new_tools: Dict[str, Tool] = {}
+        for tool in self._tools.values():
+            # Check if the tool already has a prefix
+            if "." not in tool.name:
+                # Add registry name as prefix if no existing prefix
+                tool.name = f"{self.name}.{tool.name}"
+            new_tools[tool.name] = tool
+        self._tools = new_tools
+
     def merge(self, other: "ToolRegistry", keep_existing: bool = False):
         """Merge tools from another ToolRegistry into this one.
 
-        Handles name conflicts according to keep_existing parameter.
+        Replaces the current registry with a new registry object.
+        Tools keep their original prefixes from first merge and won't get additional prefixes.
 
         Args:
             other (ToolRegistry): The ToolRegistry to merge from.
@@ -77,12 +108,40 @@ class ToolRegistry:
         if not isinstance(other, ToolRegistry):
             raise TypeError("Can only merge with another ToolRegistry instance.")
 
+        # Create a new registry object
+        new_registry = ToolRegistry()
+
+        # Merge sub registries
+        new_registry._sub_registries.update(self._sub_registries)
+        new_registry._sub_registries.update(other._sub_registries)
+        new_registry._sub_registries.update([self.name, other.name])
+
+        # Only prefix tools that don't already have a prefix
+        self._prefix_tools_namespace()
+        other._prefix_tools_namespace()
+
+        # Merge tools
         if keep_existing:
             for name, tool in other._tools.items():
                 if name not in self._tools:
-                    self._tools[name] = tool
+                    new_registry._tools[name] = tool
+            new_registry._tools.update(self._tools)
         else:
-            self._tools.update(other._tools)
+            new_registry._tools.update(self._tools)
+            new_registry._tools.update(other._tools)
+
+        # Replace the current registry with the new one
+        self.__dict__.update(new_registry.__dict__)
+
+    def spin_off(self, registry_name: str):
+        """
+        Spin off provided registry name from current registry
+        returns the spun-off registry, and self should be flatten if only one subregistry remains
+        spun-off registry tools should have no prefix of that registry name. spun-off registry should have no subregistries.
+        """
+        if registry_name not in self._sub_registries:
+            raise ValueError(f"Registry {registry_name} not found in current registry")
+        new_registry = ToolRegistry()
 
     def register_mcp_tools(self, server_url: str):
         """Register all tools from an MCP server (synchronous entry point).
