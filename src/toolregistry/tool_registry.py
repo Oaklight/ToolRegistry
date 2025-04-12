@@ -37,7 +37,45 @@ class ToolRegistry:
         """
         self.name = name
         self._tools: Dict[str, Tool] = {}
-        self._sub_registries: Set = {}
+        self._sub_registries: Set = set()
+
+    def _find_sub_registries(self) -> Set:
+        """
+        Find sub-registries within the tools registered in this registry.
+
+        This method identifies sub-registries by examining the names of tools
+        and determining prefixes separated by a dot (`.`). For example, a tool
+        named `calculator.add` would indicate that `calculator` is
+        a sub-registry.
+
+        Returns:
+            Set: A set of strings representing sub-registry prefixes found
+                within the registered tool names.
+
+        Example:
+            If `_tools` contains: {"a.tool1", "b.tool2", "tool3"}, this
+            method will return {"a", "b"}.
+        """
+        return {
+            tool_name.split(".", 1)[0]
+            for tool_name in self._tools.keys()
+            if "." in tool_name
+        }
+
+    def _update_sub_registries(self) -> None:
+        """
+        Update the internal set of sub-registries based on the registered tools.
+
+        This method calls `_find_sub_registries` to identify sub-registry prefixes
+        and updates the private `_sub_registries` set accordingly.
+
+        Side Effects:
+            Modifies the `_sub_registries` attribute with the latest prefixes.
+
+        Returns:
+            None
+        """
+        self._sub_registries = self._find_sub_registries()
 
     def __contains__(self, name: str) -> bool:
         """Check if a tool with the given name is registered.
@@ -93,10 +131,11 @@ class ToolRegistry:
         self._tools = new_tools
 
     def merge(self, other: "ToolRegistry", keep_existing: bool = False):
-        """Merge tools from another ToolRegistry into this one.
+        """
+        Merge tools from another ToolRegistry into this one.
 
-        Replaces the current registry with a new registry object.
-        Tools keep their original prefixes from first merge and won't get additional prefixes.
+        This method directly updates the current registry with tools from another
+        registry, avoiding the need to create a new ToolRegistry object.
 
         Args:
             other (ToolRegistry): The ToolRegistry to merge from.
@@ -108,30 +147,20 @@ class ToolRegistry:
         if not isinstance(other, ToolRegistry):
             raise TypeError("Can only merge with another ToolRegistry instance.")
 
-        # Create a new registry object
-        new_registry = ToolRegistry()
-
-        # Merge sub registries
-        new_registry._sub_registries.update(self._sub_registries)
-        new_registry._sub_registries.update(other._sub_registries)
-        new_registry._sub_registries.update([self.name, other.name])
-
-        # Only prefix tools that don't already have a prefix
+        # Prefix tools in both registries
         self._prefix_tools_namespace()
         other._prefix_tools_namespace()
 
-        # Merge tools
+        # Merge tools based on the `keep_existing` flag
         if keep_existing:
             for name, tool in other._tools.items():
                 if name not in self._tools:
-                    new_registry._tools[name] = tool
-            new_registry._tools.update(self._tools)
+                    self._tools[name] = tool
         else:
-            new_registry._tools.update(self._tools)
-            new_registry._tools.update(other._tools)
+            self._tools.update(other._tools)
 
-        # Replace the current registry with the new one
-        self.__dict__.update(new_registry.__dict__)
+        # Update sub-registries based on merged tools
+        self._update_sub_registries()
 
     def spinoff(self, prefix: str) -> "ToolRegistry":
         """Spin off tools with the specified prefix into a new registry.
