@@ -9,15 +9,15 @@ from .tool import Tool
 class ToolRegistry:
     """Central registry for managing tools (functions) and their metadata.
 
-    Provides functionality to:
-        - Register and manage tools
-        - Merge multiple registries
-        - Execute tool calls
-        - Generate tool schemas
-        - Interface with MCP servers
+    This class provides functionality to register, manage, and execute tools,
+    as well as to interface with MCP servers, OpenAPI endpoints, and generate tool schemas.
 
     Attributes:
-        _tools (Dict[str, Tool]): Internal dictionary mapping tool names to Tool instances.
+        name (str): The name of the tool registry.
+
+    Notes:
+        Private attributes are used internally to manage registered tools and
+        sub-registries. These attributes are not intended for external use.
     """
 
     def __init__(self, name: Optional[str] = None) -> None:
