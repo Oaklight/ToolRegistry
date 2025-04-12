@@ -279,6 +279,7 @@ class OpenAPITool(Tool):
             OpenAPITool: An instance of OpenAPITool configured for the specified operation.
         """
         operation_id = spec.get("operationId", f'{method}_{path.replace("/", "_")}')
+        operation_id = Tool.normalize_tool_name(operation_id)
         description = spec.get("description", spec.get("summary", ""))
 
         parameters: Dict[str, Any] = {

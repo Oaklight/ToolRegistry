@@ -221,6 +221,7 @@ class MCPTool(Tool):
         url: str,
     ) -> "MCPTool":
         """Create an MCPToolWrapper from a function."""
+        name = Tool.normalize_tool_name(name)
         wrapper = MCPToolWrapper(
             url=url,
             name=name,
