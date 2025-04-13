@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from mcp.client.session import ClientSession
 from mcp.client.sse import sse_client
@@ -220,18 +220,35 @@ class MCPTool(Tool):
         description: str,
         input_schema: Dict[str, Any],
         url: str,
+        namespace: Optional[str] = None,
     ) -> "MCPTool":
-        """Create an MCPToolWrapper from a function."""
-        name = normalize_tool_name(name)
+        """Create an MCPTool instance from a JSON representation.
+
+        Args:
+            name (str): The name of the tool.
+            description (str): The description of the tool.
+            input_schema (Dict[str, Any]): The input schema definition for the tool.
+            url (str): The URL endpoint for the tool.
+            namespace (Optional[str]): An optional namespace to prefix the tool name.
+                If provided, the tool name will be formatted as "{namespace}.{name}".
+
+        Returns:
+            MCPTool: A new instance of MCPTool configured with the provided parameters.
+        """
+        func_name = normalize_tool_name(name)
+        if namespace:
+            namespace = normalize_tool_name(namespace)
+            func_name = f"{namespace}.{func_name}"
+
         wrapper = MCPToolWrapper(
             url=url,
-            name=name,
+            name=func_name,
             params=(
                 list(input_schema.get("properties", {}).keys()) if input_schema else []
             ),
         )
         return cls(
-            name=name,
+            name=func_name,
             description=description,
             parameters=input_schema,
             callable=wrapper,
@@ -249,45 +266,70 @@ class MCPIntegration:
     def __init__(self, registry: ToolRegistry):
         self.registry = registry
 
-    async def register_mcp_tools_async(self, server_url: str) -> None:
+    async def register_mcp_tools_async(
+        self,
+        server_url: str,
+        with_namespace: Union[bool, str] = False,
+    ) -> None:
         """Async implementation to register all tools from an MCP server.
 
         Args:
             server_url (str): URL of the MCP server (e.g. "http://localhost:8000/mcp/sse").
+            with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
+                - If `False`, no namespace is used.
+                - If `True`, the namespace is derived from the OpenAPI info.title.
+                - If a string is provided, it is used as the namespace.
+                Defaults to False.
 
         Raises:
             RuntimeError: If connection to server fails.
         """
-        print(f"Connecting to MCP server at {server_url}")
 
         async with sse_client(server_url) as (read_stream, write_stream):
             async with ClientSession(read_stream, write_stream) as session:
-                print("Connected to server, initializing session...")
-                await session.initialize()
+                # print("Connected to server, initializing session...")
+                result = await session.initialize()
+                server_info = getattr(result, "serverInfo", None)
+
+                if isinstance(with_namespace, str):
+                    namespace = normalize_tool_name(with_namespace)
+                elif with_namespace:  # with_namespace is True
+                    namespace = normalize_tool_name(server_info.name)
+                else:
+                    namespace = None
 
                 # Get available tools from server
                 tools_response = await session.list_tools()
-                print(f"Found {len(tools_response.tools)} tools on server")
+                # print(f"Found {len(tools_response.tools)} tools on server")
 
                 # Register each tool with a wrapper function
-                for tool in tools_response.tools:
-                    # pprint(tool)
-                    mcptool_from_json = MCPTool.from_tool_json(
-                        name=tool.name,
-                        description=tool.description or "",
-                        input_schema=tool.inputSchema,
+                for tool_spec in tools_response.tools:
+                    mcp_sse_tool = MCPTool.from_tool_json(
+                        name=tool_spec.name,
+                        description=tool_spec.description or "",
+                        input_schema=tool_spec.inputSchema,
                         url=server_url,
+                        namespace=namespace,
                     )
 
                     # Register the tool wrapper function
-                    self.registry.register(mcptool_from_json)
+                    self.registry.register(mcp_sse_tool)
                     # print(f"Registered tool: {tool.name}")
 
-    def register_mcp_tools(self, server_url: str) -> None:
+    def register_mcp_tools(
+        self,
+        server_url: str,
+        with_namespace: Union[bool, str] = False,
+    ) -> None:
         """Register all tools from an MCP server (synchronous entry point).
 
         Args:
             server_url (str): URL of the MCP server.
+            with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
+                - If `False`, no namespace is used.
+                - If `True`, the namespace is derived from the OpenAPI info.title.
+                - If a string is provided, it is used as the namespace.
+                Defaults to False.
         """
         try:
             loop = asyncio.get_event_loop()
@@ -298,8 +340,10 @@ class MCPIntegration:
         if loop.is_running():
             # if event loop is already running, use run_coroutine_threadsafe
             future = asyncio.run_coroutine_threadsafe(
-                self.register_mcp_tools_async(server_url), loop
+                self.register_mcp_tools_async(server_url, with_namespace), loop
             )
             return future.result()
         else:
-            return loop.run_until_complete(self.register_mcp_tools_async(server_url))
+            return loop.run_until_complete(
+                self.register_mcp_tools_async(server_url, with_namespace)
+            )
