@@ -7,6 +7,7 @@ from mcp.types import (
     BlobResourceContents,
     EmbeddedResource,
     ImageContent,
+    InitializeResult,
     TextContent,
     TextResourceContents,
 )
@@ -288,13 +289,15 @@ class MCPIntegration:
         async with sse_client(server_url) as (read_stream, write_stream):
             async with ClientSession(read_stream, write_stream) as session:
                 # print("Connected to server, initializing session...")
-                result = await session.initialize()
+                result: InitializeResult = await session.initialize()
                 server_info = getattr(result, "serverInfo", None)
 
                 if isinstance(with_namespace, str):
                     namespace = normalize_tool_name(with_namespace)
                 elif with_namespace:  # with_namespace is True
-                    namespace = normalize_tool_name(server_info.name)
+                    namespace = normalize_tool_name(
+                        server_info.name if server_info else "MCP sse service"
+                    )
                 else:
                     namespace = None
 
