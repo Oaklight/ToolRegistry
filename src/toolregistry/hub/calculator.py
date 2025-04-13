@@ -20,7 +20,7 @@ Example:
 
 import math
 import random
-from typing import List, Tuple
+from typing import Dict, List
 
 
 class Calculator:
@@ -473,7 +473,8 @@ class Calculator:
         """
         if not numbers:
             raise ValueError("numbers list cannot be empty")
-        freq = {}
+
+        freq: Dict[float, int] = {}
         for num in numbers:
             freq[num] = freq.get(num, 0) + 1
         max_count = max(freq.values())
