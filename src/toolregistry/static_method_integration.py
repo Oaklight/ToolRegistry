@@ -13,12 +13,13 @@ Example:
 """
 
 import inspect
-from typing import Type
+from typing import Type, Union
 
 from .tool_registry import ToolRegistry
+from .utils import normalize_tool_name
 
 
-class HubIntegration:
+class StaticMethodIntegration:
     """Handles registration of class static methods as tools.
 
     Attributes:
@@ -33,27 +34,43 @@ class HubIntegration:
         """
         self.registry = registry
 
-    def register_hub_tools(self, cls: Type, with_namespace: bool = False) -> None:
+    def register_static_methods(
+        self, cls: Type, with_namespace: Union[bool, str] = False
+    ) -> None:
         """Register all static methods from a class as tools.
 
         Args:
             cls (Type): The class to scan for static methods.
+            with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
+                - If `False`, no namespace is used.
+                - If `True`, the namespace is derived from the class name.
+                - If a string is provided, it is used as the namespace.
+                Defaults to False.
         """
+        if isinstance(with_namespace, str):
+            namespace = normalize_tool_name(with_namespace)
+        elif with_namespace:  # with_namespace is True
+            namespace = normalize_tool_name(cls.__name__)
+        else:
+            namespace = None
+
         for name, method in inspect.getmembers(cls, predicate=inspect.isfunction):
             if not inspect.isfunction(method):  # skip if not static method
                 continue
-            if with_namespace:
-                self.registry.register(method, name=name, namespace=cls.__name__)
-            else:
-                self.registry.register(method, name=name)
+            self.registry.register(method, name=name, namespace=namespace)
 
-    async def register_hub_tools_async(
-        self, cls: Type, with_namespace: bool = False
+    async def register_static_methods_async(
+        self, cls: Type, with_namespace: Union[bool, str] = False
     ) -> None:
         """Async implementation to register all static methods from a class as tools.
 
         Args:
             cls (Type): The class to scan for static methods.
+            with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
+                - If `False`, no namespace is used.
+                - If `True`, the namespace is derived from the OpenAPI info.title.
+                - If a string is provided, it is used as the namespace.
+                Defaults to False.
         """
         # Currently same as sync version since registration is not IO-bound
-        self.register_hub_tools(cls)
+        self.register_static_methods(cls, with_namespace)
