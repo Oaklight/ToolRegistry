@@ -68,6 +68,7 @@ class Tool(BaseModel):
         func: Callable[..., Any],
         name: Optional[str] = None,
         description: Optional[str] = None,
+        namespace: Optional[str] = None,
     ) -> "Tool":
         """Factory method to create Tool from callable.
 
@@ -93,6 +94,10 @@ class Tool(BaseModel):
             raise ValueError("You must provide a name for lambda functions")
 
         func_name = normalize_tool_name(func_name)
+
+        if namespace:
+            namespace = normalize_tool_name(namespace)
+            func_name = f"{namespace}.{func_name}"
 
         func_doc = description or func.__doc__ or ""
         is_async = inspect.iscoroutinefunction(func)
