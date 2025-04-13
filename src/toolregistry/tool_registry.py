@@ -1,7 +1,7 @@
 import json
 import random
 import string
-from typing import Any, Callable, Dict, List, Optional, Set, Union
+from typing import Any, Callable, Dict, List, Optional, Set, Type, Union
 
 from .tool import Tool
 
@@ -97,6 +97,7 @@ class ToolRegistry:
         tool_or_func: Union[Callable, Tool],
         description: Optional[str] = None,
         name: Optional[str] = None,
+        namespace: Optional[str] = None,
     ):
         """Register a tool, either as a function or Tool instance.
 
@@ -108,7 +109,9 @@ class ToolRegistry:
         if isinstance(tool_or_func, Tool):
             self._tools[tool_or_func.name] = tool_or_func
         else:
-            tool = Tool.from_function(tool_or_func, description=description, name=name)
+            tool = Tool.from_function(
+                tool_or_func, description=description, name=name, namespace=namespace
+            )
             self._tools[tool.name] = tool
 
     def _prefix_tools_namespace(self) -> None:
@@ -316,6 +319,33 @@ class ToolRegistry:
                 "OpenAPI integration requires the [openapi] extra. "
                 "Install with: pip install toolregistry[openapi]"
             )
+
+    def register_hub_tools(self, cls: Type, with_namespace: bool = False):
+        """Register all static methods from a class as tools.
+
+        Args:
+            cls (Type): The class containing static methods to register.
+
+        Example:
+            >>> from toolregistry.hub import Calculator
+            >>> registry = ToolRegistry()
+            >>> registry.register_hub_tools(Calculator)
+        """
+        from .hub_integration import HubIntegration
+
+        hub = HubIntegration(self)
+        return hub.register_hub_tools(cls, with_namespace)
+
+    async def register_hub_tools_async(self, cls: Type, with_namespace: bool = False):
+        """Async implementation to register all static methods from a class as tools.
+
+        Args:
+            cls (Type): The class containing static methods to register.
+        """
+        from .hub_integration import HubIntegration
+
+        hub = HubIntegration(self)
+        return await hub.register_hub_tools_async(cls, with_namespace)
 
     def get_available_tools(self) -> List[str]:
         """List all registered tools.
