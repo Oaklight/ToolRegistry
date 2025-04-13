@@ -294,7 +294,7 @@ class ToolRegistry:
         self,
         spec_url: str,
         base_url: Optional[str] = None,
-        with_namespace: bool = False,
+        with_namespace: Union[bool, str] = False,
     ):
         """Register all tools from an OpenAPI specification (synchronous entry point).
 
@@ -303,6 +303,11 @@ class ToolRegistry:
         Args:
             spec_url (str): URL or path to the OpenAPI specification.
             base_url (Optional[str]): Optional base URL to use if the spec does not provide a server.
+            with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
+                - If `False`, no namespace is used.
+                - If `True`, the namespace is derived from the OpenAPI info.title.
+                - If a string is provided, it is used as the namespace.
+                Defaults to False.
 
         Raises:
             ImportError: If [openapi] extra is not installed.
@@ -322,7 +327,7 @@ class ToolRegistry:
         self,
         spec_url: str,
         base_url: Optional[str] = None,
-        with_namespace: bool = False,
+        with_namespace: Union[bool, str] = False,
     ):
         """Async implementation to register all tools from an OpenAPI specification.
 
@@ -331,6 +336,11 @@ class ToolRegistry:
         Args:
             spec_url (str): URL or path to the OpenAPI specification.
             base_url (Optional[str]): Optional base URL to use if the spec does not provide a server.
+            with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
+                - If `False`, no namespace is used.
+                - If `True`, the namespace is derived from the OpenAPI info.title.
+                - If a string is provided, it is used as the namespace.
+                Defaults to False.
 
         Raises:
             ImportError: If [openapi] extra is not installed.
