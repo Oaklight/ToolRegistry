@@ -272,7 +272,12 @@ class ToolRegistry:
                 "Install with: pip install toolregistry[mcp]"
             )
 
-    def register_openapi_tools(self, spec_url: str, base_url: Optional[str] = None):
+    def register_openapi_tools(
+        self,
+        spec_url: str,
+        base_url: Optional[str] = None,
+        with_namespace: bool = False,
+    ):
         """Register all tools from an OpenAPI specification (synchronous entry point).
 
         Requires the [openapi] extra to be installed.
@@ -288,7 +293,7 @@ class ToolRegistry:
             from .openapi_integration import OpenAPIIntegration
 
             openapi = OpenAPIIntegration(self)
-            return openapi.register_openapi_tools(spec_url, base_url)
+            return openapi.register_openapi_tools(spec_url, base_url, with_namespace)
         except ImportError:
             raise ImportError(
                 "OpenAPI integration requires the [openapi] extra. "
@@ -296,7 +301,10 @@ class ToolRegistry:
             )
 
     async def register_openapi_tools_async(
-        self, spec_url: str, base_url: Optional[str] = None
+        self,
+        spec_url: str,
+        base_url: Optional[str] = None,
+        with_namespace: bool = False,
     ):
         """Async implementation to register all tools from an OpenAPI specification.
 
@@ -313,7 +321,9 @@ class ToolRegistry:
             from .openapi_integration import OpenAPIIntegration
 
             openapi = OpenAPIIntegration(self)
-            return await openapi.register_openapi_tools_async(spec_url, base_url)
+            return await openapi.register_openapi_tools_async(
+                spec_url, base_url, with_namespace
+            )
         except ImportError:
             raise ImportError(
                 "OpenAPI integration requires the [openapi] extra. "

@@ -1,7 +1,7 @@
 import asyncio
 import json
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from urllib.parse import urlparse
 
 import httpx
@@ -267,6 +267,7 @@ class OpenAPITool(Tool):
         path: str,
         method: str,
         spec: Dict[str, Any],
+        namespace: Optional[str] = None,
     ) -> "OpenAPITool":
         """Create an OpenAPITool instance from an OpenAPI specification.
 
@@ -275,12 +276,19 @@ class OpenAPITool(Tool):
             path (str): API endpoint path.
             method (str): HTTP method.
             spec (Dict[str, Any]): The OpenAPI operation specification.
+            namespace (Optional[str]): Optional namespace to prefix tool names with.
 
         Returns:
             OpenAPITool: An instance of OpenAPITool configured for the specified operation.
         """
         operation_id = spec.get("operationId", f'{method}_{path.replace("/", "_")}')
         operation_id = normalize_tool_name(operation_id)
+
+        func_name = operation_id
+        if namespace:
+            namespace = normalize_tool_name(namespace)
+            func_name = f"{namespace}.{func_name}"
+
         description = spec.get("description", spec.get("summary", ""))
 
         parameters: Dict[str, Any] = {
@@ -316,14 +324,14 @@ class OpenAPITool(Tool):
 
         wrapper = OpenAPIToolWrapper(
             base_url=base_url,
-            name=operation_id,
+            name=func_name,
             method=method,
             path=path,
             params=param_names,
         )
 
         return cls(
-            name=operation_id,
+            name=func_name,
             description=description,
             parameters=parameters,
             callable=wrapper,
@@ -342,46 +350,73 @@ class OpenAPIIntegration:
         self.registry: ToolRegistry = registry
 
     async def register_openapi_tools_async(
-        self, spec_source: str, base_url: Optional[str] = None
+        self,
+        spec_source: str,
+        base_url: Optional[str] = None,
+        with_namespace: Union[bool, str] = False,
     ) -> None:
         """Asynchronously register all tools defined in an OpenAPI specification.
 
         Args:
             spec_source (str): File path or URL to the OpenAPI specification (JSON/YAML).
+            base_url (Optional[str]): Base URL for API calls. If None, will be extracted from spec.
+            with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
+                - If `False`, no namespace is used.
+                - If `True`, the namespace is derived from the OpenAPI info.title.
+                - If a string is provided, it is used as the namespace.
+                Defaults to False.
 
         Returns:
             None
         """
+
         openapi_spec = get_openapi_spec(spec_source)
         if not base_url:
             if spec_source.startswith("http"):
-
                 parsed = urlparse(spec_source)
                 base_url = f"{parsed.scheme}://{parsed.netloc}"
             else:
                 base_url = openapi_spec.get("servers", [{}])[0].get("url", "")
         assert base_url != "", "base_url must be specified"
 
+        if isinstance(with_namespace, str):
+            namespace = normalize_tool_name(with_namespace)
+        elif with_namespace:  # with_namespace is True
+            namespace = openapi_spec.get("info", {}).get("title", "open_api_service")
+            namespace = normalize_tool_name(namespace)
+        else:
+            namespace = None
+
         for path, methods in openapi_spec.get("paths", {}).items():
             for method, spec in methods.items():
                 if method.lower() not in ["get", "post", "put", "delete"]:
                     continue
 
-                tool = OpenAPITool.from_openapi_spec(
+                open_api_tool = OpenAPITool.from_openapi_spec(
                     base_url=base_url or "",
                     path=path,
                     method=method,
                     spec=spec,
+                    namespace=namespace,
                 )
-                self.registry.register(tool)
+                self.registry.register(open_api_tool)
 
     def register_openapi_tools(
-        self, spec_source: str, base_url: Optional[str] = None
+        self,
+        spec_source: str,
+        base_url: Optional[str] = None,
+        with_namespace: Union[bool, str] = False,
     ) -> None:
-        """Register all tools defined in an OpenAPI specification synchronously.
+        """Synchronously register all tools defined in an OpenAPI specification.
 
         Args:
             spec_source (str): File path or URL to the OpenAPI specification (JSON/YAML).
+            base_url (Optional[str]): Base URL for API calls. If None, will be extracted from spec.
+            with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
+                - If `False`, no namespace is used.
+                - If `True`, the namespace is derived from the OpenAPI info.title.
+                - If a string is provided, it is used as the namespace.
+                Defaults to False.
 
         Returns:
             None
@@ -394,10 +429,13 @@ class OpenAPIIntegration:
 
         if loop.is_running():
             future = asyncio.run_coroutine_threadsafe(
-                self.register_openapi_tools_async(spec_source, base_url), loop
+                self.register_openapi_tools_async(
+                    spec_source, base_url, with_namespace
+                ),
+                loop,
             )
             future.result()
         else:
             loop.run_until_complete(
-                self.register_openapi_tools_async(spec_source, base_url)
+                self.register_openapi_tools_async(spec_source, base_url, with_namespace)
             )
