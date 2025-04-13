@@ -228,13 +228,22 @@ class ToolRegistry:
 
         return new_registry
 
-    def register_mcp_tools(self, server_url: str):
+    def register_mcp_tools(
+        self,
+        server_url: str,
+        with_namespace: Union[bool, str] = False,
+    ):
         """Register all tools from an MCP server (synchronous entry point).
 
         Requires the [mcp] extra to be installed.
 
         Args:
             server_url (str): URL of the MCP server.
+            with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
+                - If `False`, no namespace is used.
+                - If `True`, the namespace is derived from the OpenAPI info.title.
+                - If a string is provided, it is used as the namespace.
+                Defaults to False.
 
         Raises:
             ImportError: If [mcp] extra is not installed.
@@ -243,20 +252,29 @@ class ToolRegistry:
             from .mcp_integration import MCPIntegration
 
             mcp = MCPIntegration(self)
-            return mcp.register_mcp_tools(server_url)
+            return mcp.register_mcp_tools(server_url, with_namespace)
         except ImportError:
             raise ImportError(
                 "MCP integration requires the [mcp] extra. "
                 "Install with: pip install toolregistry[mcp]"
             )
 
-    async def register_mcp_tools_async(self, server_url: str):
+    async def register_mcp_tools_async(
+        self,
+        server_url: str,
+        with_namespace: Union[bool, str] = False,
+    ):
         """Async implementation to register all tools from an MCP server.
 
         Requires the [mcp] extra to be installed.
 
         Args:
             server_url (str): URL of the MCP server.
+            with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
+                - If `False`, no namespace is used.
+                - If `True`, the namespace is derived from the OpenAPI info.title.
+                - If a string is provided, it is used as the namespace.
+                Defaults to False.
 
         Raises:
             ImportError: If [mcp] extra is not installed.
@@ -265,7 +283,7 @@ class ToolRegistry:
             from .mcp_integration import MCPIntegration
 
             mcp = MCPIntegration(self)
-            return await mcp.register_mcp_tools_async(server_url)
+            return await mcp.register_mcp_tools_async(server_url, with_namespace)
         except ImportError:
             raise ImportError(
                 "MCP integration requires the [mcp] extra. "
