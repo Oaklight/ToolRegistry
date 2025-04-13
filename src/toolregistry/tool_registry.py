@@ -358,32 +358,49 @@ class ToolRegistry:
                 "Install with: pip install toolregistry[openapi]"
             )
 
-    def register_hub_tools(self, cls: Type, with_namespace: bool = False):
+    def register_hub_tools(self, cls: Type, with_namespace: Union[bool, str] = False):
         """Register all static methods from a class as tools.
 
         Args:
             cls (Type): The class containing static methods to register.
+            with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
+                - If `False`, no namespace is used.
+                - If `True`, the namespace is derived from the OpenAPI info.title.
+                - If a string is provided, it is used as the namespace.
+                Defaults to False.
 
         Example:
             >>> from toolregistry.hub import Calculator
             >>> registry = ToolRegistry()
             >>> registry.register_hub_tools(Calculator)
         """
-        from .hub_integration import HubIntegration
+        from .static_method_integration import StaticMethodIntegration
 
-        hub = HubIntegration(self)
-        return hub.register_hub_tools(cls, with_namespace)
+        hub = StaticMethodIntegration(self)
+        return hub.register_static_methods(cls, with_namespace)
 
-    async def register_hub_tools_async(self, cls: Type, with_namespace: bool = False):
+    async def register_hub_tools_async(
+        self, cls: Type, with_namespace: Union[bool, str] = False
+    ):
         """Async implementation to register all static methods from a class as tools.
 
         Args:
             cls (Type): The class containing static methods to register.
-        """
-        from .hub_integration import HubIntegration
+            with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
+                - If `False`, no namespace is used.
+                - If `True`, the namespace is derived from the OpenAPI info.title.
+                - If a string is provided, it is used as the namespace.
+                Defaults to False.
 
-        hub = HubIntegration(self)
-        return await hub.register_hub_tools_async(cls, with_namespace)
+        Example:
+            >>> from toolregistry.hub import Calculator
+            >>> registry = ToolRegistry()
+            >>> registry.register_hub_tools(Calculator)
+        """
+        from .static_method_integration import StaticMethodIntegration
+
+        hub = StaticMethodIntegration(self)
+        return await hub.register_static_methods_async(cls, with_namespace)
 
     def get_available_tools(self) -> List[str]:
         """List all registered tools.
