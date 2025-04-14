@@ -3,7 +3,8 @@
 This module serves as a central hub for various utility tools including:
 - Calculator: Basic arithmetic operations
 - FileSystem: File system operations
-- FileOps: Advanced file manipulation functions
+- FileOps: File manipulation functions
+- UnitConverter: Unit conversion functions
 
 Example:
     >>> from toolregistry.hub import Calculator, FileSystem, FileOps
@@ -18,9 +19,11 @@ Example:
 from .calculator import Calculator
 from .file_ops import FileOps
 from .filesystem import FileSystem
+from .unit_converter import UnitConverter
 
 __all__ = [
     "Calculator",
     "FileSystem",
     "FileOps",
+    "UnitConverter",
 ]

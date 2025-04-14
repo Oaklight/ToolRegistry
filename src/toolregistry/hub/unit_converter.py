@@ -1,4 +1,4 @@
-class Converter:
+class UnitConverter:
     """Performs unit conversions.
 
     Methods:
