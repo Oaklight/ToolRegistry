@@ -63,14 +63,14 @@ Hub encapsulates commonly used tools as static methods (@staticmethod) in classe
 
 ## Registering Hub Tools
 
-Hub tools are registered to ToolRegistry using the `register_hub_tools` method:
+Hub tools are registered to ToolRegistry using the `register_static_tools` method:
 
 ```python
 from toolregistry import ToolRegistry
 from toolregistry.hub import Calculator
 
 registry = ToolRegistry()
-registry.register_hub_tools(Calculator)  # Basic registration
+registry.register_static_tools(Calculator)  # Basic registration
 ```
 
 ### with_namespace Option
@@ -78,7 +78,7 @@ registry.register_hub_tools(Calculator)  # Basic registration
 Using `with_namespace=True` parameter adds the class name as a namespace prefix to tool names:
 
 ```python
-registry.register_hub_tools(Calculator, with_namespace=True)
+registry.register_static_tools(Calculator, with_namespace=True)
 ```
 
 This will register tools with names like `Calculator.add`, `Calculator.subtract`, etc.
@@ -99,10 +99,10 @@ from toolregistry.hub import Calculator, FileOps
 registry = ToolRegistry()
 
 # Register Calculator tools (with namespace)
-registry.register_hub_tools(Calculator, with_namespace=True)
+registry.register_static_tools(Calculator, with_namespace=True)
 
 # Register FileOps tools (without namespace)
-registry.register_hub_tools(FileOps)
+registry.register_static_tools(FileOps)
 
 # Get available tools list
 print(registry.get_available_tools())

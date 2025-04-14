@@ -4,12 +4,12 @@ from toolregistry import ToolRegistry
 from toolregistry.hub import Calculator, FileOps
 
 
-def test_register_hub_tools():
+def test_register_static_tools():
     """Test registering static methods from a class."""
     registry = ToolRegistry()
-    registry.register_hub_tools(Calculator)
+    registry.register_static_tools(Calculator)
     print(registry.get_available_tools())
-    registry.register_hub_tools(FileOps)
+    registry.register_static_tools(FileOps)
     print(registry.get_available_tools())
 
     # Verify all static methods are registered in _tools
@@ -25,10 +25,10 @@ def test_register_hub_tools():
     assert registry._tools["divide"].callable(6, 3) == 2
 
 
-async def test_register_hub_tools_async():
+async def test_register_static_tools_async():
     """Test async registration of static methods."""
     registry = ToolRegistry()
-    await registry.register_hub_tools_async(Calculator)
+    await registry.register_static_tools_async(Calculator)
 
     # Verify methods are registered
     assert "Calculator.add" in registry
@@ -36,5 +36,5 @@ async def test_register_hub_tools_async():
 
 
 if __name__ == "__main__":
-    test_register_hub_tools()
+    test_register_static_tools()
     print("All hub integration tests passed!")
