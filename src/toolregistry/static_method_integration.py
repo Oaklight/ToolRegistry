@@ -56,7 +56,7 @@ class StaticMethodIntegration:
         for name, method in inspect.getmembers(cls, predicate=inspect.isfunction):
             if not inspect.isfunction(method):  # skip if not static method
                 continue
-            self.registry.register(method, name=name, namespace=namespace)
+            self.registry.register(method, namespace=namespace)
 
     async def register_static_methods_async(
         self, cls: Type, with_namespace: Union[bool, str] = False

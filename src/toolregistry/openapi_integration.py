@@ -397,7 +397,7 @@ class OpenAPIIntegration:
                     spec=spec,
                     namespace=namespace,
                 )
-                self.registry.register(open_api_tool)
+                self.registry.register(open_api_tool, namespace=namespace)
 
     def register_openapi_tools(
         self,
