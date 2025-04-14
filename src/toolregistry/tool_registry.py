@@ -107,6 +107,9 @@ class ToolRegistry:
             name (Optional[str]): Custom name for the tool. If not provided, defaults to function name for functions or tool.name for Tool instances.
             namespace (Optional[str]): Namespace for the tool. For static methods, defaults to class name if not provided.
         """
+        if namespace:
+            self._sub_registries.add(namespace)
+
         if isinstance(tool_or_func, Tool):
             tool_or_func.update_namespace(namespace, force=True)
             self._tools[tool_or_func.name] = tool_or_func

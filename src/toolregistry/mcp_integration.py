@@ -298,7 +298,6 @@ class MCPIntegration:
                     namespace = with_namespace
                 elif with_namespace:  # with_namespace is True
                     namespace = server_info.name if server_info else "MCP sse service"
-
                 else:
                     namespace = None
 
@@ -317,7 +316,7 @@ class MCPIntegration:
                     )
 
                     # Register the tool wrapper function
-                    self.registry.register(mcp_sse_tool)
+                    self.registry.register(mcp_sse_tool, namespace=namespace)
                     # print(f"Registered tool: {tool.name}")
 
     def register_mcp_tools(
