@@ -96,7 +96,25 @@ class TestMergeAndSpinoff(unittest.TestCase):
         with self.assertRaises(ValueError):
             sub_registry = self.registry_a.spinoff("nonexistent")
 
-    def test_spinoff_and_merge_complex(self):
+    def test_spinoff_with_retain_namespace(self):
+        """Test spinoff functionality with retain_namespace parameter."""
+        create_sample_tool(self.registry_a, "tool1", namespace="retain")
+        create_sample_tool(self.registry_a, "tool2", namespace="retain")
+
+        # Case 1: retain_namespace=True
+        sub_registry_retain = self.registry_a.spinoff("retain", retain_namespace=True)
+        self.assertEqual(len(sub_registry_retain.get_available_tools()), 2)
+        self.assertIn("retain.tool1", sub_registry_retain.get_available_tools())
+        self.assertIn("retain.tool2", sub_registry_retain.get_available_tools())
+
+        # Case 2: retain_namespace=False
+        create_sample_tool(self.registry_a, "tool3", namespace="remove")
+        create_sample_tool(self.registry_a, "tool4", namespace="remove")
+        sub_registry_remove = self.registry_a.spinoff("remove", retain_namespace=False)
+        self.assertEqual(len(sub_registry_remove.get_available_tools()), 2)
+        self.assertIn("tool3", sub_registry_remove.get_available_tools())
+        self.assertIn("tool4", sub_registry_remove.get_available_tools())
+
         """Test complex spinoff and merge scenarios."""
         create_sample_tool(self.registry_a, "tool1", namespace="complex")
         create_sample_tool(self.registry_a, "tool2", namespace="complex")
