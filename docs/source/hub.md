@@ -71,7 +71,6 @@ To register static methods from a custom class, use the `StaticMethodIntegration
 
 ```python
 from toolregistry import ToolRegistry
-from toolregistry.static_method_integration import StaticMethodIntegration
 
 class CustomTools:
     @staticmethod
@@ -79,10 +78,7 @@ class CustomTools:
         return f"Hello, {name}!"
 
 registry = ToolRegistry()
-integration = StaticMethodIntegration(registry)
-
-# Register static methods from CustomTools
-integration.register_static_methods(CustomTools)
+registry.register_static_tools(CustomTools)
 
 # List registered tools
 print(registry.get_available_tools())

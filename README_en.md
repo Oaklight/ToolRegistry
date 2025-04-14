@@ -12,6 +12,10 @@ A Python library for managing and executing tools in a structured way.
 - Support for both synchronous and asynchronous tools
 - Support [MCP sse](https://toolregistry.lab.oaklight.cn/mcp.html), [OpenAPI](https://toolregistry.lab.oaklight.cn/openapi.html) tools
 
+## Full Documentation
+
+Full documentation is available at [https://toolregistry.lab.oaklight.cn](https://toolregistry.lab.oaklight.cn)
+
 ## Installation
 
 ### Basic Installation
@@ -101,9 +105,56 @@ registry.register_openapi_tools("./openapi_spec.json", "http://localhost/") # by
 tools_json = registry.get_tools_json()
 ```
 
-## Documentation
+## Static Method Integration and Hub of Tools
 
-Full documentation is available at [https://toolregistry.lab.oaklight.cn](https://toolregistry.lab.oaklight.cn)
+ToolRegistry supports integration of static methods and predefined hub tools for enhanced functionality and organization.
+
+### Static Method Integration
+
+Static methods from Python classes can be registered as tools using the `StaticMethodIntegration` module. This allows developers to extend ToolRegistry by creating custom tool classes with reusable static methods.
+
+Example:
+
+```python
+from toolregistry import ToolRegistry
+
+class CustomTools:
+    @staticmethod
+    def greet(name: str) -> str:
+        return f"Hello, {name}!"
+
+registry = ToolRegistry()
+registry.register_static_tools(CustomTools) 
+
+# List registered tools
+print(registry.get_available_tools())
+# Output: ['greet']
+```
+
+### Hub Tools
+
+Hub tools encapsulate commonly used functionalities as static methods in classes. These tools are grouped for better organization and reusability.
+
+Examples of available hub tools include:
+
+- **Calculator**: Basic arithmetic, scientific operations, statistical functions, financial calculations, and more.
+- **FileOps**: File manipulation operations like diff generation, patching, and verification.
+- **Filesystem**: Comprehensive file system operations such as directory listing, file reading/writing, and path manipulation.
+- **UnitConverter**: Extensive unit conversion tools for temperature, length, weight, and more.
+
+To register hub tools:
+
+```python
+from toolregistry import ToolRegistry
+from toolregistry.hub import Calculator
+
+registry = ToolRegistry()
+registry.register_static_tools(Calculator, with_namespace=True)
+
+# Get available tools list
+print(registry.get_available_tools())
+# Output: ['Calculator.add', 'Calculator.subtract', ..., 'Calculator.multiply', ...]
+```
 
 ## License
 

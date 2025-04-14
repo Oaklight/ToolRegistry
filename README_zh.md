@@ -12,6 +12,10 @@
 - 同步与异步工具支持
 - 支持 [MCP sse](https://toolregistry.lab.oaklight.cn/mcp.html) 和 [OpenAPI](https://toolregistry.lab.oaklight.cn/openapi.html) 工具
 
+## 完整文档
+
+完整的文档请参阅 [https://toolregistry.lab.oaklight.cn](https://toolregistry.lab.oaklight.cn)
+
 ## 安装
 
 ### 基础安装
@@ -79,6 +83,53 @@ print(add_result) # 9
 ## MCP 集成
 
 ToolRegistry 提供了对 MCP（模型上下文协议）工具的一流支持：
+
+## 静态方法集成与工具中心
+
+ToolRegistry 支持通过 `StaticMethodIntegration` 模块注册 Python 类的静态方法作为工具。这使开发者能够通过创建具有可重用静态方法的自定义工具类来扩展 ToolRegistry。
+
+示例：
+
+```python
+from toolregistry import ToolRegistry
+
+class CustomTools:
+    @staticmethod
+    def greet(name: str) -> str:
+        return f"Hello, {name}!"
+
+registry = ToolRegistry()
+registry.register_static_tools(CustomTools)
+
+# 列出已注册工具
+print(registry.get_available_tools())
+# 输出: ['greet']
+```
+
+### 工具中心
+
+工具中心通过类中的静态方法封装常用功能，以增强功能性和组织性。
+
+工具中心的可用工具示例包括：
+
+- **Calculator**: 基本算术、科学运算、统计函数、财务计算等。
+- **FileOps**: 文件操作，例如生成差异、打补丁和验证。
+- **Filesystem**: 综合文件系统操作，例如目录列表、文件读写和路径操作。
+- **UnitConverter**: 广泛的单位转换工具，包括温度、长度、重量等。
+
+注册工具中心工具：
+
+```python
+from toolregistry import ToolRegistry
+from toolregistry.hub import Calculator
+
+registry = ToolRegistry()
+registry.register_static_tools(Calculator, with_namespace=True)
+
+# 获取可用工具列表
+print(registry.get_available_tools())
+# 输出: ['Calculator.add', 'Calculator.subtract', ..., 'Calculator.multiply', ...]
+```
 
 ```python
 registry.register_mcp_tools("http://localhost:8000/mcp/sse")
