@@ -99,14 +99,16 @@ class ToolRegistry:
         name: Optional[str] = None,
         namespace: Optional[str] = None,
     ):
-        """Register a tool, either as a function or Tool instance.
+        """Register a tool, either as a function, Tool instance, or static method.
 
         Args:
-            tool_or_func (Union[Callable, Tool]): The tool to register, either as a function or Tool instance.
+            tool_or_func (Union[Callable, Tool]): The tool to register, either as a function, Tool instance, or static method.
             description (Optional[str]): Description for function tools. If not provided, the function's docstring will be used.
             name (Optional[str]): Custom name for the tool. If not provided, defaults to function name for functions or tool.name for Tool instances.
+            namespace (Optional[str]): Namespace for the tool. For static methods, defaults to class name if not provided.
         """
         if isinstance(tool_or_func, Tool):
+            tool_or_func.update_namespace(namespace, force=True)
             self._tools[tool_or_func.name] = tool_or_func
         else:
             tool = Tool.from_function(
@@ -134,10 +136,7 @@ class ToolRegistry:
         """
         new_tools: Dict[str, Tool] = {}
         for tool in self._tools.values():
-            # Check if the tool already has a prefix
-            if "." not in tool.name:
-                # Add registry name as prefix if no existing prefix
-                tool.name = f"{self.name}.{tool.name}"
+            tool.update_namespace(self.name, force=False)
             new_tools[tool.name] = tool
         self._tools = new_tools
 
@@ -373,6 +372,10 @@ class ToolRegistry:
             >>> from toolregistry.hub import Calculator
             >>> registry = ToolRegistry()
             >>> registry.register_hub_tools(Calculator)
+
+        Note:
+            This method is now a convenience wrapper around the register() method's
+            static method handling capability.
         """
         from .static_method_integration import StaticMethodIntegration
 

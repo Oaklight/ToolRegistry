@@ -44,8 +44,9 @@ def test_normalize():
     assert normalize_tool_name("getUserIDFromDB") == "get_user_id_from_db"
     assert normalize_tool_name("HTTPRequest") == "http_request"
     assert normalize_tool_name("process XML and JSON") == "process_xml_and_json"
+    assert normalize_tool_name("OpenAPI service") == "open_api_service"
 
-    print("All 25 test cases passed!")
+    print("All 26 test cases passed!")
 
 
 if __name__ == "__main__":

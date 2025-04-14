@@ -16,7 +16,6 @@ import inspect
 from typing import Type, Union
 
 from .tool_registry import ToolRegistry
-from .utils import normalize_tool_name
 
 
 class StaticMethodIntegration:
@@ -48,9 +47,9 @@ class StaticMethodIntegration:
                 Defaults to False.
         """
         if isinstance(with_namespace, str):
-            namespace = normalize_tool_name(with_namespace)
+            namespace = with_namespace
         elif with_namespace:  # with_namespace is True
-            namespace = normalize_tool_name(cls.__name__)
+            namespace = cls.__name__
         else:
             namespace = None
 

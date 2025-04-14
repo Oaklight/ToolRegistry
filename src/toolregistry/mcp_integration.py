@@ -237,9 +237,6 @@ class MCPTool(Tool):
             MCPTool: A new instance of MCPTool configured with the provided parameters.
         """
         func_name = normalize_tool_name(name)
-        if namespace:
-            namespace = normalize_tool_name(namespace)
-            func_name = f"{namespace}.{func_name}"
 
         wrapper = MCPToolWrapper(
             url=url,
@@ -248,13 +245,18 @@ class MCPTool(Tool):
                 list(input_schema.get("properties", {}).keys()) if input_schema else []
             ),
         )
-        return cls(
+        tool = cls(
             name=func_name,
             description=description,
             parameters=input_schema,
             callable=wrapper,
             is_async=False,
         )
+
+        if namespace:
+            tool.update_namespace(namespace)
+
+        return tool
 
 
 class MCPIntegration:
@@ -293,11 +295,10 @@ class MCPIntegration:
                 server_info = getattr(result, "serverInfo", None)
 
                 if isinstance(with_namespace, str):
-                    namespace = normalize_tool_name(with_namespace)
+                    namespace = with_namespace
                 elif with_namespace:  # with_namespace is True
-                    namespace = normalize_tool_name(
-                        server_info.name if server_info else "MCP sse service"
-                    )
+                    namespace = server_info.name if server_info else "MCP sse service"
+
                 else:
                     namespace = None
 
