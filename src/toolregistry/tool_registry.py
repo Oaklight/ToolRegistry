@@ -4,6 +4,7 @@ import string
 from typing import Any, Callable, Dict, List, Optional, Set, Type, Union
 
 from .tool import Tool
+from .utils import normalize_tool_name
 
 
 class ToolRegistry:
@@ -108,7 +109,7 @@ class ToolRegistry:
             namespace (Optional[str]): Namespace for the tool. For static methods, defaults to class name if not provided.
         """
         if namespace:
-            self._sub_registries.add(namespace)
+            self._sub_registries.add(normalize_tool_name(namespace))
 
         if isinstance(tool_or_func, Tool):
             tool_or_func.update_namespace(namespace, force=True)
