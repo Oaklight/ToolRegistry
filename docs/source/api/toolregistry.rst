@@ -6,6 +6,14 @@ toolregistry package
    :undoc-members:
    :show-inheritance:
 
+Subpackages
+-----------
+
+.. toctree::
+   :maxdepth: 4
+
+   toolregistry.hub
+
 Submodules
 ----------
 
@@ -15,6 +23,7 @@ Submodules
    toolregistry.mcp_integration
    toolregistry.openapi_integration
    toolregistry.parameter_models
+   toolregistry.static_method_integration
    toolregistry.tool
    toolregistry.tool_registry
    toolregistry.utils

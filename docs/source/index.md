@@ -35,7 +35,7 @@ Here are brief introductions and links to each section:
 <!-- - **Dependencies**
   Lists auxiliary projects that provide additional functionality. -->
 
-- [**API References**](api/index)
+- [**API References**](api/toolregistry)
   Comprehensive API documentation for all classes and methods in ToolRegistry.
 
 ```{toctree}
@@ -46,7 +46,7 @@ Here are brief introductions and links to each section:
 Getting Started <self>
 installation
 usage
-API Reference <api/index>
+API Reference <api/toolregistry>
 ```
 
 ---
