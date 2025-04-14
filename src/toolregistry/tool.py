@@ -95,10 +95,6 @@ class Tool(BaseModel):
 
         func_name = normalize_tool_name(func_name)
 
-        if namespace:
-            namespace = normalize_tool_name(namespace)
-            func_name = f"{namespace}.{func_name}"
-
         func_doc = description or func.__doc__ or ""
         is_async = inspect.iscoroutinefunction(func)
 
@@ -110,7 +106,7 @@ class Tool(BaseModel):
         parameters_schema = (
             parameters_model.model_json_schema() if parameters_model else {}
         )
-        return cls(
+        tool = cls(
             name=func_name,
             description=func_doc,
             parameters=parameters_schema,
@@ -118,6 +114,11 @@ class Tool(BaseModel):
             is_async=is_async,
             parameters_model=parameters_model if parameters_model is not None else None,
         )
+
+        if namespace:
+            tool.update_namespace(namespace)
+
+        return tool
 
     def get_json_schema(self) -> Dict[str, Any]:
         """Generate JSON Schema representation of tool.
@@ -212,3 +213,49 @@ class Tool(BaseModel):
             )
         except Exception as e:
             return f"Error executing {self.name}: {str(e)}"
+
+    def update_namespace(self, namespace: Optional[str], force: bool = False) -> None:
+        """Updates the namespace of a tool.
+
+        This method checks if the tool's name already contains a namespace (indicated by the presence of a dot ('.')).
+        If it does and `force` is `True`, the existing namespace is replaced with the provided `namespace`.
+        If `force` is `False` and an existing namespace is present, no changes are made.
+        If the tool's name does not contain a namespace, the `namespace` is prepended as a prefix to the tool's name.
+
+        Args:
+            namespace (str): The new namespace to apply to the tool's name.
+            force (bool, optional): If `True`, forces the replacement of an existing namespace. Defaults to `False`.
+
+        Returns:
+            None: This method modifies the `tool.name` attribute in place and does not return a value.
+
+        Example:
+            >>> tool = Tool(name="example_tool")
+            >>> tool.update_namespace("new_namespace")
+            >>> tool.name
+            'new_namespace.example_tool'
+
+            >>> tool = Tool(name="old_namespace.example_tool")
+            >>> tool.update_namespace("new_namespace", force=False)
+            >>> tool.name
+            'old_namespace.example_tool'
+
+            >>> tool = Tool(name="old_namespace.example_tool")
+            >>> tool.update_namespace("new_namespace", force=True)
+            >>> tool.name
+            'new_namespace.example_tool'
+        """
+        if not namespace:
+            return
+
+        namespace = normalize_tool_name(namespace)
+        if "." in self.name:
+            if force:
+                # Replace existing namespace with the new one if force is True
+                self.name = f"{namespace}.{self.name.split('.', 1)[1]}"
+            else:
+                # Do not change the name if force is False and an existing namespace is present
+                pass
+        else:
+            # Add the new namespace as a prefix if there is no existing namespace
+            self.name = f"{namespace}.{self.name}"

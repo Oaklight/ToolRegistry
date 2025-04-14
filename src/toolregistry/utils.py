@@ -1,5 +1,6 @@
 import re
 
+
 def normalize_tool_name(name: str) -> str:
     """Normalize tool name to snake_case format and remove dots and spaces.
     Also handles OpenAPI-style duplicate names like 'add_add_get' by converting to 'add_get'.

@@ -282,12 +282,7 @@ class OpenAPITool(Tool):
             OpenAPITool: An instance of OpenAPITool configured for the specified operation.
         """
         operation_id = spec.get("operationId", f'{method}_{path.replace("/", "_")}')
-        operation_id = normalize_tool_name(operation_id)
-
-        func_name = operation_id
-        if namespace:
-            namespace = normalize_tool_name(namespace)
-            func_name = f"{namespace}.{func_name}"
+        func_name = normalize_tool_name(operation_id)
 
         description = spec.get("description", spec.get("summary", ""))
 
@@ -330,7 +325,7 @@ class OpenAPITool(Tool):
             params=param_names,
         )
 
-        return cls(
+        tool = cls(
             name=func_name,
             description=description,
             parameters=parameters,
@@ -338,6 +333,10 @@ class OpenAPITool(Tool):
             is_async=False,
         )
 
+        if namespace:
+            tool.update_namespace(namespace)
+
+        return tool
 
 class OpenAPIIntegration:
     """Handles integration with OpenAPI services for tool registration.
@@ -380,10 +379,9 @@ class OpenAPIIntegration:
         assert base_url != "", "base_url must be specified"
 
         if isinstance(with_namespace, str):
-            namespace = normalize_tool_name(with_namespace)
+            namespace = with_namespace
         elif with_namespace:  # with_namespace is True
-            namespace = openapi_spec.get("info", {}).get("title", "open_api_service")
-            namespace = normalize_tool_name(namespace)
+            namespace = openapi_spec.get("info", {}).get("title", "OpenAPI service")
         else:
             namespace = None
 
