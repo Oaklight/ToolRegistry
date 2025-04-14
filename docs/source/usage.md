@@ -208,5 +208,3 @@ Please read [OpenAI Function Calling](openai) for detailed example and step-by-s
 add_fn = registry.get_callable("add")
 result = add_fn(a=1, b=2)  # Output: 3
 ```
-
----

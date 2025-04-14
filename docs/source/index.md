@@ -46,7 +46,6 @@ Here are brief introductions and links to each section:
 Getting Started <self>
 installation
 usage
-<!-- dependencies -->
 API Reference <api/index>
 ```
 

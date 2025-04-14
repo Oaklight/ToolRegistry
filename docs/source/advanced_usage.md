@@ -1,11 +1,5 @@
 # Advanced Usage
 
-## Table of Contents
-
-- [Namespaces in Tool Registries](#namespaces-in-tool-registries)
-- [Merging Registries](#merging-registries)
-- [Spinoff Registries](#spinoff-registries)
-
 ## Namespaces in Tool Registries
 
 Namespaces are used to organize tools within a registry and avoid name conflicts during operations like merging and spinoff. They act as prefixes to tool names, ensuring clarity and separation.
