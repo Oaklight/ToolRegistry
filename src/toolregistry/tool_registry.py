@@ -187,7 +187,29 @@ class ToolRegistry:
         # Update sub-registries based on merged tools
         self._update_sub_registries()
 
-    def spinoff(self, prefix: str) -> "ToolRegistry":
+    def reduce_namespace(self) -> None:
+        """Remove the namespace from tools in the registry if there is only one sub-registry.
+
+        This method checks if there is only one sub-registry remaining in the registry.
+        If so, it removes the namespace prefix from all tools and clears the sub-registries.
+
+        Side Effects:
+            - Updates the `_tools` dictionary to remove namespace prefixes.
+            - Clears the `_sub_registries` set if namespace flattening occurs.
+
+        Example:
+            If the registry contains tools with names like "calculator.add" and "calculator.subtract",
+            and "calculator" is the only sub-registry, this method will rename the tools to "add" and "subtract".
+        """
+        if len(self._sub_registries) == 1:
+            remaining_prefix = next(iter(self._sub_registries))
+            self._tools = {
+                name[len(remaining_prefix) + 1 :]: tool
+                for name, tool in self._tools.items()
+            }
+            self._sub_registries.clear()
+
+    def spinoff(self, prefix: str, retain_namespace: bool = False) -> "ToolRegistry":
         """Spin off tools with the specified prefix into a new registry.
 
         This method creates a new ToolRegistry, transferring tools that belong
@@ -195,12 +217,18 @@ class ToolRegistry:
 
         Args:
             prefix (str): Prefix to identify tools to spin off.
+            retain_namespace (bool): If True, retains the namespace of tools in the current registry.
+                If False, removes the namespace from tools after spinning off.
 
         Returns:
             ToolRegistry: A new registry containing the spun-off tools.
 
         Raises:
             ValueError: If no tools with the specified prefix are found.
+
+        Notes:
+            When `retain_namespace` is False, the `reduce_namespace` method is called
+            to remove the namespace from tools in the current registry.
         """
         # Filter tools with the specified prefix
         spun_off_tools = {
@@ -214,10 +242,10 @@ class ToolRegistry:
 
         # Create a new registry for the spun-off tools
         new_registry = ToolRegistry(name=prefix)
-        new_registry._tools = {
-            name[len(prefix) + 1 :]: tool  # Remove prefix from spun-off tool names
-            for name, tool in spun_off_tools.items()
-        }
+        new_registry._sub_registries.add(prefix)
+        new_registry._tools = spun_off_tools  # Initialize with spun-off tools
+        if not retain_namespace:
+            new_registry.reduce_namespace()  # Optimize namespace removal using reduce_namespace
 
         # Remove the spun-off tools from the current registry
         self._tools = {
@@ -229,16 +257,9 @@ class ToolRegistry:
         # Remove the prefix from sub-registries if it exists
         self._sub_registries.discard(prefix)
 
-        # Check if only one sub-registry remains; if so, flatten its tools
-        if len(self._sub_registries) == 1:
-            remaining_prefix = next(
-                iter(self._sub_registries)
-            )  # Get the remaining prefix
-            self._tools = {
-                name[len(remaining_prefix) + 1 :]: tool  # Remove prefix
-                for name, tool in self._tools.items()
-            }
-            self._sub_registries.clear()  # Clear sub-registries as flattening occurred
+        # Optionally discard namespace if retain_namespace is False
+        if not retain_namespace:
+            self.reduce_namespace()
 
         return new_registry
 
