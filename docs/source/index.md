@@ -23,6 +23,9 @@ Here are brief introductions and links to each section:
   - [**OpenAPI Integration**](openapi)
     Guides on integrating OpenAPI specifications with ToolRegistry to register and call OpenAPI tools.
 
+  - [**Hub Tools Collection**](hub)
+    Provides a collection of utility tools for common llm function calling usage. These tools simplify common tasks and enhance productivity in projects requiring structured tool management.
+
   - [**Examples**](examples)
     Demonstrates practical use cases, including consecutive tool call examples.
 
