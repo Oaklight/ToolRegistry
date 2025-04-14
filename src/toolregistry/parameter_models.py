@@ -20,9 +20,6 @@ class ArgModelBase(BaseModel):
         - Supports arbitrary types in fields
         - Provides method to dump fields one level deep
         - Configures Pydantic model behavior
-
-    Attributes:
-        model_config (ConfigDict): Pydantic model configuration.
     """
 
     def model_dump_one_level(self) -> Dict[str, Any]:
