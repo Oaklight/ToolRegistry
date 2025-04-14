@@ -116,31 +116,41 @@ class ToolRegistry:
             )
             self._tools[tool.name] = tool
 
-    def _prefix_tools_namespace(self) -> None:
+    def _prefix_tools_namespace(self, force: bool = False) -> None:
         """Add the registry name as a prefix to the names of tools in the registry.
 
         This method updates the names of tools in the `_tools` dictionary by prefixing
         them with the registry's name if they don't already have a prefix. Tools that
         already have a prefix retain their existing name.
 
+        Args:
+            force (bool): If True, forces the namespace update for all tools, even if they already have a prefix.
+                If False, retains existing prefixes for tools that already have one.
+
         Side Effects:
             Updates the `_tools` dictionary with potentially modified tool names.
 
         Example:
             If the registry name is "MainRegistry":
-            - A tool with the name "ToolA" will be updated to "MainRegistry.ToolA".
-            - A tool with the name "OtherRegistry.ToolB" will remain unchanged.
+            - A tool with the name "tool_a" will be updated to "main_registry.tool_a".
+            - A tool with the name "other_registry.tool_b" will remain unchanged if force=False.
+            - A tool with the name "other_registry.tool_b" will be updated to "main_registry.tool_b" if force=True.
 
         Raises:
             None
         """
         new_tools: Dict[str, Tool] = {}
         for tool in self._tools.values():
-            tool.update_namespace(self.name, force=False)
+            tool.update_namespace(self.name, force=force)
             new_tools[tool.name] = tool
         self._tools = new_tools
 
-    def merge(self, other: "ToolRegistry", keep_existing: bool = False):
+    def merge(
+        self,
+        other: "ToolRegistry",
+        keep_existing: bool = False,
+        force_namespace: bool = False,
+    ):
         """
         Merge tools from another ToolRegistry into this one.
 
@@ -150,6 +160,7 @@ class ToolRegistry:
         Args:
             other (ToolRegistry): The ToolRegistry to merge from.
             keep_existing (bool): If True, preserves existing tools on name conflicts.
+            force_namespace (bool): If True, forces updating tool namespaces by prefixing them with the registry name; if False, retains existing namespaces.
 
         Raises:
             TypeError: If other is not a ToolRegistry instance.
@@ -168,6 +179,10 @@ class ToolRegistry:
                     self._tools[name] = tool
         else:
             self._tools.update(other._tools)
+
+        if force_namespace:
+            # update namespace if required after merge done
+            self._prefix_tools_namespace(force=force_namespace)
 
         # Update sub-registries based on merged tools
         self._update_sub_registries()
