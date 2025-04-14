@@ -36,7 +36,12 @@ exclude_patterns = []
 
 # -- Options for autodoc -----------------------------------------------------
 autodoc_member_order = "bysource"
-
+autodoc_default_options = {
+    "exclude-members": "__weakref__, __dict__, __module__, __annotations__",
+    "special-members": "__init__",
+    "undoc-members": True,
+    "private-members": False,
+}
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 

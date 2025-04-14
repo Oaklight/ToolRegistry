@@ -49,28 +49,28 @@ if [[ -f "${SOURCE_DIR}/modules.rst" ]]; then
     rm ${SOURCE_DIR}/modules.rst
 fi
 
-# Regenerate index.md with {toctree} directive
-echo "Regenerating index.md..."
-{
-    echo "# API References"
-    echo ""
-    echo "Welcome to the API references for the project. Below is a list of available modules:"
-    echo ""
-    echo "\`\`\`{toctree}"
-    echo ":maxdepth: 2"
-    echo ":caption: Contents:"
-    echo ""
-} >"$INDEX_FILE"
+# # Regenerate index.md with {toctree} directive
+# echo "Regenerating index.md..."
+# {
+#     echo "# API References"
+#     echo ""
+#     echo "Welcome to the API references for the project. Below is a list of available modules:"
+#     echo ""
+#     echo "\`\`\`{toctree}"
+#     echo ":maxdepth: 2"
+#     echo ":caption: 'Contents:'"
+#     echo ""
+# } >"$INDEX_FILE"
 
-# Add module entries to the {toctree} directive
-for module in "${MODULES[@]}"; do
-    module_name=$(basename "$module")
-    if [[ -f "$SOURCE_DIR/${module_name}.rst" ]]; then
-        echo "${module_name}" >>"$INDEX_FILE"
-    fi
-done
+# # Add module entries to the {toctree} directive
+# for module in "${MODULES[@]}"; do
+#     module_name=$(basename "$module")
+#     if [[ -f "$SOURCE_DIR/${module_name}.rst" ]]; then
+#         echo "${module_name}" >>"$INDEX_FILE"
+#     fi
+# done
 
-# Close the {toctree} directive
-echo "\`\`\`" >>"$INDEX_FILE"
+# # Close the {toctree} directive
+# echo "\`\`\`" >>"$INDEX_FILE"
 
-echo "API References and index.md regeneration complete. Files are located in $SOURCE_DIR and $INDEX_FILE."
+# echo "API References and index.md regeneration complete. Files are located in $SOURCE_DIR and $INDEX_FILE."
