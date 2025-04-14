@@ -1,7 +1,5 @@
 # Hub Tools Collection
 
-[View source code on GitHub](https://github.com/Oaklight/ToolRegistry/tree/master/src/toolregistry/hub)
-
 ## Purpose of Hub
 
 Hub encapsulates commonly used tools as static methods (@staticmethod) in classes, serving as ready-to-use tool groups. This design offers several advantages:
@@ -12,6 +10,8 @@ Hub encapsulates commonly used tools as static methods (@staticmethod) in classe
 4. **Extensibility**: New tool classes or methods can be easily added
 
 ## Currently Available Hub Tools
+
+For latest list of predefined tools, please check out [**latest available**](https://github.com/Oaklight/ToolRegistry/tree/master/src/toolregistry/hub)
 
 1. **Calculator** - Mathematical calculation tools
 
