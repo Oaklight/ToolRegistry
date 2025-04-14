@@ -6,6 +6,7 @@ advanced_usage
 openai
 mcp
 openapi
+hub
 examples
 best_practices
 ```
