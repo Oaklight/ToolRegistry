@@ -7,7 +7,7 @@ Example:
     >>> from toolregistry import ToolRegistry
     >>> from toolregistry.hub import Calculator
     >>> registry = ToolRegistry()
-    >>> registry.register_hub_tools(Calculator)
+    >>> registry.register_static_tools(Calculator)
     >>> registry.get_available_tools()
     ['Calculator.add', 'Calculator.subtract', ...]
 """

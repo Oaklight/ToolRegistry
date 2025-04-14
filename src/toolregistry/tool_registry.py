@@ -397,7 +397,9 @@ class ToolRegistry:
                 "Install with: pip install toolregistry[openapi]"
             )
 
-    def register_hub_tools(self, cls: Type, with_namespace: Union[bool, str] = False):
+    def register_static_tools(
+        self, cls: Type, with_namespace: Union[bool, str] = False
+    ):
         """Register all static methods from a class as tools.
 
         Args:
@@ -411,7 +413,7 @@ class ToolRegistry:
         Example:
             >>> from toolregistry.hub import Calculator
             >>> registry = ToolRegistry()
-            >>> registry.register_hub_tools(Calculator)
+            >>> registry.register_static_tools(Calculator)
 
         Note:
             This method is now a convenience wrapper around the register() method's
@@ -422,7 +424,7 @@ class ToolRegistry:
         hub = StaticMethodIntegration(self)
         return hub.register_static_methods(cls, with_namespace)
 
-    async def register_hub_tools_async(
+    async def register_static_tools_async(
         self, cls: Type, with_namespace: Union[bool, str] = False
     ):
         """Async implementation to register all static methods from a class as tools.
@@ -438,7 +440,7 @@ class ToolRegistry:
         Example:
             >>> from toolregistry.hub import Calculator
             >>> registry = ToolRegistry()
-            >>> registry.register_hub_tools(Calculator)
+            >>> registry.register_static_tools(Calculator)
         """
         from .static_method_integration import StaticMethodIntegration
 
