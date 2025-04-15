@@ -1,288 +1,228 @@
+"""
+file_ops.py - Atomic file operations toolkit for LLM agents
+
+Key features:
+- All methods are static for stateless usage
+- Atomic writes with automatic backups
+- Unified error handling
+- Diff/patch and git conflict support
+- Structured data parsing
+"""
+
 import difflib
+import os
 import re
-from pathlib import Path
-from typing import List, Union
+from typing import Dict, Union
 
 
 class FileOps:
-    """Provides advanced file content manipulation operations.
+    """Core file operations toolkit designed for LLM agent integration."""
 
-    Methods:
-        generate_diff(old, new): Generates unified diff
-        apply_diff(content, diff): Applies diff to content
-        patch_file(path, diff): Patches file with diff
-        replace_lines(path, search, replace): Replaces matching lines
-        insert_lines(path, after, new_lines): Inserts lines after match
-        delete_lines(path, pattern): Deletes matching lines
-        find_and_replace(path, search, replace): Finds and replaces text
-        append_to_file(path, content): Appends content to file
-        replace_in_file_with_blocks(path, diff_blocks): Replaces file content using SEARCH/REPLACE blocks
-    """
+    # ======================
+    #  Content Modification
+    # ======================
 
     @staticmethod
-    def generate_diff(old: List[str], new: List[str]) -> str:
-        """Generates unified diff between old and new content.
+    def replace_by_diff(original: str, diff: str) -> str:
+        """Apply unified diff format changes to content.
 
         Args:
-            old: Original content lines
-            new: Modified content lines
+            original: Original text content
+            diff: Unified diff text (with -/+ markers)
 
         Returns:
-            String containing unified diff
+            Modified content
+
+        Raises:
+            ValueError: On invalid diff format or patch failure
         """
-        return "\n".join(
-            difflib.unified_diff(
-                old, new, fromfile="original", tofile="modified", lineterm=""
-            )
-        )
+        original_lines = original.splitlines(keepends=True)
+        diff_lines = diff.splitlines(keepends=True)
+        patched_lines = []
+        orig_pos = 0
 
-    @staticmethod
-    def apply_diff(content: List[str], diff: str) -> List[str]:
-        """Applies unified diff to content.
+        hunk_regex = re.compile(r"@@ -(\d+),?(\d*) \+(\d+),?(\d*) @@")
 
-        Args:
-            content: Original content lines
-            diff: Unified diff string
-
-        Returns:
-            List of lines with diff applied
-        """
-        result = []
-        diff_lines = diff.splitlines()
-
-        # Skip header lines until first hunk
         i = 0
-        while i < len(diff_lines) and not diff_lines[i].startswith("@@"):
-            i += 1
-
-        content_index = 0
-
         while i < len(diff_lines):
             line = diff_lines[i]
             if line.startswith("@@"):
-                # Parse hunk header: @@ -start,count +start,count @@
-                hunk_header = line
-                import re
-
-                m = re.match(r"@@ -(\d+),?(\d*) \+(\d+),?(\d*) @@", hunk_header)
+                m = hunk_regex.match(line)
                 if not m:
-                    i += 1
-                    continue
-                orig_start = int(m.group(1)) - 1  # zero-based index
-                orig_len = int(m.group(2)) if m.group(2) else 1
+                    raise ValueError("Invalid diff hunk header")
+                orig_start = int(m.group(1)) - 1
 
                 # Add unchanged lines before hunk
-                while content_index < orig_start:
-                    result.append(content[content_index])
-                    content_index += 1
+                patched_lines.extend(original_lines[orig_pos:orig_start])
+                orig_pos = orig_start
 
                 i += 1
-                # Process hunk lines
                 while i < len(diff_lines) and not diff_lines[i].startswith("@@"):
-                    diff_line = diff_lines[i]
-                    if diff_line.startswith(" "):
-                        # Context line, copy from original
-                        result.append(content[content_index])
-                        content_index += 1
-                    elif diff_line.startswith("-"):
-                        # Removed line, skip in original
-                        content_index += 1
-                    elif diff_line.startswith("+"):
-                        # Added line, add to result
-                        result.append(diff_line[1:])
+                    hline = diff_lines[i]
+                    if hline.startswith(" "):
+                        patched_lines.append(original_lines[orig_pos])
+                        orig_pos += 1
+                    elif hline.startswith("-"):
+                        orig_pos += 1
+                    elif hline.startswith("+"):
+                        patched_lines.append(hline[1:])
+                    else:
+                        raise ValueError(f"Invalid diff line: {hline}")
                     i += 1
             else:
                 i += 1
 
         # Add remaining lines after last hunk
-        while content_index < len(content):
-            result.append(content[content_index])
-            content_index += 1
+        patched_lines.extend(original_lines[orig_pos:])
 
-        return result
+        return "".join(patched_lines)
 
     @staticmethod
-    def patch_file(path: Union[str, Path], diff: str) -> None:
-        """Patches file with unified diff.
+    def replace_by_git(original: str, diff: str) -> str:
+        """Apply git conflict style diff to original content, replacing conflicted sections.
 
         Args:
-            path: Path to file to patch
-            diff: Unified diff string
-        """
-        content = Path(path).read_text().splitlines()
-        patched = FileOps.apply_diff(content, diff)
-        Path(path).write_text("\n".join(patched))
+            original: Original text content
+            diff: Git conflict style diff text with <<<<<<<, =======, >>>>>>> markers
 
-    @staticmethod
-    def replace_lines(
-        path: Union[str, Path], search: str, replace: str, count: int = 0
-    ) -> None:
-        """Replaces lines matching search pattern.
-
-        Args:
-            path: Path to file
-            search: Regex pattern to search for
-            replace: Replacement string
-            count: Maximum number of replacements (0=all)
-        """
-        content = Path(path).read_text().splitlines()
-        new_content = []
-        replaced = 0
-
-        for line in content:
-            if (count == 0 or replaced < count) and re.search(search, line):
-                new_content.append(re.sub(search, replace, line))
-                replaced += 1
-            else:
-                new_content.append(line)
-
-        Path(path).write_text("\n".join(new_content))
-
-    @staticmethod
-    def insert_lines(
-        path: Union[str, Path], after: str, new_lines: List[str], count: int = 1
-    ) -> None:
-        """Inserts lines after matching pattern.
-
-        Args:
-            path: Path to file
-            after: Regex pattern to search for insertion point
-            new_lines: Lines to insert
-            count: Maximum number of insertions (1=first match only)
-        """
-        content = Path(path).read_text().splitlines()
-        new_content = []
-        inserted = 0
-
-        for line in content:
-            new_content.append(line)
-            if inserted < count and re.search(after, line):
-                new_content.extend(new_lines)
-                inserted += 1
-
-        Path(path).write_text("\n".join(new_content))
-
-    @staticmethod
-    def delete_lines(path: Union[str, Path], pattern: str, count: int = 0) -> None:
-        """Deletes lines matching pattern.
-
-        Args:
-            path: Path to file
-            pattern: Regex pattern to match
-            count: Maximum number of deletions (0=all)
-        """
-        content = Path(path).read_text().splitlines()
-        new_content = []
-        deleted = 0
-
-        for line in content:
-            if (count == 0 or deleted < count) and re.search(pattern, line):
-                deleted += 1
-            else:
-                new_content.append(line)
-
-        Path(path).write_text("\n".join(new_content))
-
-    @staticmethod
-    def find_and_replace(
-        path: Union[str, Path], search: str, replace: str, flags: int = 0
-    ) -> None:
-        """Finds and replaces text in file.
-
-        Args:
-            path: Path to file
-            search: Regex pattern to search for
-            replace: Replacement string
-            flags: Regex flags
-        """
-        content = Path(path).read_text()
-        Path(path).write_text(re.sub(search, replace, content, flags=flags))
-
-    @staticmethod
-    def append_to_file(
-        path: Union[str, Path], content: str, separator: str = "\n"
-    ) -> None:
-        """Appends content to file with separator.
-
-        Args:
-            path: Path to file
-            content: Content to append
-            separator: Line separator (defaults to newline)
-        """
-        existing = Path(path).read_text()
-        if existing and not existing.endswith(separator):
-            existing += separator
-        Path(path).write_text(existing + content)
-
-    @staticmethod
-    def replace_in_file_with_conflict_blocks(
-        path: Union[str, Path], conflict_blocks: str
-    ) -> None:
-        """Replaces file content using conflict-style blocks inspired by Git merge conflicts.
-
-        The input string should contain one or more conflict blocks in the following format:
-            <<<<<<< SEARCH
-            [exact content to find in the file]
-            =======
-            [replacement content]
-            >>>>>>> REPLACE
-
-        This format is similar to Git conflict markers used during merges or rebases,
-        providing an intuitive way to specify multiple precise replacements in a file.
-
-        Args:
-            path: Path to the file to modify
-            conflict_blocks: String containing one or more conflict blocks as described above
+        Returns:
+            Modified content with conflicts resolved by replacement
 
         Raises:
-            ValueError: If the conflict_blocks format is invalid or if any SEARCH block is not found in the file content
+            ValueError: On invalid diff format or patch failure
         """
-        content = Path(path).read_text().splitlines()
-        blocks = []
-        lines = conflict_blocks.splitlines()
+        original_lines = original.splitlines(keepends=True)
+        diff_lines = diff.splitlines(keepends=True)
+        patched_lines = []
+        orig_pos = 0
+
+        conflict_start_re = re.compile(r"<<<<<<<.*")
+        conflict_sep_re = re.compile(r"=======")
+        conflict_end_re = re.compile(r">>>>>>>.*")
+
         i = 0
-        while i < len(lines):
-            if lines[i].strip() == "<<<<<<< SEARCH":
+        while i < len(diff_lines):
+            line = diff_lines[i]
+            if conflict_start_re.match(line):
+                # Add lines before conflict
+                patched_lines.extend(original_lines[orig_pos:orig_pos])
                 i += 1
-                search_lines = []
-                while i < len(lines) and lines[i].strip() != "=======":
-                    search_lines.append(lines[i])
+                # Count lines in original conflict block to skip
+                orig_conflict_lines = 0
+                # Skip lines until separator in diff
+                while i < len(diff_lines) and not conflict_sep_re.match(diff_lines[i]):
                     i += 1
-                if i >= len(lines) or lines[i].strip() != "=======":
-                    raise ValueError("Invalid conflict_blocks format: missing =======")
-                i += 1
-                replace_lines = []
-                while i < len(lines) and lines[i].strip() != ">>>>>>> REPLACE":
-                    replace_lines.append(lines[i])
+                    orig_conflict_lines += 1
+                i += 1  # skip separator line
+                # Add lines after separator until conflict end
+                conflict_replacement_lines = []
+                while i < len(diff_lines) and not conflict_end_re.match(diff_lines[i]):
+                    conflict_replacement_lines.append(diff_lines[i])
                     i += 1
-                if i >= len(lines) or lines[i].strip() != ">>>>>>> REPLACE":
-                    raise ValueError(
-                        "Invalid conflict_blocks format: missing >>>>>>> REPLACE"
-                    )
-                i += 1
-                blocks.append((search_lines, replace_lines))
+                i += 1  # skip conflict end line
+                patched_lines.extend(conflict_replacement_lines)
+                # Skip original conflicted lines
+                orig_pos += orig_conflict_lines
             else:
+                if orig_pos < len(original_lines):
+                    patched_lines.append(original_lines[orig_pos])
+                    orig_pos += 1
                 i += 1
 
-        if not blocks:
-            raise ValueError("No conflict blocks found in conflict_blocks")
+        # Add remaining lines after last conflict
+        patched_lines.extend(original_lines[orig_pos:])
 
-        new_content = content[:]
-        for search_lines, replace_lines in blocks:
-            # Find the first occurrence of search_lines in new_content
-            found = False
-            for idx in range(len(new_content) - len(search_lines) + 1):
-                if new_content[idx : idx + len(search_lines)] == search_lines:
-                    # Replace the matched lines with replace_lines
-                    new_content = (
-                        new_content[:idx]
-                        + replace_lines
-                        + new_content[idx + len(search_lines) :]
-                    )
-                    found = True
-                    break
-            if not found:
-                raise ValueError("SEARCH block not found in file content")
+        return "".join(patched_lines)
 
-        diff = FileOps.generate_diff(content, new_content)
-        FileOps.patch_file(path, diff)
+    # ======================
+    #  File I/O Operations
+    # ======================
+
+    @staticmethod
+    def read_file(path: str) -> str:
+        """Read text file with automatic encoding detection.
+
+        Args:
+            path: File path to read
+
+        Returns:
+            File content as string
+
+        Raises:
+            FileNotFoundError: If path doesn't exist
+            UnicodeError: On encoding failures
+        """
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            return f.read()
+
+    @staticmethod
+    def write_file(path: str, content: str) -> None:
+        """Atomic text file write with backup.
+
+        Args:
+            path: Destination file path
+            content: Content to write
+        """
+        tmp_path = f"{path}.tmp"
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        os.replace(tmp_path, path)
+        if os.path.exists(f"{path}.bak"):
+            os.remove(f"{path}.bak")
+        os.link(path, f"{path}.bak")
+
+    # ======================
+    #  Content Generation
+    # ======================
+
+    @staticmethod
+    def make_diff(old: str, new: str) -> str:
+        """Generate unified diff between texts.
+
+        Args:
+            old: Original text
+            new: Modified text
+
+        Returns:
+            Unified diff text
+        """
+        return "\n".join(
+            difflib.unified_diff(old.splitlines(), new.splitlines(), lineterm="")
+        )
+
+    @staticmethod
+    def make_git_conflict(ours: str, theirs: str) -> str:
+        """Generate git merge conflict markers.
+
+        Args:
+            ours: Current branch content
+            theirs: Incoming branch content
+
+        Returns:
+            Text with conflict markers
+        """
+        return f"<<<<<<< HEAD\n{ours}\n=======\n{theirs}\n>>>>>>> incoming\n"
+
+    # ======================
+    #  Safety Utilities
+    # ======================
+
+    @staticmethod
+    def validate_path(path: str) -> Dict[str, Union[bool, str]]:
+        """Validate file path safety.
+
+        Args:
+            path: Path to validate
+
+        Returns:
+            Dictionary with keys:
+            - valid (bool): Path safety status
+            - message (str): Description if invalid
+        """
+        if not path:
+            return {"valid": False, "message": "Empty path"}
+        if "~" in path:
+            path = os.path.expanduser(path)
+        if any(c in path for c in '*?"><|'):
+            return {"valid": False, "message": "Contains dangerous characters"}
+        return {"valid": True, "message": ""}
