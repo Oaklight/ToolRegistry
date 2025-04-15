@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "toolregistry"
-version = "0.4.2"
+version = "0.4.3"
 authors = [{ name = "Oaklight", email = "oaklight@gmx.com" }]
 description = "A library for managing tool registries"
 readme = "README.md"
