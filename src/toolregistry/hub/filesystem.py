@@ -17,10 +17,11 @@ Example:
     ['file.txt']
 """
 
+import os
 import shutil
-import time
+import stat  # Import stat for file attributes
 from pathlib import Path
-from typing import List, Union
+from typing import List
 
 
 class FileSystem:
@@ -38,16 +39,16 @@ class FileSystem:
         get_size(path): Gets file/directory size in bytes
         get_last_modified_time(path): Gets file last modified time (Unix timestamp)
         join_paths(*paths): Joins path components
-        get_absolute_path(path): Gets absolute path
+        get_absolute_path(path): Gets absolute path as a string
         create_dir(path): Creates directory
     """
 
     @staticmethod
-    def exists(path: Union[str, Path]) -> bool:
-        """Checks if path exists.
+    def exists(path: str) -> bool:
+        """Checks if a path exists.
 
         Args:
-            path: Path to check
+            path: The path string to check.
 
         Returns:
             True if path exists, False otherwise
@@ -55,11 +56,11 @@ class FileSystem:
         return Path(path).exists()
 
     @staticmethod
-    def is_file(path: Union[str, Path]) -> bool:
-        """Checks if path is a file.
+    def is_file(path: str) -> bool:
+        """Checks if a path points to a file.
 
         Args:
-            path: The path to check.
+            path: The path string to check.
 
         Returns:
             True if the path points to a file, False otherwise.
@@ -67,11 +68,11 @@ class FileSystem:
         return Path(path).is_file()
 
     @staticmethod
-    def is_dir(path: Union[str, Path]) -> bool:
-        """Checks if path is a directory.
+    def is_dir(path: str) -> bool:
+        """Checks if a path points to a directory.
 
         Args:
-            path: The path to check.
+            path: The path string to check.
 
         Returns:
             True if the path points to a directory, False otherwise.
@@ -79,19 +80,34 @@ class FileSystem:
         return Path(path).is_dir()
 
     @staticmethod
-    def list_dir(
-        path: Union[str, Path], depth: int = 1, show_hidden: bool = False
-    ) -> List[str]:
+    def _is_hidden(path_obj: Path) -> bool:
+        """Checks if a file/directory should be considered hidden based on OS conventions."""
+        # Always check for '.' prefix first (common across OSes)
+        if path_obj.name.startswith("."):
+            return True
+        # On Windows, also check the hidden attribute
+        if os.name == "nt":
+            try:
+                attrs = path_obj.stat().st_file_attributes
+                if attrs & stat.FILE_ATTRIBUTE_HIDDEN:
+                    return True
+            except OSError:  # Handle potential errors like permission denied
+                return True  # Treat as hidden if attributes can't be read
+        return False
+
+    @staticmethod
+    def list_dir(path: str, depth: int = 1, show_hidden: bool = False) -> List[str]:
         """Lists contents of a directory up to a specified depth.
 
         Args:
-            path: The directory path to list.
+            path: The directory path string to list.
             depth: Maximum depth to list (default=1). Must be >= 1.
-            show_hidden: Whether to include hidden files/directories (those starting with '.')
-                         (default is False).
+            show_hidden: If False, filters out hidden files/directories. On Unix-like systems (Linux, macOS),
+                         this means names starting with '.'. On Windows, this means files/directories
+                         with the 'hidden' attribute set, as well as names starting with '.'. (default is False).
 
         Returns:
-            List of relative paths of items in the directory up to the specified depth.
+            List of relative path strings of items in the directory up to the specified depth.
 
         Raises:
             ValueError: If depth is less than 1.
@@ -107,29 +123,24 @@ class FileSystem:
 
         if depth == 1:
             # For depth 1, return only the names of immediate children
-            items = base_path.iterdir()
-            if not show_hidden:
-                items = (p for p in items if not p.name.startswith("."))
-            return [p.name for p in items]
+            items = []
+            for p in base_path.iterdir():
+                if show_hidden or not FileSystem._is_hidden(p):
+                    items.append(p.name)
+            return items
         else:
             # For depth > 1, use rglob and filter by depth, returning relative paths
             results = []
             for p in base_path.rglob("*"):
                 try:
                     relative_path = p.relative_to(base_path)
-                    # The number of parts in the relative path corresponds to the depth level
-                    # e.g., 'file.txt' has 1 part (depth 1)
-                    # 'subdir/file.txt' has 2 parts (depth 2)
                     if len(relative_path.parts) <= depth:
-                        # Check if any part of the relative path starts with '.' if show_hidden is False
-                        is_hidden = any(
-                            part.startswith(".") for part in relative_path.parts
-                        )
-                        if show_hidden or not is_hidden:
+                        # Check if the item itself should be hidden using the helper
+                        if show_hidden or not FileSystem._is_hidden(p):
                             results.append(str(relative_path))
+
                 except ValueError:
-                    # This can happen under certain conditions, e.g., symlink loops
-                    # or permission issues during traversal. We'll skip such entries.
+                    # This can happen under certain conditions, e.g., symlink loops, long paths
                     # Consider adding logging here if more detailed diagnostics are needed.
                     continue
                 except PermissionError:
@@ -138,21 +149,21 @@ class FileSystem:
             return results
 
     @staticmethod
-    def create_file(path: Union[str, Path]) -> None:
+    def create_file(path: str) -> None:
         """Creates an empty file or updates the timestamp if it already exists (like 'touch').
 
         Args:
-            path: The file path to create or update.
+            path: The file path string to create or update.
         """
         Path(path).touch()
 
     @staticmethod
-    def copy(src: Union[str, Path], dst: Union[str, Path]) -> None:
+    def copy(src: str, dst: str) -> None:
         """Copies a file or directory.
 
         Args:
-            src: Source path
-            dst: Destination path
+            src: Source path string.
+            dst: Destination path string.
         """
         src_path = Path(src)
         dst_path = Path(dst)
@@ -165,24 +176,24 @@ class FileSystem:
             raise FileNotFoundError(f"Source path is not a file or directory: {src}")
 
     @staticmethod
-    def move(src: Union[str, Path], dst: Union[str, Path]) -> None:
+    def move(src: str, dst: str) -> None:
         """Moves/renames a file or directory.
 
         Args:
-            src: Source path
-            dst: Destination path
+            src: Source path string.
+            dst: Destination path string.
         """
         src_path = Path(src)
         dst_path = Path(dst)
         # Use shutil.move for better cross-filesystem compatibility
-        shutil.move(str(src_path), str(dst_path))
+        shutil.move(str(src_path), str(dst_path))  # shutil.move expects strings
 
     @staticmethod
-    def delete(path: Union[str, Path]) -> None:
+    def delete(path: str) -> None:
         """Deletes a file or directory recursively.
 
         Args:
-            path: Path to delete
+            path: Path string to delete.
         """
         path_obj = Path(path)
         if path_obj.is_file():
@@ -193,11 +204,11 @@ class FileSystem:
         # Current behavior: Fails silently if path doesn't exist or isn't file/dir after checks.
 
     @staticmethod
-    def get_size(path: Union[str, Path]) -> int:
+    def get_size(path: str) -> int:
         """Gets file/directory size in bytes (recursive for directories).
 
         Args:
-            path: Path to check size of
+            path: Path string to check size of.
 
         Returns:
             Size in bytes.
@@ -217,11 +228,11 @@ class FileSystem:
             return 0  # Or raise an error for unsupported types
 
     @staticmethod
-    def get_last_modified_time(path: Union[str, Path]) -> float:
+    def get_last_modified_time(path: str) -> float:
         """Gets the last modified time of a file or directory.
 
         Args:
-            path: Path to the file or directory.
+            path: Path string to the file or directory.
 
         Returns:
             Last modified time as a Unix timestamp (float).
@@ -235,11 +246,11 @@ class FileSystem:
         return path_obj.stat().st_mtime
 
     @staticmethod
-    def join_paths(*paths: Union[str, Path]) -> str:
-        """Joins path components into a normalized string path.
+    def join_paths(*paths: str) -> str:
+        """Joins multiple path components into a normalized string path.
 
         Args:
-            *paths: One or more path components.
+            *paths: One or more path component strings.
 
         Returns:
             Joined and normalized path string.
@@ -249,11 +260,11 @@ class FileSystem:
         return str(Path(*paths))
 
     @staticmethod
-    def get_absolute_path(path: Union[str, Path]) -> str:
+    def get_absolute_path(path: str) -> str:
         """Gets the absolute path as a normalized string.
 
         Args:
-            path: Path to convert
+            path: Path string to convert.
 
         Returns:
             Absolute path string.
@@ -261,13 +272,11 @@ class FileSystem:
         return str(Path(path).absolute())
 
     @staticmethod
-    def create_dir(
-        path: Union[str, Path], parents: bool = True, exist_ok: bool = True
-    ) -> None:
+    def create_dir(path: str, parents: bool = True, exist_ok: bool = True) -> None:
         """Creates a directory, including parent directories if needed (defaults to True).
 
         Args:
-            path: Directory path to create.
+            path: Directory path string to create.
             parents: Create parent directories if needed (default=True).
             exist_ok: Don't raise error if directory exists (default=True).
         """
