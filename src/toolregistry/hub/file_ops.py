@@ -30,6 +30,11 @@ class FileOps:
             original: Original text content
             diff: Unified diff text (with -/+ markers)
 
+        Example diff text:
+            @@ -1,3 +1,3 @@
+            -line2
+            +line2 modified
+
         Returns:
             Modified content
 
@@ -84,6 +89,13 @@ class FileOps:
         Args:
             original: Original text content
             diff: Git conflict style diff text with <<<<<<<, =======, >>>>>>> markers
+
+        Example diff text:
+            <<<<<<< SEARCH
+            line2
+            =======
+            line2 modified
+            >>>>>>> REPLACE
 
         Returns:
             Modified content with conflicts resolved by replacement
@@ -183,6 +195,10 @@ class FileOps:
             old: Original text
             new: Modified text
 
+        Note:
+            This function is intended for file or string comparison and visualization,
+            not for direct text modification tasks.
+
         Returns:
             Unified diff text
         """
@@ -197,6 +213,10 @@ class FileOps:
         Args:
             ours: Current branch content
             theirs: Incoming branch content
+
+        Note:
+            This function is intended for file or string comparison and visualization,
+            not for direct text modification tasks.
 
         Returns:
             Text with conflict markers
