@@ -10,6 +10,7 @@ Key features:
 """
 
 import difflib
+import fnmatch
 import os
 import re
 from typing import Dict, Union
@@ -80,6 +81,57 @@ class FileOps:
 
         content = "".join(patched_lines)
         FileOps.write_file(path, content)
+
+    @staticmethod
+    def search_files(path: str, regex: str, file_pattern: str = "*") -> list[dict]:
+        """Perform regex search across files in a directory with context.
+
+        Args:
+            path: Directory path to search
+            regex: Regex pattern to search for
+            file_pattern: Glob pattern to filter files (default '*')
+
+        Returns:
+            List of dicts with keys:
+                - file: file path
+                - line_num: line number of match (1-based)
+                - line: matched line content
+                - context: list of context lines (tuples of line_num, line content)
+        """
+
+        pattern = re.compile(regex)
+        results = []
+        context_radius = 2  # lines before and after match to include as context
+
+        for root, dirs, files in os.walk(path):
+            for filename in files:
+                if not fnmatch.fnmatch(filename, file_pattern):
+                    continue
+                file_path = os.path.join(root, filename)
+                try:
+                    with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                        lines = f.readlines()
+                except Exception:
+                    continue
+
+                for i, line in enumerate(lines):
+                    if pattern.search(line):
+                        start_context = max(0, i - context_radius)
+                        end_context = min(len(lines), i + context_radius + 1)
+                        context_lines = [
+                            (ln + 1, lines[ln].rstrip("\n"))
+                            for ln in range(start_context, end_context)
+                            if ln != i
+                        ]
+                        results.append(
+                            {
+                                "file": file_path,
+                                "line_num": i + 1,
+                                "line": line.rstrip("\n"),
+                                "context": context_lines,
+                            }
+                        )
+        return results
 
     @staticmethod
     def replace_by_git(path: str, diff: str) -> None:

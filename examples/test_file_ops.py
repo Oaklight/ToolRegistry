@@ -1,7 +1,8 @@
-import os
 import tempfile
 import unittest
 from pathlib import Path
+from pprint import pprint
+
 from toolregistry.hub.file_ops import FileOps
 
 
@@ -69,3 +70,36 @@ class TestFileOps(unittest.TestCase):
         self.assertFalse(invalid_chars["valid"])
         empty = FileOps.validate_path("")
         self.assertFalse(empty["valid"])
+
+    def test_search_files(self):
+        # Setup multiple test files with content
+        file1 = Path(self.test_dir.name) / "file1.txt"
+        file2 = Path(self.test_dir.name) / "file2.log"
+        file3 = Path(self.test_dir.name) / "file3.txt"
+        file1.write_text("apple\nbanana\ncherry\n")
+        file2.write_text("dog\ncat\napple pie\n")
+        file3.write_text("elephant\nbanana split\nfig\n")
+
+        # Search for 'banana' in all .txt files
+        results = FileOps.search_files(self.test_dir.name, r"banana", "*.txt")
+        pprint(results)
+        # Expect matches in file1.txt and file3.txt only
+        files_found = {res["file"] for res in results}
+        self.assertIn(str(file1), files_found)
+        self.assertIn(str(file3), files_found)
+        self.assertNotIn(str(file2), files_found)
+
+        # Check line numbers and matched lines
+        for res in results:
+            self.assertIn("banana", res["line"])
+            self.assertTrue(res["line_num"] > 0)
+            # Context lines should not include the matched line itself
+            context_lines = [line for _, line in res["context"]]
+            self.assertNotIn(res["line"], context_lines)
+
+        # Search for 'apple' in all files
+        results_all = FileOps.search_files(self.test_dir.name, r"apple")
+        files_found_all = {res["file"] for res in results_all}
+        self.assertIn(str(file1), files_found_all)
+        self.assertIn(str(file2), files_found_all)
+        self.assertNotIn(str(file3), files_found_all)
