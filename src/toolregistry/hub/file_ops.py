@@ -1,19 +1,3 @@
-"""File operations module providing advanced file content manipulation.
-
-This module contains the FileOps class and convenience functions for:
-- Generating and applying unified diffs
-- Patching files with diffs
-- Line-based operations: replace, insert, delete
-- Find and replace operations
-- File appending
-
-Example:
-    >>> from toolregistry.hub import FileOps
-    >>> ops = FileOps()
-    >>> ops.replace_lines('file.txt', 'old', 'new')
-    >>> ops.insert_lines('file.txt', 'insert after', ['new line'])
-"""
-
 import difflib
 import re
 from pathlib import Path
@@ -32,6 +16,7 @@ class FileOps:
         delete_lines(path, pattern): Deletes matching lines
         find_and_replace(path, search, replace): Finds and replaces text
         append_to_file(path, content): Appends content to file
+        replace_in_file_with_blocks(path, diff_blocks): Replaces file content using SEARCH/REPLACE blocks
     """
 
     @staticmethod
@@ -62,25 +47,59 @@ class FileOps:
         Returns:
             List of lines with diff applied
         """
-        lines = content.copy()
+        result = []
         diff_lines = diff.splitlines()
 
-        # Skip header lines
+        # Skip header lines until first hunk
         i = 0
         while i < len(diff_lines) and not diff_lines[i].startswith("@@"):
             i += 1
 
-        # Process hunks
-        for line in diff_lines[i:]:
-            if line.startswith("@@"):
-                continue
-            elif line.startswith("+") and not line.startswith("++"):
-                lines.append(line[1:])
-            elif line.startswith("-") and not line.startswith("--"):
-                if line[1:] in lines:
-                    lines.remove(line[1:])
+        content_index = 0
 
-        return lines
+        while i < len(diff_lines):
+            line = diff_lines[i]
+            if line.startswith("@@"):
+                # Parse hunk header: @@ -start,count +start,count @@
+                hunk_header = line
+                import re
+
+                m = re.match(r"@@ -(\d+),?(\d*) \+(\d+),?(\d*) @@", hunk_header)
+                if not m:
+                    i += 1
+                    continue
+                orig_start = int(m.group(1)) - 1  # zero-based index
+                orig_len = int(m.group(2)) if m.group(2) else 1
+
+                # Add unchanged lines before hunk
+                while content_index < orig_start:
+                    result.append(content[content_index])
+                    content_index += 1
+
+                i += 1
+                # Process hunk lines
+                while i < len(diff_lines) and not diff_lines[i].startswith("@@"):
+                    diff_line = diff_lines[i]
+                    if diff_line.startswith(" "):
+                        # Context line, copy from original
+                        result.append(content[content_index])
+                        content_index += 1
+                    elif diff_line.startswith("-"):
+                        # Removed line, skip in original
+                        content_index += 1
+                    elif diff_line.startswith("+"):
+                        # Added line, add to result
+                        result.append(diff_line[1:])
+                    i += 1
+            else:
+                i += 1
+
+        # Add remaining lines after last hunk
+        while content_index < len(content):
+            result.append(content[content_index])
+            content_index += 1
+
+        return result
 
     @staticmethod
     def patch_file(path: Union[str, Path], diff: str) -> None:
@@ -195,3 +214,75 @@ class FileOps:
             existing += separator
         Path(path).write_text(existing + content)
 
+    @staticmethod
+    def replace_in_file_with_conflict_blocks(
+        path: Union[str, Path], conflict_blocks: str
+    ) -> None:
+        """Replaces file content using conflict-style blocks inspired by Git merge conflicts.
+
+        The input string should contain one or more conflict blocks in the following format:
+            <<<<<<< SEARCH
+            [exact content to find in the file]
+            =======
+            [replacement content]
+            >>>>>>> REPLACE
+
+        This format is similar to Git conflict markers used during merges or rebases,
+        providing an intuitive way to specify multiple precise replacements in a file.
+
+        Args:
+            path: Path to the file to modify
+            conflict_blocks: String containing one or more conflict blocks as described above
+
+        Raises:
+            ValueError: If the conflict_blocks format is invalid or if any SEARCH block is not found in the file content
+        """
+        content = Path(path).read_text().splitlines()
+        blocks = []
+        lines = conflict_blocks.splitlines()
+        i = 0
+        while i < len(lines):
+            if lines[i].strip() == "<<<<<<< SEARCH":
+                i += 1
+                search_lines = []
+                while i < len(lines) and lines[i].strip() != "=======":
+                    search_lines.append(lines[i])
+                    i += 1
+                if i >= len(lines) or lines[i].strip() != "=======":
+                    raise ValueError("Invalid conflict_blocks format: missing =======")
+                i += 1
+                replace_lines = []
+                while i < len(lines) and lines[i].strip() != ">>>>>>> REPLACE":
+                    replace_lines.append(lines[i])
+                    i += 1
+                if i >= len(lines) or lines[i].strip() != ">>>>>>> REPLACE":
+                    raise ValueError(
+                        "Invalid conflict_blocks format: missing >>>>>>> REPLACE"
+                    )
+                i += 1
+                blocks.append((search_lines, replace_lines))
+            else:
+                i += 1
+
+        if not blocks:
+            raise ValueError("No conflict blocks found in conflict_blocks")
+
+        new_content = content[:]
+        for search_lines, replace_lines in blocks:
+            # Find the first occurrence of search_lines in new_content
+            found = False
+            for idx in range(len(new_content) - len(search_lines) + 1):
+                if new_content[idx : idx + len(search_lines)] == search_lines:
+                    # Replace the matched lines with replace_lines
+                    new_content = (
+                        new_content[:idx]
+                        + replace_lines
+                        + new_content[idx + len(search_lines) :]
+                    )
+                    found = True
+                    break
+            if not found:
+                raise ValueError("SEARCH block not found in file content")
+
+        diff = FileOps.generate_diff(content, new_content)
+        FileOps.patch_file(path, diff)
