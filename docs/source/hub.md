@@ -43,11 +43,13 @@ For latest list of predefined tools, please check out [**latest available**](htt
 
 2. **FileOps** - Atomic file operations toolkit for LLM agents
 
+   **Design Focus**: This class primarily handles operations related to **file content**, including reading, atomic writing (overwrite/append), content searching, and advanced modifications using diffs. It emphasizes safety and atomicity for content manipulation.
+
    FileOps is a collection of static methods designed to facilitate safe, atomic, and advanced file operations, especially suited for integration with large language model (LLM) agents. It provides utilities for reading, writing, and modifying file contents with built-in safety mechanisms like automatic backups.
 
    Key features include:
 
-   - Atomic file writing (overwrite) with temporary file usage for safe writes (`write_file`)
+   - Atomic file writing (overwrite), creating the file if it doesn't exist, with temporary file usage for safe writes (`write_file`)
    - Appending content to a file, creating it if it doesn't exist (`append_file`)
    - Reading text files with automatic encoding detection (`read_file`)
    - Applying unified diff format changes directly to files (`replace_by_diff`)
@@ -98,13 +100,15 @@ For latest list of predefined tools, please check out [**latest available**](htt
 
 3. **Filesystem** - Comprehensive file system operations
 
+   **Design Focus**: This class focuses on operations related to file system **structure, state, and basic metadata**. It deals with checking existence and types, listing contents, managing files/directories (copy/move/delete), handling paths, and retrieving basic attributes like size and modification time.
+
    - File/directory existence checks (`exists`, `is_file`, `is_dir`)
    - Directory listing (`list_dir`)
    - File/directory copy/move/delete (`copy`, `move`, `delete`)
    - Path manipulation (`join_paths`, `get_absolute_path`)
    - Size and modification time (`get_size`, `get_last_modified_time`)
    - Directory creation (`create_dir`)
-   - Simple file creation (`create_file` - consider `FileOps.write_file` for atomicity)
+   - Empty file creation/timestamp update (`create_file` - like `touch`)
 
 4. **UnitConverter** - Extensive unit conversion tools
    - Temperature: Celsius, Fahrenheit, Kelvin

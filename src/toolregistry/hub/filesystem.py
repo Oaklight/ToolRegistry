@@ -31,7 +31,7 @@ class FileSystem:
         is_file(path): Checks if path is a file
         is_dir(path): Checks if path is a directory
         list_dir(path): Lists directory contents
-        create_file(path, content): Creates file with content (Consider using FileOps.write_file for atomicity)
+        create_file(path): Creates an empty file or updates timestamp (like touch)
         copy(src, dst): Copies file/directory
         move(src, dst): Moves/renames file/directory
         delete(path): Deletes file/directory
@@ -140,17 +140,15 @@ class FileSystem:
             return results
 
     @staticmethod
-    def create_file(path: Union[str, Path], content: str = "") -> None:
-        """Creates file with optional content.
+    def create_file(path: Union[str, Path]) -> None:
+        """Creates an empty file or updates the timestamp if it already exists.
 
-        Note: This is a simple write operation. For atomic writes, consider using
-              `FileOps.write_file` from the `file_ops` module.
+        Similar to the 'touch' command in Unix-like systems.
 
         Args:
-            path: File path to create
-            content: Optional content to write (defaults to empty string)
+            path: The path of the file to create or update.
         """
-        Path(path).write_text(content, encoding="utf-8")  # Specify encoding
+        Path(path).touch()
 
     @staticmethod
     def copy(src: Union[str, Path], dst: Union[str, Path]) -> None:
