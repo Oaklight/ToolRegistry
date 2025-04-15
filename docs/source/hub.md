@@ -54,12 +54,13 @@ For latest list of predefined tools, please check out [**latest available**](htt
    - Generating unified diff text for content comparison (`make_diff`)
    - Generating git conflict marker text to simulate merge conflicts (`make_git_conflict`)
    - Validating file path safety to prevent dangerous characters and path injection (`validate_path`)
+   - Performing regex searches across files in a directory (`search_files`), returning matches with context lines. Parameters include `path` (directory to search), `regex` (pattern to search for), and optional `file_pattern` (glob pattern like `*.py`).
 
    The `replace_by_diff` and `replace_by_git` methods have been updated to accept only the file path and diff string as arguments. They apply the diff directly to the file content and write the changes back to the file atomically, without returning the modified content.
 
    Example usage:
 
-   ```python
+   ````python
    from toolregistry.hub import FileOps as fio
 
    # Assume a file at /tmp/toolregistry/sample.txt with content "Hello World"
@@ -80,7 +81,19 @@ For latest list of predefined tools, please check out [**latest available**](htt
    >>>>>>> REPLACE"""
    fio.replace_by_git("/tmp/toolregistry/sample.txt", diff)
    content = fio.read_file("/tmp/toolregistry/sample.txt") # Hello Multiverse
-   ```
+
+   # example of search_files
+   results = fio.search_files("/path/to/search", r"important_keyword", "*.log")
+   # results will be a list of dictionaries, each containing file path, line number, matched line, and context lines. For example, search for `bananas`
+   
+   # [{'context': [(1, 'The quick brown fox jumps over the lazy dog.'),
+   #            (2, 'This file contains a juicy apple.'),
+   #            (4, 'Another line for context.'),
+   #            (5, 'Yet another sentence to make the file longer.')],
+   # 'file': '/tmp/tmpi_h8_mm3/file1.txt',
+   # 'line': 'bananas are yellow and sweet.',
+   # 'line_num': 3}]
+   ````
 
 3. **Filesystem** - Comprehensive file system operations
 
