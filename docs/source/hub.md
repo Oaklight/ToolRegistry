@@ -47,7 +47,8 @@ For latest list of predefined tools, please check out [**latest available**](htt
 
    Key features include:
 
-   - Atomic file writing with temporary file usage for safe writes (`write_file`)
+   - Atomic file writing (overwrite) with temporary file usage for safe writes (`write_file`)
+   - Appending content to a file, creating it if it doesn't exist (`append_file`)
    - Reading text files with automatic encoding detection (`read_file`)
    - Applying unified diff format changes directly to files (`replace_by_diff`)
    - Applying git conflict style diffs directly to files (`replace_by_git`)
@@ -60,7 +61,7 @@ For latest list of predefined tools, please check out [**latest available**](htt
 
    Example usage:
 
-   ````python
+   ```python
    from toolregistry.hub import FileOps as fio
 
    # Assume a file at /tmp/toolregistry/sample.txt with content "Hello World"
@@ -85,7 +86,7 @@ For latest list of predefined tools, please check out [**latest available**](htt
    # example of search_files
    results = fio.search_files("/path/to/search", r"important_keyword", "*.log")
    # results will be a list of dictionaries, each containing file path, line number, matched line, and context lines. For example, search for `bananas`
-   
+
    # [{'context': [(1, 'The quick brown fox jumps over the lazy dog.'),
    #            (2, 'This file contains a juicy apple.'),
    #            (4, 'Another line for context.'),
@@ -93,17 +94,17 @@ For latest list of predefined tools, please check out [**latest available**](htt
    # 'file': '/tmp/tmpi_h8_mm3/file1.txt',
    # 'line': 'bananas are yellow and sweet.',
    # 'line_num': 3}]
-   ````
+   ```
 
 3. **Filesystem** - Comprehensive file system operations
 
-   - File/directory existence checks
-   - File reading/writing
-   - Directory listing
-   - File/directory copy/move/delete
-   - Path manipulation
-   - Size calculations
-   - Directory creation
+   - File/directory existence checks (`exists`, `is_file`, `is_dir`)
+   - Directory listing (`list_dir`)
+   - File/directory copy/move/delete (`copy`, `move`, `delete`)
+   - Path manipulation (`join_paths`, `get_absolute_path`)
+   - Size and modification time (`get_size`, `get_last_modified_time`)
+   - Directory creation (`create_dir`)
+   - Simple file creation (`create_file` - consider `FileOps.write_file` for atomicity)
 
 4. **UnitConverter** - Extensive unit conversion tools
    - Temperature: Celsius, Fahrenheit, Kelvin

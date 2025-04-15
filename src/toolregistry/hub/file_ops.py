@@ -17,7 +17,10 @@ from typing import Dict, Union
 
 
 class FileOps:
-    """Core file operations toolkit designed for LLM agent integration."""
+    """Core file operations toolkit designed for LLM agent integration.
+
+    Handles file reading, atomic writing, appending, searching, and diff-based modifications.
+    """
 
     # ======================
     #  Content Modification
@@ -229,6 +232,18 @@ class FileOps:
         with open(tmp_path, "w", encoding="utf-8") as f:
             f.write(content)
         os.replace(tmp_path, path)
+
+    @staticmethod
+    def append_file(path: str, content: str) -> None:
+        """Append content to a text file. Creates the file if it doesn't exist.
+
+        Args:
+            path: Destination file path
+            content: Content to append
+        """
+        # Use 'a' mode for appending, creates file if it doesn't exist
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(content)
 
     # ======================
     #  Content Generation

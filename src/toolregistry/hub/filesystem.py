@@ -11,29 +11,32 @@ Example:
     >>> from toolregistry.hub import FileSystem
     >>> fs = FileSystem()
     >>> fs.create_dir('new_dir')
-    >>> fs.write_file('new_dir/file.txt', 'content')
+    # Note: create_file is part of FileSystem, write_file is in FileOps
+    >>> fs.create_file('new_dir/file.txt', 'content')
     >>> fs.list_dir('new_dir')
     ['file.txt']
 """
 
 import shutil
+import time
 from pathlib import Path
 from typing import List, Union
 
 
 class FileSystem:
-    """Provides file system operations.
+    """Provides file system operations related to structure, state, and metadata.
 
     Methods:
         exists(path): Checks if path exists
         is_file(path): Checks if path is a file
         is_dir(path): Checks if path is a directory
         list_dir(path): Lists directory contents
-        create_file(path, content): Creates file with content
+        create_file(path, content): Creates file with content (Consider using FileOps.write_file for atomicity)
         copy(src, dst): Copies file/directory
         move(src, dst): Moves/renames file/directory
         delete(path): Deletes file/directory
-        get_size(path): Gets file/directory size
+        get_size(path): Gets file/directory size in bytes
+        get_last_modified_time(path): Gets file last modified time (Unix timestamp)
         join_paths(*paths): Joins path components
         get_absolute_path(path): Gets absolute path
         create_dir(path): Creates directory
@@ -131,17 +134,23 @@ class FileSystem:
                     # or permission issues during traversal. We'll skip such entries.
                     # Consider adding logging here if more detailed diagnostics are needed.
                     continue
+                except PermissionError:
+                    # Skip entries we don't have permission to access
+                    continue
             return results
 
     @staticmethod
     def create_file(path: Union[str, Path], content: str = "") -> None:
         """Creates file with optional content.
 
+        Note: This is a simple write operation. For atomic writes, consider using
+              `FileOps.write_file` from the `file_ops` module.
+
         Args:
             path: File path to create
             content: Optional content to write (defaults to empty string)
         """
-        Path(path).write_text(content)
+        Path(path).write_text(content, encoding="utf-8")  # Specify encoding
 
     @staticmethod
     def copy(src: Union[str, Path], dst: Union[str, Path]) -> None:
@@ -156,8 +165,10 @@ class FileSystem:
 
         if src_path.is_file():
             shutil.copy2(src_path, dst_path)
+        elif src_path.is_dir():  # Check if it's a directory before copying
+            shutil.copytree(src_path, dst_path, dirs_exist_ok=True)  # Allow overwriting
         else:
-            shutil.copytree(src_path, dst_path)
+            raise FileNotFoundError(f"Source path is not a file or directory: {src}")
 
     @staticmethod
     def move(src: Union[str, Path], dst: Union[str, Path]) -> None:
@@ -167,11 +178,14 @@ class FileSystem:
             src: Source path
             dst: Destination path
         """
-        Path(src).rename(dst)
+        src_path = Path(src)
+        dst_path = Path(dst)
+        # Use shutil.move for better cross-filesystem compatibility
+        shutil.move(str(src_path), str(dst_path))
 
     @staticmethod
     def delete(path: Union[str, Path]) -> None:
-        """Deletes file or directory.
+        """Deletes file or directory recursively.
 
         Args:
             path: Path to delete
@@ -179,57 +193,90 @@ class FileSystem:
         path_obj = Path(path)
         if path_obj.is_file():
             path_obj.unlink()
-        else:
+        elif path_obj.is_dir():
             shutil.rmtree(path_obj)
+        # If it doesn't exist or is something else (like a broken symlink), do nothing or raise?
+        # Current behavior: Fails silently if path doesn't exist or isn't file/dir after checks.
 
     @staticmethod
     def get_size(path: Union[str, Path]) -> int:
-        """Gets file/directory size in bytes.
+        """Gets file/directory size in bytes. For directories, sums file sizes recursively.
 
         Args:
             path: Path to check size of
 
         Returns:
             Size in bytes
+
+        Raises:
+            FileNotFoundError: If the path does not exist.
         """
         path_obj = Path(path)
+        if not path_obj.exists():
+            raise FileNotFoundError(f"Path does not exist: {path}")
         if path_obj.is_file():
             return path_obj.stat().st_size
-        return sum(f.stat().st_size for f in path_obj.rglob("*") if f.is_file())
+        elif path_obj.is_dir():
+            return sum(f.stat().st_size for f in path_obj.rglob("*") if f.is_file())
+        else:
+            # Handle other path types like symlinks if necessary, or raise error
+            return 0  # Or raise an error for unsupported types
 
     @staticmethod
-    def join_paths(*paths: Union[str, Path]) -> Path:
-        """Joins path components.
+    def get_last_modified_time(path: Union[str, Path]) -> float:
+        """Gets the last modified time of a file or directory.
+
+        Args:
+            path: Path to the file or directory.
+
+        Returns:
+            The last modified time as a Unix timestamp (float).
+
+        Raises:
+            FileNotFoundError: If the path does not exist.
+        """
+        path_obj = Path(path)
+        if not path_obj.exists():
+            raise FileNotFoundError(f"Path does not exist: {path}")
+        return path_obj.stat().st_mtime
+
+    @staticmethod
+    def join_paths(*paths: Union[str, Path]) -> str:
+        """Joins path components into a normalized string path.
 
         Args:
             *paths: Path components to join
 
         Returns:
-            Joined Path object
+            Joined and normalized path as a string.
         """
-        return Path(*paths)
+        # Using os.path.join for better compatibility if mixing Path and str
+        # and returning a string as often expected by other os functions.
+        return str(Path(*paths))
 
     @staticmethod
-    def get_absolute_path(path: Union[str, Path]) -> Path:
-        """Gets absolute path.
+    def get_absolute_path(path: Union[str, Path]) -> str:
+        """Gets absolute path as a normalized string.
 
         Args:
             path: Path to convert
 
         Returns:
-            Absolute Path object
+            Absolute path as a string.
         """
-        return Path(path).absolute()
+        return str(Path(path).absolute())
 
     @staticmethod
     def create_dir(
-        path: Union[str, Path], parents: bool = False, exist_ok: bool = False
+        path: Union[str, Path], parents: bool = True, exist_ok: bool = True
     ) -> None:
-        """Creates directory.
+        """Creates directory, including parent directories if needed.
+
+        Defaults allow creating nested directories and don't raise error if it exists.
 
         Args:
             path: Directory path to create
-            parents: Create parent directories if needed (defaults to False)
-            exist_ok: Don't raise error if directory exists (defaults to False)
+            parents: Create parent directories if needed (defaults to True)
+            exist_ok: Don't raise error if directory exists (defaults to True)
         """
         Path(path).mkdir(parents=parents, exist_ok=exist_ok)
