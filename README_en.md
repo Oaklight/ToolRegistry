@@ -133,6 +133,8 @@ print(registry.get_available_tools())
 
 ### Hub Tools
 
+[Latest Available Tools](src/toolregistry/hub/)
+
 Hub tools encapsulate commonly used functionalities as static methods in classes. These tools are grouped for better organization and reusability.
 
 Examples of available hub tools include:

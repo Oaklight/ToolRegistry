@@ -108,6 +108,8 @@ print(registry.get_available_tools())
 
 ### 工具中心
 
+[最新可用工具](src/toolregistry/hub/)
+
 工具中心通过类中的静态方法封装常用功能，以增强功能性和组织性。
 
 工具中心的可用工具示例包括：
