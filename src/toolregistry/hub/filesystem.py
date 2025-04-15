@@ -30,7 +30,6 @@ class FileSystem:
         is_dir(path): Checks if path is a directory
         list_dir(path): Lists directory contents
         create_file(path, content): Creates file with content
-        read_file(path): Reads file content
         copy(src, dst): Copies file/directory
         move(src, dst): Moves/renames file/directory
         delete(path): Deletes file/directory
@@ -77,16 +76,62 @@ class FileSystem:
         return Path(path).is_dir()
 
     @staticmethod
-    def list_dir(path: Union[str, Path]) -> List[str]:
-        """Lists contents of directory.
+    def list_dir(
+        path: Union[str, Path], depth: int = 1, show_hidden: bool = False
+    ) -> List[str]:
+        """Lists contents of directory up to a specified depth.
 
         Args:
             path: Directory path
+            depth: Maximum depth to list contents (default is 1, meaning immediate children).
+                   A depth of 2 includes children and grandchildren, etc.
+                   Depth must be >= 1.
+            show_hidden: Whether to include hidden files/directories (those starting with '.')
+                         (default is False).
 
         Returns:
-            List of item names in directory
+            List of relative paths of items in the directory up to the specified depth.
+
+        Raises:
+            ValueError: If depth is less than 1.
+            FileNotFoundError: If the path does not exist or is not a directory.
         """
-        return [p.name for p in Path(path).iterdir()]
+        base_path = Path(path)
+        if not base_path.is_dir():
+            raise FileNotFoundError(
+                f"Path is not a directory or does not exist: {path}"
+            )
+        if depth < 1:
+            raise ValueError("Depth must be 1 or greater.")
+
+        if depth == 1:
+            # For depth 1, return only the names of immediate children
+            items = base_path.iterdir()
+            if not show_hidden:
+                items = (p for p in items if not p.name.startswith("."))
+            return [p.name for p in items]
+        else:
+            # For depth > 1, use rglob and filter by depth, returning relative paths
+            results = []
+            for p in base_path.rglob("*"):
+                try:
+                    relative_path = p.relative_to(base_path)
+                    # The number of parts in the relative path corresponds to the depth level
+                    # e.g., 'file.txt' has 1 part (depth 1)
+                    # 'subdir/file.txt' has 2 parts (depth 2)
+                    if len(relative_path.parts) <= depth:
+                        # Check if any part of the relative path starts with '.' if show_hidden is False
+                        is_hidden = any(
+                            part.startswith(".") for part in relative_path.parts
+                        )
+                        if show_hidden or not is_hidden:
+                            results.append(str(relative_path))
+                except ValueError:
+                    # This can happen under certain conditions, e.g., symlink loops
+                    # or permission issues during traversal. We'll skip such entries.
+                    # Consider adding logging here if more detailed diagnostics are needed.
+                    continue
+            return results
 
     @staticmethod
     def create_file(path: Union[str, Path], content: str = "") -> None:
@@ -97,18 +142,6 @@ class FileSystem:
             content: Optional content to write (defaults to empty string)
         """
         Path(path).write_text(content)
-
-    @staticmethod
-    def read_file(path: Union[str, Path]) -> str:
-        """Reads file content.
-
-        Args:
-            path: File path to read
-
-        Returns:
-            File content as string
-        """
-        return Path(path).read_text()
 
     @staticmethod
     def copy(src: Union[str, Path], dst: Union[str, Path]) -> None:
@@ -200,4 +233,3 @@ class FileSystem:
             exist_ok: Don't raise error if directory exists (defaults to False)
         """
         Path(path).mkdir(parents=parents, exist_ok=exist_ok)
-
