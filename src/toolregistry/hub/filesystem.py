@@ -135,8 +135,16 @@ class FileSystem:
                 try:
                     relative_path = p.relative_to(base_path)
                     if len(relative_path.parts) <= depth:
-                        # Check if the item itself should be hidden using the helper
-                        if show_hidden or not FileSystem._is_hidden(p):
+                        # Determine if the item or its path makes it hidden
+                        item_is_hidden = FileSystem._is_hidden(p)
+                        path_contains_hidden = any(
+                            part.startswith(".") for part in relative_path.parts
+                        )
+
+                        # Include if show_hidden is True, or if neither the item nor its path is hidden
+                        if show_hidden or (
+                            not item_is_hidden and not path_contains_hidden
+                        ):
                             results.append(str(relative_path))
 
                 except ValueError:
