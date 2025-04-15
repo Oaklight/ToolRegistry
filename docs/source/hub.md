@@ -15,12 +15,32 @@ For latest list of predefined tools, please check out [**latest available**](htt
 
 1. **Calculator** - Mathematical calculation tools
 
-   - Basic arithmetic: addition, subtraction, multiplication, division
-   - Scientific operations: power, square root, trigonometric, logarithmic
-   - Statistical functions: average, median, mode, standard deviation
-   - Financial calculations: simple/compound interest
-   - Random number generation
-   - Expression evaluation
+   The Calculator provides a comprehensive set of mathematical functions, including but not limited to:
+
+   - Constants: pi, e, tau, inf, nan
+   - Basic arithmetic: addition (add), subtraction (subtract), multiplication (multiply), division (divide), modulo (mod)
+   - Powers and roots: power, square root (sqrt), cube root (cbrt), integer square root (isqrt)
+   - Distance and norms: Euclidean distance (dist), Euclidean norm (hypot)
+   - Trigonometric functions: sin, cos, tan, asin, acos, atan, degrees, radians
+   - Hyperbolic functions: sinh, cosh, tanh, asinh, acosh, atanh
+   - Logarithmic and exponential functions: log, ln, log10, log2, log1p, exp, expm1
+   - Numerical processing: abs, round, floor, ceil, trunc, copysign, frexp, ldexp, modf, remainder, nextafter, ulp, fmod, isclose
+   - Combinatorics: factorial, gcd, lcm, comb, perm
+   - Special functions: erf, erfc, gamma, lgamma
+   - Numerical validation: isfinite, isinf, isnan
+   - Statistical functions: average, median, mode, standard_deviation, min, max, sum, prod, fsum
+   - Financial calculations: simple_interest, compound_interest
+   - Random number generation: random, randint
+   - Expression evaluation: evaluate, supports combined expression calculations
+
+   Example usage:
+
+   ```python
+   from toolregistry.hub import Calculator
+   calc = Calculator()
+   print(calc.add(1, 2))  # Output: 3
+   print(calc.evaluate("add(2, 3) * power(2, 3) + sqrt(16)"))  # Output: 44
+   ```
 
 2. **FileOps** - Advanced file content manipulation
 
@@ -127,3 +147,4 @@ registry.register_static_tools(FileOps)
 # Get available tools list
 print(registry.get_available_tools())
 # Output: ['Calculator.add', 'Calculator.subtract', ..., 'read_file', 'write_file', ...]
+```
