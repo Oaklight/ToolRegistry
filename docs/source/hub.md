@@ -36,21 +36,55 @@ For latest list of predefined tools, please check out [**latest available**](htt
    Example usage:
 
    ```python
-   from toolregistry.hub import Calculator
-   calc = Calculator()
+   from toolregistry.hub import Calculator as calc
    print(calc.add(1, 2))  # Output: 3
    print(calc.evaluate("add(2, 3) * power(2, 3) + sqrt(16)"))  # Output: 44
    ```
 
-2. **FileOps** - Advanced file content manipulation
+2. **FileOps** - Core file operation toolkit designed for LLM agent integration
 
-   - Generate and apply unified diffs
-   - Patch files with diffs
-   - Line-based operations: replace, insert, delete
-   - Find and replace operations
-   - File appending
-   - File verification (hash calculation)
-   - File comparison
+   FileOps provides a set of static methods supporting atomic file writes, unified diff generation and application, Git conflict resolution, and other advanced file content manipulations, ensuring safety and consistency in file operations.
+
+   Key features include:
+
+   - Generate and apply text content differences using unified diff format
+   - Parse and apply Git conflict style diffs to original content, replacing conflicted sections directly without strategy options
+   - Atomic file writes with automatic backup file creation (.bak)
+   - Read text files with automatic encoding handling
+   - Generate unified diff text for version control and content comparison
+   - Generate Git conflict marker text to simulate merge conflict scenarios
+   - Validate file path safety to prevent dangerous characters and path injection
+
+   Example usage:
+
+   ```python
+   from toolregistry.hub import FileOps as fio
+
+   # Read file content
+   content = fio.read_file("example.txt")
+
+   # Generate content diff
+   old_content = "line1\nline2\nline3\n"
+   new_content = "line1\nline2 modified\nline3\n"
+   diff = fio.make_diff(old_content, new_content)
+
+   # Apply diff to generate new content
+   patched_content = fio.replace_by_diff(old_content, diff)
+
+   # Generate Git conflict text
+   conflict_text = fio.make_git_conflict(old_content, new_content)
+
+   # Apply git conflict style diff to original content, replacing conflicted sections
+   resolved = fio.replace_by_git(content, conflict_text)
+
+   # Atomic write file with automatic backup
+   fio.write_file("example.txt", resolved)
+
+   # Validate file path safety
+   validation = fio.validate_path("example.txt")
+   if not validation["valid"]:
+       print(f"Invalid path: {validation['message']}")
+   ```
 
 3. **Filesystem** - Comprehensive file system operations
 
