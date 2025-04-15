@@ -39,7 +39,7 @@ if not os.path.exists(test_file):
         f.write("Hello world!\nThis is a sample file.\nHave a nice day.\n")
 
 # Example instruction to modify the file
-instruction = f"Change 'Hello world!' to 'Hello, AI world!' and add a new line 'This file was modified by an LLM.' at the end. source file is at {test_file}. Use git merge style edit"
+instruction = f"Change 'Hello world!' to 'Hello, AI world!' and add a new line 'This file was modified by an LLM.' at the end. source file is at {test_file}. Use diff style edit"
 
 # Query LLM to get the diff patch
 response = llm.query(instruction, tools=tool_registry, stream=stream)

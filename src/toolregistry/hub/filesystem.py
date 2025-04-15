@@ -59,10 +59,10 @@ class FileSystem:
         """Checks if path is a file.
 
         Args:
-            path: Path to check
+            path: The path to check.
 
         Returns:
-            True if path is a file, False otherwise
+            True if the path points to a file, False otherwise.
         """
         return Path(path).is_file()
 
@@ -71,10 +71,10 @@ class FileSystem:
         """Checks if path is a directory.
 
         Args:
-            path: Path to check
+            path: The path to check.
 
         Returns:
-            True if path is a directory, False otherwise
+            True if the path points to a directory, False otherwise.
         """
         return Path(path).is_dir()
 
@@ -82,13 +82,11 @@ class FileSystem:
     def list_dir(
         path: Union[str, Path], depth: int = 1, show_hidden: bool = False
     ) -> List[str]:
-        """Lists contents of directory up to a specified depth.
+        """Lists contents of a directory up to a specified depth.
 
         Args:
-            path: Directory path
-            depth: Maximum depth to list contents (default is 1, meaning immediate children).
-                   A depth of 2 includes children and grandchildren, etc.
-                   Depth must be >= 1.
+            path: The directory path to list.
+            depth: Maximum depth to list (default=1). Must be >= 1.
             show_hidden: Whether to include hidden files/directories (those starting with '.')
                          (default is False).
 
@@ -141,18 +139,16 @@ class FileSystem:
 
     @staticmethod
     def create_file(path: Union[str, Path]) -> None:
-        """Creates an empty file or updates the timestamp if it already exists.
-
-        Similar to the 'touch' command in Unix-like systems.
+        """Creates an empty file or updates the timestamp if it already exists (like 'touch').
 
         Args:
-            path: The path of the file to create or update.
+            path: The file path to create or update.
         """
         Path(path).touch()
 
     @staticmethod
     def copy(src: Union[str, Path], dst: Union[str, Path]) -> None:
-        """Copies file or directory.
+        """Copies a file or directory.
 
         Args:
             src: Source path
@@ -170,7 +166,7 @@ class FileSystem:
 
     @staticmethod
     def move(src: Union[str, Path], dst: Union[str, Path]) -> None:
-        """Moves/renames file or directory.
+        """Moves/renames a file or directory.
 
         Args:
             src: Source path
@@ -183,7 +179,7 @@ class FileSystem:
 
     @staticmethod
     def delete(path: Union[str, Path]) -> None:
-        """Deletes file or directory recursively.
+        """Deletes a file or directory recursively.
 
         Args:
             path: Path to delete
@@ -198,13 +194,13 @@ class FileSystem:
 
     @staticmethod
     def get_size(path: Union[str, Path]) -> int:
-        """Gets file/directory size in bytes. For directories, sums file sizes recursively.
+        """Gets file/directory size in bytes (recursive for directories).
 
         Args:
             path: Path to check size of
 
         Returns:
-            Size in bytes
+            Size in bytes.
 
         Raises:
             FileNotFoundError: If the path does not exist.
@@ -228,7 +224,7 @@ class FileSystem:
             path: Path to the file or directory.
 
         Returns:
-            The last modified time as a Unix timestamp (float).
+            Last modified time as a Unix timestamp (float).
 
         Raises:
             FileNotFoundError: If the path does not exist.
@@ -243,10 +239,10 @@ class FileSystem:
         """Joins path components into a normalized string path.
 
         Args:
-            *paths: Path components to join
+            *paths: One or more path components.
 
         Returns:
-            Joined and normalized path as a string.
+            Joined and normalized path string.
         """
         # Using os.path.join for better compatibility if mixing Path and str
         # and returning a string as often expected by other os functions.
@@ -254,13 +250,13 @@ class FileSystem:
 
     @staticmethod
     def get_absolute_path(path: Union[str, Path]) -> str:
-        """Gets absolute path as a normalized string.
+        """Gets the absolute path as a normalized string.
 
         Args:
             path: Path to convert
 
         Returns:
-            Absolute path as a string.
+            Absolute path string.
         """
         return str(Path(path).absolute())
 
@@ -268,13 +264,11 @@ class FileSystem:
     def create_dir(
         path: Union[str, Path], parents: bool = True, exist_ok: bool = True
     ) -> None:
-        """Creates directory, including parent directories if needed.
-
-        Defaults allow creating nested directories and don't raise error if it exists.
+        """Creates a directory, including parent directories if needed (defaults to True).
 
         Args:
-            path: Directory path to create
-            parents: Create parent directories if needed (defaults to True)
-            exist_ok: Don't raise error if directory exists (defaults to True)
+            path: Directory path to create.
+            parents: Create parent directories if needed (default=True).
+            exist_ok: Don't raise error if directory exists (default=True).
         """
         Path(path).mkdir(parents=parents, exist_ok=exist_ok)

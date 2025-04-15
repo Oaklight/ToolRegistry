@@ -28,13 +28,15 @@ class FileOps:
 
     @staticmethod
     def replace_by_diff(path: str, diff: str) -> None:
-        """Apply unified diff format changes to file content and write back to file.
+        """Apply unified diff format changes atomically to a file.
 
         Args:
-            path: File path to modify
-            diff: Unified diff text (with -/+ markers)
+            path: The file path to modify.
+            diff: Unified diff text (must use standard format with ---/+++ headers and @@ hunk markers).
 
         Example diff text:
+            --- a/original_file
+            +++ b/modified_file
             @@ -1,3 +1,3 @@
             -line2
             +line2 modified
@@ -87,12 +89,12 @@ class FileOps:
 
     @staticmethod
     def search_files(path: str, regex: str, file_pattern: str = "*") -> list[dict]:
-        """Perform regex search across files in a directory with context.
+        """Perform regex search across files in a directory, returning matches with context.
 
         Args:
-            path: Directory path to search
-            regex: Regex pattern to search for
-            file_pattern: Glob pattern to filter files (default '*')
+            path: The directory path to search recursively.
+            regex: The regex pattern to search for.
+            file_pattern: Glob pattern to filter files (default='*').
 
         Returns:
             List of dicts with keys:
@@ -138,11 +140,11 @@ class FileOps:
 
     @staticmethod
     def replace_by_git(path: str, diff: str) -> None:
-        """Apply git conflict style diff to file content, replacing conflicted sections and write back to file.
+        """Apply git conflict style diff atomically to a file, replacing conflicted sections.
 
         Args:
-            path: File path to modify
-            diff: Git conflict style diff text with <<<<<<<, =======, >>>>>>> markers
+            path: File path to modify.
+            diff: Git conflict style diff text (using <<<<<<< SEARCH, =======, >>>>>>> REPLACE markers).
 
         Example diff text:
             <<<<<<< SEARCH
@@ -205,7 +207,7 @@ class FileOps:
 
     @staticmethod
     def read_file(path: str) -> str:
-        """Read text file with automatic encoding detection.
+        """Read text file content.
 
         Args:
             path: File path to read
@@ -222,7 +224,7 @@ class FileOps:
 
     @staticmethod
     def write_file(path: str, content: str) -> None:
-        """Atomic text file write.
+        """Atomically write content to a text file (overwrite). Creates the file if it doesn't exist.
 
         Args:
             path: Destination file path
@@ -250,34 +252,34 @@ class FileOps:
     # ======================
 
     @staticmethod
-    def make_diff(old: str, new: str) -> str:
-        """Generate unified diff between texts.
+    def make_diff(ours: str, theirs: str) -> str:
+        """Generate unified diff text between two strings.
 
         Args:
-            old: Original text
-            new: Modified text
+            ours: The 'ours' version string.
+            theirs: The 'theirs' version string.
 
         Note:
-            This function is intended for file or string comparison and visualization,
+            Intended for comparison/visualization, not direct modification.
             not for direct text modification tasks.
 
         Returns:
             Unified diff text
         """
         return "\n".join(
-            difflib.unified_diff(old.splitlines(), new.splitlines(), lineterm="")
+            difflib.unified_diff(ours.splitlines(), theirs.splitlines(), lineterm="")
         )
 
     @staticmethod
     def make_git_conflict(ours: str, theirs: str) -> str:
-        """Generate git merge conflict markers.
+        """Generate git merge conflict marker text between two strings.
 
         Args:
-            ours: Current branch content
-            theirs: Incoming branch content
+            ours: The 'ours' version string.
+            theirs: The 'theirs' version string.
 
         Note:
-            This function is intended for file or string comparison and visualization,
+            Intended for comparison/visualization, not direct modification.
             not for direct text modification tasks.
 
         Returns:
@@ -291,10 +293,10 @@ class FileOps:
 
     @staticmethod
     def validate_path(path: str) -> Dict[str, Union[bool, str]]:
-        """Validate file path safety.
+        """Validate file path safety (checks for empty paths, dangerous characters).
 
         Args:
-            path: Path to validate
+            path: The path string to validate.
 
         Returns:
             Dictionary with keys:
