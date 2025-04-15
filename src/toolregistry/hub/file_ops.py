@@ -23,11 +23,11 @@ class FileOps:
     # ======================
 
     @staticmethod
-    def replace_by_diff(original: str, diff: str) -> str:
-        """Apply unified diff format changes to content.
+    def replace_by_diff(path: str, diff: str) -> None:
+        """Apply unified diff format changes to file content and write back to file.
 
         Args:
-            original: Original text content
+            path: File path to modify
             diff: Unified diff text (with -/+ markers)
 
         Example diff text:
@@ -35,12 +35,10 @@ class FileOps:
             -line2
             +line2 modified
 
-        Returns:
-            Modified content
-
         Raises:
             ValueError: On invalid diff format or patch failure
         """
+        original = FileOps.read_file(path)
         original_lines = original.splitlines(keepends=True)
         diff_lines = diff.splitlines(keepends=True)
         patched_lines = []
@@ -80,14 +78,15 @@ class FileOps:
         # Add remaining lines after last hunk
         patched_lines.extend(original_lines[orig_pos:])
 
-        return "".join(patched_lines)
+        content = "".join(patched_lines)
+        FileOps.write_file(path, content)
 
     @staticmethod
-    def replace_by_git(original: str, diff: str) -> str:
-        """Apply git conflict style diff to original content, replacing conflicted sections.
+    def replace_by_git(path: str, diff: str) -> None:
+        """Apply git conflict style diff to file content, replacing conflicted sections and write back to file.
 
         Args:
-            original: Original text content
+            path: File path to modify
             diff: Git conflict style diff text with <<<<<<<, =======, >>>>>>> markers
 
         Example diff text:
@@ -97,12 +96,10 @@ class FileOps:
             line2 modified
             >>>>>>> REPLACE
 
-        Returns:
-            Modified content with conflicts resolved by replacement
-
         Raises:
             ValueError: On invalid diff format or patch failure
         """
+        original = FileOps.read_file(path)
         original_lines = original.splitlines(keepends=True)
         diff_lines = diff.splitlines(keepends=True)
         patched_lines = []
@@ -144,7 +141,8 @@ class FileOps:
         # Add remaining lines after last conflict
         patched_lines.extend(original_lines[orig_pos:])
 
-        return "".join(patched_lines)
+        content = "".join(patched_lines)
+        FileOps.write_file(path, content)
 
     # ======================
     #  File I/O Operations
@@ -169,7 +167,7 @@ class FileOps:
 
     @staticmethod
     def write_file(path: str, content: str) -> None:
-        """Atomic text file write with backup.
+        """Atomic text file write.
 
         Args:
             path: Destination file path
@@ -179,9 +177,6 @@ class FileOps:
         with open(tmp_path, "w", encoding="utf-8") as f:
             f.write(content)
         os.replace(tmp_path, path)
-        if os.path.exists(f"{path}.bak"):
-            os.remove(f"{path}.bak")
-        os.link(path, f"{path}.bak")
 
     # ======================
     #  Content Generation

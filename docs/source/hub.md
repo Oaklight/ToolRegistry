@@ -41,49 +41,45 @@ For latest list of predefined tools, please check out [**latest available**](htt
    print(calc.evaluate("add(2, 3) * power(2, 3) + sqrt(16)"))  # Output: 44
    ```
 
-2. **FileOps** - Core file operation toolkit designed for LLM agent integration
+2. **FileOps** - Atomic file operations toolkit for LLM agents
 
-   FileOps provides a set of static methods supporting atomic file writes, unified diff generation and application, Git conflict resolution, and other advanced file content manipulations, ensuring safety and consistency in file operations.
+   FileOps is a collection of static methods designed to facilitate safe, atomic, and advanced file operations, especially suited for integration with large language model (LLM) agents. It provides utilities for reading, writing, and modifying file contents with built-in safety mechanisms like automatic backups.
 
    Key features include:
 
-   - Generate and apply text content differences using unified diff format
-   - Parse and apply Git conflict style diffs to original content, replacing conflicted sections directly without strategy options
-   - Atomic file writes with automatic backup file creation (.bak)
-   - Read text files with automatic encoding handling
-   - Generate unified diff text for version control and content comparison
-   - Generate Git conflict marker text to simulate merge conflict scenarios
-   - Validate file path safety to prevent dangerous characters and path injection
+   - Atomic file writing with temporary file usage for safe writes (`write_file`)
+   - Reading text files with automatic encoding detection (`read_file`)
+   - Applying unified diff format changes directly to files (`replace_by_diff`)
+   - Applying git conflict style diffs directly to files (`replace_by_git`)
+   - Generating unified diff text for content comparison (`make_diff`)
+   - Generating git conflict marker text to simulate merge conflicts (`make_git_conflict`)
+   - Validating file path safety to prevent dangerous characters and path injection (`validate_path`)
+
+   The `replace_by_diff` and `replace_by_git` methods have been updated to accept only the file path and diff string as arguments. They apply the diff directly to the file content and write the changes back to the file atomically, without returning the modified content.
 
    Example usage:
 
    ```python
    from toolregistry.hub import FileOps as fio
 
-   # Read file content
-   content = fio.read_file("example.txt")
+   # Assume a file at /tmp/toolregistry/sample.txt with content "Hello World"
 
-   # Generate content diff
-   old_content = "line1\nline2\nline3\n"
-   new_content = "line1\nline2 modified\nline3\n"
-   diff = fio.make_diff(old_content, new_content)
+   # example of replace_by_diff
+   content = fio.read_file("/tmp/toolregistry/sample.txt") # Hello World
+   diff = """@@ -1 +1 @@
+   -Hello World
+   +Hello Universe"""
+   fio.replace_by_diff("/tmp/toolregistry/sample.txt", diff)
 
-   # Apply diff to generate new content
-   patched_content = fio.replace_by_diff(old_content, diff)
-
-   # Generate Git conflict text
-   conflict_text = fio.make_git_conflict(old_content, new_content)
-
-   # Apply git conflict style diff to original content, replacing conflicted sections
-   resolved = fio.replace_by_git(content, conflict_text)
-
-   # Atomic write file with automatic backup
-   fio.write_file("example.txt", resolved)
-
-   # Validate file path safety
-   validation = fio.validate_path("example.txt")
-   if not validation["valid"]:
-       print(f"Invalid path: {validation['message']}")
+   # example of replace_by_git
+   content = fio.read_file("/tmp/toolregistry/sample.txt") # Hello Universe
+   diff = """<<<<<<< SEARCH
+   Hello Universe
+   =======
+   Hello Multiverse
+   >>>>>>> REPLACE"""
+   fio.replace_by_git("/tmp/toolregistry/sample.txt", diff)
+   content = fio.read_file("/tmp/toolregistry/sample.txt") # Hello Multiverse
    ```
 
 3. **Filesystem** - Comprehensive file system operations

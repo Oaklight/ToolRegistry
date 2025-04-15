@@ -24,10 +24,12 @@ class TestFileOps(unittest.TestCase):
 
     def test_replace_by_diff(self):
         original = "line1\nline2\nline3\n"
+        self.test_file.write_text(original)
         diff = FileOps.make_diff(original, "line1\nline2 modified\nline3\n")
-        result = FileOps.replace_by_diff(original, diff)
-        self.assertIn("line2 modified", result)
-        self.assertNotIn("line2\nline3\n", result)
+        FileOps.replace_by_diff(str(self.test_file), diff)
+        content = self.test_file.read_text()
+        self.assertIn("line2 modified", content)
+        self.assertNotIn("line2\nline3\n", content)
 
     def test_make_git_conflict(self):
         ours = "line1\nline2\n"
@@ -41,12 +43,14 @@ class TestFileOps(unittest.TestCase):
 
     def test_replace_by_git(self):
         original = "line1\nline2\nline3\n"
+        self.test_file.write_text(original)
         diff = FileOps.make_git_conflict(
             "line1\nline2\nline3\n", "line1\nline2 modified\nline3\n"
         )
-        result = FileOps.replace_by_git(original, diff)
-        self.assertIn("line2 modified", result)
-        self.assertNotIn("line2\nline3\n", result)
+        FileOps.replace_by_git(str(self.test_file), diff)
+        content = self.test_file.read_text()
+        self.assertIn("line2 modified", content)
+        self.assertNotIn("line2\nline3\n", content)
 
     def test_read_file(self):
         content = FileOps.read_file(str(self.test_file))
@@ -57,9 +61,6 @@ class TestFileOps(unittest.TestCase):
         FileOps.write_file(str(self.test_file), new_content)
         content = self.test_file.read_text()
         self.assertEqual(content, new_content)
-        # Check backup file exists
-        backup_file = str(self.test_file) + ".bak"
-        self.assertTrue(os.path.exists(backup_file))
 
     def test_validate_path(self):
         valid = FileOps.validate_path("valid_path.txt")
