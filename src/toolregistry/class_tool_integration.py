@@ -18,14 +18,40 @@ from typing import Type, Union
 from .tool_registry import ToolRegistry
 
 
-def _is_all_static_methods(cls):
+from typing import Type, Optional, Union, Protocol, Callable
+
+
+def _is_all_static_methods(cls: Type) -> bool:
+    """
+    Determines if all the methods of a given class are static methods.
+
+    Args:
+        cls (Type): The class to check.
+
+    Returns:
+        bool: True if all non-private methods of the class are static methods; otherwise, False.
+    """
     for name, member in cls.__dict__.items():
         if not name.startswith("_") and not isinstance(member, staticmethod):
             return False
     return True
 
 
-def _determine_namespace(cls_or_inst, with_ns):
+def _determine_namespace(
+    cls_or_inst: Union[Type, object], with_ns: Union[str, bool]
+) -> Optional[str]:
+    """
+    Determines the namespace to use based on the class or instance and the `with_ns` parameter.
+
+    Args:
+        cls_or_inst (Union[Type, object]): The class or instance to derive the namespace from.
+        with_ns (Union[str, bool]): Either a string representing the namespace,
+                                    True for using the class or instance name,
+                                    or False for no namespace.
+
+    Returns:
+        Optional[str]: The derived namespace, or None if `with_ns` is False.
+    """
     if isinstance(with_ns, str):
         return with_ns
     elif with_ns:
@@ -37,13 +63,35 @@ def _determine_namespace(cls_or_inst, with_ns):
         return None
 
 
-def _register_static_methods(cls, registry, namespace):
+def _register_static_methods(
+    cls: Type, registry: ToolRegistry, namespace: Optional[str]
+) -> None:
+    """
+    Registers all static methods of a class into the provided registry.
+
+    Args:
+        cls (Type): The class whose static methods will be registered.
+        registry (ToolRegistry): The registry object to register the methods into.
+                             It is expected to have a `register` method.
+        namespace (Optional[str]): The namespace under which the static methods will be registered.
+    """
     for name, member in cls.__dict__.items():
         if not name.startswith("_") and isinstance(member, staticmethod):
             registry.register(member.__func__, namespace=namespace)
 
 
-def _register_instance_methods(instance, registry, namespace):
+def _register_instance_methods(
+    instance: object, registry: ToolRegistry, namespace: Optional[str]
+) -> None:
+    """
+    Registers all instance methods (excluding private methods and classmethods) of an object into the registry.
+
+    Args:
+        instance (object): The object whose instance methods will be registered.
+        registry (ToolRegistry): The registry object to register the methods into.
+                             It is expected to have a `register` method.
+        namespace (Optional[str]): The namespace under which the instance methods will be registered.
+    """
     for name in dir(instance):
         if name.startswith("_"):
             continue
