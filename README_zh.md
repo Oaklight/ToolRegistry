@@ -156,8 +156,8 @@ tools_json = registry.get_tools_json()
 ToolRegistry 支持通过标准化 API 接口与工具交互，支持 OpenAPI 集成：
 
 ```python
-registry.register_openapi_tools("http://localhost:8000/") # 提供 baseurl 进行注册
-registry.register_openapi_tools("./openapi_spec.json", "http://localhost/") # 通过本地 OpenAPI 规范文件和 base url 进行注册
+registry.register_from_openapi("http://localhost:8000/") # 提供 baseurl 进行注册
+registry.register_from_openapi("./openapi_spec.json", "http://localhost/") # 通过本地 OpenAPI 规范文件和 base url 进行注册
 
 # 获取包含 OpenAPI 工具的所有工具 JSON 数据
 tools_json = registry.get_tools_json()

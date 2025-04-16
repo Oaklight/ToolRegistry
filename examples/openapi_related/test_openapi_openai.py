@@ -4,7 +4,7 @@ spec_url = "https://raw.githubusercontent.com/APIs-guru/openapi-directory/refs/h
 
 # Initialize the ToolRegistry and register OpenAPI tools synchronously
 registry = ToolRegistry()
-registry.register_openapi_tools(spec_url)
+registry.register_from_openapi(spec_url)
 
 # print("Registry:", registry)
 

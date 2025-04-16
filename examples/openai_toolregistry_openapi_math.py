@@ -17,12 +17,12 @@ registry = ToolRegistry()
 
 spec_url = f"http://localhost:{PORT}"
 
-registry.register_openapi_tools(spec_url, with_namespace=True)
+registry.register_from_openapi(spec_url, with_namespace=True)
 pprint(registry)
 
 
 async def async_register():
-    await registry.register_openapi_tools_async(
+    await registry.register_from_openapi_async(
         spec_url, with_namespace="async_open_api"
     )
     pprint(registry)
