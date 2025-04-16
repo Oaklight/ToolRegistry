@@ -449,19 +449,6 @@ class ToolRegistry:
         hub = ClassToolIntegration(self)
         return await hub.register_class_methods_async(cls, with_namespace)
 
-    # deprecated alias for backward compatibility
-    @deprecated(reason="use register_from_class instead", version="0.4.4")
-    def register_static_tools(
-        self, cls: Type, with_namespace: Union[bool, str] = False
-    ):
-        return self.register_from_class(cls, with_namespace)
-
-    @deprecated(reason="use register_from_class_async instead", version="0.4.4")
-    async def register_static_tools_async(
-        self, cls: Type, with_namespace: Union[bool, str] = False
-    ):
-        return await self.register_from_class_async(cls, with_namespace)
-
     def get_available_tools(self) -> List[str]:
         """List all registered tools.
 
