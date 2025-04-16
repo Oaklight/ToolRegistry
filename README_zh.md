@@ -145,7 +145,7 @@ print(registry.get_available_tools())
 ```
 
 ```python
-registry.register_mcp_tools("http://localhost:8000/mcp/sse")
+registry.register_from_mcp("http://localhost:8000/mcp/sse")
 
 # 获取包含 MCP 工具的所有工具 JSON 数据
 tools_json = registry.get_tools_json()

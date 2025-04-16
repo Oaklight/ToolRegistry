@@ -8,7 +8,7 @@ This guide explains how to integrate MCP (Modular Component Protocol) with ToolR
 
 ### Synchronous Registration
 
-You can register MCP tools synchronously using the `register_mcp_tools` method. For example:
+You can register MCP tools synchronously using the `register_from_mcp` method. For example:
 
 ```python
 import os
@@ -19,13 +19,13 @@ registry = ToolRegistry()
 mcp_server_url = f"http://localhost:{PORT}/mcp/sse"
 
 # Synchronously register MCP tools
-registry.register_mcp_tools(mcp_server_url)
+registry.register_from_mcp(mcp_server_url)
 print(registry)  # Output: A ToolRegistry object containing the registered MCP tools
 ```
 
 ### Asynchronous Registration
 
-In an asynchronous environment, use the `register_mcp_tools_async` method to register tools. For example:
+In an asynchronous environment, use the `register_from_mcp_async` method to register tools. For example:
 
 ```python
 import asyncio
@@ -37,7 +37,7 @@ registry = ToolRegistry()
 mcp_server_url = f"http://localhost:{PORT}/mcp/sse"
 
 async def async_register():
-    await registry.register_mcp_tools_async(mcp_server_url)
+    await registry.register_from_mcp_async(mcp_server_url)
     # Optional: Use pprint to display the registered tools information
     # from pprint import pprint
     # pprint(registry)
@@ -135,7 +135,7 @@ mcp_server_url = f"http://localhost:{PORT}/mcp/sse"
 
 # Asynchronously register MCP tools
 async def async_register():
-    await registry.register_mcp_tools_async(mcp_server_url)
+    await registry.register_from_mcp_async(mcp_server_url)
     pprint(registry)
 
 asyncio.run(async_register())
@@ -189,7 +189,7 @@ print(tool_responses)
 ```
 
 ```json
-{"call_ckxzx0cg0jzhfxm98tv1qjvw": "12"}
+{ "call_ckxzx0cg0jzhfxm98tv1qjvw": "12" }
 ```
 
 The results are returned as a dictionary mapping tool call IDs to their corresponding outputs.
@@ -273,7 +273,7 @@ mcp_server_url = f"http://localhost:{PORT}/mcp/sse"
 
 # Asynchronously register MCP tools
 async def async_register():
-    await registry.register_mcp_tools_async(mcp_server_url)
+    await registry.register_from_mcp_async(mcp_server_url)
     pprint(registry)
 
 asyncio.run(async_register())
