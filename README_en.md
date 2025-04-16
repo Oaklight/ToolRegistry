@@ -16,6 +16,10 @@ A Python library for managing and executing tools in a structured way.
 
 Full documentation is available at [https://toolregistry.lab.oaklight.cn](https://toolregistry.lab.oaklight.cn)
 
+## API Changes (starting 0.4.4)
+
+Previously, the method `ToolRegistry.register_static_tools` was used for registering static methods from classes. This has now been replaced by `ToolRegistry.register_from_class`. Similarly, `ToolRegistry.register_mcp_tools` has been replaced by `ToolRegistry.register_from_mcp`, and `ToolRegistry.register_openapi_tools` by `ToolRegistry.register_from_openapi`. All old methods are planned to be deprecated soon, so please migrate to the new interfaces as soon as possible. For backward compatibility, the old names remain as aliases to the new ones.
+
 ## Installation
 
 ### Basic Installation
@@ -108,8 +112,6 @@ tools_json = registry.get_tools_json()
 ## Registering Hub Tools
 
 Hub tools are registered to ToolRegistry using the `register_from_class` method. This allows developers to extend the functionality of ToolRegistry by creating custom tool classes with reusable methods.
-
-> **Note:** Previously, the method `register_static_tools` and the concept of `StaticMethodIntegration` were used for registering static methods from classes. These have now been replaced by `register_from_class`. Similarly, `register_from_mcp` has been replaced by `register_from_mcp`, and `register_from_openapi` by `register_from_openapi`. All old methods are planned to be deprecated soon, so please migrate to the new interfaces as soon as possible. For backward compatibility, the old names remain as aliases to the new ones.
 
 Example:
 
