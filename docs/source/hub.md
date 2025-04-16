@@ -2,7 +2,7 @@
 
 ## Purpose of Hub
 
-Hub encapsulates commonly used tools as static methods (@staticmethod) in classes, serving as ready-to-use tool groups. This design offers several advantages:
+Hub encapsulates commonly used tools as methods of a class, including both static methods and instance methods, serving as ready-to-use tool groups. This design offers several advantages:
 
 1. **Organization**: Related tool methods are grouped in the same class for easier management and maintenance
 2. **Reusability**: Pre-built tools can be imported and used directly without reimplementation
@@ -129,28 +129,38 @@ For latest list of predefined tools, please check out [**latest available**](htt
    - Radiation: gray, sievert
    - Light intensity: lux, lumen
 
-## Registering Hub Tools and Static Methods
+## Registering Hub Tools
 
-Hub tools are registered to ToolRegistry using the `register_static_tools` method. Additionally, any static method (@staticmethod) from a Python class can be registered as a tool using the `StaticMethodIntegration` module. This allows developers to extend the functionality of ToolRegistry by creating custom tool classes with static methods.
+Hub tools are registered to ToolRegistry using the `register_from_class` method. This allows developers to extend the functionality of ToolRegistry by creating custom tool classes with reusable methods.
 
-### Registering Custom Static Methods
+### Registering Custom Class Methods
 
-To register static methods from a custom class, use the `StaticMethodIntegration` module:
+To register methods from a custom class, simply use the `register_from_class` method:
 
 ```python
 from toolregistry import ToolRegistry
 
-class CustomTools:
+class StaticExample:
     @staticmethod
     def greet(name: str) -> str:
         return f"Hello, {name}!"
 
+class InstanceExample:
+    def __init__(self, name: str):
+        self.name = name
+
+    def greet(self, name: str) -> str:
+        return f"Hello, {name}! I'm {self.name}."
+
 registry = ToolRegistry()
-registry.register_static_tools(CustomTools)
+registry.register_from_class(StaticExample, with_namespace=True)
 
 # List registered tools
 print(registry.get_available_tools())
-# Output: ['greet']
+# Output: ['static_example.greet']
+
+# Call a registered tool
+print(registry["static_example.greet"]("Alice"))  # Hello, Alice!
 ```
 
 ```python
@@ -158,7 +168,7 @@ from toolregistry import ToolRegistry
 from toolregistry.hub import Calculator
 
 registry = ToolRegistry()
-registry.register_static_tools(Calculator)  # Basic registration
+registry.register_from_class(Calculator)  # Basic registration for methods of a class
 ```
 
 ### `with_namespace` Option
@@ -166,7 +176,7 @@ registry.register_static_tools(Calculator)  # Basic registration
 Using `with_namespace=True` parameter adds the class name as a namespace prefix to tool names:
 
 ```python
-registry.register_static_tools(Calculator, with_namespace=True)
+registry.register_from_class(Calculator, with_namespace=True)
 ```
 
 This will register tools with names like `Calculator.add`, `Calculator.subtract`, etc.
@@ -187,10 +197,10 @@ from toolregistry.hub import Calculator, FileOps
 registry = ToolRegistry()
 
 # Register Calculator tools (with namespace)
-registry.register_static_tools(Calculator, with_namespace=True)
+registry.register_from_class(Calculator, with_namespace=True)
 
 # Register FileOps tools (without namespace)
-registry.register_static_tools(FileOps)
+registry.register_from_class(FileOps)
 
 # Get available tools list
 print(registry.get_available_tools())

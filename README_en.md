@@ -105,37 +105,43 @@ registry.register_openapi_tools("./openapi_spec.json", "http://localhost/") # by
 tools_json = registry.get_tools_json()
 ```
 
-## Static Method Integration and Hub of Tools
+## Registering Hub Tools
 
-ToolRegistry supports integration of static methods and predefined hub tools for enhanced functionality and organization.
-
-### Static Method Integration
-
-Static methods from Python classes can be registered as tools using the `StaticMethodIntegration` module. This allows developers to extend ToolRegistry by creating custom tool classes with reusable static methods.
+Hub tools are registered to ToolRegistry using the `register_from_class` method. This allows developers to extend the functionality of ToolRegistry by creating custom tool classes with reusable methods.
 
 Example:
 
 ```python
 from toolregistry import ToolRegistry
 
-class CustomTools:
+class StaticExample:
     @staticmethod
     def greet(name: str) -> str:
         return f"Hello, {name}!"
 
-registry = ToolRegistry()
-registry.register_static_tools(CustomTools) 
+class InstanceExample:
+    def __init__(self, name: str):
+        self.name = name
 
-# List registered tools
-print(registry.get_available_tools())
-# Output: ['greet']
+    def greet(self, name: str) -> str:
+        return f"Hello, {name}! I'm {self.name}."
+
+registry = ToolRegistry()
+registry.register_from_class(StaticExample, with_namespace=True)
+print(registry.get_available_tools())  # ['static_example.greet']
+print(registry["static_example.greet"]("Alice"))  # Hello, Alice!
+
+registry = ToolRegistry()
+registry.register_from_class(InstanceExample("Bob"), with_namespace=True)
+print(registry.get_available_tools())  # ['instance_example.greet']
+print(registry["instance_example.greet"]("Alice"))  # Hello, Alice! I'm Bob.
 ```
 
 ### Hub Tools
 
 [Latest Available Tools](src/toolregistry/hub/)
 
-Hub tools encapsulate commonly used functionalities as static methods in classes. These tools are grouped for better organization and reusability.
+Hub tools encapsulate commonly used functionalities as methods in classes. These tools are grouped for better organization and reusability.
 
 Examples of available hub tools include:
 
@@ -151,7 +157,7 @@ from toolregistry import ToolRegistry
 from toolregistry.hub import Calculator
 
 registry = ToolRegistry()
-registry.register_static_tools(Calculator, with_namespace=True)
+registry.register_from_class(Calculator, with_namespace=True)
 
 # Get available tools list
 print(registry.get_available_tools())
