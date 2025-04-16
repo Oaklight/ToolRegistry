@@ -88,7 +88,8 @@ ToolRegistry 提供了对 MCP（模型上下文协议）工具的一流支持：
 
 工具中心的工具通过 ToolRegistry 的 `register_from_class` 方法注册。这允许开发者通过创建具有可重用方法的自定义工具类来扩展 ToolRegistry。
 
-示例：
+> **注意：** 之前用于注册类的静态方法的 `register_static_tools` 方法和 `StaticMethodIntegration` 概念已被 `register_from_class` 取代。类似地，`register_static_tools_async` 也已被替换。旧方法计划很快废弃，请尽快迁移到新的接口。为了向后兼容，`register_static_tools` 仍作为 `register_from_class` 的别名存在。
+> 示例：
 
 ```python
 from toolregistry import ToolRegistry
