@@ -109,6 +109,8 @@ tools_json = registry.get_tools_json()
 
 Hub tools are registered to ToolRegistry using the `register_from_class` method. This allows developers to extend the functionality of ToolRegistry by creating custom tool classes with reusable methods.
 
+> **Note:** Previously, the method `register_static_tools` and the concept of `StaticMethodIntegration` were used for registering static methods from classes. These have now been replaced by `register_from_class`. For backward compatibility, `register_static_tools` remains as an alias to `register_from_class`.
+
 Example:
 
 ```python
