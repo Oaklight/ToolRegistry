@@ -269,7 +269,7 @@ class ToolRegistry:
 
         return new_registry
 
-    def register_mcp_tools(
+    def register_from_mcp(
         self,
         server_url: str,
         with_namespace: Union[bool, str] = False,
@@ -300,7 +300,7 @@ class ToolRegistry:
                 "Install with: pip install toolregistry[mcp]"
             )
 
-    async def register_mcp_tools_async(
+    async def register_from_mcp_async(
         self,
         server_url: str,
         with_namespace: Union[bool, str] = False,
@@ -635,3 +635,32 @@ class ToolRegistry:
             Optional[Callable[..., Any]]: The function to call, or None if not found.
         """
         return self.get_callable(key)
+
+    # deprecated alias for backward compatibility
+    @deprecated(reason="use register_from_mcp instead", version="0.4.4")
+    def register_mcp_tools(
+        self,
+        server_url: str,
+        with_namespace: Union[bool, str] = False,
+    ):
+        return self.register_from_mcp(server_url, with_namespace)
+
+    @deprecated(reason="use register_from_mcp_async instead", version="0.4.4")
+    async def register_mcp_tools_async(
+        self,
+        server_url: str,
+        with_namespace: Union[bool, str] = False,
+    ):
+        return await self.register_from_mcp_async(server_url, with_namespace)
+
+    @deprecated(reason="use register_from_class instead", version="0.4.4")
+    def register_static_tools(
+        self, cls: Type, with_namespace: Union[bool, str] = False
+    ):
+        return self.register_from_class(cls, with_namespace)
+
+    @deprecated(reason="use register_from_class_async instead", version="0.4.4")
+    async def register_static_tools_async(
+        self, cls: Type, with_namespace: Union[bool, str] = False
+    ):
+        return await self.register_from_class_async(cls, with_namespace)

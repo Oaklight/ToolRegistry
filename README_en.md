@@ -87,7 +87,7 @@ For more usage examples, please refer to [Documentation - Usage](https://toolreg
 The ToolRegistry provides first-class support for MCP (Model Context Protocol) tools:
 
 ```python
-registry.register_mcp_tools("http://localhost:8000/mcp/sse")
+registry.register_from_mcp"http://localhost:8000/mcp/sse")
 
 # Get all tools JSON including MCP tools
 tools_json = registry.get_tools_json()
@@ -109,7 +109,7 @@ tools_json = registry.get_tools_json()
 
 Hub tools are registered to ToolRegistry using the `register_from_class` method. This allows developers to extend the functionality of ToolRegistry by creating custom tool classes with reusable methods.
 
-> **Note:** Previously, the method `register_static_tools` and the concept of `StaticMethodIntegration` were used for registering static methods from classes. These have now been replaced by `register_from_class`. For backward compatibility, `register_static_tools` remains as an alias to `register_from_class`.
+> **Note:** Previously, the method `register_static_tools` and the concept of `StaticMethodIntegration` were used for registering static methods from classes. These have now been replaced by `register_from_class`. Similarly, `register_from_mcp` has been replaced by `register_from_mcp`, and `register_from_openapi` by `register_from_openapi`. All old methods are planned to be deprecated soon, so please migrate to the new interfaces as soon as possible. For backward compatibility, the old names remain as aliases to the new ones.
 
 Example:
 

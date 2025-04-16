@@ -19,7 +19,7 @@ registry = ToolRegistry()
 
 mcp_server_url = f"http://localhost:{PORT}/mcp/sse"
 
-registry.register_mcp_tools(mcp_server_url)
+registry.register_from_mcp(mcp_server_url)
 print("Registered SQLite Tools:")
 pprint(registry)
 
