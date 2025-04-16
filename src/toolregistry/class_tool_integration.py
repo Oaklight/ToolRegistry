@@ -29,51 +29,73 @@ class ClassToolIntegration:
         self.registry = registry
 
     def register_class_methods(
-        self, cls: Type, with_namespace: Union[bool, str] = False
+        self,
+        cls_or_instance: Union[Type, object],
+        with_namespace: Union[bool, str] = False,
     ) -> None:
-        """Register all methods from a class as tools.
+        """Register all methods from a class or instance as tools.
 
-        If all public methods are static, they are registered directly.
-        Otherwise, the class is instantiated and its public callable methods are registered.
+        If a class is provided:
+            - If all public methods are static, they are registered directly.
+            - Otherwise, the class is instantiated and its public callable methods are registered.
+        If an instance is provided:
+            - Its public callable methods are registered directly.
 
         Args:
-            cls (Type): The class to scan for methods.
+            cls_or_instance (Union[Type, object]): The class or instance to scan for methods.
             with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
                 - If False, no namespace is used.
                 - If True, the namespace is derived from the class name.
                 - If a string is provided, it is used as the namespace.
                 Defaults to False.
         """
-        # Determine if all public methods defined in the class are static methods.
-        all_static = True
-        for name, member in cls.__dict__.items():
-            if not name.startswith("_"):
-                if not isinstance(member, staticmethod):
-                    all_static = False
-                    break
+        if isinstance(cls_or_instance, type):
+            # Determine if all public methods defined in the class are static methods.
+            all_static = True
+            for name, member in cls_or_instance.__dict__.items():
+                if not name.startswith("_"):
+                    if not isinstance(member, staticmethod):
+                        all_static = False
+                        break
 
-        # Determine namespace to use.
-        if isinstance(with_namespace, str):
-            namespace = with_namespace
-        elif with_namespace:
-            namespace = cls.__name__
-        else:
-            namespace = None
+            # Determine namespace to use.
+            if isinstance(with_namespace, str):
+                namespace = with_namespace
+            elif with_namespace:
+                namespace = cls_or_instance.__name__
+            else:
+                namespace = None
 
-        if all_static:
-            # Register static methods directly.
-            for name, member in cls.__dict__.items():
-                if not name.startswith("_") and isinstance(member, staticmethod):
-                    # member.__func__ provides the underlying function.
-                    self.registry.register(member.__func__, namespace=namespace)
+            if all_static:
+                # Register static methods directly.
+                for name, member in cls_or_instance.__dict__.items():
+                    if not name.startswith("_") and isinstance(member, staticmethod):
+                        # member.__func__ provides the underlying function.
+                        self.registry.register(member.__func__, namespace=namespace)
+            else:
+                # Instantiate the class.
+                instance = cls_or_instance()
+                # Register all callable public attributes.
+                for name in dir(instance):
+                    if name.startswith("_"):
+                        continue
+                    attr = getattr(instance, name)
+                    if callable(attr):
+                        self.registry.register(attr, namespace=namespace)
         else:
-            # Instantiate the class.
-            instance = cls()
-            # Register all callable public attributes.
-            for name in dir(instance):
+            # cls_or_instance is an instance object
+            if isinstance(with_namespace, str):
+                namespace = with_namespace
+            elif with_namespace:
+                namespace = type(cls_or_instance).__name__
+            else:
+                namespace = None
+
+            # Register all callable public attributes of the instance.
+            for name in dir(cls_or_instance):
                 if name.startswith("_"):
                     continue
-                attr = getattr(instance, name)
+                attr = getattr(cls_or_instance, name)
                 if callable(attr):
                     self.registry.register(attr, namespace=namespace)
 

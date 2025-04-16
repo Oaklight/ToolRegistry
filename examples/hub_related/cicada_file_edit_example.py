@@ -25,7 +25,7 @@ llm = MultiModalModel(
 
 # Initialize tool registry and register FileOps static methods
 tool_registry = ToolRegistry()
-tool_registry.register_static_tools(FileOps)
+tool_registry.register_from_class(FileOps)
 
 
 test_file = "examples/hub_related/sample.txt"
