@@ -3,7 +3,7 @@ import random
 import string
 from typing import Any, Callable, Dict, List, Optional, Set, Type, Union
 
-from deprecated import deprecated
+from deprecated import deprecated  # type: ignore
 
 from .tool import Tool
 from .utils import normalize_tool_name
