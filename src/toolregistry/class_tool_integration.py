@@ -13,10 +13,47 @@ Example:
     ['MyClass.method1', 'MyClass.method2', ...]
 """
 
-import inspect
 from typing import Type, Union
 
 from .tool_registry import ToolRegistry
+
+
+def _is_all_static_methods(cls):
+    for name, member in cls.__dict__.items():
+        if not name.startswith("_") and not isinstance(member, staticmethod):
+            return False
+    return True
+
+
+def _determine_namespace(cls_or_inst, with_ns):
+    if isinstance(with_ns, str):
+        return with_ns
+    elif with_ns:
+        if isinstance(cls_or_inst, type):
+            return cls_or_inst.__name__
+        else:
+            return type(cls_or_inst).__name__
+    else:
+        return None
+
+
+def _register_static_methods(cls, registry, namespace):
+    for name, member in cls.__dict__.items():
+        if not name.startswith("_") and isinstance(member, staticmethod):
+            registry.register(member.__func__, namespace=namespace)
+
+
+def _register_instance_methods(instance, registry, namespace):
+    for name in dir(instance):
+        if name.startswith("_"):
+            continue
+        # Exclude classmethods
+        member = type(instance).__dict__.get(name, None)
+        if isinstance(member, classmethod):
+            continue
+        attr = getattr(instance, name)
+        if callable(attr):
+            registry.register(attr, namespace=namespace)
 
 
 class ClassToolIntegration:
@@ -49,55 +86,22 @@ class ClassToolIntegration:
                 - If a string is provided, it is used as the namespace.
                 Defaults to False.
         """
+        namespace = _determine_namespace(cls_or_instance, with_namespace)
+
         if isinstance(cls_or_instance, type):
-            # Determine if all public methods defined in the class are static methods.
-            all_static = True
-            for name, member in cls_or_instance.__dict__.items():
-                if not name.startswith("_"):
-                    if not isinstance(member, staticmethod):
-                        all_static = False
-                        break
-
-            # Determine namespace to use.
-            if isinstance(with_namespace, str):
-                namespace = with_namespace
-            elif with_namespace:
-                namespace = cls_or_instance.__name__
+            if _is_all_static_methods(cls_or_instance):
+                _register_static_methods(cls_or_instance, self.registry, namespace)
             else:
-                namespace = None
-
-            if all_static:
-                # Register static methods directly.
-                for name, member in cls_or_instance.__dict__.items():
-                    if not name.startswith("_") and isinstance(member, staticmethod):
-                        # member.__func__ provides the underlying function.
-                        self.registry.register(member.__func__, namespace=namespace)
-            else:
-                # Instantiate the class.
-                instance = cls_or_instance()
-                # Register all callable public attributes.
-                for name in dir(instance):
-                    if name.startswith("_"):
-                        continue
-                    attr = getattr(instance, name)
-                    if callable(attr):
-                        self.registry.register(attr, namespace=namespace)
+                try:
+                    instance = cls_or_instance()
+                except TypeError as e:
+                    raise TypeError(
+                        f"Cannot instantiate class {cls_or_instance.__name__} without arguments. "
+                        "Please provide an instance of the class."
+                    ) from e
+                _register_instance_methods(instance, self.registry, namespace)
         else:
-            # cls_or_instance is an instance object
-            if isinstance(with_namespace, str):
-                namespace = with_namespace
-            elif with_namespace:
-                namespace = type(cls_or_instance).__name__
-            else:
-                namespace = None
-
-            # Register all callable public attributes of the instance.
-            for name in dir(cls_or_instance):
-                if name.startswith("_"):
-                    continue
-                attr = getattr(cls_or_instance, name)
-                if callable(attr):
-                    self.registry.register(attr, namespace=namespace)
+            _register_instance_methods(cls_or_instance, self.registry, namespace)
 
     async def register_class_methods_async(
         self, cls: Type, with_namespace: Union[bool, str] = False
