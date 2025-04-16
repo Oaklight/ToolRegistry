@@ -14,13 +14,9 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-dependencies = ["pydantic>=1.5.1"]
+dependencies = ["pydantic>=1.5.1", "deprecated>=1.2.18"]
 
 [project.optional-dependencies]
 mcp = ["mcp>=1.6.0"] # Add mcp optional dependencies here
@@ -28,7 +24,7 @@ openapi = [
     "prance>=23.6.21.0",
     "openapi-spec-validator>=0.7.1",
     "PyYAML>=6.0.2",
-    "httpx>=0.28.1"
+    "httpx>=0.28.1",
 ] # Add openapi optional dependencies here
 
 [project.urls]
