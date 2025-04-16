@@ -16,7 +16,7 @@ print("================ OpenAPI ================")
 
 
 async def async_register():
-    await openapi_registry.register_openapi_tools_async(
+    await openapi_registry.register_from_openapi_async(
         openapi_spec_url, with_namespace=True
     )
 

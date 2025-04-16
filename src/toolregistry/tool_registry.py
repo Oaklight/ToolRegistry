@@ -331,7 +331,7 @@ class ToolRegistry:
                 "Install with: pip install toolregistry[mcp]"
             )
 
-    def register_openapi_tools(
+    def register_from_openapi(
         self,
         spec_url: str,
         base_url: Optional[str] = None,
@@ -364,7 +364,7 @@ class ToolRegistry:
                 "Install with: pip install toolregistry[openapi]"
             )
 
-    async def register_openapi_tools_async(
+    async def register_from_openapi_async(
         self,
         spec_url: str,
         base_url: Optional[str] = None,
@@ -652,6 +652,26 @@ class ToolRegistry:
         with_namespace: Union[bool, str] = False,
     ):
         return await self.register_from_mcp_async(server_url, with_namespace)
+
+    @deprecated(reason="use register_from_openapi instead", version="0.4.4")
+    def register_openapi_tools(
+        self,
+        spec_url: str,
+        base_url: Optional[str] = None,
+        with_namespace: Union[bool, str] = False,
+    ):
+        return self.register_from_openapi(spec_url, base_url, with_namespace)
+
+    @deprecated(reason="use register_from_openapi_async instead", version="0.4.4")
+    async def register_openapi_tools_async(
+        self,
+        spec_url: str,
+        base_url: Optional[str] = None,
+        with_namespace: Union[bool, str] = False,
+    ):
+        return await self.register_from_openapi_async(
+            spec_url, base_url, with_namespace
+        )
 
     @deprecated(reason="use register_from_class instead", version="0.4.4")
     def register_static_tools(

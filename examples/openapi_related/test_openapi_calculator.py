@@ -6,7 +6,7 @@ spec_url = "http://localhost:8000"
 
 # Initialize the ToolRegistry and register OpenAPI tools synchronously
 registry = ToolRegistry()
-registry.register_openapi_tools(spec_url, with_namespace=True)
+registry.register_from_openapi(spec_url, with_namespace=True)
 
 # print("Registry:", registry)
 

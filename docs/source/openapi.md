@@ -8,7 +8,7 @@ This guide explains how to integrate OpenAPI with ToolRegistry, allowing you to 
 
 ### Synchronous Registration
 
-You can register OpenAPI tools synchronously using the `register_openapi_tools` method. For example:
+You can register OpenAPI tools synchronously using the `register_from_openapi` method. For example:
 
 ```python
 import os
@@ -19,7 +19,7 @@ registry = ToolRegistry()
 spec_url = f"http://localhost:{PORT}"
 
 # Synchronously register OpenAPI tools
-registry.register_openapi_tools(spec_url)
+registry.register_from_openapi(spec_url)
 print(registry)  # Output: A ToolRegistry object with the registered OpenAPI tools
 ```
 
@@ -57,7 +57,7 @@ You should see a schema printed as follow. Here, we only display the first entry
 
 ### Asynchronous Registration
 
-In an asynchronous environment, use the `register_openapi_tools_async` method to register tools:
+In an asynchronous environment, use the `register_from_openapi_async` method to register tools:
 
 ```python
 import asyncio
@@ -69,7 +69,7 @@ registry = ToolRegistry()
 spec_url = f"http://localhost:{PORT}"
 
 async def async_register():
-    await registry.register_openapi_tools_async(spec_url)
+    await registry.register_from_openapi_async(spec_url)
     print(registry)  # Optionally, inspect the registry for registered tools
 
 asyncio.run(async_register())
@@ -153,12 +153,12 @@ registry = ToolRegistry()
 
 spec_url = f"http://localhost:{PORT}"
 
-registry.register_openapi_tools(spec_url)
+registry.register_from_openapi(spec_url)
 pprint(registry)
 
 
 async def async_register():
-    await registry.register_openapi_tools_async(spec_url)
+    await registry.register_from_openapi_async(spec_url)
     pprint(registry)
 
 
