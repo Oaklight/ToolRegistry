@@ -104,14 +104,20 @@ class ClassToolIntegration:
             _register_instance_methods(cls_or_instance, self.registry, namespace)
 
     async def register_class_methods_async(
-        self, cls: Type, with_namespace: Union[bool, str] = False
+        self,
+        cls_or_instance: Union[Type, object],
+        with_namespace: Union[bool, str] = False,
     ) -> None:
         """Async implementation to register tools from a class.
 
         Currently, this is implemented synchronously.
 
         Args:
-            cls (Type): The class to scan for methods.
-            with_namespace (Union[bool, str]): Namespace option.
+            cls_or_instance (Union[Type, object]): The class or instance to scan for methods.
+            with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
+                - If False, no namespace is used.
+                - If True, the namespace is derived from the class name.
+                - If a string is provided, it is used as the namespace.
+                Defaults to False.
         """
-        self.register_class_methods(cls, with_namespace)
+        self.register_class_methods(cls_or_instance, with_namespace)
