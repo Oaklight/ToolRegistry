@@ -1,42 +1,46 @@
 # ToolRegistry
 
-[英文版](README_en.md)
+[English Version](README_en.md)
 
 一个用于以结构化方式管理和执行工具的 Python 库。
 
 ## 特性
 
 - 工具注册与管理
-- 为工具参数生成 JSON Schema
+- 工具参数的 JSON Schema 生成
 - 工具执行与结果处理
-- 同步与异步工具支持
-- 支持 [MCP sse](https://toolregistry.lab.oaklight.cn/mcp.html) 和 [OpenAPI](https://toolregistry.lab.oaklight.cn/openapi.html) 工具
+- 支持同步和异步工具
+- 支持 [MCP sse](https://toolregistry.lab.oaklight.cn/mcp.html)、[OpenAPI](https://toolregistry.lab.oaklight.cn/openapi.html) 工具
 
 ## 完整文档
 
-完整的文档请参阅 [https://toolregistry.lab.oaklight.cn](https://toolregistry.lab.oaklight.cn)
+完整文档可访问 [https://toolregistry.lab.oaklight.cn](https://toolregistry.lab.oaklight.cn)
+
+## API 变更（从 0.4.4 开始）
+
+之前用于从类中注册静态方法的 `ToolRegistry.register_static_tools` 方法已被替换为 `ToolRegistry.register_from_class`。类似地，`ToolRegistry.register_mcp_tools` 已被替换为 `ToolRegistry.register_from_mcp`，`ToolRegistry.register_openapi_tools` 已被替换为 `ToolRegistry.register_from_openapi`。所有旧方法计划很快被弃用，请尽快迁移到新的接口。为了向后兼容，旧名称仍作为新名称的别名。
 
 ## 安装
 
-### 基础安装
+### 基本安装
 
-安装核心包（要求 **Python >= 3.8**）:
+安装核心包（需要 **Python >= 3.8**）：
 
 ```bash
 pip install toolregistry
 ```
 
-### 附加支持模块安装
+### 安装额外支持模块
 
-可以通过在方括号中指定附加模块来安装额外支持。例如，要安装特定的附加支持模块:
+通过在括号中指定额外模块来安装。例如，要安装特定的额外支持：
 
 ```bash
 pip install toolregistry[mcp,openapi]
 ```
 
-下表总结了可用的附加模块:
+以下是可用额外模块的总结表：
 
-| 附加模块 | Python 要求    | 示例命令                          |
+| 额外模块 | Python 要求    | 示例命令                          |
 | -------- | -------------- | --------------------------------- |
 | mcp      | Python >= 3.10 | pip install toolregistry[mcp]     |
 | openapi  | Python >= 3.8  | pip install toolregistry[openapi] |
@@ -49,11 +53,11 @@ pip install toolregistry[mcp,openapi]
 
 ### Cicada 实现
 
-[cicada_tool_usage_example.py](examples/cicada_tool_usage_example.py) 演示了如何使用 ToolRegistry 与 Cicada 多模态模型结合使用。
+[cicada_tool_usage_example.py](examples/cicada_tool_usage_example.py) 演示了如何将 ToolRegistry 与 Cicada 多模态模型结合使用。
 
 ## 基本工具调用
 
-以下部分演示了如何调用基本工具。示例代码如下：
+本节展示了如何调用基本工具。示例：
 
 ```python
 from toolregistry import ToolRegistry
@@ -80,16 +84,36 @@ add_result = add_func(4, 5)
 print(add_result) # 9
 ```
 
+更多使用示例，请参考 [文档 - 使用](https://toolregistry.lab.oaklight.cn/usage.html)
+
 ## MCP 集成
 
-ToolRegistry 提供了对 MCP（模型上下文协议）工具的一流支持：
+ToolRegistry 提供对 MCP（模型上下文协议）工具的一流支持：
 
-## 注册工具中心工具
+```python
+registry.register_from_mcp"http://localhost:8000/mcp/sse")
 
-工具中心的工具通过 ToolRegistry 的 `register_from_class` 方法注册。这允许开发者通过创建具有可重用方法的自定义工具类来扩展 ToolRegistry。
+# 获取所有工具的 JSON，包括 MCP 工具
+tools_json = registry.get_tools_json()
+```
 
-> **注意：** 之前用于注册类的静态方法的 `register_static_tools` 方法和 `StaticMethodIntegration` 概念已被 `register_from_class` 取代。类似地，`register_static_tools_async` 也已被替换。旧方法计划很快废弃，请尽快迁移到新的接口。为了向后兼容，`register_static_tools` 仍作为 `register_from_class` 的别名存在。
-> 示例：
+## OpenAPI 集成
+
+ToolRegistry 支持与 OpenAPI 集成，以使用标准化 API 接口与工具交互：
+
+```python
+registry.register_from_openapi("http://localhost:8000/") # 提供基础 URL
+registry.register_from_openapi("./openapi_spec.json", "http://localhost/") # 提供本地 OpenAPI 规范文件和基础 URL
+
+# 获取所有工具的 JSON，包括 OpenAPI 工具
+tools_json = registry.get_tools_json()
+```
+
+## 注册 Hub 工具
+
+Hub 工具通过 `register_from_class` 方法注册到 ToolRegistry。这允许开发人员通过创建具有可重用方法的自定义工具类来扩展 ToolRegistry 的功能。
+
+示例：
 
 ```python
 from toolregistry import ToolRegistry
@@ -97,40 +121,40 @@ from toolregistry import ToolRegistry
 class StaticExample:
     @staticmethod
     def greet(name: str) -> str:
-        return f"Hello, {name}!"
+        return f"你好，{name}！"
 
 class InstanceExample:
     def __init__(self, name: str):
         self.name = name
 
     def greet(self, name: str) -> str:
-        return f"Hello, {name}! I'm {self.name}."
+        return f"你好，{name}！我是 {self.name}。"
 
 registry = ToolRegistry()
 registry.register_from_class(StaticExample, with_namespace=True)
 print(registry.get_available_tools())  # ['static_example.greet']
-print(registry["static_example.greet"]("Alice"))  # Hello, Alice!
+print(registry["static_example.greet"]("Alice"))  # 你好，Alice！
 
 registry = ToolRegistry()
 registry.register_from_class(InstanceExample("Bob"), with_namespace=True)
 print(registry.get_available_tools())  # ['instance_example.greet']
-print(registry["instance_example.greet"]("Alice"))  # Hello, Alice! I'm Bob.
+print(registry["instance_example.greet"]("Alice"))  # 你好，Alice！我是 Bob。
 ```
 
-### 工具中心
+### Hub 工具
 
 [最新可用工具](src/toolregistry/hub/)
 
-工具中心通过类中的方法封装常用功能，以增强功能性和组织性。
+Hub 工具将常用功能封装为类中的方法，以增强功能性和组织性。
 
-工具中心的可用工具示例包括：
+可用的 Hub 工具示例包括：
 
-- **Calculator**: 基本算术、科学运算、统计函数、财务计算等。
-- **FileOps**: 文件操作，例如生成差异、打补丁和验证。
-- **Filesystem**: 综合文件系统操作，例如目录列表、文件读写和路径操作。
-- **UnitConverter**: 广泛的单位转换工具，包括温度、长度、重量等。
+- **Calculator**：基本算术、科学运算、统计函数、财务计算等。
+- **FileOps**：文件操作，例如生成差异、打补丁和验证。
+- **Filesystem**：全面的文件系统操作，例如目录列表、文件读写和路径操作。
+- **UnitConverter**：广泛的单位转换工具，例如温度、长度、重量等。
 
-注册工具中心工具：
+注册 Hub 工具：
 
 ```python
 from toolregistry import ToolRegistry
@@ -141,32 +165,9 @@ registry.register_from_class(Calculator, with_namespace=True)
 
 # 获取可用工具列表
 print(registry.get_available_tools())
-# 输出: ['Calculator.add', 'Calculator.subtract', ..., 'Calculator.multiply', ...]
+# 输出：['Calculator.add', 'Calculator.subtract', ..., 'Calculator.multiply', ...]
 ```
-
-```python
-registry.register_from_mcp("http://localhost:8000/mcp/sse")
-
-# 获取包含 MCP 工具的所有工具 JSON 数据
-tools_json = registry.get_tools_json()
-```
-
-## OpenAPI 集成
-
-ToolRegistry 支持通过标准化 API 接口与工具交互，支持 OpenAPI 集成：
-
-```python
-registry.register_from_openapi("http://localhost:8000/") # 提供 baseurl 进行注册
-registry.register_from_openapi("./openapi_spec.json", "http://localhost/") # 通过本地 OpenAPI 规范文件和 base url 进行注册
-
-# 获取包含 OpenAPI 工具的所有工具 JSON 数据
-tools_json = registry.get_tools_json()
-```
-
-## 文档
-
-完整的文档请参阅 [https://toolregistry.lab.oaklight.cn](https://toolregistry.lab.oaklight.cn)
 
 ## 许可证
 
-该项目遵循 MIT 许可证，详细信息请参阅 [LICENSE](LICENSE) 文件。
+此项目根据 MIT 许可证授权 - 详情请参阅 [LICENSE](LICENSE) 文件。
