@@ -145,7 +145,7 @@ class Calculator:
     @staticmethod
     def cbrt(x: float) -> float:
         """Calculates cube root of a number."""
-        return math.cbrt(x)
+        return math.copysign(abs(x) ** (1 / 3), x)
 
     @staticmethod
     def isqrt(n: int) -> int:
