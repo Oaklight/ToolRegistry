@@ -88,8 +88,8 @@ class FileSystem:
         # On Windows, also check the hidden attribute
         if os.name == "nt":
             try:
-                attrs = path_obj.stat().st_file_attributes
-                if attrs & stat.FILE_ATTRIBUTE_HIDDEN:
+                attrs = path_obj.stat().st_file_attributes  # type: ignore
+                if attrs & stat.FILE_ATTRIBUTE_HIDDEN:  # type: ignore
                     return True
             except OSError:  # Handle potential errors like permission denied
                 return True  # Treat as hidden if attributes can't be read
