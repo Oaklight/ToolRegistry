@@ -84,33 +84,43 @@ print(add_result) # 9
 
 ToolRegistry 提供了对 MCP（模型上下文协议）工具的一流支持：
 
-## 静态方法集成与工具中心
+## 注册工具中心工具
 
-ToolRegistry 支持通过 `StaticMethodIntegration` 模块注册 Python 类的静态方法作为工具。这使开发者能够通过创建具有可重用静态方法的自定义工具类来扩展 ToolRegistry。
+工具中心的工具通过 ToolRegistry 的 `register_from_class` 方法注册。这允许开发者通过创建具有可重用方法的自定义工具类来扩展 ToolRegistry。
 
 示例：
 
 ```python
 from toolregistry import ToolRegistry
 
-class CustomTools:
+class StaticExample:
     @staticmethod
     def greet(name: str) -> str:
         return f"Hello, {name}!"
 
-registry = ToolRegistry()
-registry.register_static_tools(CustomTools)
+class InstanceExample:
+    def __init__(self, name: str):
+        self.name = name
 
-# 列出已注册工具
-print(registry.get_available_tools())
-# 输出: ['greet']
+    def greet(self, name: str) -> str:
+        return f"Hello, {name}! I'm {self.name}."
+
+registry = ToolRegistry()
+registry.register_from_class(StaticExample, with_namespace=True)
+print(registry.get_available_tools())  # ['static_example.greet']
+print(registry["static_example.greet"]("Alice"))  # Hello, Alice!
+
+registry = ToolRegistry()
+registry.register_from_class(InstanceExample("Bob"), with_namespace=True)
+print(registry.get_available_tools())  # ['instance_example.greet']
+print(registry["instance_example.greet"]("Alice"))  # Hello, Alice! I'm Bob.
 ```
 
 ### 工具中心
 
 [最新可用工具](src/toolregistry/hub/)
 
-工具中心通过类中的静态方法封装常用功能，以增强功能性和组织性。
+工具中心通过类中的方法封装常用功能，以增强功能性和组织性。
 
 工具中心的可用工具示例包括：
 
@@ -126,7 +136,7 @@ from toolregistry import ToolRegistry
 from toolregistry.hub import Calculator
 
 registry = ToolRegistry()
-registry.register_static_tools(Calculator, with_namespace=True)
+registry.register_from_class(Calculator, with_namespace=True)
 
 # 获取可用工具列表
 print(registry.get_available_tools())
