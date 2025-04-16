@@ -3,6 +3,8 @@ import random
 import string
 from typing import Any, Callable, Dict, List, Optional, Set, Type, Union
 
+from deprecated import deprecated
+
 from .tool import Tool
 from .utils import normalize_tool_name
 
@@ -397,13 +399,13 @@ class ToolRegistry:
                 "Install with: pip install toolregistry[openapi]"
             )
 
-    def register_static_tools(
-        self, cls: Type, with_namespace: Union[bool, str] = False
+    def register_from_class(
+        self, cls: Union[Type, object], with_namespace: Union[bool, str] = False
     ):
-        """Register all static methods from a class as tools.
+        """Register all static methods from a class or instance as tools.
 
         Args:
-            cls (Type): The class containing static methods to register.
+            cls (Union[Type, object]): The class or instance containing static methods to register.
             with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
                 - If `False`, no namespace is used.
                 - If `True`, the namespace is derived from the OpenAPI info.title.
@@ -413,24 +415,24 @@ class ToolRegistry:
         Example:
             >>> from toolregistry.hub import Calculator
             >>> registry = ToolRegistry()
-            >>> registry.register_static_tools(Calculator)
+            >>> registry.register_from_class(Calculator)
 
         Note:
             This method is now a convenience wrapper around the register() method's
             static method handling capability.
         """
-        from .static_method_integration import StaticMethodIntegration
+        from .class_tool_integration import ClassToolIntegration
 
-        hub = StaticMethodIntegration(self)
-        return hub.register_static_methods(cls, with_namespace)
+        hub = ClassToolIntegration(self)
+        return hub.register_class_methods(cls, with_namespace)
 
-    async def register_static_tools_async(
-        self, cls: Type, with_namespace: Union[bool, str] = False
+    async def register_from_class_async(
+        self, cls: Union[Type, object], with_namespace: Union[bool, str] = False
     ):
-        """Async implementation to register all static methods from a class as tools.
+        """Async implementation to register all static methods from a class or instance as tools.
 
         Args:
-            cls (Type): The class containing static methods to register.
+            cls (Union[Type, object]): The class or instance containing static methods to register.
             with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
                 - If `False`, no namespace is used.
                 - If `True`, the namespace is derived from the OpenAPI info.title.
@@ -440,12 +442,25 @@ class ToolRegistry:
         Example:
             >>> from toolregistry.hub import Calculator
             >>> registry = ToolRegistry()
-            >>> registry.register_static_tools(Calculator)
+            >>> registry.register_from_class(Calculator)
         """
-        from .static_method_integration import StaticMethodIntegration
+        from .class_tool_integration import ClassToolIntegration
 
-        hub = StaticMethodIntegration(self)
-        return await hub.register_static_methods_async(cls, with_namespace)
+        hub = ClassToolIntegration(self)
+        return await hub.register_class_methods_async(cls, with_namespace)
+
+    # deprecated alias for backward compatibility
+    @deprecated(reason="use register_from_class instead", version="0.4.4")
+    def register_static_tools(
+        self, cls: Type, with_namespace: Union[bool, str] = False
+    ):
+        return self.register_from_class(cls, with_namespace)
+
+    @deprecated(reason="use register_from_class_async instead", version="0.4.4")
+    async def register_static_tools_async(
+        self, cls: Type, with_namespace: Union[bool, str] = False
+    ):
+        return await self.register_from_class_async(cls, with_namespace)
 
     def get_available_tools(self) -> List[str]:
         """List all registered tools.
