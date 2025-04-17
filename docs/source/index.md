@@ -24,6 +24,9 @@ Here are brief introductions and links to each section:
   - [**Hub Tools Collection**](hub)
     Provides a collection of utility tools for common llm function calling usage. These tools simplify common tasks and enhance productivity in projects requiring structured tool management.
 
+  - [**Concurrency Modes**](concurrency_modes)
+    Explains thread and process execution modes and their performance characteristics.
+
   - [**Examples**](examples)
     Demonstrates practical use cases, including consecutive tool call examples.
 
