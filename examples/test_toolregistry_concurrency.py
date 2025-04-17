@@ -16,6 +16,11 @@ from toolregistry import ToolRegistry
 
 # [ChatCompletionMessageToolCall(id='call_egkg4evbb19d8012bex83v8a', function=Function(arguments='{"a":15,"b":3}', name='subtract'), type='function', index=0)]
 
+
+def local_add(a: float, b: float) -> float:
+    return a + b
+
+
 PARALLEL_MODE = os.getenv("PARALLEL_MODE", "process")
 
 def generate_tool_calls(n: int, callable_name: str = "add") -> List[Dict[str, Any]]:
@@ -41,52 +46,32 @@ def generate_tool_calls(n: int, callable_name: str = "add") -> List[Dict[str, An
 
 N = 100
 
-# ========= hub tools =========
+# ========= native func tools =========
+print("-" * 10 + f" Native Func Tool " + "-" * 10)
+
+registry = ToolRegistry()
+registry.register(local_add)
+# print(registry.get_available_tools())
+tool_calls = generate_tool_calls(N, "local_add")
+
+start_time = time.time()
+results = registry.execute_tool_calls(tool_calls, parallel_mode=PARALLEL_MODE)
+elapsed = time.time() - start_time
+
+assert len(results) == N
+
+# pprint(results)
+
+print(f"Executed {N} tool calls in {elapsed:.4f} seconds")
+print(f"Throughput: {N/elapsed:.2f} calls/second")
+
+# ========= native (hub) class tools =========
+print("-" * 10 + f" Native Class Tool " + "-" * 10)
 from toolregistry.hub import Calculator
 
 registry = ToolRegistry()
 registry.register_from_class(Calculator)
-print(registry.get_available_tools())
-tool_calls = generate_tool_calls(N)
-
-start_time = time.time()
-results = registry.execute_tool_calls(tool_calls, parallel_mode=PARALLEL_MODE)
-elapsed = time.time() - start_time
-
-assert len(results) == N
-
-pprint(results)
-
-print(f"Executed {N} tool calls in {elapsed:.4f} seconds")
-print(f"Throughput: {N/elapsed:.2f} calls/second")
-
-# ========= openapi tools =========
-
-registry = ToolRegistry()
-
-OPENAPI_PORT = os.getenv("OPENAPI_PORT", 8000)
-registry.register_from_openapi(f"http://localhost:{OPENAPI_PORT}")
-print(registry.get_available_tools())
-tool_calls = generate_tool_calls(N, "add_get")
-
-start_time = time.time()
-results = registry.execute_tool_calls(tool_calls, parallel_mode=PARALLEL_MODE)
-elapsed = time.time() - start_time
-
-assert len(results) == N
-
-pprint(results)
-
-print(f"Executed {N} tool calls in {elapsed:.4f} seconds")
-print(f"Throughput: {N/elapsed:.2f} calls/second")
-
-# ========= mcp tools =========
-
-registry = ToolRegistry()
-
-MCP_PORT = os.getenv("MCP_PORT", 8001)
-registry.register_from_mcp(f"http://localhost:{MCP_PORT}/mcp/sse")
-print(registry.get_available_tools())
+# print(registry.get_available_tools())
 tool_calls = generate_tool_calls(N, "add")
 
 start_time = time.time()
@@ -95,7 +80,47 @@ elapsed = time.time() - start_time
 
 assert len(results) == N
 
-pprint(results)
+# pprint(results)
+
+print(f"Executed {N} tool calls in {elapsed:.4f} seconds")
+print(f"Throughput: {N/elapsed:.2f} calls/second")
+
+# ========= openapi tools =========
+print("-" * 10 + f" OpenAPI Tool " + "-" * 10)
+registry = ToolRegistry()
+
+OPENAPI_PORT = os.getenv("OPENAPI_PORT", 8000)
+registry.register_from_openapi(f"http://localhost:{OPENAPI_PORT}")
+# print(registry.get_available_tools())
+tool_calls = generate_tool_calls(N, "add_get")
+
+start_time = time.time()
+results = registry.execute_tool_calls(tool_calls, parallel_mode=PARALLEL_MODE)
+elapsed = time.time() - start_time
+
+assert len(results) == N
+
+# pprint(results)
+
+print(f"Executed {N} tool calls in {elapsed:.4f} seconds")
+print(f"Throughput: {N/elapsed:.2f} calls/second")
+
+# ========= mcp tools =========
+print("-" * 10 + f" MCP SSE Tool " + "-" * 10)
+registry = ToolRegistry()
+
+MCP_PORT = os.getenv("MCP_PORT", 8001)
+registry.register_from_mcp(f"http://localhost:{MCP_PORT}/mcp/sse")
+# print(registry.get_available_tools())
+tool_calls = generate_tool_calls(N, "add")
+
+start_time = time.time()
+results = registry.execute_tool_calls(tool_calls, parallel_mode=PARALLEL_MODE)
+elapsed = time.time() - start_time
+
+assert len(results) == N
+
+# pprint(results)
 
 print(f"Executed {N} tool calls in {elapsed:.4f} seconds")
 print(f"Throughput: {N/elapsed:.2f} calls/second")
