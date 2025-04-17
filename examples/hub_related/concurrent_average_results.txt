@@ -1,0 +1,15 @@
+---------- Native Func Tool ----------
+Average Execution Time: 0.0415 seconds
+Average Throughput: 2411.89 calls/second
+
+---------- Native Class Tool ----------
+Average Execution Time: 0.0311 seconds
+Average Throughput: 3218.23 calls/second
+
+---------- OpenAPI Tool ----------
+Average Execution Time: 0.2062 seconds
+Average Throughput: 485.08 calls/second
+
+---------- MCP SSE Tool ----------
+Average Execution Time: 0.7272 seconds
+Average Throughput: 138.15 calls/second

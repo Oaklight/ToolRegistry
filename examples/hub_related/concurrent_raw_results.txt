@@ -1,0 +1,52 @@
+$ python examples/test_toolregistry_concurrency.py 
+---------- Native Func Tool ----------
+Executed 100 tool calls in 0.0446 seconds
+Throughput: 2241.90 calls/second
+---------- Native Class Tool ----------
+Executed 100 tool calls in 0.0294 seconds
+Throughput: 3403.89 calls/second
+---------- OpenAPI Tool ----------
+Executed 100 tool calls in 0.2063 seconds
+Throughput: 484.72 calls/second
+---------- MCP SSE Tool ----------
+Executed 100 tool calls in 0.6950 seconds
+Throughput: 143.89 calls/second
+$ python examples/test_toolregistry_concurrency.py 
+---------- Native Func Tool ----------
+Executed 100 tool calls in 0.0409 seconds
+Throughput: 2444.67 calls/second
+---------- Native Class Tool ----------
+Executed 100 tool calls in 0.0326 seconds
+Throughput: 3063.15 calls/second
+---------- OpenAPI Tool ----------
+Executed 100 tool calls in 0.2093 seconds
+Throughput: 477.76 calls/second
+---------- MCP SSE Tool ----------
+Executed 100 tool calls in 0.7659 seconds
+Throughput: 130.57 calls/second
+$ python examples/test_toolregistry_concurrency.py 
+---------- Native Func Tool ----------
+Executed 100 tool calls in 0.0399 seconds
+Throughput: 2506.94 calls/second
+---------- Native Class Tool ----------
+Executed 100 tool calls in 0.0326 seconds
+Throughput: 3068.84 calls/second
+---------- OpenAPI Tool ----------
+Executed 100 tool calls in 0.2036 seconds
+Throughput: 491.28 calls/second
+---------- MCP SSE Tool ----------
+Executed 100 tool calls in 0.7825 seconds
+Throughput: 127.80 calls/second
+$ python examples/test_toolregistry_concurrency.py 
+---------- Native Func Tool ----------
+Executed 100 tool calls in 0.0407 seconds
+Throughput: 2454.06 calls/second
+---------- Native Class Tool ----------
+Executed 100 tool calls in 0.0300 seconds
+Throughput: 3337.05 calls/second
+---------- OpenAPI Tool ----------
+Executed 100 tool calls in 0.2055 seconds
+Throughput: 486.57 calls/second
+---------- MCP SSE Tool ----------
+Executed 100 tool calls in 0.6652 seconds
+Throughput: 150.34 calls/second
