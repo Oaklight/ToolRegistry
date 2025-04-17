@@ -103,6 +103,7 @@ class ToolRegistry:
         # properly initialize parallel executor resources
         self.process_pool = ProcessPoolExecutor()
         self.thread_pool = ThreadPoolExecutor()
+        self.execution_mode = "process"  # Default execution mode
         atexit.register(self._shutdown_executors)
 
     def _shutdown_executors(self) -> None:
@@ -594,14 +595,34 @@ class ToolRegistry:
                 tool_responses[callid] = f"Error executing tool call: {str(e)}"
         return tool_responses
 
+    def set_execution_mode(self, mode: Literal["thread", "process"]) -> None:
+        """Set the execution mode for parallel tasks.
+
+        Args:
+            mode (Literal["thread", "process"]): The desired execution mode.
+
+        Raises:
+            ValueError: If an invalid mode is provided.
+        """
+        if mode not in {"thread", "process"}:
+            logger.error(
+                "Invalid mode. Choose 'thread' or 'process'. Fall back to 'process' mode."
+            )
+        self.execution_mode = mode
+        logger.info(f"Execution mode set to: {self.execution_mode}")
+
     def execute_tool_calls(
         self,
         tool_calls: List[ChatCompletionMessageToolCall],
-        parallel_mode: Literal["process", "thread"] = "process",
+        execution_mode: Optional[Literal["process", "thread"]] = None,
     ) -> Dict[str, str]:
         """Execute tool calls with concurrency using dill for serialization."""
         tool_responses = {}
         tasks_to_submit = []
+
+        # Use self.execution_mode as default unless overridden by user
+        execution_mode = execution_mode or self.execution_mode
+        assert execution_mode in ["process", "thread"], "execution_mode must be set"
 
         # Prepare tasks
         for tool_call in tool_calls:
@@ -615,7 +636,7 @@ class ToolRegistry:
                 # Serialize the function using dill if using process pool
                 serialized_func = (
                     dill.dumps(callable_func)
-                    if callable_func and parallel_mode == "process"
+                    if callable_func and execution_mode == "process"
                     else None
                 )
 
@@ -631,7 +652,7 @@ class ToolRegistry:
             return tool_responses
 
         # Attempt multi-process or fallback
-        if parallel_mode == "process":
+        if execution_mode == "process":
             tool_responses = self._execute_tool_calls_parallel(
                 self.process_pool, tasks_to_submit
             )
