@@ -65,28 +65,75 @@ By default, the `ToolRegistry` initializes with `parallel_mode` set to `"process
 
 ## Performance and Results
 
-To evaluate the performance of concurrent execution modes, we conducted experiments using the script [`examples/test_toolregistry_concurrency.py`](https://github.com/Oaklight/ToolRegistry/blob/concurrent%2Bdill/examples/test_toolregistry_concurrency.py). The tests involved executing 100 tool calls (`N = 100`) in four scenarios: Native Function Tool, Native Class Tool, OpenAPI Tool, and MCP SSE Tool. Each tool call performed a simple mathematical addition operation. The tests measured execution time and throughput under the default `parallel_mode` set to `"process"`.
+To evaluate the performance of concurrent execution modes, we conducted experiments using the script [`examples/test_toolregistry_concurrency.py`](https://github.com/Oaklight/ToolRegistry/blob/concurrent%2Bdill/examples/test_toolregistry_concurrency.py). The tests involved executing 100 tool calls (`N = 100`) in four scenarios: Native Function Tool, Native Class Tool, OpenAPI Tool, and MCP SSE Tool. Each tool call performed a simple random mathematical operation (`add`, `subtract`, `multiply` and `divide`). The tests measured execution time and throughput under both `"process"` and `thread` mode.
 
-**Results**:
+### Performance Comparison of Concurrency Modes
 
-```text
+#### Performance Logs
+
+```bash
+$ EXEC_MODE=thread python examples/test_toolregistry_concurrency.py
 ---------- Native Func Tool ----------
-Average Execution Time: 0.0415 seconds
-Average Throughput: 2411.89 calls/second
-
+Success rate: 100.00% (100/100)
+Average execution time: 0.021 seconds
+Average throughput: 4772.17 calls/second
 ---------- Native Class Tool ----------
-Average Execution Time: 0.0311 seconds
-Average Throughput: 3218.23 calls/second
-
+Success rate: 100.00% (100/100)
+Average execution time: 0.0083 seconds
+Average throughput: 12125.03 calls/second
 ---------- OpenAPI Tool ----------
-Average Execution Time: 0.2062 seconds
-Average Throughput: 485.08 calls/second
-
+Success rate: 100.00% (100/100)
+Average execution time: 3.5234 seconds
+Average throughput: 28.40 calls/second
 ---------- MCP SSE Tool ----------
-Average Execution Time: 0.7272 seconds
-Average Throughput: 138.15 calls/second
+Success rate: 100.00% (100/100)
+Average execution time: 3.6547 seconds
+Average throughput: 27.39 calls/second
+
+$ EXEC_MODE=process python examples/test_toolregistry_concurrency.py
+---------- Native Func Tool ----------
+Success rate: 100.00% (100/100)
+Average execution time: 0.0425 seconds
+Average throughput: 2357.26 calls/second
+---------- Native Class Tool ----------
+Success rate: 100.00% (100/100)
+Average execution time: 0.0332 seconds
+Average throughput: 3010.66 calls/second
+---------- OpenAPI Tool ----------
+Success rate: 100.00% (100/100)
+Average execution time: 0.2216 seconds
+Average throughput: 451.28 calls/second
+---------- MCP SSE Tool ----------
+Success rate: 100.00% (100/100)
+Average execution time: 0.7551 seconds
+Average throughput: 132.44 calls/second
 ```
 
-These metrics highlight the efficiency of concurrent process mode across different tool types.
+Note: this computation is done by `cicada-agent` with a `ToolRegistry` of `Calculator` and `FileOps` as a demo.
 
-Btw, the result above is computed and written by agent with Calculator and FileOps hub tools.
+#### Analysis
+
+1. **MCP Integration Implementation**
+
+- MCP tool synchronous calls create and close event loops on each call, causing overhead.
+- Asynchronous calls use SSE long connections and event loops, with network I/O and event loop scheduling overhead.
+- Thread mode shares process resources among threads, causing resource contention in event loops and network connections, leading to performance bottlenecks (27.39 calls/second).
+- Process mode uses independent event loops and network connections per process, reducing contention and improving throughput (132.44 calls/second).
+
+2. **OpenAPI Integration Implementation**
+
+- OpenAPI tool synchronous calls use httpx synchronous client; asynchronous calls use httpx asynchronous client.
+- Thread mode with many threads issuing network requests causes thread switching and network I/O contention, reducing performance (28.40 calls/second).
+- Process mode uses independent processes, avoiding GIL and thread context switching overhead, improving network I/O scheduling (451.28 calls/second).
+
+3. **Native Local Tool Calls**
+
+- Native function and class tool calls are mainly CPU and memory operations; thread mode releases GIL and has low thread switching overhead, resulting in better performance (4772.17 calls/second for functions, 12125.03 calls/second for classes).
+<!-- - Class tools show higher throughput due to more efficient method binding and reduced per-call overhead -->
+- Process mode achieves true parallelism but has higher overhead, resulting in lower throughput compared to thread mode (2357.26 calls/second for functions, 3010.66 calls/second for classes).
+
+#### Summary
+
+- OpenAPI and MCP calls involve network I/O and event loop management; thread mode suffers from resource contention and event loop overhead, reducing performance.
+- Process mode isolates resources, avoids contention, and improves network call throughput.
+- Process mode achieves considerable proformance in tool_call use case and provides better safety railguard. Thus we generally recommend leave execution mode to `process` as default.
