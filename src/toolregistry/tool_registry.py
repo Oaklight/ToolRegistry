@@ -103,7 +103,9 @@ class ToolRegistry:
         # properly initialize parallel executor resources
         self.process_pool = ProcessPoolExecutor()
         self.thread_pool = ThreadPoolExecutor()
-        self.execution_mode = "process"  # Default execution mode
+        self.execution_mode: Literal["process", "thread"] = (
+            "process"  # Default execution mode
+        )
         atexit.register(self._shutdown_executors)
 
     def _shutdown_executors(self) -> None:
