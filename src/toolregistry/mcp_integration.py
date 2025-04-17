@@ -187,7 +187,7 @@ class MCPToolWrapper:
                 }
             return content
 
-        handlers: dict[Any, Callable] = {
+        handlers: Dict[Any, Callable] = {
             TextContent: process_text,
             ImageContent: process_image,
             EmbeddedResource: process_embedded,
