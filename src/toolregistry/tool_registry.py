@@ -1,12 +1,66 @@
+import atexit
 import json
+import logging
 import random
 import string
-from typing import Any, Callable, Dict, List, Optional, Set, Type, Union
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from typing import Any, Callable, Dict, List, Literal, Optional, Set, Tuple, Type, Union
 
+import dill  # type: ignore
 from deprecated import deprecated  # type: ignore
+from openai.types.chat.chat_completion_message_tool_call import (
+    ChatCompletionMessageToolCall,
+)
 
 from .tool import Tool
 from .utils import normalize_tool_name
+
+logger = logging.getLogger(__name__)
+
+import asyncio
+
+
+def _process_tool_call_helper(
+    serialized_func: Optional[bytes],
+    tool_call_id: str,
+    function_name: str,
+    function_args: Dict[str, Any],
+) -> tuple[str, str]:
+    """Helper function to execute a single tool call.
+
+    Args:
+        serialized_func: Serialized callable function using dill.
+        tool_call_id: Unique ID for the tool call.
+        function_name: Name of the function to call.
+        function_args: Dictionary of arguments to pass to the function.
+
+    Returns:
+        tuple[str, str]: A tuple containing (tool_call_id, tool_result).
+    """
+    """Executes a single tool call using the callable (sync or async) and returns the result."""
+    try:
+        if serialized_func:
+            # Deserialize the function using dill
+            callable_func = dill.loads(serialized_func)
+
+            # Check if callable_func is a coroutine function
+            if asyncio.iscoroutinefunction(callable_func):
+                # Run the coroutine and get the result
+                tool_result = asyncio.run(callable_func(**function_args))
+            else:
+                # Directly execute the callable with unpacked arguments
+                tool_result = callable_func(**function_args)
+            # Ensure the result is JSON serializable (or handle appropriately)
+            # For simplicity, converting non-JSON serializable results to string
+            try:
+                json.dumps(tool_result)
+            except TypeError:
+                tool_result = str(tool_result)
+        else:
+            tool_result = f"Error: Tool '{function_name}' not found or callable is None"
+    except Exception as e:
+        tool_result = f"Error executing {function_name}: {str(e)}"
+    return (tool_call_id, tool_result)
 
 
 class ToolRegistry:
@@ -45,6 +99,16 @@ class ToolRegistry:
         self.name = name
         self._tools: Dict[str, Tool] = {}
         self._sub_registries: Set[str] = set()
+
+        # properly initialize parallel executor resources
+        self.process_pool = ProcessPoolExecutor()
+        self.thread_pool = ThreadPoolExecutor()
+        atexit.register(self._shutdown_executors)
+
+    def _shutdown_executors(self) -> None:
+        """Shuts down the executors gracefully."""
+        self.process_pool.shutdown(wait=True)
+        self.thread_pool.shutdown(wait=True)
 
     def _find_sub_registries(self) -> Set:
         """
@@ -499,62 +563,88 @@ class ToolRegistry:
         tool = self.get_tool(tool_name)
         return tool.callable if tool else None
 
-    def execute_tool_calls(self, tool_calls: List[Any]) -> Dict[str, str]:
-        """Execute tool calls with optimized parallel/sequential execution.
-
-        Execution strategy:
-            - Sequential for 1-2 tool calls (avoids thread pool overhead)
-            - Parallel for 3+ tool calls (improves performance)
+    def _execute_tool_calls_parallel(
+        self,
+        executor_pool: Union[ProcessPoolExecutor, ThreadPoolExecutor],
+        tasks_to_submit: List[Tuple[Optional[bytes], str, str, Dict[str, Any]]],
+    ) -> Dict[str, str]:
+        """Execute tool calls in parallel using executor pool.
 
         Args:
-            tool_calls (List[Any]): List of tool call objects.
+            executor_pool: Process or thread pool executor.
+            tasks_to_submit: List of tasks to submit to executor.
 
         Returns:
-            Dict[str, str]: Dictionary mapping tool call IDs to execution results.
-
-        Raises:
-            Exception: If any tool execution fails.
+            Dict[str, str]: Dictionary mapping tool call IDs to results.
         """
+        """Execute tool calls using concurrent.futures executors."""
+        tool_responses = {}
+        futures = {
+            executor_pool.submit(
+                _process_tool_call_helper, cfunc, callid, fname, fargs
+            ): callid
+            for (cfunc, callid, fname, fargs) in tasks_to_submit
+        }
+        for future in futures:
+            callid = futures[future]
+            try:
+                t_id, t_result = future.result()
+                tool_responses[t_id] = t_result
+            except Exception as e:
+                tool_responses[callid] = f"Error executing tool call: {str(e)}"
+        return tool_responses
 
-        def process_tool_call(tool_call):
+    def execute_tool_calls(
+        self,
+        tool_calls: List[ChatCompletionMessageToolCall],
+        parallel_mode: Literal["process", "thread"] = "process",
+    ) -> Dict[str, str]:
+        """Execute tool calls with concurrency using dill for serialization."""
+        tool_responses = {}
+        tasks_to_submit = []
+
+        # Prepare tasks
+        for tool_call in tool_calls:
             try:
                 function_name = tool_call.function.name
                 function_args = json.loads(tool_call.function.arguments)
                 tool_call_id = tool_call.id
+                tool_obj = self.get_tool(function_name)
+                callable_func = tool_obj.callable if tool_obj else None
 
-                # Get the tool from registry
-                tool = self.get_tool(function_name)
-                if tool:
-                    tool_result = tool.run(function_args)
-                else:
-                    tool_result = f"Error: Tool '{function_name}' not found"
+                # Serialize the function using dill if using process pool
+                serialized_func = (
+                    dill.dumps(callable_func)
+                    if callable_func and parallel_mode == "process"
+                    else None
+                )
+
+                tasks_to_submit.append(
+                    (serialized_func, tool_call_id, function_name, function_args)
+                )
             except Exception as e:
-                tool_result = f"Error executing {function_name}: {str(e)}"
-            return (tool_call_id, tool_result)
+                tool_responses[getattr(tool_call, "id", "unknown_id")] = (
+                    f"Error preparing tool call {getattr(tool_call.function, 'name', 'unknown_name')}: {str(e)}"
+                )
 
-        tool_responses = {}
+        if not tasks_to_submit:
+            return tool_responses
 
-        if len(tool_calls) > 2:
-            # only use concurrency if more than 2 tool calls at a time
-            import concurrent.futures
-
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                futures = [
-                    executor.submit(process_tool_call, tool_call)
-                    for tool_call in tool_calls
-                ]
-                for future in concurrent.futures.as_completed(futures):
-                    tool_call_id, tool_result = future.result()
-                    tool_responses[tool_call_id] = tool_result
+        # Attempt multi-process or fallback
+        if parallel_mode == "process":
+            tool_responses = self._execute_tool_calls_parallel(
+                self.process_pool, tasks_to_submit
+            )
         else:
-            for tool_call in tool_calls:
-                tool_call_id, tool_result = process_tool_call(tool_call)
-                tool_responses[tool_call_id] = tool_result
-
+            tool_responses = self._execute_tool_calls_parallel(
+                self.thread_pool, tasks_to_submit
+            )
         return tool_responses
 
     def recover_tool_call_assistant_message(
-        self, tool_calls: List[Any], tool_responses: Dict[str, str]
+        self,
+        tool_calls: List[ChatCompletionMessageToolCall],
+        tool_responses: Dict[str, str],
     ) -> List[Dict[str, Any]]:
         """Construct assistant messages from tool call results.
 
@@ -563,7 +653,7 @@ class ToolRegistry:
             - Tool execution responses
 
         Args:
-            tool_calls (List[Any]): List of tool call objects.
+            tool_calls (List[ChatCompletionMessageToolCall]): List of tool call objects.
             tool_responses (Dict[str, str]): Dictionary of tool call IDs to results.
 
         Returns:
@@ -571,6 +661,12 @@ class ToolRegistry:
         """
         messages = []
         for tool_call in tool_calls:
+            # Always ensure there's at least a placeholder in tool_responses to avoid KeyError
+            if tool_call.id not in tool_responses:
+                tool_responses[tool_call.id] = (
+                    "No result (possibly concurrency/dill serialization error)"
+                )
+
             messages.append(
                 {
                     "role": "assistant",
