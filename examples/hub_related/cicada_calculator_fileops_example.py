@@ -36,7 +36,11 @@ if os.path.exists(output_file):
     os.remove(output_file)
 
 # Example instruction to compute the averages
-instruction = f"I have a few test results from multiple runs. Please compute the averages of the metrics for each category. The input is at {input_file}. Write your output to {output_file}"
+instruction = f"""
+I have a few test results from multiple runs. 
+Please compute the averages of the metrics for each category. Attention to the EXEC_MODE, there are two different types. Compute average metrics separately. So there should be 8 results The input is at {input_file}. Write your output to {output_file}
+
+"""
 
 # Query LLM to get result
 response = llm.query(instruction, tools=tool_registry, stream=stream)
