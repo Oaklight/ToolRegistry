@@ -651,9 +651,15 @@ class ToolRegistry:
 
         # Attempt multi-process or fallback
         if execution_mode == "process":
-            tool_responses = self._execute_tool_calls_parallel(
-                self.process_pool, tasks_to_submit
-            )
+            try:
+                tool_responses = self._execute_tool_calls_parallel(
+                    self.process_pool, tasks_to_submit
+                )
+            except Exception as e:
+                logger.error(f"Error executing tool calls in process pool: {str(e)}")
+                tool_responses = self._execute_tool_calls_parallel(
+                    self.thread_pool, tasks_to_submit
+                )
         else:
             tool_responses = self._execute_tool_calls_parallel(
                 self.thread_pool, tasks_to_submit
