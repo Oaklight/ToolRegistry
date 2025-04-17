@@ -21,7 +21,7 @@ def local_add(a: float, b: float) -> float:
     return a + b
 
 
-PARALLEL_MODE = os.getenv("PARALLEL_MODE", "process")
+EXEC_MODE = os.getenv("EXEC_MODE", "process")
 
 def generate_tool_calls(n: int, callable_name: str = "add") -> List[Dict[str, Any]]:
     """Generate n simulated tool calls with random operations."""
@@ -57,7 +57,7 @@ print(target_func_name)
 tool_calls = generate_tool_calls(N, target_func_name[0])
 
 start_time = time.time()
-results = registry.execute_tool_calls(tool_calls, parallel_mode=PARALLEL_MODE)
+results = registry.execute_tool_calls(tool_calls, execution_mode=EXEC_MODE)
 elapsed = time.time() - start_time
 
 assert len(results) == N
@@ -79,7 +79,7 @@ print(target_func_name)
 tool_calls = generate_tool_calls(N, target_func_name[0])
 
 start_time = time.time()
-results = registry.execute_tool_calls(tool_calls, parallel_mode=PARALLEL_MODE)
+results = registry.execute_tool_calls(tool_calls, execution_mode=EXEC_MODE)
 elapsed = time.time() - start_time
 
 assert len(results) == N
@@ -101,7 +101,7 @@ print(target_func_name)
 tool_calls = generate_tool_calls(N, target_func_name[0])
 
 start_time = time.time()
-results = registry.execute_tool_calls(tool_calls, parallel_mode=PARALLEL_MODE)
+results = registry.execute_tool_calls(tool_calls, execution_mode=EXEC_MODE)
 elapsed = time.time() - start_time
 
 assert len(results) == N
@@ -123,7 +123,7 @@ print(target_func_name)
 tool_calls = generate_tool_calls(N, target_func_name[0])
 
 start_time = time.time()
-results = registry.execute_tool_calls(tool_calls, parallel_mode=PARALLEL_MODE)
+results = registry.execute_tool_calls(tool_calls, execution_mode=EXEC_MODE)
 elapsed = time.time() - start_time
 
 assert len(results) == N
