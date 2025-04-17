@@ -52,7 +52,9 @@ print("-" * 10 + f" Native Func Tool " + "-" * 10)
 registry = ToolRegistry()
 registry.register(local_add)
 # print(registry.get_available_tools())
-tool_calls = generate_tool_calls(N, "local_add")
+target_func_name = [name for name in registry.get_available_tools() if "add" in name]
+print(target_func_name)
+tool_calls = generate_tool_calls(N, target_func_name[0])
 
 start_time = time.time()
 results = registry.execute_tool_calls(tool_calls, parallel_mode=PARALLEL_MODE)
@@ -70,9 +72,11 @@ print("-" * 10 + f" Native Class Tool " + "-" * 10)
 from toolregistry.hub import Calculator
 
 registry = ToolRegistry()
-registry.register_from_class(Calculator)
+registry.register_from_class(Calculator, with_namespace=True)
 # print(registry.get_available_tools())
-tool_calls = generate_tool_calls(N, "add")
+target_func_name = [name for name in registry.get_available_tools() if "add" in name]
+print(target_func_name)
+tool_calls = generate_tool_calls(N, target_func_name[0])
 
 start_time = time.time()
 results = registry.execute_tool_calls(tool_calls, parallel_mode=PARALLEL_MODE)
@@ -90,9 +94,11 @@ print("-" * 10 + f" OpenAPI Tool " + "-" * 10)
 registry = ToolRegistry()
 
 OPENAPI_PORT = os.getenv("OPENAPI_PORT", 8000)
-registry.register_from_openapi(f"http://localhost:{OPENAPI_PORT}")
+registry.register_from_openapi(f"http://localhost:{OPENAPI_PORT}", with_namespace=True)
 # print(registry.get_available_tools())
-tool_calls = generate_tool_calls(N, "add_get")
+target_func_name = [name for name in registry.get_available_tools() if "add" in name]
+print(target_func_name)
+tool_calls = generate_tool_calls(N, target_func_name[0])
 
 start_time = time.time()
 results = registry.execute_tool_calls(tool_calls, parallel_mode=PARALLEL_MODE)
@@ -110,9 +116,11 @@ print("-" * 10 + f" MCP SSE Tool " + "-" * 10)
 registry = ToolRegistry()
 
 MCP_PORT = os.getenv("MCP_PORT", 8001)
-registry.register_from_mcp(f"http://localhost:{MCP_PORT}/mcp/sse")
+registry.register_from_mcp(f"http://localhost:{MCP_PORT}/mcp/sse", with_namespace=True)
 # print(registry.get_available_tools())
-tool_calls = generate_tool_calls(N, "add")
+target_func_name = [name for name in registry.get_available_tools() if "add" in name]
+print(target_func_name)
+tool_calls = generate_tool_calls(N, target_func_name[0])
 
 start_time = time.time()
 results = registry.execute_tool_calls(tool_calls, parallel_mode=PARALLEL_MODE)
