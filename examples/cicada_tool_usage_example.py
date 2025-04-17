@@ -9,6 +9,7 @@ load_dotenv()
 # pip install cicada-agent
 from cicada.core.model import MultiModalModel
 from cicada.core.utils import cprint
+from toolregistry.hub import UnitConverter
 
 model_name = os.getenv("MODEL", "deepseek-v3")
 stream = os.getenv("STREAM", "True").lower() == "true"  # Configurable stream option
@@ -34,11 +35,13 @@ def get_weather(location: str):
     return f"Weather in {location}: Sunny, 25°C"
 
 
-@tool_registry.register
-def c_to_f(celsius: float) -> float:
-    fahrenheit = (celsius * 1.8) + 32
-    return f"{celsius} celsius degree == {fahrenheit} fahrenheit degree"
+# @tool_registry.register
+# def c_to_f(celsius: float) -> float:
+#     fahrenheit = (celsius * 1.8) + 32
+#     return f"{celsius} celsius degree == {fahrenheit} fahrenheit degree"
 
+# replace c_to_f with hub tool UnitConverter
+tool_registry.register_from_class(UnitConverter, with_namespace=True)
 
 # query the model with tools
 response = llm.query(
