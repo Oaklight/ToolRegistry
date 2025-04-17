@@ -1,15 +1,35 @@
+$ EXEC_MODE=thread python examples/test_toolregistry_concurrency.py
 ---------- Native Func Tool ----------
-Average Execution Time: 0.0415 seconds
-Average Throughput: 2411.89 calls/second
-
+Success rate: 100.00% (100/100)
+Average execution time: 0.021 seconds
+Average throughput: 4772.17 calls/second
 ---------- Native Class Tool ----------
-Average Execution Time: 0.0311 seconds
-Average Throughput: 3218.23 calls/second
-
+Success rate: 100.00% (100/100)
+Average execution time: 0.0083 seconds
+Average throughput: 12125.03 calls/second
 ---------- OpenAPI Tool ----------
-Average Execution Time: 0.2062 seconds
-Average Throughput: 485.08 calls/second
-
+Success rate: 100.00% (100/100)
+Average execution time: 3.5234 seconds
+Average throughput: 28.40 calls/second
 ---------- MCP SSE Tool ----------
-Average Execution Time: 0.7272 seconds
-Average Throughput: 138.15 calls/second
+Success rate: 100.00% (100/100)
+Average execution time: 3.6547 seconds
+Average throughput: 27.39 calls/second
+
+$ EXEC_MODE=process python examples/test_toolregistry_concurrency.py
+---------- Native Func Tool ----------
+Success rate: 100.00% (100/100)
+Average execution time: 0.0425 seconds
+Average throughput: 2357.26 calls/second
+---------- Native Class Tool ----------
+Success rate: 100.00% (100/100)
+Average execution time: 0.0332 seconds
+Average throughput: 3010.66 calls/second
+---------- OpenAPI Tool ----------
+Success rate: 100.00% (100/100)
+Average execution time: 0.2216 seconds
+Average throughput: 451.28 calls/second
+---------- MCP SSE Tool ----------
+Success rate: 100.00% (100/100)
+Average execution time: 0.7551 seconds
+Average throughput: 132.44 calls/second
