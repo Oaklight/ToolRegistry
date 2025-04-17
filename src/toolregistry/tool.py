@@ -222,8 +222,8 @@ class Tool(BaseModel):
     ) -> None:
         """Updates the namespace of a tool.
 
-        This method checks if the tool's name already contains a namespace (indicated by the presence of a dash (`-`)).
-        OpenAI requires that the function name matches the pattern '^[a-zA-Z0-9_-]+$'. Some other providers allow dot (`.`) presence.
+        This method checks if the tool's name already contains a namespace (indicated by the presence of a separator character).
+        OpenAI requires that function names match the pattern ``^[a-zA-Z0-9_-]+$``. Some other providers allow dot (`.`) as separator.
         If it does and `force` is `True`, the existing namespace is replaced with the provided `namespace`.
         If `force` is `False` and an existing namespace is present, no changes are made.
         If the tool's name does not contain a namespace, the `namespace` is prepended as a prefix to the tool's name.
