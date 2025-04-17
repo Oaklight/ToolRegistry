@@ -636,11 +636,7 @@ class ToolRegistry:
                 callable_func = tool_obj.callable if tool_obj else None
 
                 # Serialize the function using dill if using process pool
-                serialized_func = (
-                    dill.dumps(callable_func)
-                    if callable_func and execution_mode == "process"
-                    else None
-                )
+                serialized_func = dill.dumps(callable_func) if callable_func else None
 
                 tasks_to_submit.append(
                     (serialized_func, tool_call_id, function_name, function_args)
