@@ -13,7 +13,7 @@ import difflib
 import fnmatch
 import os
 import re
-from typing import Dict, Union
+from typing import Dict, List, Union
 
 
 class FileOps:
@@ -88,7 +88,7 @@ class FileOps:
         FileOps.write_file(path, content)
 
     @staticmethod
-    def search_files(path: str, regex: str, file_pattern: str = "*") -> list[dict]:
+    def search_files(path: str, regex: str, file_pattern: str = "*") -> List[dict]:
         """Perform regex search across files in a directory, returning matches with context.
 
         Args:
