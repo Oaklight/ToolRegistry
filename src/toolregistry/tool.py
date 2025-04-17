@@ -1,5 +1,5 @@
 import inspect
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -214,10 +214,16 @@ class Tool(BaseModel):
         except Exception as e:
             return f"Error executing {self.name}: {str(e)}"
 
-    def update_namespace(self, namespace: Optional[str], force: bool = False) -> None:
+    def update_namespace(
+        self,
+        namespace: Optional[str],
+        force: bool = False,
+        sep: Literal["-", "."] = "-",
+    ) -> None:
         """Updates the namespace of a tool.
 
-        This method checks if the tool's name already contains a namespace (indicated by the presence of a dot ('.')).
+        This method checks if the tool's name already contains a namespace (indicated by the presence of a dash (`-`)).
+        OpenAI requires that the function name matches the pattern '^[a-zA-Z0-9_-]+$'. Some other providers allow dot (`.`) presence.
         If it does and `force` is `True`, the existing namespace is replaced with the provided `namespace`.
         If `force` is `False` and an existing namespace is present, no changes are made.
         If the tool's name does not contain a namespace, the `namespace` is prepended as a prefix to the tool's name.
@@ -233,15 +239,15 @@ class Tool(BaseModel):
             >>> tool = Tool(name="example_tool")
             >>> tool.update_namespace("new_namespace")
             >>> tool.name
-            'new_namespace.example_tool'
+            'new_namespace-example_tool'
 
             >>> tool = Tool(name="old_namespace.example_tool")
             >>> tool.update_namespace("new_namespace", force=False)
             >>> tool.name
-            'old_namespace.example_tool'
+            'old_namespace-example_tool'
 
             >>> tool = Tool(name="old_namespace.example_tool")
-            >>> tool.update_namespace("new_namespace", force=True)
+            >>> tool.update_namespace("new_namespace", force=True, sep=".")
             >>> tool.name
             'new_namespace.example_tool'
         """
@@ -249,13 +255,13 @@ class Tool(BaseModel):
             return
 
         namespace = normalize_tool_name(namespace)
-        if "." in self.name:
+        if sep in self.name:
             if force:
                 # Replace existing namespace with the new one if force is True
-                self.name = f"{namespace}.{self.name.split('.', 1)[1]}"
+                self.name = f"{namespace}{sep}{self.name.split(sep, 1)[1]}"
             else:
                 # Do not change the name if force is False and an existing namespace is present
                 pass
         else:
             # Add the new namespace as a prefix if there is no existing namespace
-            self.name = f"{namespace}.{self.name}"
+            self.name = f"{namespace}{sep}{self.name}"
