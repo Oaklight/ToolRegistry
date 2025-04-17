@@ -25,7 +25,7 @@ def _process_tool_call_helper(
     tool_call_id: str,
     function_name: str,
     function_args: Dict[str, Any],
-) -> tuple[str, str]:
+) -> Tuple[str, str]:
     """Helper function to execute a single tool call.
 
     Args:
@@ -35,7 +35,7 @@ def _process_tool_call_helper(
         function_args: Dictionary of arguments to pass to the function.
 
     Returns:
-        tuple[str, str]: A tuple containing (tool_call_id, tool_result).
+        Tuple[str, str]: A tuple containing (tool_call_id, tool_result).
     """
     """Executes a single tool call using the callable (sync or async) and returns the result."""
     try:
