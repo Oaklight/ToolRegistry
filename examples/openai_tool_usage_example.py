@@ -6,6 +6,7 @@ from openai import OpenAI
 # Load environment variables from .env file
 load_dotenv()
 from toolregistry import ToolRegistry
+from toolregistry.hub import UnitConverter
 
 # Initialize ToolRegistry
 tool_registry = ToolRegistry()
@@ -18,12 +19,14 @@ def get_weather(location: str):
     return f"Weather in {location}: Sunny, 25°C"
 
 
-@tool_registry.register
-def c_to_f(celsius: float) -> float:
-    """Convert Celsius to Fahrenheit"""
-    fahrenheit = (celsius * 1.8) + 32
-    return f"{celsius} celsius degree == {fahrenheit} fahrenheit degree"
+# @tool_registry.register
+# def c_to_f(celsius: float) -> float:
+#     """Convert Celsius to Fahrenheit"""
+#     fahrenheit = (celsius * 1.8) + 32
+#     return f"{celsius} celsius degree == {fahrenheit} fahrenheit degree"
 
+# replace c_to_f with hub tool UnitConverter
+tool_registry.register_from_class(UnitConverter, with_namespace=True)
 
 # Set up OpenAI client
 client = OpenAI(
