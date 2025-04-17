@@ -7,25 +7,25 @@ mcp = FastMCP(
 
 
 @mcp.tool()
-def add(a: int, b: int) -> int:
+def add(a: float, b: float) -> float:
     """Add two numbers"""
     return a + b
 
 
 @mcp.tool()
-def subtract(a: int, b: int) -> int:
+def subtract(a: float, b: float) -> float:
     """Subtract two numbers"""
     return a - b
 
 
 @mcp.tool()
-def multiply(a: int, b: int) -> int:
+def multiply(a: float, b: float) -> float:
     """Multiply two numbers"""
     return a * b
 
 
 @mcp.tool()
-def divide(a: int, b: int) -> float:
+def divide(a: float, b: float) -> float:
     """Divide two numbers"""
     return a / b
 
