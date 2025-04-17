@@ -78,13 +78,11 @@ class MCPToolWrapper:
         """
         kwargs = self._process_args(*args, **kwargs)
 
+        loop = asyncio.new_event_loop()
         try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        return loop.run_until_complete(self.call_async(**kwargs))
+            return loop.run_until_complete(self.call_async(**kwargs))
+        finally:
+            loop.close()
 
     async def call_async(self, *args: Any, **kwargs: Any) -> Any:
         """Async implementation of MCP tool call.
@@ -100,12 +98,11 @@ class MCPToolWrapper:
             ValueError: If URL or name not set.
             Exception: If tool execution fails.
         """
-        kwargs = self._process_args(*args, **kwargs)
-
-        if not self.url or not self.name:
-            raise ValueError("URL and name must be set before calling")
-
         try:
+            kwargs = self._process_args(*args, **kwargs)
+            if not self.url or not self.name:
+                raise ValueError("URL and name must be set before calling")
+
             async with sse_client(self.url) as (read_stream, write_stream):
                 async with ClientSession(read_stream, write_stream) as session:
                     await session.initialize()
@@ -121,9 +118,15 @@ class MCPToolWrapper:
 
                     result = await session.call_tool(self.name, validated_params)
                     return self._post_process_result(result)
+
         except Exception as e:
-            print(f"Error calling tool {self.name}: {str(e)}")
-            raise
+            # record full exception stack
+            import traceback
+
+            print(
+                f"Original Exception happens at {self.name}:\n{traceback.format_exc()}"
+            )
+            raise  # throw to keep the original behavior
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         """Make the wrapper directly callable, automatically choosing sync/async version.
@@ -334,19 +337,10 @@ class MCPIntegration:
                 - If a string is provided, it is used as the namespace.
                 Defaults to False.
         """
+        loop = asyncio.new_event_loop()
         try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        if loop.is_running():
-            # if event loop is already running, use run_coroutine_threadsafe
-            future = asyncio.run_coroutine_threadsafe(
-                self.register_mcp_tools_async(server_url, with_namespace), loop
-            )
-            return future.result()
-        else:
-            return loop.run_until_complete(
+            loop.run_until_complete(
                 self.register_mcp_tools_async(server_url, with_namespace)
             )
+        finally:
+            loop.close()
