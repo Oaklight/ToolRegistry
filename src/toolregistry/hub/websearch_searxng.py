@@ -94,7 +94,7 @@ class WebSearchTool:
             return ""
 
     @staticmethod
-    def fetch_webpage_content(entry: dict, use_jina: bool = False) -> dict:
+    def _fetch_webpage_content(entry: dict, use_jina: bool = False) -> dict:
         """Retrieve complete webpage content from search result entry."""
         UNABLE_TO_FETCH_CONTENT = "Unable to fetch content"
         UNABLE_TO_FETCH_TITLE = "Unable to fetch title"
@@ -146,7 +146,7 @@ class WebSearchTool:
         if not self.searxng_base_url.endswith("/search"):
             self.searxng_base_url += "/search"  # Ensure the URL ends with /search
 
-        self.fetch_fn = partial(WebSearchTool.fetch_webpage_content, use_jina=use_jina)
+        self.fetch_fn = partial(WebSearchTool._fetch_webpage_content, use_jina=use_jina)
         self.threshold = threshold
 
         self.headers = headers or {
