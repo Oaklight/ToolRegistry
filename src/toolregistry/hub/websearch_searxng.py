@@ -94,7 +94,7 @@ class WebSearchTool:
             return ""
 
     @staticmethod
-    def _fetch_webpage_content(entry: dict, use_jina: bool = False) -> dict:
+    def _fetch_webpage_content(entry: dict) -> dict:
         """Retrieve complete webpage content from search result entry."""
         UNABLE_TO_FETCH_CONTENT = "Unable to fetch content"
         UNABLE_TO_FETCH_TITLE = "Unable to fetch title"
@@ -103,13 +103,12 @@ class WebSearchTool:
             raise ValueError("Result missing URL")
 
         try:
-            content = ""
-            if use_jina:
+            # Attempt to fetch content with BeautifulSoup first
+            content = WebSearchTool._get_content_with_bs4(entry["url"])
+            if not content:
+                # If BeautifulSoup fails, try with Jina Reader as a fallback
                 content = WebSearchTool._get_content_with_jina_reader(entry["url"])
-                if not content:
-                    content = WebSearchTool._get_content_with_bs4(entry["url"])
-            else:
-                content = WebSearchTool._get_content_with_bs4(entry["url"])
+
             title = entry.get("title", UNABLE_TO_FETCH_TITLE)
             title = WebSearchTool._format_text(title)
             formatted_content = (
@@ -135,18 +134,16 @@ class WebSearchTool:
     def __init__(
         self,
         searxng_base_url: str,
-        use_jina: bool = False,
-        timeout: float = 10.0,
-        headers: Optional[dict] = None,
-        max_connections: int = 10,
         threshold: float = 0.2,
+        timeout: float = 10.0,
+        max_connections: int = 10,
+        headers: Optional[dict] = None,
     ):
         """Initialize WebSearchTool with configuration parameters."""
         self.searxng_base_url = searxng_base_url.rstrip("/")
         if not self.searxng_base_url.endswith("/search"):
             self.searxng_base_url += "/search"  # Ensure the URL ends with /search
 
-        self.fetch_fn = partial(WebSearchTool._fetch_webpage_content, use_jina=use_jina)
         self.threshold = threshold
 
         self.headers = headers or {
@@ -185,7 +182,7 @@ class WebSearchTool:
             with ProcessPoolExecutor() as executor:
                 enriched_results = list(
                     executor.map(
-                        self.fetch_fn,
+                        WebSearchTool._fetch_webpage_content,
                         filtered_results,
                     )
                 )
