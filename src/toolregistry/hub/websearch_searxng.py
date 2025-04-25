@@ -1,7 +1,8 @@
 import json
 import re
-from typing import Dict, List, Literal, Optional
 import unicodedata
+from concurrent.futures import ProcessPoolExecutor
+from typing import List, Literal, Optional
 
 import httpx
 from bs4 import BeautifulSoup
@@ -73,12 +74,16 @@ def _format_text(text: str) -> str:
     return text
 
 
-def search(query: str):
+def search(
+    query: str,
+    number_of_results: int = 5,
+    threshold: float = 0.2,
+    use_jina: bool = False,
+):
     """Perform search and return results"""
     params = {
         "q": query,
         "format": "json",
-        "number_of_results": 4,
     }
 
     # 配置HTTP客户端
@@ -95,7 +100,25 @@ def search(query: str):
             )
             response.raise_for_status()
             results = response.json().get("results", [])  # get the search results list
-            return results
+            # Filter results based on threshold
+            filtered_results = [
+                entry for entry in results if entry.get("score", 0) >= threshold
+            ]
+
+            # Sort results by score in descending order
+            filtered_results.sort(key=lambda x: x.get("score", 0), reverse=True)
+
+            # Limit results to number_of_results
+            if len(filtered_results) > number_of_results:
+                filtered_results = filtered_results[:number_of_results]
+
+            # Fetch webpage content in parallel
+            with ProcessPoolExecutor() as executor:
+                enriched_results = list(
+                    executor.map(fetch_webpage_content, filtered_results)
+                )
+
+            return enriched_results
         except httpx.RequestError as e:
             print(f"Request error: {e}")
             return []
@@ -248,17 +271,17 @@ if __name__ == "__main__":
     result = search("Chicago weather today")
     print(json.dumps(result, indent=2, ensure_ascii=False))
 
-    # 测试新函数
-    if result:
-        try:
-            webpage = fetch_webpage_content(
-                result[0],
-            )
-            print("\nWebpage information:")
-            print(f"Title: {webpage['title']}")
-            print(f"URL: {webpage['url']}")
-            print(f"\nSummary: {webpage['excerpt']}")
-            print("\nFull content:")
-            print(webpage["content"] + "...")
-        except Exception as e:
-            print(f"Failed to retrieve webpage content: {e}")
+    # # 测试新函数
+    # if result:
+    #     try:
+    #         webpage = fetch_webpage_content(
+    #             result[0],
+    #         )
+    #         print("\nWebpage information:")
+    #         print(f"Title: {webpage['title']}")
+    #         print(f"URL: {webpage['url']}")
+    #         print(f"\nSummary: {webpage['excerpt']}")
+    #         print("\nFull content:")
+    #         print(webpage["content"] + "...")
+    #     except Exception as e:
+    #         print(f"Failed to retrieve webpage content: {e}")
