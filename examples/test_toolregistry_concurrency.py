@@ -8,12 +8,11 @@ import time
 from pprint import pprint
 from typing import Any, Dict, List, Optional, Tuple
 
-from openai.types.chat.chat_completion_message_tool_call import (
+from toolregistry import ToolRegistry
+from toolregistry.utils import (
     ChatCompletionMessageToolCall,
     Function,
 )
-
-from toolregistry import ToolRegistry
 
 
 def analyze_results(
