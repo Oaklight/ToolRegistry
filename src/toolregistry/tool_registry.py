@@ -1,3 +1,4 @@
+import asyncio
 import atexit
 import json
 import logging
@@ -8,16 +9,11 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Set, Tuple, Typ
 
 import dill  # type: ignore
 from deprecated import deprecated  # type: ignore
-from openai.types.chat.chat_completion_message_tool_call import (
-    ChatCompletionMessageToolCall,
-)
 
 from .tool import Tool
-from .utils import normalize_tool_name
+from .utils import ChatCompletionMessageToolCall, normalize_tool_name
 
 logger = logging.getLogger(__name__)
-
-import asyncio
 
 
 def _process_tool_call_helper(

@@ -5,12 +5,11 @@ import time
 from pprint import pprint
 from typing import Any, Dict, List
 
-from openai.types.chat.chat_completion_message_tool_call import (
+from toolregistry import ToolRegistry
+from toolregistry.utils import (
     ChatCompletionMessageToolCall,
     Function,
 )
-
-from toolregistry import ToolRegistry
 
 
 def generate_tool_calls(n: int, callable_name: str = "add") -> List[Dict[str, Any]]:
