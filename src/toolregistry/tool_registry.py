@@ -1,7 +1,6 @@
 import asyncio
 import atexit
 import json
-import logging
 import random
 import string
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
@@ -9,11 +8,10 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Set, Tuple, Typ
 
 import dill  # type: ignore
 from deprecated import deprecated  # type: ignore
+from loguru import logger
 
 from .tool import Tool
 from .utils import ChatCompletionMessageToolCall, normalize_tool_name
-
-logger = logging.getLogger(__name__)
 
 
 def _process_tool_call_helper(
