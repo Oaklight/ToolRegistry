@@ -154,7 +154,7 @@ For latest list of predefined tools, please check out [**latest available**](htt
     tool = WebSearchSearxng(searxng_base_url="http://localhost:8080")
     
     # Search the web
-    results = tool.search(query="Python web scraping", number_of_results=3)
+    results = tool.search(query="Python web scraping", number_results=3)
     
     # Extract content from URLs
     extracted = tool.extract(url=results[0]['url'])

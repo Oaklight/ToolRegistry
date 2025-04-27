@@ -14,6 +14,7 @@ _UNABLE_TO_FETCH_TITLE = "Unable to fetch title"
 HEADERS_DEFAULT = {"User-Agent": UserAgent(platforms="mobile").random}
 TIMEOUT_DEFAULT = 10.0
 
+
 class _WebSearchEntryGeneral(dict):
     def __init__(self, **data):
         super().__init__(**data)
@@ -22,19 +23,20 @@ class _WebSearchEntryGeneral(dict):
     title: str
     content: str
 
+
 class WebSearchGeneral(ABC):
     @abstractmethod
     def search(
         self,
         query: str,
-        number_of_results: int = 5,
+        number_results: int = 5,
         threshold: float = 0.2,
         timeout: float = None,
     ) -> list:
         """Perform search and return results.
         Args:
             query (str): The search query.
-            number_of_results (int, optional): The maximum number of results to return. Defaults to 5.
+            number_results (int, optional): The maximum number of results to return. Defaults to 5.
             threshold (float, optional): Minimum score threshold for results [0-1.0]. Defaults to 0.2.
             timeout (float, optional): Request timeout in seconds. Defaults to None.
         Returns:
