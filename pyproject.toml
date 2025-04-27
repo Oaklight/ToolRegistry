@@ -8,7 +8,7 @@ version = "0.4.5"
 authors = [{ name = "Oaklight", email = "oaklight@gmx.com" }]
 description = "A library for managing tool registries"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 license = "MIT"
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -22,6 +22,8 @@ dependencies = [
     "deprecated>=1.2.18",
     "dill>=0.4.0",
     "httpx>=0.28.1",
+    "fake-useragent>=2.2.0",
+    "beautifulsoup4>=4.13.4",
 ]
 
 [project.optional-dependencies]
