@@ -17,16 +17,6 @@ TIMEOUT_DEFAULT = 10.0
 
 class WebSearchGeneral(ABC):
     @abstractmethod
-    def extract(self, url: str) -> str:
-        """Extract content from a URL.
-        Args:
-            url (str): The URL to extract content from.
-        Returns:
-            str: The extracted content.
-        """
-        pass
-
-    @abstractmethod
     def search(
         self,
         query: str,
@@ -44,6 +34,63 @@ class WebSearchGeneral(ABC):
             list: A list of search results.
         """
         pass
+
+    @staticmethod
+    def extract(url: str, timeout: Optional[float] = None) -> str:
+        """Extract content from a given URL using available methods.
+
+        Args:
+            url (str): The URL to extract content from.
+            timeout (float, optional): Request timeout in seconds. Defaults to TIMEOUT_DEFAULT (10). Usually not needed.
+
+        Returns:
+            str: Extracted content from the URL, or empty string if extraction fails.
+        """
+        # First try BeautifulSoup method
+        content = WebSearchGeneral._get_content_with_bs4(
+            url, timeout=timeout or TIMEOUT_DEFAULT
+        )
+        if not content:
+            # Fallback to Jina Reader if BeautifulSoup fails
+            content = WebSearchGeneral._get_content_with_jina_reader(
+                url, timeout=timeout or TIMEOUT_DEFAULT
+            )
+
+        formatted_content = (
+            WebSearchGeneral._format_text(content)
+            if content
+            else _UNABLE_TO_FETCH_CONTENT
+        )
+        return formatted_content
+
+    @staticmethod
+    def _remove_emojis(text: str) -> str:
+        """Remove emoji expressions from text.
+
+        Args:
+            text (str): The input text.
+
+        Returns:
+            str: Text with emojis removed.
+        """
+        return "".join(c for c in text if not unicodedata.category(c).startswith("So"))
+
+    @staticmethod
+    def _format_text(text: str) -> str:
+        """Format text content.
+
+        Args:
+            text (str): The input text.
+
+        Returns:
+            str: Formatted text.
+        """
+        text = unicodedata.normalize("NFKC", text)
+        text = re.sub(r"[^\S\n]+", " ", text)
+        text = re.sub(r"\n+", "\n", text)
+        text = text.strip()
+        text = WebSearchGeneral._remove_emojis(text)
+        return text
 
     @staticmethod
     def _get_content_with_jina_reader(
