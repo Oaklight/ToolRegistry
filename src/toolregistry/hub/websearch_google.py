@@ -9,6 +9,8 @@ import httpx
 from bs4 import BeautifulSoup
 from loguru import logger
 
+from .websearch import WebSearchGeneral
+
 
 def _get_lynx_useragent():
     """
@@ -34,7 +36,16 @@ def _get_lynx_useragent():
     return f"{lynx_version} {libwww_version} {ssl_mm_version} {openssl_version}"
 
 
-class WebSearchGoogle:
+class _WebSearchEntryGoogle(dict):
+    def __init__(self, **data):
+        super().__init__(**data)
+
+    url: str
+    title: str
+    description: str
+
+
+class WebSearchGoogle(WebSearchGeneral):
     """WebSearchGoogle provides a unified interface for performing web searches on Google.
     It handles search queries and result processing.
 
@@ -85,6 +96,68 @@ class WebSearchGoogle:
                 "excerpt": description,
             }
 
+    @staticmethod
+    def _meta_google_search(
+        query,
+        num_results=10,
+        proxy: Optional[str] = None,
+        sleep_interval: float = 0,
+        timeout: float = 5,
+        start_num: int = 0,
+        google_base_url: str = "https://www.google.com/search",
+    ) -> List[_WebSearchEntryGoogle]:
+        """Search the Google search engine"""
+        proxies = (
+            {"https": proxy, "http": proxy}
+            if proxy and (proxy.startswith("https") or proxy.startswith("http"))
+            else None
+        )
+        results = []
+        fetched_results = 0
+        fetched_links = set()
+
+        # Create a persistent client with connection pooling
+        with httpx.Client(
+            proxy=proxies,
+            # verify=ssl_verify,
+            headers={
+                "User-Agent": _get_lynx_useragent(),
+                "Accept": "*/*",
+            },
+            timeout=timeout,
+        ) as client:
+            start = start_num
+            while fetched_results < num_results:
+                response = client.get(
+                    url=google_base_url,
+                    params={
+                        "q": query,
+                        "num": num_results - start + 2,
+                        "start": start,
+                    },
+                    cookies={
+                        "CONSENT": "PENDING+987",
+                        "SOCS": "CAESHAgBEhIaAB",
+                    },
+                )
+                response.raise_for_status()
+
+                batch_entries = list(
+                    WebSearchGoogle._parse_google_entries(
+                        response.text, fetched_links, num_results - fetched_results
+                    )
+                )
+                if len(batch_entries) == 0:
+                    break
+
+                fetched_results += len(batch_entries)
+                results.extend(batch_entries)
+
+                start += 10
+                sleep(sleep_interval)
+
+        return results
+
     def __init__(
         self,
         google_base_url: str = "https://www.google.com",
@@ -109,6 +182,7 @@ class WebSearchGoogle:
         self,
         query: str,
         number_of_results: int = 5,
+        threshold: float = 0.2,  # Not used in this implementation, kept for compatibility.
         timeout: Optional[float] = None,
     ) -> List[Dict[str, str]]:
         """Perform search and return results.
@@ -120,74 +194,24 @@ class WebSearchGoogle:
 
         Returns:
             List of search results, each containing:
-            - 'title': The title of the search result
-            - 'url': The URL of the search result
-            - 'content': The description/content from Google
-            - 'excerpt': Same as content (for compatibility with WebSearchSearxng)
+                - 'title': The title of the search result
+                - 'url': The URL of the search result
+                - 'content': The description/content from Google
+                - 'excerpt': Same as content (for compatibility with WebSearchSearxng)
         """
-        proxies = (
-            {"https": self.proxy, "http": self.proxy}
-            if self.proxy
-            and (self.proxy.startswith("https") or self.proxy.startswith("http"))
-            else None
+        results = WebSearchGoogle._meta_google_search(
+            query,
+            num_results=number_of_results,
+            proxy=self.proxy,
+            timeout=timeout or self.timeout,
+            google_base_url=self.google_base_url,
         )
-        results = []
-        fetched_results = 0
-        fetched_links = set()
-        timeout = timeout or self.timeout
-
-        # Create a persistent client with connection pooling
-        with httpx.Client(
-            proxy=proxies,
-            headers={
-                "User-Agent": _get_lynx_useragent(),
-                "Accept": "*/*",
-            },
-            timeout=timeout,
-        ) as client:
-            start = 0
-            while fetched_results < number_of_results:
-                try:
-                    response = client.get(
-                        url=self.google_base_url,
-                        params={
-                            "q": query,
-                            "num": number_of_results - start + 2,
-                            "start": start,
-                            # "gl": self.region,
-                        },
-                        cookies={
-                            "CONSENT": "PENDING+987",
-                            "SOCS": "CAESHAgBEhIaAB",
-                        },
-                    )
-                    response.raise_for_status()
-
-                    batch_entries = list(
-                        WebSearchGoogle._parse_google_entries(
-                            response.text,
-                            fetched_links,
-                            number_of_results - fetched_results,
-                        )
-                    )
-                    if len(batch_entries) == 0:
-                        break
-
-                    fetched_results += len(batch_entries)
-                    results.extend(batch_entries)
-
-                    start += 10
-                    sleep(0.5)  # Be polite with delay between requests
-
-                except httpx.RequestError as e:
-                    logger.debug(f"Request error: {e}")
-                    break
-                except httpx.HTTPStatusError as e:
-                    logger.debug(f"HTTP error: {e.response.status_code}")
-                    break
 
         return results[:number_of_results]
 
+    def extract(self, url):
+        # return super().extract(url)
+        pass
 
 if __name__ == "__main__":
     # Example usage
