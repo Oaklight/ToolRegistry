@@ -5,8 +5,14 @@ from typing import Dict, List, Literal, Optional
 
 import httpx
 from bs4 import BeautifulSoup
+from fake_useragent import UserAgent
 from loguru import logger
 from pydantic import BaseModel
+
+_UNABLE_TO_FETCH_CONTENT = "Unable to fetch content"
+_UNABLE_TO_FETCH_TITLE = "Unable to fetch title"
+HEADERS_DEFAULT = {"User-Agent": UserAgent(platforms="mobile").random}
+TIMEOUT_DEFAULT = 10.0
 
 
 class _WebSearchSearxngEntry(BaseModel):
@@ -78,13 +84,16 @@ class WebSearchSearxng:
 
     @staticmethod
     def _get_content_with_jina_reader(
-        url: str, return_format: Literal["markdown", "text", "html"] = "text"
+        url: str,
+        return_format: Literal["markdown", "text", "html"] = "text",
+        timeout: Optional[float] = None,
     ) -> str:
         """Fetch parsed content from Jina AI for a given URL.
 
         Args:
             url (str): The URL to fetch content from.
             return_format (Literal["markdown", "text", "html"], optional): The format of the returned content. Defaults to "text".
+            timeout (Optional[float], optional): Timeout for the HTTP request. Defaults to TIMEOUT_DEFAULT.
 
         Returns:
             str: Parsed content from Jina AI.
@@ -96,7 +105,11 @@ class WebSearchSearxng:
                 "X-Target-Selector": "body, .class, #id",
             }
             jina_reader_url = "https://r.jina.ai/"
-            response = httpx.get(jina_reader_url + url, headers=headers, timeout=10.0)
+            response = httpx.get(
+                jina_reader_url + url,
+                headers=headers,
+                timeout=timeout or TIMEOUT_DEFAULT,
+            )
             response.raise_for_status()
             return response.text
         except httpx.HTTPStatusError as e:
@@ -107,20 +120,26 @@ class WebSearchSearxng:
             return ""
 
     @staticmethod
-    def _get_content_with_bs4(url: str) -> str:
+    def _get_content_with_bs4(
+        url: str,
+        timeout: Optional[float] = None,
+    ) -> str:
         """Utilizes BeautifulSoup to fetch and parse the content of a webpage.
 
         Args:
             url (str): The URL of the webpage.
+            headers (Optional[Dict[str, str]]): HTTP headers to be sent with the request. Defaults to HEADERS_DEFAULT.
+            timeout (Optional[float]): Timeout for the HTTP request. Defaults to TIMEOUT_DEFAULT.
 
         Returns:
             str: Parsed text content of the webpage.
         """
         try:
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
-            }
-            response = httpx.get(url, headers=headers, timeout=10.0)
+            response = httpx.get(
+                url,
+                headers=HEADERS_DEFAULT,
+                timeout=timeout or TIMEOUT_DEFAULT,
+            )
             response.raise_for_status()
             soup = BeautifulSoup(response.text, "html.parser")
             for element in soup(
@@ -141,8 +160,49 @@ class WebSearchSearxng:
             logger.debug(f"Error parsing webpage content: {e}")
             return ""
 
-    @staticmethod
-    def _fetch_webpage_content(entry: _WebSearchSearxngEntry) -> dict:
+    def __init__(
+        self,
+        searxng_base_url: str,
+        timeout: float = TIMEOUT_DEFAULT,
+    ):
+        """Initialize WebSearchSearxng with configuration parameters."""
+        self.searxng_base_url = searxng_base_url.rstrip("/")
+        if not self.searxng_base_url.endswith("/search"):
+            self.searxng_base_url += "/search"  # Ensure the URL ends with /search
+
+        self._httpx_client_config = {
+            "headers": HEADERS_DEFAULT,
+            "timeout": timeout,
+        }
+
+    def extract(self, url: str, timeout: Optional[float] = None) -> str:
+        """Extract content from a given URL using available methods.
+
+        Args:
+            url (str): The URL to extract content from.
+            timeout (float, optional): Request timeout in seconds, overrides the default value set in the constructor. Defaults to None. Usually not needed.
+
+        Returns:
+            str: Extracted content from the URL, or empty string if extraction fails.
+        """
+        # First try BeautifulSoup method
+        content = self._get_content_with_bs4(
+            url, timeout=timeout or self._httpx_client_config["timeout"]
+        )
+        if not content:
+            # Fallback to Jina Reader if BeautifulSoup fails
+            content = self._get_content_with_jina_reader(
+                url, timeout=timeout or self._httpx_client_config["timeout"]
+            )
+
+        formatted_content = (
+            WebSearchSearxng._format_text(content)
+            if content
+            else _UNABLE_TO_FETCH_CONTENT
+        )
+        return formatted_content
+
+    def _fetch_webpage_content(self, entry: _WebSearchSearxngEntry) -> dict:
         """Retrieve complete webpage content from search result entry.
 
         Args:
@@ -151,26 +211,15 @@ class WebSearchSearxng:
         Returns:
             Dict[str, str]: A dictionary containing the title, URL, content, and excerpt of the webpage.
         """
-        UNABLE_TO_FETCH_CONTENT = "Unable to fetch content"
-        UNABLE_TO_FETCH_TITLE = "Unable to fetch title"
 
         if not entry.get("url"):
             raise ValueError("Result missing URL")
 
         try:
-            # Attempt to fetch content with BeautifulSoup first
-            content = WebSearchSearxng._get_content_with_bs4(entry["url"])
-            if not content:
-                # If BeautifulSoup fails, try with Jina Reader as a fallback
-                content = WebSearchSearxng._get_content_with_jina_reader(entry["url"])
+            formatted_content = self.extract(entry["url"])
 
-            title = entry.get("title", UNABLE_TO_FETCH_TITLE)
+            title = entry.get("title", _UNABLE_TO_FETCH_TITLE)
             title = WebSearchSearxng._format_text(title)
-            formatted_content = (
-                WebSearchSearxng._format_text(content)
-                if content
-                else UNABLE_TO_FETCH_CONTENT
-            )
             return {
                 "title": title,
                 "url": entry["url"],
@@ -180,44 +229,24 @@ class WebSearchSearxng:
         except Exception as e:
             logger.debug(f"Error retrieving webpage content: {e}")
             return {
-                "title": entry.get("title", UNABLE_TO_FETCH_TITLE),
+                "title": entry.get("title", _UNABLE_TO_FETCH_TITLE),
                 "url": entry["url"],
-                "content": UNABLE_TO_FETCH_CONTENT,
-                "excerpt": UNABLE_TO_FETCH_CONTENT,
+                "content": _UNABLE_TO_FETCH_CONTENT,
+                "excerpt": _UNABLE_TO_FETCH_CONTENT,
             }
-
-    def __init__(
-        self,
-        searxng_base_url: str,
-        timeout: float = 10.0,
-        headers: Optional[Dict[str, str]] = None,
-    ):
-        """Initialize WebSearchSearxng with configuration parameters."""
-        self.searxng_base_url = searxng_base_url.rstrip("/")
-        if not self.searxng_base_url.endswith("/search"):
-            self.searxng_base_url += "/search"  # Ensure the URL ends with /search
-
-        self._httpx_client_config = {
-            "headers": headers
-            or {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
-            },
-            "timeout": httpx.Timeout(timeout, connect=5.0),
-        }
-
     def search(
         self,
         query: str,
         number_of_results: int = 5,
         threshold: float = 0.2,
-        timeout: float = None,
+        timeout: Optional[float] = None,
     ) -> List[Dict[str, str]]:
         """Perform search and return results.
 
         Args:
             query (str): The search query. Boolean operators like AND, OR, NOT can be used if needed.
             number_of_results (int, optional): The maximum number of results to return. Defaults to 5.
-            threshold (float, optional): Minimum score threshold for results. Defaults to 0.2.
+            threshold (float, optional): Minimum score threshold for results [0-1.0]. Defaults to 0.2.
             timeout (float, optional): Request timeout in seconds, overrides the default value set in the constructor. Defaults to None. Usually not needed.
 
         Returns:
@@ -229,19 +258,15 @@ class WebSearchSearxng:
         """
         if timeout is not None:
             _client_config = self._httpx_client_config.copy()
-            _client_config["timeout"] = httpx.Timeout(timeout, connect=5.0)
+            _client_config["timeout"] = timeout
         else:
             _client_config = self._httpx_client_config
 
         params = {"q": query, "format": "json"}
         try:
-            with httpx.Client(**_client_config) as client:
-                response = client.get(
-                    self.searxng_base_url,
-                    params=params,
-                )
-                response.raise_for_status()
-                results = response.json().get("results", [])
+            response = httpx.get(self.searxng_base_url, params=params, **_client_config)
+            response.raise_for_status()
+            results = response.json().get("results", [])
 
             filtered_results = [
                 entry for entry in results if entry.get("score", 0) >= threshold
@@ -253,7 +278,7 @@ class WebSearchSearxng:
             with ProcessPoolExecutor() as executor:
                 enriched_results = list(
                     executor.map(
-                        WebSearchSearxng._fetch_webpage_content,
+                        self._fetch_webpage_content,
                         filtered_results,
                     )
                 )
