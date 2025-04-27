@@ -130,6 +130,62 @@ For latest list of predefined tools, please check out [**latest available**](htt
    - Radiation: gray, sievert
    - Light intensity: lux, lumen
 
+5. **WebSearchSearxng** - Web search functionality powered by SearxNG
+
+   Provides a unified interface for performing web searches and processing results through a SearxNG instance. It handles search queries, result filtering, and content extraction with the following features:
+
+   - Performs web searches using SearxNG instance
+   - Filters results by relevance score threshold
+   - Extracts and cleans webpage content using multiple methods (BeautifulSoup/Jina Reader)
+   - Parallel processing of result fetching
+   - Automatic emoji removal and text normalization
+   - Built-in error handling and logging
+
+   Configuration parameters:
+   - `searxng_base_url`: URL of the SearxNG instance (e.g. "<http://localhost:8080>")
+   - `timeout`: Request timeout in seconds (default: 10.0)
+   - `headers`: Optional custom HTTP headers for requests
+
+   Main method: `search(query, number_of_results=5, threshold=0.2, timeout=None)`
+   - `query`: Search query string (supports boolean operators)
+   - `number_of_results`: Maximum results to return (default: 5)
+   - `threshold`: Minimum score threshold (0.0-1.0) for filtering results (default: 0.2)
+   - `timeout`: Optional override for request timeout (default: None)
+
+   Returns list of enriched search results with:
+   - `title`: The title of the search result
+   - `url`: The URL of the search result
+   - `content`: The full content of the webpage (formatted and cleaned)
+   - `excerpt`: The excerpt/summary from search results
+
+   Example usage:
+
+   ```python
+   from toolregistry.hub import WebSearchSearxng
+
+   # Initialize with SearxNG instance URL
+   search_tool = WebSearchSearxng(
+       searxng_base_url="http://localhost:8080",
+       timeout=15.0
+   )
+   
+   # Perform search with custom parameters
+   results = search_tool.search(
+       query="Python web scraping tutorial",
+       number_of_results=3,
+       threshold=0.3
+   )
+   
+   # Process results
+   for idx, result in enumerate(results, 1):
+       print(f"Result {idx}:")
+       print(f"Title: {result['title']}")
+       print(f"URL: {result['url']}")
+       print("Content preview:")
+       print(result['content'][:200] + "...")  # Print first 200 chars
+       print("-" * 50)
+   ```
+
 ## Registering Hub Tools
 
 Hub tools are registered to ToolRegistry using the `register_from_class` method. This allows developers to extend the functionality of ToolRegistry by creating custom tool classes with reusable methods.
