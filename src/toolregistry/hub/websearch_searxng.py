@@ -7,7 +7,6 @@ import httpx
 from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
 from loguru import logger
-from pydantic import BaseModel
 
 _UNABLE_TO_FETCH_CONTENT = "Unable to fetch content"
 _UNABLE_TO_FETCH_TITLE = "Unable to fetch title"
@@ -15,8 +14,12 @@ HEADERS_DEFAULT = {"User-Agent": UserAgent(platforms="mobile").random}
 TIMEOUT_DEFAULT = 10.0
 
 
-class _WebSearchSearxngEntry(BaseModel):
+class _WebSearchSearxngEntry(dict):
     """Search result entry model with type validation."""
+
+    def __init__(self, **data):
+        super().__init__(**data)
+
     content: str
     thumbnail: Optional[str] = None
     engine: str
@@ -28,9 +31,6 @@ class _WebSearchSearxngEntry(BaseModel):
     positions: List[int]
     score: float
     category: str
-
-    class Config:
-        extra = "allow"  # Allow extra fields to maintain backward compatibility
 
 
 class WebSearchSearxng:
@@ -211,29 +211,22 @@ class WebSearchSearxng:
         Returns:
             Dict[str, str]: A dictionary containing the title, URL, content, and excerpt of the webpage.
         """
-        entry_dict = entry.model_dump()
-        url = entry_dict.get("url")
+        url = entry["url"]
         if not url:
             raise ValueError("Result missing URL")
 
         try:
-            formatted_content = self.extract(url)
-            title = entry_dict.get("title", _UNABLE_TO_FETCH_TITLE)
-            title = WebSearchSearxng._format_text(title)
-            return {
-                "title": title,
-                "url": url,
-                "content": formatted_content,
-                "excerpt": entry_dict.get("content", ""),
-            }
+            content = self.extract(url)
         except Exception as e:
+            content = _UNABLE_TO_FETCH_CONTENT
             logger.debug(f"Error retrieving webpage content: {e}")
-            return {
-                "title": entry_dict.get("title", _UNABLE_TO_FETCH_TITLE),
-                "url": entry_dict["url"],
-                "content": _UNABLE_TO_FETCH_CONTENT,
-                "excerpt": _UNABLE_TO_FETCH_CONTENT,
-            }
+
+        return {
+            "title": entry.get("title", _UNABLE_TO_FETCH_TITLE),
+            "url": url,
+            "content": content,
+            "excerpt": _UNABLE_TO_FETCH_CONTENT,
+        }
 
     def search(
         self,
@@ -298,6 +291,6 @@ if __name__ == "__main__":
     SEARXNG_URL = os.getenv("SEARXNG_URL", "http://localhost:8080")
 
     search_tool = WebSearchSearxng(SEARXNG_URL)
-    results = search_tool.search("巴塞罗那今日天气", 5)
+    results = search_tool.search("Barcelona weather today", 5)
     for result in results:
         print(json.dumps(result, indent=2, ensure_ascii=False))
