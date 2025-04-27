@@ -2,7 +2,6 @@ import atexit
 import re
 import unicodedata
 from concurrent.futures import ProcessPoolExecutor
-from functools import partial
 from typing import List, Literal, Optional
 
 import httpx
@@ -25,8 +24,8 @@ class WebSearchEntry(BaseModel):
     category: str
 
 
-class WebSearchTool:
-    """WebSearchTool provides a unified interface for performing web searches and processing results."""
+class WebSearchSearxng:
+    """WebSearchSearxng provides a unified interface for performing web searches and processing results."""
 
     @staticmethod
     def _remove_emojis(text: str) -> str:
@@ -40,7 +39,7 @@ class WebSearchTool:
         text = re.sub(r"[^\S\n]+", " ", text)
         text = re.sub(r"\n+", "\n", text)
         text = text.strip()
-        text = WebSearchTool._remove_emojis(text)
+        text = WebSearchSearxng._remove_emojis(text)
         return text
 
     @staticmethod
@@ -104,15 +103,15 @@ class WebSearchTool:
 
         try:
             # Attempt to fetch content with BeautifulSoup first
-            content = WebSearchTool._get_content_with_bs4(entry["url"])
+            content = WebSearchSearxng._get_content_with_bs4(entry["url"])
             if not content:
                 # If BeautifulSoup fails, try with Jina Reader as a fallback
-                content = WebSearchTool._get_content_with_jina_reader(entry["url"])
+                content = WebSearchSearxng._get_content_with_jina_reader(entry["url"])
 
             title = entry.get("title", UNABLE_TO_FETCH_TITLE)
-            title = WebSearchTool._format_text(title)
+            title = WebSearchSearxng._format_text(title)
             formatted_content = (
-                WebSearchTool._format_text(content)
+                WebSearchSearxng._format_text(content)
                 if content
                 else UNABLE_TO_FETCH_CONTENT
             )
@@ -139,7 +138,7 @@ class WebSearchTool:
         max_connections: int = 10,
         headers: Optional[dict] = None,
     ):
-        """Initialize WebSearchTool with configuration parameters."""
+        """Initialize WebSearchSearxng with configuration parameters."""
         self.searxng_base_url = searxng_base_url.rstrip("/")
         if not self.searxng_base_url.endswith("/search"):
             self.searxng_base_url += "/search"  # Ensure the URL ends with /search
@@ -182,7 +181,7 @@ class WebSearchTool:
             with ProcessPoolExecutor() as executor:
                 enriched_results = list(
                     executor.map(
-                        WebSearchTool._fetch_webpage_content,
+                        WebSearchSearxng._fetch_webpage_content,
                         filtered_results,
                     )
                 )
@@ -197,8 +196,11 @@ class WebSearchTool:
 
 if __name__ == "__main__":
     import json
+    import os
 
-    search_tool = WebSearchTool("https://searx.perennialte.ch/")
+    SEARXNG_URL = os.getenv("SEARXNG_URL", "http://localhost:8080")
+
+    search_tool = WebSearchSearxng(SEARXNG_URL)
     results = search_tool.search("巴塞罗那今日天气", 5)
     for result in results:
         print(json.dumps(result, indent=2, ensure_ascii=False))
