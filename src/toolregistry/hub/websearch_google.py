@@ -1,15 +1,16 @@
 """googlesearch is a Python library for searching Google, easily."""
 
 import random
+from concurrent.futures import ProcessPoolExecutor
 from time import sleep
-from typing import Dict, List, Optional
+from typing import Dict, Generator, List, Optional
 from urllib.parse import unquote  # to decode the url
 
 import httpx
 from bs4 import BeautifulSoup
 from loguru import logger
 
-from .websearch import WebSearchGeneral
+from .websearch import TIMEOUT_DEFAULT, WebSearchGeneral
 
 
 def _get_lynx_useragent():
@@ -42,7 +43,7 @@ class _WebSearchEntryGoogle(dict):
 
     url: str
     title: str
-    description: str
+    content: str
 
 
 class WebSearchGoogle(WebSearchGeneral):
@@ -57,69 +58,99 @@ class WebSearchGoogle(WebSearchGeneral):
     Examples:
         >>> from toolregistry.hub.websearch_google import WebSearchGoogle
         >>> searcher = WebSearchGoogle()
-        >>> results = searcher.search("python web scraping", number_of_results=3)
+        >>> results = searcher.search("python web scraping", number_results=3)
         >>> for result in results:
         ...     print(result["title"])
     """
 
+    def __init__(
+        self,
+        google_base_url: str = "https://www.google.com",
+        proxy: Optional[str] = None,
+    ):
+        """Initialize WebSearchGoogle with configuration parameters.
+
+        Args:
+            proxy: Optional proxy server URL (e.g. "http://proxy.example.com:8080")
+            region: Optional region code for localized results (e.g. "us" for United States)
+            timeout: Request timeout in seconds. Default is 5.0.
+        """
+        self.google_base_url = google_base_url.rstrip("/")
+        if not self.google_base_url.endswith("/search"):
+            self.google_base_url += "/search"  # Ensure the URL ends with /search
+
+        self.proxy: Optional[Dict[str, str]] = (
+            {"https": proxy, "http": proxy}
+            if proxy and (proxy.startswith("https") or proxy.startswith("http"))
+            else None
+        )
+
+    def search(
+        self,
+        query: str,
+        number_results: int = 5,
+        threshold: float = 0.2,  # Not used in this implementation, kept for compatibility.
+        timeout: Optional[float] = None,
+    ) -> List[Dict[str, str]]:
+        """Perform search and return results.
+
+        Args:
+            query: The search query.
+            number_results: The maximum number of results to return. Default is 5.
+            timeout: Optional timeout override in seconds.
+
+        Returns:
+            List of search results, each containing:
+                - 'title': The title of the search result
+                - 'url': The URL of the search result
+                - 'content': The description/content from Google
+                - 'excerpt': Same as content (for compatibility with WebSearchSearxng)
+        """
+        try:
+            results = WebSearchGoogle._meta_search_google(
+                query,
+                num_results=number_results,
+                proxy=self.proxy,
+                timeout=timeout or TIMEOUT_DEFAULT,
+                google_base_url=self.google_base_url,
+            )
+
+            # TODO: find out how to get score from results
+            filtered_results = results
+
+            with ProcessPoolExecutor() as executor:
+                enriched_results = list(
+                    executor.map(
+                        self._fetch_webpage_content,
+                        filtered_results,
+                    )
+                )
+            return enriched_results
+        except httpx.RequestError as e:
+            logger.debug(f"Request error: {e}")
+            return []
+        except httpx.HTTPStatusError as e:
+            logger.debug(f"HTTP error: {e.response.status_code}")
+            return []
+
     @staticmethod
-    def _parse_google_entries(html: str, fetched_links: set, num_results: int):
-        """Parse HTML content from Google search results."""
-        soup = BeautifulSoup(html, "html.parser")
-        result_block = soup.find_all("div", class_="ezO2md")
-        new_results = 0
-
-        for result in result_block:
-            if new_results >= num_results:
-                break
-
-            link_tag = result.find("a", href=True)
-            title_tag = link_tag.find("span", class_="CVA68e") if link_tag else None
-            description_tag = result.find("span", class_="FrIlee")
-
-            if not (link_tag and title_tag and description_tag):
-                continue
-
-            link = unquote(link_tag["href"].split("&")[0].replace("/url?q=", ""))
-            if link in fetched_links:
-                continue
-
-            fetched_links.add(link)
-            title = title_tag.text if title_tag else ""
-            description = description_tag.text if description_tag else ""
-            new_results += 1
-
-            yield {
-                "title": title,
-                "url": link,
-                "content": description,
-                "excerpt": description,
-            }
-
-    @staticmethod
-    def _meta_google_search(
+    def _meta_search_google(
         query,
         num_results=10,
-        proxy: Optional[str] = None,
+        proxy: Optional[Dict[str, str]] = None,
         sleep_interval: float = 0,
         timeout: float = 5,
         start_num: int = 0,
         google_base_url: str = "https://www.google.com/search",
     ) -> List[_WebSearchEntryGoogle]:
         """Search the Google search engine"""
-        proxies = (
-            {"https": proxy, "http": proxy}
-            if proxy and (proxy.startswith("https") or proxy.startswith("http"))
-            else None
-        )
         results = []
         fetched_results = 0
         fetched_links = set()
 
         # Create a persistent client with connection pooling
         with httpx.Client(
-            proxy=proxies,
-            # verify=ssl_verify,
+            proxy=proxy,
             headers={
                 "User-Agent": _get_lynx_useragent(),
                 "Accept": "*/*",
@@ -158,66 +189,49 @@ class WebSearchGoogle(WebSearchGeneral):
 
         return results
 
-    def __init__(
-        self,
-        google_base_url: str = "https://www.google.com",
-        proxy: Optional[str] = None,
-        timeout: float = 10.0,
-    ):
-        """Initialize WebSearchGoogle with configuration parameters.
+    @staticmethod
+    def _parse_google_entries(
+        html: str, fetched_links: set, num_results: int
+    ) -> Generator[_WebSearchEntryGoogle, None, None]:
+        """Parse HTML content from Google search results."""
+        soup = BeautifulSoup(html, "html.parser")
+        result_block = soup.find_all("div", class_="ezO2md")
+        new_results = 0
 
-        Args:
-            proxy: Optional proxy server URL (e.g. "http://proxy.example.com:8080")
-            region: Optional region code for localized results (e.g. "us" for United States)
-            timeout: Request timeout in seconds. Default is 5.0.
-        """
-        self.google_base_url = google_base_url.rstrip("/")
-        if not self.google_base_url.endswith("/search"):
-            self.google_base_url += "/search"  # Ensure the URL ends with /search
+        for result in result_block:
+            if new_results >= num_results:
+                break
 
-        self.proxy = proxy
-        self.timeout = timeout
+            link_tag = result.find("a", href=True)
+            title_tag = link_tag.find("span", class_="CVA68e") if link_tag else None
+            description_tag = result.find("span", class_="FrIlee")
 
-    def search(
-        self,
-        query: str,
-        number_of_results: int = 5,
-        threshold: float = 0.2,  # Not used in this implementation, kept for compatibility.
-        timeout: Optional[float] = None,
-    ) -> List[Dict[str, str]]:
-        """Perform search and return results.
+            if not (link_tag and title_tag and description_tag):
+                continue
 
-        Args:
-            query: The search query.
-            number_of_results: The maximum number of results to return. Default is 5.
-            timeout: Optional timeout override in seconds.
+            link = unquote(link_tag["href"].split("&")[0].replace("/url?q=", ""))
+            if link in fetched_links:
+                continue
 
-        Returns:
-            List of search results, each containing:
-                - 'title': The title of the search result
-                - 'url': The URL of the search result
-                - 'content': The description/content from Google
-                - 'excerpt': Same as content (for compatibility with WebSearchSearxng)
-        """
-        results = WebSearchGoogle._meta_google_search(
-            query,
-            num_results=number_of_results,
-            proxy=self.proxy,
-            timeout=timeout or self.timeout,
-            google_base_url=self.google_base_url,
-        )
+            fetched_links.add(link)
+            title = title_tag.text if title_tag else ""
+            description = description_tag.text if description_tag else ""
+            new_results += 1
 
-        return results[:number_of_results]
+            yield _WebSearchEntryGoogle(
+                title=title,
+                url=link,
+                content=description,
+            )
 
-    def extract(self, url):
-        # return super().extract(url)
-        pass
 
 if __name__ == "__main__":
+    import json
+
     # Example usage
     searcher = WebSearchGoogle()
-    results = searcher.search("巴塞罗那今日天气", number_of_results=3)
+    results = searcher.search("巴塞罗那今日天气", 5)
     for result in results:
-        print(f"Title: {result['title']}")
-        print(f"URL: {result['url']}")
-        print(f"Content: {result['content']}\n")
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+
+    print(searcher.extract(results[0]["url"]))
