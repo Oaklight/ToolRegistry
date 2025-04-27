@@ -33,6 +33,10 @@ openapi = [
     "openapi-spec-validator>=0.7.1",
     "PyYAML>=6.0.2",
 ] # Add openapi optional dependencies here
+dev = [
+    "mypy>=1.14.1",
+    "build>=1.2.2.post1"
+]
 
 [project.urls]
 Homepage = "https://github.com/Oaklight/ToolRegistry"
