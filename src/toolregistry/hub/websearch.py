@@ -14,6 +14,13 @@ _UNABLE_TO_FETCH_TITLE = "Unable to fetch title"
 HEADERS_DEFAULT = {"User-Agent": UserAgent(platforms="mobile").random}
 TIMEOUT_DEFAULT = 10.0
 
+class _WebSearchEntryGeneral(dict):
+    def __init__(self, **data):
+        super().__init__(**data)
+
+    url: str
+    title: str
+    content: str
 
 class WebSearchGeneral(ABC):
     @abstractmethod
@@ -62,6 +69,33 @@ class WebSearchGeneral(ABC):
             else _UNABLE_TO_FETCH_CONTENT
         )
         return formatted_content
+
+    @staticmethod
+    def _fetch_webpage_content(entry: _WebSearchEntryGeneral) -> dict:
+        """Retrieve complete webpage content from search result entry.
+
+        Args:
+            entry (_WebSearchEntryGeneral): The search result entry.
+
+        Returns:
+            Dict[str, str]: A dictionary containing the title, URL, content, and excerpt of the webpage.
+        """
+        url = entry["url"]
+        if not url:
+            raise ValueError("Result missing URL")
+
+        try:
+            content = WebSearchGeneral.extract(url)
+        except Exception as e:
+            content = _UNABLE_TO_FETCH_CONTENT
+            logger.debug(f"Error retrieving webpage content: {e}")
+
+        return {
+            "title": entry.get("title", _UNABLE_TO_FETCH_TITLE),
+            "url": url,
+            "content": content,
+            "excerpt": entry.get("content", _UNABLE_TO_FETCH_CONTENT),
+        }
 
     @staticmethod
     def _remove_emojis(text: str) -> str:
