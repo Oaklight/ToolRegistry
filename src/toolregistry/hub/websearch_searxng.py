@@ -54,7 +54,7 @@ class WebSearchSearxng(WebSearchGeneral):
     Examples:
         >>> from toolregistry.hub.websearch_searxng import WebSearchSearxng
         >>> searcher = WebSearchSearxng("http://localhost:8080")
-        >>> results = searcher.search("python web scraping", number_of_results=3)
+        >>> results = searcher.search("python web scraping", number_results=3)
         >>> for result in results:
         ...     print(result["title"])
     """
@@ -78,7 +78,7 @@ class WebSearchSearxng(WebSearchGeneral):
     def search(
         self,
         query: str,
-        number_of_results: int = 5,
+        number_results: int = 5,
         threshold: float = 0.2,
         timeout: Optional[float] = None,
     ) -> List[Dict[str, str]]:
@@ -86,7 +86,7 @@ class WebSearchSearxng(WebSearchGeneral):
 
         Args:
             query (str): The search query. Boolean operators like AND, OR, NOT can be used if needed.
-            number_of_results (int, optional): The maximum number of results to return. Defaults to 5.
+            number_results (int, optional): The maximum number of results to return. Defaults to 5.
             threshold (float, optional): Minimum score threshold for results [0-1.0]. Defaults to 0.2.
             timeout (float, optional): Request timeout in seconds. Defaults to TIMEOUT_DEFAULT (10). Usually not needed.
 
@@ -100,7 +100,7 @@ class WebSearchSearxng(WebSearchGeneral):
         try:
             results = self._meta_search_searxng(
                 query,
-                num_results=number_of_results,
+                num_results=number_results,
                 proxy=self.proxy,
                 timeout=timeout,
                 searxng_base_url=self.searxng_base_url,
@@ -109,9 +109,6 @@ class WebSearchSearxng(WebSearchGeneral):
             filtered_results = [
                 entry for entry in results if entry.get("score", 0) >= threshold
             ]
-
-            if len(filtered_results) > number_of_results:
-                filtered_results = filtered_results[:number_of_results]
 
             with ProcessPoolExecutor() as executor:
                 enriched_results = list(
