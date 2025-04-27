@@ -10,7 +10,7 @@ from httpx import Limits, Timeout
 from pydantic import BaseModel
 
 
-class WebSearchEntry(BaseModel):
+class _WebSearchSearxngEntry(BaseModel):
     content: str
     thumbnail: Optional[str] = None
     engine: str
@@ -93,7 +93,7 @@ class WebSearchSearxng:
             return ""
 
     @staticmethod
-    def _fetch_webpage_content(entry: dict) -> dict:
+    def _fetch_webpage_content(entry: _WebSearchSearxngEntry) -> dict:
         """Retrieve complete webpage content from search result entry."""
         UNABLE_TO_FETCH_CONTENT = "Unable to fetch content"
         UNABLE_TO_FETCH_TITLE = "Unable to fetch title"
