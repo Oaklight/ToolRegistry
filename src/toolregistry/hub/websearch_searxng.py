@@ -1,4 +1,3 @@
-import atexit
 import re
 import unicodedata
 from concurrent.futures import ProcessPoolExecutor
@@ -6,7 +5,6 @@ from typing import Dict, List, Literal, Optional
 
 import httpx
 from bs4 import BeautifulSoup
-from httpx import Limits, Timeout
 from pydantic import BaseModel
 
 
@@ -187,22 +185,16 @@ class WebSearchSearxng:
             self.searxng_base_url += "/search"  # Ensure the URL ends with /search
 
         self.threshold = threshold
-
-        self.headers = headers or {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
+        self._httpx_client_config = {
+            "headers": headers
+            or {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
+            },
+            "limits": httpx.Limits(
+                max_connections=max_connections, max_keepalive_connections=20
+            ),
+            "timeout": httpx.Timeout(timeout, connect=5.0),
         }
-        # Initialize httpx client with connection pool
-        limits = Limits(max_connections=max_connections, max_keepalive_connections=20)
-        self.client = httpx.Client(
-            headers=self.headers, limits=limits, timeout=Timeout(timeout, connect=5.0)
-        )
-
-        atexit.register(self._shutdown_client)
-
-    def _shutdown_client(self):
-        """Close the httpx client."""
-        if hasattr(self, "client"):
-            self.client.close()
 
     def search(self, query: str, number_of_results: int = 5) -> List[Dict[str, str]]:
         """Perform search and return results.
@@ -216,12 +208,14 @@ class WebSearchSearxng:
         """
         params = {"q": query, "format": "json"}
         try:
-            response = self.client.get(
-                self.searxng_base_url,
-                params=params,
-            )
-            response.raise_for_status()
-            results = response.json().get("results", [])
+            with httpx.Client(**self._httpx_client_config) as client:
+                response = client.get(
+                    self.searxng_base_url,
+                    params=params,
+                )
+                response.raise_for_status()
+                results = response.json().get("results", [])
+
             filtered_results = [
                 entry for entry in results if entry.get("score", 0) >= self.threshold
             ]
