@@ -24,13 +24,27 @@ class _WebSearchSearxngEntry(BaseModel):
 
 
 class WebSearchSearxng:
-    """WebSearchSearxng provides a unified interface for performing web searches and processing results.
+    """WebSearchSearxng provides a unified interface for performing web searches and processing results
+    through a SearxNG instance. It handles search queries, result filtering, and content extraction.
+
+    Features:
+    - Performs web searches using SearxNG instance
+    - Filters results by relevance score threshold
+    - Extracts and cleans webpage content using multiple methods (BeautifulSoup/Jina Reader)
+    - Parallel processing of result fetching
+    - Automatic emoji removal and text normalization
 
     Attributes:
-        searxng_base_url (str): Base URL for the SearxNG instance.
-        threshold (float): Minimum score threshold for filtering search results.
-        headers (Optional[Dict[str, str]]): HTTP headers for requests.
-        client (httpx.Client): HTTP client for making requests.
+        searxng_base_url (str): Base URL for the SearxNG instance (e.g. "http://localhost:8080").
+        timeout (float): Timeout for HTTP requests in seconds. Default is 10.
+        headers (Dict[str, str], Optional): HTTP headers for requests.
+
+    Examples:
+        >>> from toolregistry.hub.websearch_searxng import WebSearchSearxng
+        >>> searcher = WebSearchSearxng("http://localhost:8080")
+        >>> results = searcher.search("python web scraping", number_of_results=3)
+        >>> for result in results:
+        ...     print(result["title"])
     """
 
     @staticmethod
@@ -175,9 +189,7 @@ class WebSearchSearxng:
     def __init__(
         self,
         searxng_base_url: str,
-        threshold: float = 0.2,
         timeout: float = 10.0,
-        max_connections: int = 10,
         headers: Optional[Dict[str, str]] = None,
     ):
         """Initialize WebSearchSearxng with configuration parameters."""
@@ -185,31 +197,45 @@ class WebSearchSearxng:
         if not self.searxng_base_url.endswith("/search"):
             self.searxng_base_url += "/search"  # Ensure the URL ends with /search
 
-        self.threshold = threshold
         self._httpx_client_config = {
             "headers": headers
             or {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
             },
-            "limits": httpx.Limits(
-                max_connections=max_connections, max_keepalive_connections=20
-            ),
             "timeout": httpx.Timeout(timeout, connect=5.0),
         }
 
-    def search(self, query: str, number_of_results: int = 5) -> List[Dict[str, str]]:
+    def search(
+        self,
+        query: str,
+        number_of_results: int = 5,
+        threshold: float = 0.2,
+        timeout: float = None,
+    ) -> List[Dict[str, str]]:
         """Perform search and return results.
 
         Args:
-            query (str): The search query.
+            query (str): The search query. Boolean operators like AND, OR, NOT can be used if needed.
             number_of_results (int, optional): The maximum number of results to return. Defaults to 5.
+            threshold (float, optional): Minimum score threshold for results. Defaults to 0.2.
+            timeout (float, optional): Request timeout in seconds, overrides the default value set in the constructor. Defaults to None. Usually not needed.
 
         Returns:
-            List[Dict[str, str]]: A list of enriched search results.
+            List[Dict[str, str]]: A list of enriched search results. Each dictionary contains:
+                - 'title': The title of the search result.
+                - 'url': The URL of the search result.
+                - 'content': The content of the search result.
+                - 'excerpt': The excerpt of the search result.
         """
+        if timeout is not None:
+            _client_config = self._httpx_client_config.copy()
+            _client_config["timeout"] = httpx.Timeout(timeout, connect=5.0)
+        else:
+            _client_config = self._httpx_client_config
+
         params = {"q": query, "format": "json"}
         try:
-            with httpx.Client(**self._httpx_client_config) as client:
+            with httpx.Client(**_client_config) as client:
                 response = client.get(
                     self.searxng_base_url,
                     params=params,
@@ -218,7 +244,7 @@ class WebSearchSearxng:
                 results = response.json().get("results", [])
 
             filtered_results = [
-                entry for entry in results if entry.get("score", 0) >= self.threshold
+                entry for entry in results if entry.get("score", 0) >= threshold
             ]
             filtered_results.sort(key=lambda x: x.get("score", 0), reverse=True)
             if len(filtered_results) > number_of_results:
