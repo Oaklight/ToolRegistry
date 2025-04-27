@@ -16,3 +16,4 @@ Submodules
    toolregistry.hub.file_ops
    toolregistry.hub.filesystem
    toolregistry.hub.unit_converter
+   toolregistry.hub.websearch_searxng
