@@ -16,7 +16,13 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-dependencies = ["pydantic>=1.5.1", "deprecated>=1.2.18", "dill>=0.4.0"]
+dependencies = [
+    "pydantic>=1.5.1",
+    "loguru>=0.6.0",
+    "deprecated>=1.2.18",
+    "dill>=0.4.0",
+    "httpx>=0.28.1",
+]
 
 [project.optional-dependencies]
 mcp = ["mcp>=1.6.0"] # Add mcp optional dependencies here
@@ -24,7 +30,6 @@ openapi = [
     "prance>=23.6.21.0",
     "openapi-spec-validator>=0.7.1",
     "PyYAML>=6.0.2",
-    "httpx>=0.28.1",
 ] # Add openapi optional dependencies here
 
 [project.urls]
