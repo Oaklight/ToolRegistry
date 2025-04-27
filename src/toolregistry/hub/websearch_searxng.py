@@ -2,7 +2,7 @@ import atexit
 import re
 import unicodedata
 from concurrent.futures import ProcessPoolExecutor
-from typing import List, Literal, Optional
+from typing import Dict, List, Literal, Optional
 
 import httpx
 from bs4 import BeautifulSoup
@@ -25,16 +25,37 @@ class _WebSearchSearxngEntry(BaseModel):
 
 
 class WebSearchSearxng:
-    """WebSearchSearxng provides a unified interface for performing web searches and processing results."""
+    """WebSearchSearxng provides a unified interface for performing web searches and processing results.
+
+    Attributes:
+        searxng_base_url (str): Base URL for the SearxNG instance.
+        threshold (float): Minimum score threshold for filtering search results.
+        headers (Optional[Dict[str, str]]): HTTP headers for requests.
+        client (httpx.Client): HTTP client for making requests.
+    """
 
     @staticmethod
     def _remove_emojis(text: str) -> str:
-        """Remove emoji expressions from text"""
+        """Remove emoji expressions from text.
+
+        Args:
+            text (str): The input text.
+
+        Returns:
+            str: Text with emojis removed.
+        """
         return "".join(c for c in text if not unicodedata.category(c).startswith("So"))
 
     @staticmethod
     def _format_text(text: str) -> str:
-        """Format text content"""
+        """Format text content.
+
+        Args:
+            text (str): The input text.
+
+        Returns:
+            str: Formatted text.
+        """
         text = unicodedata.normalize("NFKC", text)
         text = re.sub(r"[^\S\n]+", " ", text)
         text = re.sub(r"\n+", "\n", text)
@@ -46,7 +67,15 @@ class WebSearchSearxng:
     def _get_content_with_jina_reader(
         url: str, return_format: Literal["markdown", "text", "html"] = "text"
     ) -> str:
-        """Fetch parsed content from Jina AI for a given URL."""
+        """Fetch parsed content from Jina AI for a given URL.
+
+        Args:
+            url (str): The URL to fetch content from.
+            return_format (Literal["markdown", "text", "html"], optional): The format of the returned content. Defaults to "text".
+
+        Returns:
+            str: Parsed content from Jina AI.
+        """
         try:
             headers = {
                 "X-Return-Format": return_format,
@@ -66,7 +95,14 @@ class WebSearchSearxng:
 
     @staticmethod
     def _get_content_with_bs4(url: str) -> str:
-        """Utilizes BeautifulSoup to fetch and parse the content of a webpage."""
+        """Utilizes BeautifulSoup to fetch and parse the content of a webpage.
+
+        Args:
+            url (str): The URL of the webpage.
+
+        Returns:
+            str: Parsed text content of the webpage.
+        """
         try:
             headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
@@ -94,7 +130,14 @@ class WebSearchSearxng:
 
     @staticmethod
     def _fetch_webpage_content(entry: _WebSearchSearxngEntry) -> dict:
-        """Retrieve complete webpage content from search result entry."""
+        """Retrieve complete webpage content from search result entry.
+
+        Args:
+            entry (_WebSearchSearxngEntry): The search result entry.
+
+        Returns:
+            Dict[str, str]: A dictionary containing the title, URL, content, and excerpt of the webpage.
+        """
         UNABLE_TO_FETCH_CONTENT = "Unable to fetch content"
         UNABLE_TO_FETCH_TITLE = "Unable to fetch title"
 
@@ -136,7 +179,7 @@ class WebSearchSearxng:
         threshold: float = 0.2,
         timeout: float = 10.0,
         max_connections: int = 10,
-        headers: Optional[dict] = None,
+        headers: Optional[Dict[str, str]] = None,
     ):
         """Initialize WebSearchSearxng with configuration parameters."""
         self.searxng_base_url = searxng_base_url.rstrip("/")
@@ -157,12 +200,20 @@ class WebSearchSearxng:
         atexit.register(self._shutdown_client)
 
     def _shutdown_client(self):
-        """Close the httpx client"""
+        """Close the httpx client."""
         if hasattr(self, "client"):
             self.client.close()
 
-    def search(self, query: str, number_of_results: int = 5):
-        """Perform search and return results"""
+    def search(self, query: str, number_of_results: int = 5) -> List[Dict[str, str]]:
+        """Perform search and return results.
+
+        Args:
+            query (str): The search query.
+            number_of_results (int, optional): The maximum number of results to return. Defaults to 5.
+
+        Returns:
+            List[Dict[str, str]]: A list of enriched search results.
+        """
         params = {"q": query, "format": "json"}
         try:
             response = self.client.get(
