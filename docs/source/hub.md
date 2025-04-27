@@ -130,61 +130,35 @@ For latest list of predefined tools, please check out [**latest available**](htt
    - Radiation: gray, sievert
    - Light intensity: lux, lumen
 
-5. **WebSearchSearxng** - Web search functionality powered by SearxNG
+5. **WebSearchSearxng** - Web search and content extraction via SearxNG
 
-   Provides a unified interface for performing web searches and processing results through a SearxNG instance. It handles search queries, result filtering, and content extraction with the following features:
+    Provides web search (`search`) and content extraction (`extract`) functionality through a SearxNG instance.
+    Configuration:
+    - `searxng_base_url`: URL of SearxNG instance (e.g. "<http://localhost:8080>")
+    - `timeout`: Request timeout in seconds (default: 10.0)
 
-   - Performs web searches using SearxNG instance
-   - Filters results by relevance score threshold
-   - Extracts and cleans webpage content using multiple methods (BeautifulSoup/Jina Reader)
-   - Parallel processing of result fetching
-   - Automatic emoji removal and text normalization
-   - Built-in error handling and logging
+    Note: the searxng instance needs to enable `json` format in `settings.yml`:
 
-   Configuration parameters:
-   - `searxng_base_url`: URL of the SearxNG instance (e.g. "<http://localhost:8080>")
-   - `timeout`: Request timeout in seconds (default: 10.0)
-   - `headers`: Optional custom HTTP headers for requests
+    ```yaml
+    search:
+        formats:
+            - html
+            - json # add this line
+    ```
 
-   Main method: `search(query, number_of_results=5, threshold=0.2, timeout=None)`
-   - `query`: Search query string (supports boolean operators)
-   - `number_of_results`: Maximum results to return (default: 5)
-   - `threshold`: Minimum score threshold (0.0-1.0) for filtering results (default: 0.2)
-   - `timeout`: Optional override for request timeout (default: None)
+    Example:
 
-   Returns list of enriched search results with:
-   - `title`: The title of the search result
-   - `url`: The URL of the search result
-   - `content`: The full content of the webpage (formatted and cleaned)
-   - `excerpt`: The excerpt/summary from search results
+    ```python
+    from toolregistry.hub import WebSearchSearxng
 
-   Example usage:
-
-   ```python
-   from toolregistry.hub import WebSearchSearxng
-
-   # Initialize with SearxNG instance URL
-   search_tool = WebSearchSearxng(
-       searxng_base_url="http://localhost:8080",
-       timeout=15.0
-   )
-   
-   # Perform search with custom parameters
-   results = search_tool.search(
-       query="Python web scraping tutorial",
-       number_of_results=3,
-       threshold=0.3
-   )
-   
-   # Process results
-   for idx, result in enumerate(results, 1):
-       print(f"Result {idx}:")
-       print(f"Title: {result['title']}")
-       print(f"URL: {result['url']}")
-       print("Content preview:")
-       print(result['content'][:200] + "...")  # Print first 200 chars
-       print("-" * 50)
-   ```
+    tool = WebSearchSearxng(searxng_base_url="http://localhost:8080")
+    
+    # Search the web
+    results = tool.search(query="Python web scraping", number_of_results=3)
+    
+    # Extract content from URLs
+    extracted = tool.extract(url=results[0]['url'])
+    ```
 
 ## Registering Hub Tools
 
