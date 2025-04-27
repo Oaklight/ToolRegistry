@@ -5,6 +5,7 @@ from typing import Dict, List, Literal, Optional
 
 import httpx
 from bs4 import BeautifulSoup
+from loguru import logger
 from pydantic import BaseModel
 
 
@@ -85,10 +86,10 @@ class WebSearchSearxng:
             response.raise_for_status()
             return response.text
         except httpx.HTTPStatusError as e:
-            print(f"HTTP Error [{e.response.status_code}]: {e}")
+            logger.debug(f"HTTP Error [{e.response.status_code}]: {e}")
             return ""
         except Exception as e:
-            print(f"Other error: {e}")
+            logger.debug(f"Other error: {e}")
             return ""
 
     @staticmethod
@@ -120,10 +121,10 @@ class WebSearchSearxng:
                 return ""
             return content_source.get_text(separator=" ", strip=True)
         except httpx.HTTPStatusError as e:
-            print(f"HTTP Error [{e.response.status_code}]: {e}")
+            logger.debug(f"HTTP Error [{e.response.status_code}]: {e}")
             return ""
         except Exception as e:
-            print(f"Error parsing webpage content: {e}")
+            logger.debug(f"Error parsing webpage content: {e}")
             return ""
 
     @staticmethod
@@ -163,7 +164,7 @@ class WebSearchSearxng:
                 "excerpt": entry["content"],
             }
         except Exception as e:
-            print(f"Error retrieving webpage content: {e}")
+            logger.debug(f"Error retrieving webpage content: {e}")
             return {
                 "title": entry.get("title", UNABLE_TO_FETCH_TITLE),
                 "url": entry["url"],
@@ -232,10 +233,10 @@ class WebSearchSearxng:
                 )
             return enriched_results
         except httpx.RequestError as e:
-            print(f"Request error: {e}")
+            logger.debug(f"Request error: {e}")
             return []
         except httpx.HTTPStatusError as e:
-            print(f"HTTP error: {e.response.status_code}")
+            logger.debug(f"HTTP error: {e.response.status_code}")
             return []
 
 
