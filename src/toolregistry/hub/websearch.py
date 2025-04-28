@@ -1,8 +1,7 @@
 import re
 import unicodedata
 from abc import ABC, abstractmethod
-from concurrent.futures import ProcessPoolExecutor
-from typing import Dict, List, Literal, Optional
+from typing import Literal, Optional
 
 import httpx
 from bs4 import BeautifulSoup
@@ -31,7 +30,7 @@ class WebSearchGeneral(ABC):
         query: str,
         number_results: int = 5,
         threshold: float = 0.2,
-        timeout: float = None,
+        timeout: Optional[float] = None,
     ) -> list:
         """Perform search and return results.
         Args:
