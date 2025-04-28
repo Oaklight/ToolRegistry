@@ -2,12 +2,10 @@ from concurrent.futures import ProcessPoolExecutor
 from typing import Dict, List, Optional
 
 import httpx
-from fake_useragent import UserAgent
 from loguru import logger
 
-from .websearch import TIMEOUT_DEFAULT, WebSearchGeneral
+from .websearch import TIMEOUT_DEFAULT, HEADERS_DEFAULT, WebSearchGeneral
 
-HEADERS_DEFAULT = {"User-Agent": UserAgent(platforms="mobile").random}
 
 
 class _WebSearchEntrySearxNG(dict):
