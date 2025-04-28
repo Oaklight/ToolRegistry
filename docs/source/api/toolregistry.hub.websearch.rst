@@ -1,0 +1,17 @@
+toolregistry.hub.websearch package
+==================================
+
+.. automodule:: toolregistry.hub.websearch
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 4
+
+   toolregistry.hub.websearch.websearch
+   toolregistry.hub.websearch.websearch_google
+   toolregistry.hub.websearch.websearch_searxng
