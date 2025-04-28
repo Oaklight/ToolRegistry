@@ -1,19 +1,13 @@
-import re
-import unicodedata
 from concurrent.futures import ProcessPoolExecutor
-from typing import Dict, List, Literal, Optional
+from typing import Dict, List, Optional
 
 import httpx
-from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
 from loguru import logger
 
-from .websearch import WebSearchGeneral
+from .websearch import TIMEOUT_DEFAULT, WebSearchGeneral
 
-_UNABLE_TO_FETCH_CONTENT = "Unable to fetch content"
-_UNABLE_TO_FETCH_TITLE = "Unable to fetch title"
 HEADERS_DEFAULT = {"User-Agent": UserAgent(platforms="mobile").random}
-TIMEOUT_DEFAULT = 10.0
 
 
 class _WebSearchEntrySearxNG(dict):
@@ -69,11 +63,7 @@ class WebSearchSearxng(WebSearchGeneral):
         if not self.searxng_base_url.endswith("/search"):
             self.searxng_base_url += "/search"  # Ensure the URL ends with /search
 
-        self.proxy: Optional[Dict[str, str]] = (
-            {"https": proxy, "http": proxy}
-            if proxy and (proxy.startswith("https") or proxy.startswith("http"))
-            else None
-        )
+        self.proxy: Optional[str] = proxy if proxy else None
 
     def search(
         self,
@@ -129,8 +119,8 @@ class WebSearchSearxng(WebSearchGeneral):
     def _meta_search_searxng(
         query,
         num_results=10,
-        proxy: Optional[Dict[str, str]] = None,
-        timeout: float = 5,
+        proxy: Optional[str] = None,
+        timeout: Optional[float] = 5,
         searxng_base_url: str = "http://localhost:8080/search",
     ) -> List[_WebSearchEntrySearxNG]:
         """

@@ -1,5 +1,3 @@
-"""googlesearch is a Python library for searching Google, easily."""
-
 import random
 from concurrent.futures import ProcessPoolExecutor
 from time import sleep
@@ -79,11 +77,7 @@ class WebSearchGoogle(WebSearchGeneral):
         if not self.google_base_url.endswith("/search"):
             self.google_base_url += "/search"  # Ensure the URL ends with /search
 
-        self.proxy: Optional[Dict[str, str]] = (
-            {"https": proxy, "http": proxy}
-            if proxy and (proxy.startswith("https") or proxy.startswith("http"))
-            else None
-        )
+        self.proxy: Optional[str] = proxy if proxy else None
 
     def search(
         self,
@@ -137,7 +131,7 @@ class WebSearchGoogle(WebSearchGeneral):
     def _meta_search_google(
         query,
         num_results=10,
-        proxy: Optional[Dict[str, str]] = None,
+        proxy: Optional[str] = None,
         sleep_interval: float = 0,
         timeout: float = 5,
         start_num: int = 0,
@@ -146,7 +140,7 @@ class WebSearchGoogle(WebSearchGeneral):
         """Search the Google search engine"""
         results = []
         fetched_results = 0
-        fetched_links = set()
+        fetched_links: set[str] = set()
 
         # Create a persistent client with connection pooling
         with httpx.Client(
@@ -191,7 +185,7 @@ class WebSearchGoogle(WebSearchGeneral):
 
     @staticmethod
     def _parse_google_entries(
-        html: str, fetched_links: set, num_results: int
+        html: str, fetched_links: set[str], num_results: int
     ) -> Generator[_WebSearchEntryGoogle, None, None]:
         """Parse HTML content from Google search results."""
         soup = BeautifulSoup(html, "html.parser")
@@ -202,27 +196,39 @@ class WebSearchGoogle(WebSearchGeneral):
             if new_results >= num_results:
                 break
 
+            # Skip non-Tag elements
+            if not hasattr(result, "find"):
+                continue
+
             link_tag = result.find("a", href=True)
-            title_tag = link_tag.find("span", class_="CVA68e") if link_tag else None
+            # Skip non-Tag elements
+            if not link_tag or not hasattr(link_tag, "find"):
+                continue
+
+            title_tag = link_tag.find("span", class_="CVA68e")
             description_tag = result.find("span", class_="FrIlee")
 
             if not (link_tag and title_tag and description_tag):
                 continue
 
-            link = unquote(link_tag["href"].split("&")[0].replace("/url?q=", ""))
-            if link in fetched_links:
+            try:
+                link = unquote(link_tag["href"].split("&")[0].replace("/url?q=", ""))
+                if link in fetched_links:
+                    continue
+
+                fetched_links.add(link)
+                title = title_tag.text if title_tag else ""
+                description = description_tag.text if description_tag else ""
+                new_results += 1
+
+                yield _WebSearchEntryGoogle(
+                    title=title,
+                    url=link,
+                    content=description,
+                )
+            except (AttributeError, KeyError, TypeError) as e:
+                logger.debug(f"Error parsing search result: {e}")
                 continue
-
-            fetched_links.add(link)
-            title = title_tag.text if title_tag else ""
-            description = description_tag.text if description_tag else ""
-            new_results += 1
-
-            yield _WebSearchEntryGoogle(
-                title=title,
-                url=link,
-                content=description,
-            )
 
 
 if __name__ == "__main__":
