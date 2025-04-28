@@ -153,7 +153,7 @@ Examples of available hub tools include:
 - **FileOps**: File manipulation operations like diff generation, patching, and verification.
 - **Filesystem**: Comprehensive file system operations such as directory listing, file reading/writing, and path manipulation.
 - **UnitConverter**: Extensive unit conversion tools for temperature, length, weight, and more.
-- **WebSearchSearxng**: Web search functionality using Searxng search engine.
+- **WebSearch**: Web search functionality supporting multiple search engines including SearxNG and Google.
 
 To register hub tools:
 
