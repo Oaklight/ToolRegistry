@@ -1,7 +1,7 @@
 import random
 from concurrent.futures import ProcessPoolExecutor
 from time import sleep
-from typing import Dict, Generator, List, Optional
+from typing import Dict, Generator, List, Optional, Set
 from urllib.parse import unquote  # to decode the url
 
 import httpx
@@ -140,7 +140,7 @@ class WebSearchGoogle(WebSearchGeneral):
         """Search the Google search engine"""
         results = []
         fetched_results = 0
-        fetched_links: set[str] = set()
+        fetched_links: Set[str] = set()
 
         # Create a persistent client with connection pooling
         with httpx.Client(
@@ -185,7 +185,7 @@ class WebSearchGoogle(WebSearchGeneral):
 
     @staticmethod
     def _parse_google_entries(
-        html: str, fetched_links: set[str], num_results: int
+        html: str, fetched_links: Set[str], num_results: int
     ) -> Generator[_WebSearchEntryGoogle, None, None]:
         """Parse HTML content from Google search results."""
         soup = BeautifulSoup(html, "html.parser")

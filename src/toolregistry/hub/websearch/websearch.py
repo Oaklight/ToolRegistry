@@ -1,17 +1,32 @@
 import re
+import sys
 import unicodedata
 from abc import ABC, abstractmethod
 from typing import Literal, Optional
 
 import httpx
 from bs4 import BeautifulSoup
-from fake_useragent import UserAgent
 from loguru import logger
 
 _UNABLE_TO_FETCH_CONTENT = "Unable to fetch content"
 _UNABLE_TO_FETCH_TITLE = "Unable to fetch title"
-HEADERS_DEFAULT = {"User-Agent": UserAgent(platforms="mobile").random}
+
+if sys.version_info < (3, 9):
+    HEADERS_DEFAULT = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 Edg/122.0.0.0"
+    }
+else:
+    from fake_useragent import UserAgent
+
+    HEADERS_DEFAULT = {
+        "User-Agent": (
+            UserAgent(platforms="mobile").random
+            if sys.version_info >= (3, 9)
+            else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 Edg/122.0.0.0"
+        )
+    }
 TIMEOUT_DEFAULT = 10.0
+
 
 
 class _WebSearchEntryGeneral(dict):
