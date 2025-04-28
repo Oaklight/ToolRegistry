@@ -13,12 +13,9 @@ Example:
     ['MyClass.method1', 'MyClass.method2', ...]
 """
 
-from typing import Type, Union
+from typing import Optional, Type, Union
 
 from .tool_registry import ToolRegistry
-
-
-from typing import Type, Optional, Union, Protocol, Callable
 
 
 def _is_all_static_methods(cls: Type) -> bool:
