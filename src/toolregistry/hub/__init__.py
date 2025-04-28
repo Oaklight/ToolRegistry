@@ -20,12 +20,14 @@ from .calculator import Calculator
 from .file_ops import FileOps
 from .filesystem import FileSystem
 from .unit_converter import UnitConverter
-from .websearch_searxng import WebSearchSearxng
+from .websearch.websearch_google import WebSearchGoogle
+from .websearch.websearch_searxng import WebSearchSearxng
 
 __all__ = [
     "Calculator",
     "FileSystem",
     "FileOps",
     "UnitConverter",
+    "WebSearchGoogle",
     "WebSearchSearxng",
 ]
