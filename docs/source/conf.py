@@ -10,7 +10,7 @@ project = "ToolRegistry"
 copyright = "2024-2025, Peng Ding"
 author = "Peng Ding"
 html_title = "ToolRegistry"
-release = "0.4.6.post1"
+release = "0.4.6.post2"
 
 import os
 import sys
