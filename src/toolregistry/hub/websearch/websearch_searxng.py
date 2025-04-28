@@ -4,8 +4,7 @@ from typing import Dict, List, Optional
 import httpx
 from loguru import logger
 
-from .websearch import TIMEOUT_DEFAULT, HEADERS_DEFAULT, WebSearchGeneral
-
+from .websearch import HEADERS_DEFAULT, TIMEOUT_DEFAULT, WebSearchGeneral
 
 
 class _WebSearchEntrySearxNG(dict):
@@ -38,11 +37,6 @@ class WebSearchSearxng(WebSearchGeneral):
     - Parallel processing of result fetching
     - Automatic emoji removal and text normalization
 
-    Attributes:
-        searxng_base_url (str): Base URL for the SearxNG instance (e.g. "http://localhost:8080").
-        timeout (float): Timeout for HTTP requests in seconds. Default is 10.
-        headers (Dict[str, str], Optional): HTTP headers for requests.
-
     Examples:
         >>> from toolregistry.hub.websearch_searxng import WebSearchSearxng
         >>> searcher = WebSearchSearxng("http://localhost:8080")
@@ -56,7 +50,11 @@ class WebSearchSearxng(WebSearchGeneral):
         searxng_base_url: str,
         proxy: Optional[str] = None,
     ):
-        """Initialize WebSearchSearxng with configuration parameters."""
+        """Initialize WebSearchSearxng with configuration parameters.
+        Args:
+           searxng_base_url (str): Base URL for the SearxNG instance (e.g. "http://localhost:8080").
+           proxy (Optional[str]): Proxy URL for HTTP requests.
+        """
         self.searxng_base_url: str = searxng_base_url.rstrip("/")
         if not self.searxng_base_url.endswith("/search"):
             self.searxng_base_url += "/search"  # Ensure the URL ends with /search

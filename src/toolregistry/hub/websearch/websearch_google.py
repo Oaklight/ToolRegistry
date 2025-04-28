@@ -69,9 +69,8 @@ class WebSearchGoogle(WebSearchGeneral):
         """Initialize WebSearchGoogle with configuration parameters.
 
         Args:
+            google_base_url (str): Base URL for the Google search. Defaults to "https://www.google.com".
             proxy: Optional proxy server URL (e.g. "http://proxy.example.com:8080")
-            region: Optional region code for localized results (e.g. "us" for United States)
-            timeout: Request timeout in seconds. Default is 5.0.
         """
         self.google_base_url = google_base_url.rstrip("/")
         if not self.google_base_url.endswith("/search"):
