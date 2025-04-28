@@ -1,18 +1,29 @@
-import json
+import argparse
 import os
-from pprint import pprint
 
-# pip install cicada-agent
 from cicada.core.model import MultiModalModel
 from cicada.core.utils import cprint
 from dotenv import load_dotenv
 
 from toolregistry import ToolRegistry
-from toolregistry.hub import WebSearchSearxng
+from toolregistry.hub import WebSearchGoogle, WebSearchSearxng
 
 # Load environment variables from .env file
 load_dotenv()
 
+parser = argparse.ArgumentParser(description="Cicada WebSearch SearxNG Example")
+parser.add_argument(
+    "--query", type=str, default="Chicago weather today", help="Search query"
+)
+parser.add_argument(
+    "--engine",
+    "-e",
+    choices=["google", "searxng"],
+    default="google",
+    help="Search engine to use",
+)
+
+args = parser.parse_args()
 
 model_name = os.getenv("MODEL", "deepseek-v3")
 stream = os.getenv("STREAM", "True").lower() == "true"
@@ -20,6 +31,7 @@ SEARXNG_URL = os.getenv("SEARXNG_URL", "http://localhost:8080")  # SearxNG实例
 
 API_KEY = os.getenv("API_KEY", "your-api-key")
 BASE_URL = os.getenv("BASE_URL", "https://api.deepseek.com/")
+
 
 llm = MultiModalModel(
     api_key=API_KEY,
@@ -30,16 +42,22 @@ llm = MultiModalModel(
 
 tool_registry = ToolRegistry()
 
-websearch_searxng = WebSearchSearxng(SEARXNG_URL)
+if args.engine == "searxng":
+    websearch = WebSearchSearxng(SEARXNG_URL)
+    cprint(f"Using SearxNG search engine at {SEARXNG_URL}")
+else:
+    websearch = WebSearchGoogle()  # Assuming there's a WebSearchGoogle class
+
+
 tool_registry.register_from_class(
-    websearch_searxng
+    websearch
 )  # Register the web search tool with the registry
 
 print(tool_registry.get_available_tools())
 
 # Example query using the web search tool
 response = llm.query(
-    "Chicago weather today",
+    args.query,
     tools=tool_registry,
     stream=llm.stream,
 )
