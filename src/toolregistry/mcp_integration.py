@@ -12,6 +12,7 @@ from mcp.types import (
     EmbeddedResource,
     ImageContent,
     InitializeResult,
+    Implementation,
     TextContent,
     TextResourceContents,
 )
@@ -47,13 +48,13 @@ class MCPToolWrapper:
             name (str): Name of the tool/operation.
             params (Optional[List[str]]): List of parameter names.
         """
-        self.transport = (
+        self.transport: ClientTransport = (
             transport
             if isinstance(transport, ClientTransport)
             else infer_transport(transport)
         )
-        self.name = name
-        self.params = params
+        self.name: str = name
+        self.params: Optional[List[str]] = params
 
     def _process_args(self, *args: Any, **kwargs: Any) -> Dict[str, Any]:
         """Process positional and keyword arguments into validated kwargs.
@@ -330,7 +331,7 @@ class MCPIntegration:
         async with transport.connect_session() as session:
             # print("Connected to server, initializing session...")
             result: InitializeResult = await session.initialize()
-            server_info = getattr(result, "serverInfo", None)
+            server_info: Optional[Implementation] = getattr(result, "serverInfo", None)
 
             if isinstance(with_namespace, str):
                 namespace = with_namespace
