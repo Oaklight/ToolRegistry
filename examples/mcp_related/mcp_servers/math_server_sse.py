@@ -7,9 +7,7 @@ package for server-side SSE (Server-Sent Events) functionality.
 from mcp.server.fastmcp import FastMCP
 
 # Create a calculator test server
-mcp = FastMCP(
-    "Calculator Test Server", sse_path="/mcp/sse", message_path="/mcp/messages/"
-)
+mcp = FastMCP("Calculator Test Server", sse_path="/sse", message_path="/mcp/messages/")
 
 
 @mcp.tool()

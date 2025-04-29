@@ -8,7 +8,7 @@ PORT = os.getenv("PORT", 8004)  # 默认端口8004，可通过环境变量覆盖
 
 registry = ToolRegistry()
 
-mcp_server_url = f"http://localhost:{PORT}/mcp/sse"
+mcp_server_url = f"http://localhost:{PORT}/sse"
 
 registry.register_from_mcp(mcp_server_url)
 print("Registered String Operations Tools:")

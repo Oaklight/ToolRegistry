@@ -9,7 +9,7 @@ PORT = os.getenv("PORT", "8000")
 
 async def str_ops_client():
     # 配置SSE服务器地址 (使用str_ops_server_sse.py)
-    url = f"http://localhost:{PORT}/mcp/sse"  # 与str_ops_server_sse.py配置一致
+    url = f"http://localhost:{PORT}/sse"  # 与str_ops_server_sse.py配置一致
 
     try:
         print(f"Connecting to String Operations SSE server at {url}")

@@ -40,7 +40,7 @@ MCP_PORT = os.getenv(
     "MCP_PORT", 8000
 )  # default MCP_PORT 8000, change via environment variable
 mcp_registry = ToolRegistry("mcp_math")
-mcp_server_url = f"http://localhost:{MCP_PORT}/mcp/sse"
+mcp_server_url = f"http://localhost:{MCP_PORT}/sse"
 mcp_registry.register_from_mcp(mcp_server_url, with_namespace=True)
 pprint(mcp_registry.get_available_tools())
 pprint(mcp_registry._sub_registries)

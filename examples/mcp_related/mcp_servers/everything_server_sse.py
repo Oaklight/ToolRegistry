@@ -48,7 +48,7 @@ class AnnotatedMessageInput(BaseModel):
     include_image: bool = Field(False, description="Include example image")
 
 
-mcp = FastMCP("Everything Server", sse_path="/mcp/sse", message_path="/mcp/messages/")
+mcp = FastMCP("Everything Server", sse_path="/sse", message_path="/mcp/messages/")
 
 
 # Echo functionality

@@ -1,7 +1,7 @@
 from mcp.server.fastmcp import FastMCP
 
 # Create a string manipulation test server
-mcp = FastMCP("String Test Server", sse_path="/mcp/sse", message_path="/mcp/messages/")
+mcp = FastMCP("String Test Server", sse_path="/sse", message_path="/mcp/messages/")
 
 
 @mcp.tool()

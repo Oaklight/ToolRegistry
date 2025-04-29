@@ -2,7 +2,7 @@ import sqlite3
 
 from mcp.server.fastmcp import FastMCP
 
-mcp = FastMCP("SQLite Explorer SSE", sse_path="/mcp/sse", message_path="/mcp/messages/")
+mcp = FastMCP("SQLite Explorer SSE", sse_path="/sse", message_path="/mcp/messages/")
 
 
 @mcp.resource("schema://main")
