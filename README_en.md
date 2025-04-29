@@ -88,14 +88,25 @@ For more usage examples, please refer to [Documentation - Usage](https://toolreg
 
 ## MCP Integration
 
-The ToolRegistry provides first-class support for MCP (Model Context Protocol) tools:
+The ToolRegistry provides first-class support for MCP (Model Context Protocol) tools with multiple transport options:
 
 ```python
-registry.register_from_mcp"http://localhost:8000/sse
+# Can be URL string, path to script, or transport instance
+transport = "http://localhost:8000/sse"
+transport = "examples/mcp_related/mcp_servers/math_server.py"
+
+registry.register_from_mcp(transport)
 
 # Get all tools JSON including MCP tools
 tools_json = registry.get_tools_json()
 ```
+
+Supported transport types:
+
+- URL string (http://, https://, ws://, wss://)
+- Path to script file (.py, .js)
+- Existing ClientTransport instance
+- FastMCPServer instance
 
 ## OpenAPI Integration
 

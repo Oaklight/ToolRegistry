@@ -91,11 +91,22 @@ print(add_result) # 9
 ToolRegistry 提供对 MCP（模型上下文协议）工具的一流支持：
 
 ```python
-registry.register_from_mcp"http://localhost:8000/sse")
+# 可以是URL字符串、脚本路径或transport实例
+transport = "http://localhost:8000/sse"
+transport = "examples/mcp_related/mcp_servers/math_server.py"
+
+registry.register_from_mcp(transport)
 
 # 获取所有工具的 JSON，包括 MCP 工具
 tools_json = registry.get_tools_json()
 ```
+
+支持的transport类型：
+
+- URL字符串 (http://, https://, ws://, wss://)
+- 脚本文件路径 (.py, .js)
+- 现有的ClientTransport实例
+- FastMCPServer实例
 
 ## OpenAPI 集成
 
@@ -150,10 +161,34 @@ Hub 工具将常用功能封装为类中的方法，以增强功能性和组织�
 可用的 Hub 工具示例包括：
 
 - **Calculator**：基本算术、科学运算、统计函数、财务计算等。
-- **FileOps**：文件操作，例如生成差异、打补丁和验证。
-- **Filesystem**：全面的文件系统操作，例如目录列表、文件读写和路径操作。
-- **UnitConverter**：广泛的单位转换工具，例如温度、长度、重量等。
-- **WebSearch**：支持多种搜索引擎（包括SearxNG和Google）的网页搜索功能。
+  - 加法、减法、乘法、除法
+  - 平方根、对数、三角函数
+  - 平均值、标准差等统计计算
+  - 复利、年金等财务计算
+  
+- **FileOps**：文件操作，例如：
+  - 生成文件差异
+  - 应用补丁文件
+  - 文件校验和验证
+  - 文件合并与分割
+
+- **Filesystem**：全面的文件系统操作，例如：
+  - 递归目录列表
+  - 文件读写操作
+  - 路径操作和规范化
+  - 文件属性查询
+
+- **UnitConverter**：广泛的单位转换工具，包括：
+  - 温度（摄氏度、华氏度、开尔文）
+  - 长度（米、英尺、英寸、英里）
+  - 重量（千克、磅、盎司）
+  - 体积（升、加仑、品脱）
+
+- **WebSearch**：网页搜索功能：
+  - 支持SearxNG和Google搜索引擎
+  - 可配置的搜索参数
+  - 结果过滤和排序
+  - 分页支持
 
 注册 Hub 工具：
 
