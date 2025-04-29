@@ -2,8 +2,8 @@ import asyncio
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 
+from fastmcp.client import Client, ClientTransport
 from fastmcp.client.transports import (
-    ClientTransport,
     FastMCPServer,
     infer_transport,
 )
@@ -11,8 +11,8 @@ from mcp.types import (
     BlobResourceContents,
     EmbeddedResource,
     ImageContent,
-    InitializeResult,
     Implementation,
+    InitializeResult,
     TextContent,
     TextResourceContents,
 )
@@ -48,7 +48,7 @@ class MCPToolWrapper:
             name (str): Name of the tool/operation.
             params (Optional[List[str]]): List of parameter names.
         """
-        self.transport: ClientTransport = (
+        self.client = Client(
             transport
             if isinstance(transport, ClientTransport)
             else infer_transport(transport)
@@ -125,13 +125,12 @@ class MCPToolWrapper:
         """
         try:
             kwargs = self._process_args(*args, **kwargs)
-            if not self.transport or not self.name:
-                raise ValueError("Transport and name must be set before calling")
+            if not self.client or not self.name:
+                raise ValueError("Client and name must be set before calling")
 
-            async with self.transport.connect_session() as session:
-                await session.initialize()
-                tools = await session.list_tools()
-                tool = next((t for t in tools.tools if t.name == self.name), None)
+            async with self.client:
+                tools = await self.client.list_tools()
+                tool = next((t for t in tools if t.name == self.name), None)
                 if not tool:
                     raise ValueError(f"Tool {self.name} not found on server")
 
@@ -140,7 +139,9 @@ class MCPToolWrapper:
                     if param_name in kwargs:
                         validated_params[param_name] = kwargs[param_name]
 
-                result = await session.call_tool(self.name, validated_params)
+                result = await self.client.call_tool(
+                    self.name, validated_params, _return_raw_result=True
+                )
                 return self._post_process_result(result)
 
         except Exception as e:
@@ -187,8 +188,12 @@ class MCPToolWrapper:
         Raises:
             NotImplementedError: If content type is not supported.
         """
-        if result.isError or not result.content:
-            return result
+        if isinstance(result, list):
+            contents = result
+        else:
+            if result.isError or not result.content:
+                return result
+            contents = result.content
 
         def process_text(content: TextContent) -> str:
             return content.text
@@ -218,7 +223,7 @@ class MCPToolWrapper:
         }
 
         processed = []
-        for content in result.content:
+        for content in contents:
             content_type = type(content)
             handler = handlers.get(content_type)
             if handler is None:
@@ -323,14 +328,14 @@ class MCPIntegration:
             RuntimeError: If connection to server fails.
         """
 
-        transport = (
+        client = Client(
             transport
             if isinstance(transport, ClientTransport)
             else infer_transport(transport)
         )
-        async with transport.connect_session() as session:
+        async with client:
             # print("Connected to server, initializing session...")
-            result: InitializeResult = await session.initialize()
+            result: InitializeResult = await client.list_tools()
             server_info: Optional[Implementation] = getattr(result, "serverInfo", None)
 
             if isinstance(with_namespace, str):
@@ -341,11 +346,11 @@ class MCPIntegration:
                 namespace = None
 
             # Get available tools from server
-            tools_response = await session.list_tools()
-            # print(f"Found {len(tools_response.tools)} tools on server")
+            tools_response = await client.list_tools()
+            # print(f"Found {len(tools_response)} tools on server")
 
             # Register each tool with a wrapper function
-            for tool_spec in tools_response.tools:
+            for tool_spec in tools_response:
                 mcp_sse_tool = MCPTool.from_tool_json(
                     name=tool_spec.name,
                     description=tool_spec.description or "",
