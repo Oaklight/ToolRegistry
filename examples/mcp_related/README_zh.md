@@ -10,7 +10,7 @@
 from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP("Server Name",
-             sse_path="/mcp/sse",
+             sse_path="/sse",
              message_path="/mcp/messages/")
 ```
 
@@ -68,7 +68,7 @@ PORT=8003 python examples/mcp_clients/sqlite_client_sse.py
 from mcp.client.sse import sse_client
 from mcp.client.session import ClientSession
 
-async with sse_client("http://localhost:8001/mcp/sse") as (read_stream, write_stream):
+async with sse_client("http://localhost:8001/sse") as (read_stream, write_stream):
     async with ClientSession(read_stream, write_stream) as session:
         await session.initialize()
 ```
@@ -115,7 +115,7 @@ print(f"Tool result: {result}")
 
 5. **连接问题**：
    - 确保服务器已启动并监听正确端口
-   - 检查 URL 路径是否正确（通常为/mcp/sse）
+   - 检查 URL 路径是否正确（通常为/sse）
 
 ## 示例代码
 

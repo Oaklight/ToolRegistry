@@ -91,7 +91,7 @@ print(add_result) # 9
 ToolRegistry 提供对 MCP（模型上下文协议）工具的一流支持：
 
 ```python
-registry.register_from_mcp"http://localhost:8000/mcp/sse")
+registry.register_from_mcp"http://localhost:8000/sse")
 
 # 获取所有工具的 JSON，包括 MCP 工具
 tools_json = registry.get_tools_json()
