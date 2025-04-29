@@ -6,10 +6,9 @@ from cicada.core.utils import cprint
 from dotenv import load_dotenv
 
 from toolregistry import ToolRegistry
-from toolregistry.hub import Calculator
 
 load_dotenv()
-MCP_PORT = os.getenv("MCP_PORT", 8000)
+PORT = os.getenv("PORT", 8000)
 
 # Initialize LLM model
 model_name = os.getenv("MODEL", "deepseek-v3")
@@ -24,24 +23,41 @@ llm = MultiModalModel(
     stream=stream,
 )
 
-spec_url = f"http://localhost:{MCP_PORT}/sse"
 # Initialize tool registry and register Calculator static methods
 tool_registry = ToolRegistry()
-tool_registry.register_from_mcp(spec_url, with_namespace=True)
-print(tool_registry.get_available_tools())
 
 input_file = "examples/hub_related/concurrent_raw_results.txt"
 
 with open(input_file) as f:
     input_content = f.read()
 
-# Example instruction to compute the averages
-instruction = f"""
-I have a few test results from multiple runs. Please use the available tools to compute the averages of the metrics for each category. 
-The input is as 
-{input_content}
-"""
+if __name__ == "__main__":
+    import argparse
 
-# Query LLM to get result
-response = llm.query(instruction, tools=tool_registry, stream=stream)
-cprint(json.dumps(response, indent=2))
+    parser = argparse.ArgumentParser(description="Process some integers.")
+    parser.add_argument(
+        "--mode", default="stdio", choices=["stdio", "sse"], help="Mode of transport"
+    )
+    args = parser.parse_args()
+
+    if args.mode == "sse":
+        # SSE
+        transport = f"http://localhost:{PORT}/sse"
+    else:
+        # stdio
+        transport = "/home/pding/projects/toolregistry/examples/mcp_related/mcp_servers/math_server.py"
+
+    tool_registry.register_from_mcp(transport, with_namespace=True)
+
+    print(tool_registry.get_available_tools())
+
+    # Example instruction to compute the averages
+    instruction = f"""
+    I have a few test results from multiple runs. Please use the available tools to compute the averages of the metrics for each category. 
+    The input is as 
+    {input_content}
+    """
+
+    # Query LLM to get result
+    response = llm.query(instruction, tools=tool_registry, stream=stream)
+    cprint(json.dumps(response, indent=2))

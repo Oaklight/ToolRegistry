@@ -57,7 +57,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--mode",
         type=str,
-        required=True,
+        default="stdio",
         choices=["stdio", "sse"],
         help="Server transport mode: stdio, sse, ws or http",
     )
