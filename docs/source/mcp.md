@@ -14,12 +14,12 @@ You can register MCP tools synchronously using the `register_from_mcp` method. F
 import os
 from toolregistry import ToolRegistry
 
-PORT = os.getenv("PORT", 8000)  # Default port is 8000; can be overridden by environment variable
 registry = ToolRegistry()
-mcp_server_url = f"http://localhost:{PORT}/sse"
+# Can be URL string, path to script, or transport instance
+transport = f"http://localhost:{os.getenv('PORT', 8000)}/sse"
 
 # Synchronously register MCP tools
-registry.register_from_mcp(mcp_server_url)
+registry.register_from_mcp(transport)
 print(registry)  # Output: A ToolRegistry object containing the registered MCP tools
 ```
 
@@ -32,12 +32,13 @@ import asyncio
 import os
 from toolregistry import ToolRegistry
 
-PORT = os.getenv("PORT", 8000)
 registry = ToolRegistry()
-mcp_server_url = f"http://localhost:{PORT}/sse"
+# Can be URL string, path to script, or transport instance
+transport = f"http://localhost:{os.getenv('PORT', 8000)}/sse" # can be SSE url
+transport = "examples/mcp_related/mcp_servers/math_server.py" # can be path to script
 
 async def async_register():
-    await registry.register_from_mcp_async(mcp_server_url)
+    await registry.register_from_mcp_async(transport)
     # Optional: Use pprint to display the registered tools information
     # from pprint import pprint
     # pprint(registry)
@@ -98,6 +99,15 @@ async def call_async_add_tool():
 
 asyncio.run(call_async_add_tool())
 ```
+
+## Supported Transport Types
+
+The MCP integration supports multiple transport types:
+
+- URL string (http://, https://, ws://, wss://)
+- Path to script file (.py, .js)
+- Existing ClientTransport instance
+- FastMCPServer instance
 
 ## Notes
 
