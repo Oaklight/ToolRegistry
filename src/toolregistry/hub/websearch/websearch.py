@@ -18,13 +18,7 @@ if sys.version_info < (3, 9):
 else:
     from fake_useragent import UserAgent
 
-    HEADERS_DEFAULT = {
-        "User-Agent": (
-            UserAgent(platforms="mobile").random
-            if sys.version_info >= (3, 9)
-            else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 Edg/122.0.0.0"
-        )
-    }
+    HEADERS_DEFAULT = {"User-Agent": (UserAgent(platforms="mobile").random)}
 TIMEOUT_DEFAULT = 10.0
 
 
