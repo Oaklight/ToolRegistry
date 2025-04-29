@@ -5,10 +5,10 @@ PACKAGE_NAME := cicada
 DIST_DIR := dist
 
 # Default target
-all: build
+all: build push clean
 
 # Build the package
-build:
+build: clean
 	@echo "Building $(PACKAGE_NAME) version ..."
 	python -m build
 	@echo "Build complete. Distribution files are in $(DIST_DIR)/"
