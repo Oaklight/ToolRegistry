@@ -1,3 +1,9 @@
+"""Math server using `mcp.server.fastmcp` package.
+
+This module implements a math server that uses the mcp.server.fastmcp
+package for server-side SSE (Server-Sent Events) functionality.
+"""
+
 from mcp.server.fastmcp import FastMCP
 
 # Create a calculator test server
