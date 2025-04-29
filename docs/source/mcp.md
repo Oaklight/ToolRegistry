@@ -4,6 +4,15 @@
 
 This guide explains how to integrate MCP (Modular Component Protocol) with ToolRegistry, allowing you to register and call tools from an MCP server. To simplify the developer's work, this guide provides examples for both synchronous and asynchronous calls, using a math service as a demonstration.
 
+## Supported Transport Types
+
+The MCP integration supports multiple transport types:
+
+- URL string (http://, https://, ws://, wss://)
+- Path to script file (.py, .js)
+- Existing ClientTransport instance
+- FastMCPServer instance
+
 ## MCP Tool Registration
 
 ### Synchronous Registration
@@ -16,7 +25,8 @@ from toolregistry import ToolRegistry
 
 registry = ToolRegistry()
 # Can be URL string, path to script, or transport instance
-transport = f"http://localhost:{os.getenv('PORT', 8000)}/sse"
+transport = f"http://localhost:{os.getenv('PORT', 8000)}/sse" # can be SSE url
+transport = "examples/mcp_related/mcp_servers/math_server.py" # can be path to script
 
 # Synchronously register MCP tools
 registry.register_from_mcp(transport)
@@ -99,15 +109,6 @@ async def call_async_add_tool():
 
 asyncio.run(call_async_add_tool())
 ```
-
-## Supported Transport Types
-
-The MCP integration supports multiple transport types:
-
-- URL string (http://, https://, ws://, wss://)
-- Path to script file (.py, .js)
-- Existing ClientTransport instance
-- FastMCPServer instance
 
 ## Notes
 
