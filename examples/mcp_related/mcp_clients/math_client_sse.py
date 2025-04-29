@@ -1,3 +1,9 @@
+"""Client test file using `mcp` package directly.
+
+This module demonstrates client-side usage of the MCP protocol by directly
+interacting with the `mcp` package for math operations.
+"""
+
 import asyncio
 import os
 
