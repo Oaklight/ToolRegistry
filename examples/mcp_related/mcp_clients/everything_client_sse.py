@@ -9,7 +9,7 @@ PORT = os.getenv("PORT", "8000")
 
 async def everything_client():
     # 配置SSE服务器地址 (使用everything_server_sse.py)
-    url = f"http://localhost:{PORT}/mcp/sse"  # 与everything_server_sse.py配置一致
+    url = f"http://localhost:{PORT}/sse"  # 与everything_server_sse.py配置一致
 
     try:
         print(f"Connecting to SSE server at {url}")

@@ -24,7 +24,7 @@ llm = MultiModalModel(
     stream=stream,
 )
 
-spec_url = f"http://localhost:{MCP_PORT}/mcp/sse"
+spec_url = f"http://localhost:{MCP_PORT}/sse"
 # Initialize tool registry and register Calculator static methods
 tool_registry = ToolRegistry()
 tool_registry.register_from_mcp(spec_url, with_namespace=True)

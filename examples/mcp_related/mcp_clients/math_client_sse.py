@@ -15,7 +15,7 @@ PORT = os.getenv("PORT", "8000")
 
 async def math_client():
     # 配置SSE服务器地址 (使用math_server_sse.py)
-    url = f"http://localhost:{PORT}/mcp/sse"  # 与math_server_sse.py配置一致
+    url = f"http://localhost:{PORT}/sse"  # 与math_server_sse.py配置一致
 
     try:
         print(f"Connecting to Math SSE server at {url}")

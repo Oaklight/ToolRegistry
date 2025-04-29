@@ -201,9 +201,7 @@ def main():
     registry = ToolRegistry()
 
     MCP_PORT = os.getenv("MCP_PORT", 8001)
-    registry.register_from_mcp(
-        f"http://localhost:{MCP_PORT}/mcp/sse", with_namespace=True
-    )
+    registry.register_from_mcp(f"http://localhost:{MCP_PORT}/sse", with_namespace=True)
     # print(registry.get_available_tools())
     if FUNC:
         target_func_name = [

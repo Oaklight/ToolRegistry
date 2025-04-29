@@ -1,6 +1,6 @@
 from mcp.server.fastmcp import FastMCP
 
-mcp = FastMCP("Echo SSE", sse_path="/mcp/sse", message_path="/mcp/messages/")
+mcp = FastMCP("Echo SSE", sse_path="/sse", message_path="/mcp/messages/")
 
 
 @mcp.resource("echo://{message}")

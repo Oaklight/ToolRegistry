@@ -8,7 +8,7 @@ PORT = os.getenv("PORT", 8000)  # default port 8000, change via environment vari
 
 registry = ToolRegistry()
 
-mcp_server_url = f"http://localhost:{PORT}/mcp/sse"
+mcp_server_url = f"http://localhost:{PORT}/sse"
 
 registry.register_from_mcp(mcp_server_url)
 print("Registered Tools:")
