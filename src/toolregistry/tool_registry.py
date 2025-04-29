@@ -4,10 +4,12 @@ import json
 import random
 import string
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Literal, Optional, Set, Tuple, Type, Union
 
 import dill  # type: ignore
 from deprecated import deprecated  # type: ignore
+from fastmcp.client.transports import ClientTransport, FastMCPServer
 from loguru import logger
 
 from .tool import Tool
@@ -332,7 +334,7 @@ class ToolRegistry:
 
     def register_from_mcp(
         self,
-        server_url: str,
+        transport: str | Path | ClientTransport | FastMCPServer,
         with_namespace: Union[bool, str] = False,
     ):
         """Register all tools from an MCP server (synchronous entry point).
@@ -340,7 +342,25 @@ class ToolRegistry:
         Requires the [mcp] extra to be installed.
 
         Args:
-            server_url (str): URL of the MCP server.
+            transport (str | Path | ClientTransport | FastMCPServer): Can be:
+                - URL string (http(s)://, ws(s)://)
+                - Path to script file (.py, .js)
+                - Existing ClientTransport instance
+                - FastMCPServer instance
+
+        Examples:
+            >>> # In-memory server
+            >>> server = FastMCPServer(name="TestServer")
+            >>> registry.register_from_mcp(server)
+
+            >>> # SSE server URL
+            >>> registry.register_from_mcp("http://localhost:8000/sse")
+
+            >>> # WebSocket server URL
+            >>> registry.register_from_mcp("ws://localhost:9000")
+
+            >>> # Path to Python server script
+            >>> registry.register_from_mcp("my_mcp_server.py")
             with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
                 - If `False`, no namespace is used.
                 - If `True`, the namespace is derived from the OpenAPI info.title.
@@ -354,7 +374,7 @@ class ToolRegistry:
             from .mcp_integration import MCPIntegration
 
             mcp = MCPIntegration(self)
-            return mcp.register_mcp_tools(server_url, with_namespace)
+            return mcp.register_mcp_tools(transport, with_namespace)
         except ImportError:
             raise ImportError(
                 "MCP integration requires the [mcp] extra. "
@@ -363,7 +383,7 @@ class ToolRegistry:
 
     async def register_from_mcp_async(
         self,
-        server_url: str,
+        transport: str | Path | ClientTransport | FastMCPServer,
         with_namespace: Union[bool, str] = False,
     ):
         """Async implementation to register all tools from an MCP server.
@@ -371,7 +391,26 @@ class ToolRegistry:
         Requires the [mcp] extra to be installed.
 
         Args:
-            server_url (str): URL of the MCP server.
+            transport (str | Path | ClientTransport | FastMCPServer): Can be:
+                - URL string (http(s)://, ws(s)://)
+                - Path to script file (.py, .js)
+                - Existing ClientTransport instance
+                - FastMCPServer instance
+
+        Examples:
+            >>> # In-memory server
+            >>> server = FastMCPServer(name="TestServer")
+            >>> await registry.register_from_mcp_async(server)
+
+            >>> # SSE server URL
+            >>> await registry.register_from_mcp_async("http://localhost:8000/sse")
+
+            >>> # WebSocket server URL
+            >>> await registry.register_from_mcp_async("ws://localhost:9000")
+
+            >>> # Path to Python server script
+            >>> await registry.register_from_mcp_async("my_mcp_server.py")
+
             with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
                 - If `False`, no namespace is used.
                 - If `True`, the namespace is derived from the OpenAPI info.title.
@@ -385,7 +424,7 @@ class ToolRegistry:
             from .mcp_integration import MCPIntegration
 
             mcp = MCPIntegration(self)
-            return await mcp.register_mcp_tools_async(server_url, with_namespace)
+            return await mcp.register_mcp_tools_async(transport, with_namespace)
         except ImportError:
             raise ImportError(
                 "MCP integration requires the [mcp] extra. "
@@ -742,18 +781,18 @@ class ToolRegistry:
     @deprecated(reason="use register_from_mcp instead", version="0.4.4")
     def register_mcp_tools(
         self,
-        server_url: str,
+        transport: str | Path | ClientTransport | FastMCPServer,
         with_namespace: Union[bool, str] = False,
     ):
-        return self.register_from_mcp(server_url, with_namespace)
+        return self.register_from_mcp(transport, with_namespace)
 
     @deprecated(reason="use register_from_mcp_async instead", version="0.4.4")
     async def register_mcp_tools_async(
         self,
-        server_url: str,
+        transport: str | Path | ClientTransport | FastMCPServer,
         with_namespace: Union[bool, str] = False,
     ):
-        return await self.register_from_mcp_async(server_url, with_namespace)
+        return await self.register_from_mcp_async(transport, with_namespace)
 
     @deprecated(reason="use register_from_openapi instead", version="0.4.4")
     def register_openapi_tools(

@@ -1,8 +1,12 @@
 import asyncio
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from mcp.client.session import ClientSession
-from mcp.client.sse import sse_client
+from fastmcp.client.transports import (
+    ClientTransport,
+    FastMCPServer,
+    infer_transport,
+)
 from mcp.types import (
     BlobResourceContents,
     EmbeddedResource,
@@ -26,8 +30,28 @@ class MCPToolWrapper:
         params (Optional[List[str]]): List of parameter names.
     """
 
-    def __init__(self, url: str, name: str, params: Optional[List[str]]) -> None:
-        self.url = url
+    def __init__(
+        self,
+        transport: str | Path | ClientTransport | FastMCPServer,
+        name: str,
+        params: Optional[List[str]],
+    ) -> None:
+        """Initialize MCP tool wrapper.
+
+        Args:
+            transport (str | Path | ClientTransport | FastMCPServer): Can be:
+                - URL string (http(s)://, ws(s)://)
+                - Path to script file (.py, .js)
+                - Existing ClientTransport instance
+                - FastMCPServer instance
+            name (str): Name of the tool/operation.
+            params (Optional[List[str]]): List of parameter names.
+        """
+        self.transport = (
+            transport
+            if isinstance(transport, ClientTransport)
+            else infer_transport(transport)
+        )
         self.name = name
         self.params = params
 
@@ -100,24 +124,23 @@ class MCPToolWrapper:
         """
         try:
             kwargs = self._process_args(*args, **kwargs)
-            if not self.url or not self.name:
-                raise ValueError("URL and name must be set before calling")
+            if not self.transport or not self.name:
+                raise ValueError("Transport and name must be set before calling")
 
-            async with sse_client(self.url) as (read_stream, write_stream):
-                async with ClientSession(read_stream, write_stream) as session:
-                    await session.initialize()
-                    tools = await session.list_tools()
-                    tool = next((t for t in tools.tools if t.name == self.name), None)
-                    if not tool:
-                        raise ValueError(f"Tool {self.name} not found on server")
+            async with self.transport.connect_session() as session:
+                await session.initialize()
+                tools = await session.list_tools()
+                tool = next((t for t in tools.tools if t.name == self.name), None)
+                if not tool:
+                    raise ValueError(f"Tool {self.name} not found on server")
 
-                    validated_params = {}
-                    for param_name, _ in tool.inputSchema.get("properties", {}).items():
-                        if param_name in kwargs:
-                            validated_params[param_name] = kwargs[param_name]
+                validated_params = {}
+                for param_name, _ in tool.inputSchema.get("properties", {}).items():
+                    if param_name in kwargs:
+                        validated_params[param_name] = kwargs[param_name]
 
-                    result = await session.call_tool(self.name, validated_params)
-                    return self._post_process_result(result)
+                result = await session.call_tool(self.name, validated_params)
+                return self._post_process_result(result)
 
         except Exception as e:
             # record full exception stack
@@ -223,7 +246,7 @@ class MCPTool(Tool):
         name: str,
         description: str,
         input_schema: Dict[str, Any],
-        url: str,
+        transport: str | Path | ClientTransport | FastMCPServer,
         namespace: Optional[str] = None,
     ) -> "MCPTool":
         """Create an MCPTool instance from a JSON representation.
@@ -232,7 +255,11 @@ class MCPTool(Tool):
             name (str): The name of the tool.
             description (str): The description of the tool.
             input_schema (Dict[str, Any]): The input schema definition for the tool.
-            url (str): The URL endpoint for the tool.
+            transport (str | Path | ClientTransport | FastMCPServer): Can be:
+                - URL string (http(s)://, ws(s)://)
+                - Path to script file (.py, .js)
+                - Existing ClientTransport instance
+                - FastMCPServer instance
             namespace (Optional[str]): An optional namespace to prefix the tool name.
                 If provided, the tool name will be formatted as "{namespace}.{name}".
 
@@ -242,7 +269,7 @@ class MCPTool(Tool):
         func_name = normalize_tool_name(name)
 
         wrapper = MCPToolWrapper(
-            url=url,
+            transport=transport,
             name=func_name,
             params=(
                 list(input_schema.get("properties", {}).keys()) if input_schema else []
@@ -274,13 +301,17 @@ class MCPIntegration:
 
     async def register_mcp_tools_async(
         self,
-        server_url: str,
+        transport: str | Path | ClientTransport | FastMCPServer,
         with_namespace: Union[bool, str] = False,
     ) -> None:
         """Async implementation to register all tools from an MCP server.
 
         Args:
-            server_url (str): URL of the MCP server (e.g. "http://localhost:8000/mcp/sse").
+            transport (str | Path | ClientTransport | FastMCPServer): Can be:
+                - URL string (http(s)://, ws(s)://)
+                - Path to script file (.py, .js)
+                - Existing ClientTransport instance
+                - FastMCPServer instance
             with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
                 - If `False`, no namespace is used.
                 - If `True`, the namespace is derived from the OpenAPI info.title.
@@ -291,46 +322,54 @@ class MCPIntegration:
             RuntimeError: If connection to server fails.
         """
 
-        async with sse_client(server_url) as (read_stream, write_stream):
-            async with ClientSession(read_stream, write_stream) as session:
-                # print("Connected to server, initializing session...")
-                result: InitializeResult = await session.initialize()
-                server_info = getattr(result, "serverInfo", None)
+        transport = (
+            transport
+            if isinstance(transport, ClientTransport)
+            else infer_transport(transport)
+        )
+        async with transport.connect_session() as session:
+            # print("Connected to server, initializing session...")
+            result: InitializeResult = await session.initialize()
+            server_info = getattr(result, "serverInfo", None)
 
-                if isinstance(with_namespace, str):
-                    namespace = with_namespace
-                elif with_namespace:  # with_namespace is True
-                    namespace = server_info.name if server_info else "MCP sse service"
-                else:
-                    namespace = None
+            if isinstance(with_namespace, str):
+                namespace = with_namespace
+            elif with_namespace:  # with_namespace is True
+                namespace = server_info.name if server_info else "MCP sse service"
+            else:
+                namespace = None
 
-                # Get available tools from server
-                tools_response = await session.list_tools()
-                # print(f"Found {len(tools_response.tools)} tools on server")
+            # Get available tools from server
+            tools_response = await session.list_tools()
+            # print(f"Found {len(tools_response.tools)} tools on server")
 
-                # Register each tool with a wrapper function
-                for tool_spec in tools_response.tools:
-                    mcp_sse_tool = MCPTool.from_tool_json(
-                        name=tool_spec.name,
-                        description=tool_spec.description or "",
-                        input_schema=tool_spec.inputSchema,
-                        url=server_url,
-                        namespace=namespace,
-                    )
+            # Register each tool with a wrapper function
+            for tool_spec in tools_response.tools:
+                mcp_sse_tool = MCPTool.from_tool_json(
+                    name=tool_spec.name,
+                    description=tool_spec.description or "",
+                    input_schema=tool_spec.inputSchema,
+                    transport=transport,
+                    namespace=namespace,
+                )
 
-                    # Register the tool wrapper function
-                    self.registry.register(mcp_sse_tool, namespace=namespace)
-                    # print(f"Registered tool: {tool.name}")
+                # Register the tool wrapper function
+                self.registry.register(mcp_sse_tool, namespace=namespace)
+                # print(f"Registered tool: {tool.name}")
 
     def register_mcp_tools(
         self,
-        server_url: str,
+        transport: str | Path | ClientTransport | FastMCPServer,
         with_namespace: Union[bool, str] = False,
     ) -> None:
         """Register all tools from an MCP server (synchronous entry point).
 
         Args:
-            server_url (str): URL of the MCP server.
+            transport (str | Path | ClientTransport | FastMCPServer): Can be:
+                - URL string (http(s)://, ws(s)://)
+                - Path to script file (.py, .js)
+                - Existing ClientTransport instance
+                - FastMCPServer instance
             with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
                 - If `False`, no namespace is used.
                 - If `True`, the namespace is derived from the OpenAPI info.title.
@@ -340,7 +379,7 @@ class MCPIntegration:
         loop = asyncio.new_event_loop()
         try:
             loop.run_until_complete(
-                self.register_mcp_tools_async(server_url, with_namespace)
+                self.register_mcp_tools_async(transport, with_namespace)
             )
         finally:
             loop.close()
