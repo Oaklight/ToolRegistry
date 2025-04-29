@@ -91,7 +91,7 @@ For more usage examples, please refer to [Documentation - Usage](https://toolreg
 The ToolRegistry provides first-class support for MCP (Model Context Protocol) tools:
 
 ```python
-registry.register_from_mcp"http://localhost:8000/mcp/sse")
+registry.register_from_mcp"http://localhost:8000/sse
 
 # Get all tools JSON including MCP tools
 tools_json = registry.get_tools_json()

@@ -4,7 +4,6 @@
 
 This guide explains how to integrate MCP (Modular Component Protocol) with ToolRegistry, allowing you to register and call tools from an MCP server. To simplify the developer's work, this guide provides examples for both synchronous and asynchronous calls, using a math service as a demonstration.
 
-
 ## MCP Tool Registration
 
 ### Synchronous Registration
@@ -17,7 +16,7 @@ from toolregistry import ToolRegistry
 
 PORT = os.getenv("PORT", 8000)  # Default port is 8000; can be overridden by environment variable
 registry = ToolRegistry()
-mcp_server_url = f"http://localhost:{PORT}/mcp/sse"
+mcp_server_url = f"http://localhost:{PORT}/sse"
 
 # Synchronously register MCP tools
 registry.register_from_mcp(mcp_server_url)
@@ -35,7 +34,7 @@ from toolregistry import ToolRegistry
 
 PORT = os.getenv("PORT", 8000)
 registry = ToolRegistry()
-mcp_server_url = f"http://localhost:{PORT}/mcp/sse"
+mcp_server_url = f"http://localhost:{PORT}/sse"
 
 async def async_register():
     await registry.register_from_mcp_async(mcp_server_url)
@@ -132,7 +131,7 @@ load_dotenv()
 PORT = os.getenv("PORT", 8000)  # Default port is 8000; can be overridden by environment variable
 
 registry = ToolRegistry()
-mcp_server_url = f"http://localhost:{PORT}/mcp/sse"
+mcp_server_url = f"http://localhost:{PORT}/sse"
 
 # Asynchronously register MCP tools
 async def async_register():
@@ -270,7 +269,7 @@ load_dotenv()
 PORT = os.getenv("PORT", 8000)
 
 registry = ToolRegistry()
-mcp_server_url = f"http://localhost:{PORT}/mcp/sse"
+mcp_server_url = f"http://localhost:{PORT}/sse"
 
 # Asynchronously register MCP tools
 async def async_register():
