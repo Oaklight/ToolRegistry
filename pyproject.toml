@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "toolregistry"
-version = "0.4.6.post2"
+version = "0.4.6.post3"
 authors = [{ name = "Oaklight", email = "oaklight@gmx.com" }]
 description = "A library for managing tool registries"
 readme = "README.md"
@@ -22,12 +22,12 @@ dependencies = [
     "deprecated>=1.2.18",
     "dill>=0.4.0",
     "httpx>=0.28.1",
-    "fake-useragent>=2.0.0",
+    "fake-useragent>=2.0.0", # 2.0.0 is the max version compatible with Python 3.8
     "beautifulsoup4>=4.13.4",
 ]
 
 [project.optional-dependencies]
-mcp = ["mcp>=1.6.0"] # Add mcp optional dependencies here
+mcp = ["fastmcp>=2.2.5"] # Add mcp optional dependencies here
 openapi = [
     "prance>=23.6.21.0",
     "openapi-spec-validator>=0.7.1",
