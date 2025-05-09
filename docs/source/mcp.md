@@ -11,7 +11,7 @@ The MCP integration supports multiple transport types:
 - URL string (http://, https://, ws://, wss://)
 - Path to script file (.py, .js)
 - Existing ClientTransport instance
-- FastMCPServer instance
+- FastMCP instance (fastmcp transport object)
 
 ## MCP Tool Registration
 
