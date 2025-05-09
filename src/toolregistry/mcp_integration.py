@@ -2,11 +2,9 @@ import asyncio
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 
+from fastmcp import FastMCP
 from fastmcp.client import Client, ClientTransport
-from fastmcp.client.transports import (
-    FastMCPServer,
-    infer_transport,
-)
+from fastmcp.client.transports import infer_transport
 from mcp.types import (
     BlobResourceContents,
     EmbeddedResource,
@@ -16,6 +14,7 @@ from mcp.types import (
     TextContent,
     TextResourceContents,
 )
+from pydantic import AnyUrl
 
 from .tool import Tool
 from .tool_registry import ToolRegistry
@@ -33,14 +32,14 @@ class MCPToolWrapper:
 
     def __init__(
         self,
-        transport: str | Path | ClientTransport | FastMCPServer,
+        transport: ClientTransport | FastMCP | AnyUrl | Path | dict[str, Any] | str,
         name: str,
         params: Optional[List[str]],
     ) -> None:
         """Initialize MCP tool wrapper.
 
         Args:
-            transport (str | Path | ClientTransport | FastMCPServer): Can be:
+            transport (ClientTransport | FastMCP | AnyUrl | Path | dict[str, Any] | str): Can be:
                 - URL string (http(s)://, ws(s)://)
                 - Path to script file (.py, .js)
                 - Existing ClientTransport instance
@@ -252,7 +251,7 @@ class MCPTool(Tool):
         name: str,
         description: str,
         input_schema: Dict[str, Any],
-        transport: str | Path | ClientTransport | FastMCPServer,
+        transport: ClientTransport | FastMCP | AnyUrl | Path | dict[str, Any] | str,
         namespace: Optional[str] = None,
     ) -> "MCPTool":
         """Create an MCPTool instance from a JSON representation.
@@ -261,7 +260,7 @@ class MCPTool(Tool):
             name (str): The name of the tool.
             description (str): The description of the tool.
             input_schema (Dict[str, Any]): The input schema definition for the tool.
-            transport (str | Path | ClientTransport | FastMCPServer): Can be:
+            transport (ClientTransport | FastMCP | AnyUrl | Path | dict[str, Any] | str): Can be:
                 - URL string (http(s)://, ws(s)://)
                 - Path to script file (.py, .js)
                 - Existing ClientTransport instance
@@ -307,13 +306,13 @@ class MCPIntegration:
 
     async def register_mcp_tools_async(
         self,
-        transport: str | Path | ClientTransport | FastMCPServer,
+        transport: ClientTransport | FastMCP | AnyUrl | Path | dict[str, Any] | str,
         with_namespace: Union[bool, str] = False,
     ) -> None:
         """Async implementation to register all tools from an MCP server.
 
         Args:
-            transport (str | Path | ClientTransport | FastMCPServer): Can be:
+            transport (ClientTransport | FastMCP | AnyUrl | Path | dict[str, Any] | str): Can be:
                 - URL string (http(s)://, ws(s)://)
                 - Path to script file (.py, .js)
                 - Existing ClientTransport instance
@@ -365,13 +364,13 @@ class MCPIntegration:
 
     def register_mcp_tools(
         self,
-        transport: str | Path | ClientTransport | FastMCPServer,
+        transport: ClientTransport | FastMCP | AnyUrl | Path | dict[str, Any] | str,
         with_namespace: Union[bool, str] = False,
     ) -> None:
         """Register all tools from an MCP server (synchronous entry point).
 
         Args:
-            transport (str | Path | ClientTransport | FastMCPServer): Can be:
+            transport (ClientTransport | FastMCP | AnyUrl | Path | dict[str, Any] | str): Can be:
                 - URL string (http(s)://, ws(s)://)
                 - Path to script file (.py, .js)
                 - Existing ClientTransport instance

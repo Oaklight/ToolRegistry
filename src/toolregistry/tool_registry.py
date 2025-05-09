@@ -9,8 +9,10 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Set, Tuple, Typ
 
 import dill  # type: ignore
 from deprecated import deprecated  # type: ignore
-from fastmcp.client.transports import ClientTransport, FastMCPServer
+from fastmcp import FastMCP
+from fastmcp.client.transports import ClientTransport
 from loguru import logger
+from pydantic import AnyUrl
 
 from .tool import Tool
 from .utils import ChatCompletionMessageToolCall, normalize_tool_name
@@ -334,7 +336,7 @@ class ToolRegistry:
 
     def register_from_mcp(
         self,
-        transport: str | Path | ClientTransport | FastMCPServer,
+        transport: ClientTransport | FastMCP | AnyUrl | Path | dict[str, Any] | str,
         with_namespace: Union[bool, str] = False,
     ):
         """Register all tools from an MCP server (synchronous entry point).
@@ -342,7 +344,7 @@ class ToolRegistry:
         Requires the [mcp] extra to be installed.
 
         Args:
-            transport (str | Path | ClientTransport | FastMCPServer): Can be:
+            transport (ClientTransport | FastMCP | AnyUrl | Path | dict[str, Any] | str): Can be:
                 - URL string (http(s)://, ws(s)://)
                 - Path to script file (.py, .js)
                 - Existing ClientTransport instance
@@ -383,7 +385,7 @@ class ToolRegistry:
 
     async def register_from_mcp_async(
         self,
-        transport: str | Path | ClientTransport | FastMCPServer,
+        transport: ClientTransport | FastMCP | AnyUrl | Path | dict[str, Any] | str,
         with_namespace: Union[bool, str] = False,
     ):
         """Async implementation to register all tools from an MCP server.
@@ -391,7 +393,7 @@ class ToolRegistry:
         Requires the [mcp] extra to be installed.
 
         Args:
-            transport (str | Path | ClientTransport | FastMCPServer): Can be:
+            transport (ClientTransport | FastMCP | AnyUrl | Path | dict[str, Any] | str): Can be:
                 - URL string (http(s)://, ws(s)://)
                 - Path to script file (.py, .js)
                 - Existing ClientTransport instance
@@ -781,7 +783,7 @@ class ToolRegistry:
     @deprecated(reason="use register_from_mcp instead", version="0.4.4")
     def register_mcp_tools(
         self,
-        transport: str | Path | ClientTransport | FastMCPServer,
+        transport: ClientTransport | FastMCP | AnyUrl | Path | dict[str, Any] | str,
         with_namespace: Union[bool, str] = False,
     ):
         return self.register_from_mcp(transport, with_namespace)
@@ -789,7 +791,7 @@ class ToolRegistry:
     @deprecated(reason="use register_from_mcp_async instead", version="0.4.4")
     async def register_mcp_tools_async(
         self,
-        transport: str | Path | ClientTransport | FastMCPServer,
+        transport: ClientTransport | FastMCP | AnyUrl | Path | dict[str, Any] | str,
         with_namespace: Union[bool, str] = False,
     ):
         return await self.register_from_mcp_async(transport, with_namespace)
