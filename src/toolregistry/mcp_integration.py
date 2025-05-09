@@ -4,7 +4,20 @@ from typing import Any, Callable, Dict, List, Optional, Union
 
 from fastmcp import FastMCP
 from fastmcp.client import Client, ClientTransport
-from fastmcp.client.transports import infer_transport
+from fastmcp.client.transports import (
+    FastMCPTransport,
+    SSETransport,
+    StdioTransport,
+    StreamableHttpTransport,
+    WSTransport,
+    infer_transport,
+)
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.sse import sse_client
+from mcp.client.stdio import stdio_client
+from mcp.client.streamable_http import streamablehttp_client
+from mcp.client.websocket import websocket_client
+from mcp.shared.memory import create_connected_server_and_client_session
 from mcp.types import (
     BlobResourceContents,
     EmbeddedResource,
@@ -19,6 +32,93 @@ from pydantic import AnyUrl
 from .tool import Tool
 from .tool_registry import ToolRegistry
 from .utils import normalize_tool_name
+
+
+async def get_initialize_result(transport: ClientTransport) -> InitializeResult:
+    """
+        Obtain the InitializeResult by manually creating clients and sessions for the given transport type.
+
+        Args:
+            transport (ClientTransport): The transport instance to analyze.
+    : Extra arguments for ClientSession creation.
+
+        Returns:
+            Any: The result of `session.initialize()`.
+
+        Raises:
+            ValueError: If the transport type is unsupported or initialization fails.
+    """
+    print("get transport")
+    try:
+        # Handling WebSocket transport
+        if isinstance(transport, WSTransport):
+            async with websocket_client(transport.url) as transport:
+                print("with client: websocket_client")
+                read_stream, write_stream = transport
+                async with ClientSession(read_stream, write_stream) as session:
+                    print("get session object")
+                    initialize_result = await session.initialize()
+                    print("get result object")
+                    return initialize_result
+
+        # Handling SSE transport
+        elif isinstance(transport, SSETransport):
+            async with sse_client(
+                transport.url, headers=transport.headers
+            ) as transport:
+                print("with client: sse_client")
+                read_stream, write_stream = transport
+                async with ClientSession(read_stream, write_stream) as session:
+                    print("get session object")
+                    initialize_result = await session.initialize()
+                    print("get result object")
+                    return initialize_result
+
+        # Handling StreamableHttp transport
+        elif isinstance(transport, StreamableHttpTransport):
+            async with streamablehttp_client(
+                transport.url, headers=transport.headers
+            ) as transport:
+                print("with client: streamablehttp_client")
+                read_stream, write_stream, _ = transport
+                async with ClientSession(read_stream, write_stream) as session:
+                    print("get session object")
+                    initialize_result = await session.initialize()
+                    print("get result object")
+                    return initialize_result
+
+        # Handling Stdio-based transport
+        elif isinstance(transport, StdioTransport):
+            server_params = StdioServerParameters(
+                command=transport.command,
+                args=transport.args,
+                env=transport.env,
+                cwd=transport.cwd,
+            )
+            async with stdio_client(server_params) as transport:
+                print("with client: stdio_client")
+                read_stream, write_stream = transport
+                async with ClientSession(read_stream, write_stream) as session:
+                    print("get session object")
+                    initialize_result = await session.initialize()
+                    print("get result object")
+                    return initialize_result
+
+        # Handling FastMCP in-memory transport
+        elif isinstance(transport, FastMCPTransport):
+            async with create_connected_server_and_client_session(
+                server=transport._fastmcp._mcp_server
+            ) as session:
+                initialize_result = await session.initialize()
+                # No manual teardown is necessary for FastMCP Transport
+                return initialize_result
+
+        # Unknown transport type
+        else:
+            raise ValueError(f"Unsupported transport type: {type(transport)}")
+
+    except Exception as e:
+        raise ValueError(f"Error obtaining InitializeResult: {str(e)}")
 
 
 class MCPToolWrapper:
