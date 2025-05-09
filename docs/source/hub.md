@@ -1,5 +1,15 @@
 # Hub Tools and Static Method Integration
 
+```{note}
+Starting from version 0.4.4, several API methods have been updated for better consistency and usability:
+
+- `ToolRegistry.register_static_tools` has been replaced by `ToolRegistry.register_from_class`.
+- `ToolRegistry.register_mcp_tools` has been replaced by `ToolRegistry.register_from_mcp`.
+- `ToolRegistry.register_openapi_tools` has been replaced by `ToolRegistry.register_from_openapi`.
+
+The old methods are planned to be deprecated soon, so please migrate to the new interfaces as soon as possible. For backward compatibility, the old names remain as aliases to the new ones.
+```
+
 ## Introduction
 
 Hub encapsulates commonly used tools as methods of a class, including both static methods and instance methods, serving as ready-to-use tool groups. This design offers several advantages:
@@ -251,13 +261,3 @@ registry.register_from_class(FileOps)
 print(registry.get_available_tools())
 # Output: ['Calculator.add', 'Calculator.subtract', ..., 'read_file', 'write_file', ...]
 ```
-
-## API Changes (starting 0.4.4)
-
-Starting from version 0.4.4, several API methods have been updated for better consistency and usability:
-
-- `ToolRegistry.register_static_tools` has been replaced by `ToolRegistry.register_from_class`.
-- `ToolRegistry.register_mcp_tools` has been replaced by `ToolRegistry.register_from_mcp`.
-- `ToolRegistry.register_openapi_tools` has been replaced by `ToolRegistry.register_from_openapi`.
-
-The old methods are planned to be deprecated soon, so please migrate to the new interfaces as soon as possible. For backward compatibility, the old names remain as aliases to the new ones.
