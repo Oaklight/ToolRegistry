@@ -348,11 +348,11 @@ class ToolRegistry:
                 - URL string (http(s)://, ws(s)://)
                 - Path to script file (.py, .js)
                 - Existing ClientTransport instance
-                - FastMCPServer instance
+                - FastMCP instance
 
         Examples:
             >>> # In-memory server
-            >>> server = FastMCPServer(name="TestServer")
+            >>> server = FastMCP(name="TestServer")
             >>> registry.register_from_mcp(server)
 
             >>> # SSE server URL
@@ -397,11 +397,11 @@ class ToolRegistry:
                 - URL string (http(s)://, ws(s)://)
                 - Path to script file (.py, .js)
                 - Existing ClientTransport instance
-                - FastMCPServer instance
+                - FastMCP instance
 
         Examples:
             >>> # In-memory server
-            >>> server = FastMCPServer(name="TestServer")
+            >>> server = FastMCP(name="TestServer")
             >>> await registry.register_from_mcp_async(server)
 
             >>> # SSE server URL

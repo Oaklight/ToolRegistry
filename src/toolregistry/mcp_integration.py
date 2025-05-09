@@ -428,7 +428,7 @@ class MCPIntegration:
                 - URL string (http(s)://, ws(s)://)
                 - Path to script file (.py, .js)
                 - Existing ClientTransport instance
-                - FastMCPServer instance
+                - FastMCP instance
             with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
                 - If `False`, no namespace is used.
                 - If `True`, the namespace is derived from the OpenAPI info.title.
@@ -486,7 +486,7 @@ class MCPIntegration:
                 - URL string (http(s)://, ws(s)://)
                 - Path to script file (.py, .js)
                 - Existing ClientTransport instance
-                - FastMCPServer instance
+                - FastMCP instance
             with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
                 - If `False`, no namespace is used.
                 - If `True`, the namespace is derived from the OpenAPI info.title.

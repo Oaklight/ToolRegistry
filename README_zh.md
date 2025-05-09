@@ -106,7 +106,7 @@ tools_json = registry.get_tools_json()
 - URL字符串 (http://, https://, ws://, wss://)
 - 脚本文件路径 (.py, .js)
 - 现有的ClientTransport实例
-- FastMCPServer实例
+- FastMCP实例
 
 ## OpenAPI 集成
 
