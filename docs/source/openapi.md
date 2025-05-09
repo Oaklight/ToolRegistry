@@ -1,5 +1,15 @@
 # OpenAPI Tool Usage Guide
 
+```{note}
+Starting from version 0.4.4, several API methods have been updated for better consistency and usability:
+
+- `ToolRegistry.register_static_tools` has been replaced by `ToolRegistry.register_from_class`.
+- `ToolRegistry.register_mcp_tools` has been replaced by `ToolRegistry.register_from_mcp`.
+- `ToolRegistry.register_openapi_tools` has been replaced by `ToolRegistry.register_from_openapi`.
+
+The old methods are planned to be deprecated soon, so please migrate to the new interfaces as soon as possible. For backward compatibility, the old names remain as aliases to the new ones.
+```
+
 ## Introduction
 
 This guide explains how to integrate OpenAPI with ToolRegistry, allowing you to register and call tools based on an OpenAPI specification. The guide provides examples for both synchronous and asynchronous registration methods, using a math service as a demonstration.
@@ -215,13 +225,3 @@ if response.choices[0].message.tool_calls:
 3. The integration with the OpenAI client allows you to seamlessly incorporate tool execution into your chat workflows.
 
 Follow the examples above to efficiently integrate and utilize OpenAPI tools with ToolRegistry.
-
-## API Changes (starting 0.4.4)
-
-Starting from version 0.4.4, several API methods have been updated for better consistency and usability:
-
-- `ToolRegistry.register_static_tools` has been replaced by `ToolRegistry.register_from_class`.
-- `ToolRegistry.register_mcp_tools` has been replaced by `ToolRegistry.register_from_mcp`.
-- `ToolRegistry.register_openapi_tools` has been replaced by `ToolRegistry.register_from_openapi`.
-
-The old methods are planned to be deprecated soon, so please migrate to the new interfaces as soon as possible. For backward compatibility, the old names remain as aliases to the new ones.

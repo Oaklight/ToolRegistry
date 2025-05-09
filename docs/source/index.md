@@ -50,8 +50,7 @@ usage
 API Reference <api/toolregistry>
 ```
 
-## API Changes (starting 0.4.4)
-
+```{note}
 Starting from version 0.4.4, several API methods have been updated for better consistency and usability:
 
 - `ToolRegistry.register_static_tools` has been replaced by `ToolRegistry.register_from_class`.
@@ -59,6 +58,7 @@ Starting from version 0.4.4, several API methods have been updated for better co
 - `ToolRegistry.register_openapi_tools` has been replaced by `ToolRegistry.register_from_openapi`.
 
 The old methods are planned to be deprecated soon, so please migrate to the new interfaces as soon as possible. For backward compatibility, the old names remain as aliases to the new ones.
+```
 
 ## Overview
 
