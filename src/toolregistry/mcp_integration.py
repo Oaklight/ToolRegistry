@@ -36,58 +36,62 @@ from .utils import normalize_tool_name
 
 async def get_initialize_result(transport: ClientTransport) -> InitializeResult:
     """
-        Obtain the InitializeResult by manually creating clients and sessions for the given transport type.
+    Handles initialization for different types of ClientTransport.
+
+    This function analyzes the given transport type and applies the appropriate
+    initialization process, yielding an `InitializeResult` object.
+
+    Args:
+        transport: The ClientTransport instance to initialize.
+
+    Returns:
+        InitializeResult: The result of the session initialization.
+
+    Raises:
+        ValueError: Raised if the transport type is unsupported or initialization fails.
+    """
+
+    async def handle_transport(transport_creator, *args, **kwargs) -> InitializeResult:
+        """
+        Generic transport handling logic.
+
+        Creates and manages a transport instance, extracts streams, and uses
+        them to initialize a `ClientSession`.
 
         Args:
-            transport (ClientTransport): The transport instance to analyze.
-    : Extra arguments for ClientSession creation.
+            transport_creator: The client creation method (e.g., websocket_client).
+            *args: Positional arguments passed to the transport creator.
+            **kwargs: Keyword arguments passed to the transport creator.
 
         Returns:
-            Any: The result of `session.initialize()`.
+            InitializeResult: The initialization result from the session.
+        """
+        async with transport_creator(*args, **kwargs) as transport:
+            # Unified unpacking logic to handle streams returned by different transports (2 or 3 items).
+            read_stream, write_stream, *_ = (
+                transport  # Use *_ to ignore extra parameters.
+            )
+            async with ClientSession(read_stream, write_stream) as session:
+                return await session.initialize()  # Return the initialization result.
 
-        Raises:
-            ValueError: If the transport type is unsupported or initialization fails.
-    """
-    print("get transport")
     try:
-        # Handling WebSocket transport
+        # Handle WebSocket transport
         if isinstance(transport, WSTransport):
-            async with websocket_client(transport.url) as transport:
-                print("with client: websocket_client")
-                read_stream, write_stream = transport
-                async with ClientSession(read_stream, write_stream) as session:
-                    print("get session object")
-                    initialize_result = await session.initialize()
-                    print("get result object")
-                    return initialize_result
+            return await handle_transport(websocket_client, transport.url)
 
-        # Handling SSE transport
+        # Handle Server-Sent Events (SSE) transport
         elif isinstance(transport, SSETransport):
-            async with sse_client(
-                transport.url, headers=transport.headers
-            ) as transport:
-                print("with client: sse_client")
-                read_stream, write_stream = transport
-                async with ClientSession(read_stream, write_stream) as session:
-                    print("get session object")
-                    initialize_result = await session.initialize()
-                    print("get result object")
-                    return initialize_result
+            return await handle_transport(
+                sse_client, transport.url, headers=transport.headers
+            )
 
-        # Handling StreamableHttp transport
+        # Handle Streamable HTTP transport
         elif isinstance(transport, StreamableHttpTransport):
-            async with streamablehttp_client(
-                transport.url, headers=transport.headers
-            ) as transport:
-                print("with client: streamablehttp_client")
-                read_stream, write_stream, _ = transport
-                async with ClientSession(read_stream, write_stream) as session:
-                    print("get session object")
-                    initialize_result = await session.initialize()
-                    print("get result object")
-                    return initialize_result
+            return await handle_transport(
+                streamablehttp_client, transport.url, headers=transport.headers
+            )
 
-        # Handling Stdio-based transport
+        # Handle Stdio transport (subprocess-based transport)
         elif isinstance(transport, StdioTransport):
             server_params = StdioServerParameters(
                 command=transport.command,
@@ -95,30 +99,21 @@ async def get_initialize_result(transport: ClientTransport) -> InitializeResult:
                 env=transport.env,
                 cwd=transport.cwd,
             )
-            async with stdio_client(server_params) as transport:
-                print("with client: stdio_client")
-                read_stream, write_stream = transport
-                async with ClientSession(read_stream, write_stream) as session:
-                    print("get session object")
-                    initialize_result = await session.initialize()
-                    print("get result object")
-                    return initialize_result
+            return await handle_transport(stdio_client, server_params)
 
-        # Handling FastMCP in-memory transport
+        # Handle FastMCP in-memory transport
         elif isinstance(transport, FastMCPTransport):
             async with create_connected_server_and_client_session(
                 server=transport._fastmcp._mcp_server
             ) as session:
-                initialize_result = await session.initialize()
-                # No manual teardown is necessary for FastMCP Transport
-                return initialize_result
+                return await session.initialize()
 
-        # Unknown transport type
+        # Raise an error if the transport type is unsupported
         else:
             raise ValueError(f"Unsupported transport type: {type(transport)}")
 
     except Exception as e:
-        raise ValueError(f"Error obtaining InitializeResult: {str(e)}")
+        raise ValueError(f"Failed to initialize transport: {str(e)}") from e
 
 
 class MCPToolWrapper:
