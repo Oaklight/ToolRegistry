@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "toolregistry"
 version = "0.4.7.alpha"
 authors = [{ name = "Oaklight", email = "oaklight@gmx.com" }]
-description = "A library for managing tool registries"
+description = "ToolRegistry: a library for easier function calling and tool use in LLMs"
 readme = "README.md"
 requires-python = ">=3.8"
 license = "MIT"
@@ -15,6 +15,7 @@ classifiers = [
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
     "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence"
 ]
 dependencies = [
     "pydantic>=1.5.1",
@@ -36,7 +37,9 @@ openapi = [
 dev = ["mypy>=1.14.1", "build>=1.2.2.post1", "twine>=6.1.0"]
 
 [project.urls]
-Homepage = "https://github.com/Oaklight/ToolRegistry"
+Documentation = "https://toolregistry.lab.oaklight.cn"
+Repository = "https://github.com/Oaklight/ToolRegistry"
+Issues = "https://github.com/Oaklight/ToolRegistry/issues"
 
 # Note: Standard TOML does not support imports from other TOML files
 # When installing with mcp extras (toolregistry[mcp]), Python >= 3.10 is required
