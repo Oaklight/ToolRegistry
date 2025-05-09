@@ -1,5 +1,6 @@
 import asyncio
 import inspect
+import re
 import warnings
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
@@ -8,12 +9,11 @@ from fastmcp import FastMCP
 from fastmcp.client import Client, ClientTransport
 from fastmcp.client.transports import (
     FastMCPTransport,
-    NodeStdioTransport,
-    PythonStdioTransport,
     SSETransport,
     StdioTransport,
     StreamableHttpTransport,
     WSTransport,
+    infer_transport,
 )
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.sse import sse_client
@@ -37,107 +37,32 @@ from .tool_registry import ToolRegistry
 from .utils import normalize_tool_name
 
 
-def infer_transport(
+def infer_transport_overriden(
     transport: ClientTransport | FastMCP | AnyUrl | Path | dict[str, Any] | str,
 ) -> ClientTransport:
     """
     Infer the appropriate transport type from the given transport argument.
 
-    This function attempts to infer the correct transport type from the provided
-    argument, handling various input types and converting them to the appropriate
-    ClientTransport subclass.
-
-    For HTTP URLs, they are assumed to be Streamable HTTP URLs unless they end in `/sse`.
+    This function overrides the default `infer_transport` function to provide additional handling for HTTP URLs.
+    For SSE urls, it returns an `SSETransport` instance. For other HTTP URLs, it returns a `StreamableHttpTransport` instance.
+    For other types of transports, it falls back to the default behavior.
     """
-    # the transport is already a ClientTransport
-    if isinstance(transport, ClientTransport):
-        return transport
-
-    # the transport is a FastMCP server
-    elif isinstance(transport, FastMCP):
-        return FastMCPTransport(mcp=transport)
-
-    # the transport is a path to a script
-    elif isinstance(transport, Path | str) and Path(transport).exists():
-        if str(transport).endswith(".py"):
-            return PythonStdioTransport(script_path=transport)
-        elif str(transport).endswith(".js"):
-            return NodeStdioTransport(script_path=transport)
-        else:
-            raise ValueError(f"Unsupported script type: {transport}")
-
-    # the transport is an http(s) URL
-    elif isinstance(transport, AnyUrl | str) and str(transport).startswith("http"):
-        http_url = str(transport).rstrip("/") + "/"
-        if "/mcp/" in http_url:
-            return StreamableHttpTransport(url=transport)
-        elif "/sse/" in http_url:
+    if isinstance(transport, AnyUrl | str) and str(transport).startswith("http"):
+        if re.search(r"(^|/)sse(/|$)", str(transport)):
             warnings.warn(
                 inspect.cleandoc(
                     """
-                    As of FastMCP 2.3.0, HTTP URLs are inferred to use Streamable HTTP.
-                    The provided URL contains `/sse`. This transport will be deprecated in the near future. Please consider updating to use Streamable HTTP.
+                    As of FastMCP 2.3.0 and MCP protocol 2025-03-26, HTTP URLs are inferred to use Streamable HTTP. We hereby warn you that:
+                    The provided URL contains `/sse/`. This transport will be deprecated in the near future. Please consider updating to use Streamable HTTP, or use `SSETransport` class directly.
                     """
                 ),
                 category=UserWarning,
                 stacklevel=2,
             )
             return SSETransport(url=transport)
-        else:
-            warnings.warn(
-                inspect.cleandoc(
-                    """
-                    The provided URL does not contain `/mcp/` or `/sse/`. Please check your URL and ensure it is compatible with either Streamable HTTP or SSE.
-                    Otherwise, please use `StreamableHttpTransport` or `SSETransport` directly.
-                    """
-                ),
-                category=UserWarning,
-                stacklevel=2,
-            )
-            raise ValueError(f"Unsupported HTTP URL format: {transport}")
+        return StreamableHttpTransport(url=transport)
 
-    # the transport is a websocket URL
-    elif isinstance(transport, AnyUrl | str) and str(transport).startswith("ws"):
-        return WSTransport(url=transport)
-
-    ## if the transport is a config dict
-    elif isinstance(transport, dict):
-        if "mcpServers" not in transport:
-            raise ValueError("Invalid transport dictionary: missing 'mcpServers' key")
-        else:
-            server = transport["mcpServers"]
-            if len(list(server.keys())) > 1:
-                raise ValueError(
-                    "Invalid transport dictionary: multiple servers found - only one expected"
-                )
-            server_name = list(server.keys())[0]
-            # Stdio transport
-            if "command" in server[server_name] and "args" in server[server_name]:
-                return StdioTransport(
-                    command=server[server_name]["command"],
-                    args=server[server_name]["args"],
-                    env=server[server_name].get("env", None),
-                    cwd=server[server_name].get("cwd", None),
-                )
-
-            # HTTP transport
-            elif "url" in server:
-                return SSETransport(
-                    url=server["url"],
-                    headers=server.get("headers", None),
-                )
-
-            # WebSocket transport
-            elif "ws_url" in server:
-                return WSTransport(
-                    url=server["ws_url"],
-                )
-
-            raise ValueError("Cannot determine transport type from dictionary")
-
-    # the transport is an unknown type
-    else:
-        raise ValueError(f"Could not infer a valid transport from: {transport}")
+    return infer_transport(transport)  # Fallback to default transport inference logic.
 
 
 async def get_initialize_result(transport: ClientTransport) -> InitializeResult:
@@ -516,7 +441,7 @@ class MCPIntegration:
         transport = (
             transport
             if isinstance(transport, ClientTransport)
-            else infer_transport(transport)
+            else infer_transport_overriden(transport)
         )
 
         # hack to get server_info
