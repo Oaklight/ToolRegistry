@@ -233,26 +233,18 @@ class MCPToolWrapper:
 
     def __init__(
         self,
-        transport: ClientTransport | FastMCP | AnyUrl | Path | dict[str, Any] | str,
+        transport: ClientTransport,
         name: str,
         params: Optional[List[str]],
     ) -> None:
         """Initialize MCP tool wrapper.
 
         Args:
-            transport (ClientTransport | FastMCP | AnyUrl | Path | dict[str, Any] | str): Can be:
-                - URL string (http(s)://, ws(s)://)
-                - Path to script file (.py, .js)
-                - Existing ClientTransport instance
-                - FastMCPServer instance
+            transport (ClientTransport): fastmcp.client.ClientTransport instance for communication.
             name (str): Name of the tool/operation.
             params (Optional[List[str]]): List of parameter names.
         """
-        self.client = Client(
-            transport
-            if isinstance(transport, ClientTransport)
-            else infer_transport(transport)
-        )
+        self.client = Client(transport)
         self.name: str = name
         self.params: Optional[List[str]] = params
 
@@ -450,7 +442,7 @@ class MCPTool(Tool):
         name: str,
         description: str,
         input_schema: Dict[str, Any],
-        transport: ClientTransport | FastMCP | AnyUrl | Path | dict[str, Any] | str,
+        transport: ClientTransport,
         namespace: Optional[str] = None,
     ) -> "MCPTool":
         """Create an MCPTool instance from a JSON representation.
@@ -459,11 +451,7 @@ class MCPTool(Tool):
             name (str): The name of the tool.
             description (str): The description of the tool.
             input_schema (Dict[str, Any]): The input schema definition for the tool.
-            transport (ClientTransport | FastMCP | AnyUrl | Path | dict[str, Any] | str): Can be:
-                - URL string (http(s)://, ws(s)://)
-                - Path to script file (.py, .js)
-                - Existing ClientTransport instance
-                - FastMCPServer instance
+            transport (ClientTransport): fastmcp.client.ClientTransport instance for communication.
             namespace (Optional[str]): An optional namespace to prefix the tool name.
                 If provided, the tool name will be formatted as "{namespace}.{name}".
 
