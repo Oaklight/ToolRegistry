@@ -527,24 +527,24 @@ class MCPIntegration:
         Raises:
             RuntimeError: If connection to server fails.
         """
-
-        client = Client(
+        transport = (
             transport
             if isinstance(transport, ClientTransport)
             else infer_transport(transport)
         )
-        async with client:
-            # print("Connected to server, initializing session...")
-            result: InitializeResult = await client.list_tools()
-            server_info: Optional[Implementation] = getattr(result, "serverInfo", None)
 
-            if isinstance(with_namespace, str):
-                namespace = with_namespace
-            elif with_namespace:  # with_namespace is True
-                namespace = server_info.name if server_info else "MCP sse service"
-            else:
-                namespace = None
+        # hack to get server_info
+        init_result: InitializeResult = await get_initialize_result(transport)
+        server_info: Optional[Implementation] = getattr(init_result, "serverInfo", None)
 
+        if isinstance(with_namespace, str):
+            namespace = with_namespace
+        elif with_namespace:  # with_namespace is True
+            namespace = server_info.name if server_info else "MCP sse service"
+        else:
+            namespace = None
+
+        async with Client(transport) as client:
             # Get available tools from server
             tools_response = await client.list_tools()
             # print(f"Found {len(tools_response)} tools on server")
