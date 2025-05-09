@@ -27,7 +27,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-mcp = ["fastmcp>=2.2.5"] # Add mcp optional dependencies here
+mcp = ["fastmcp>=2.3.0"] # starting 2.3.0, streamable http transport is available
 openapi = [
     "prance>=23.6.21.0",
     "openapi-spec-validator>=0.7.1",
