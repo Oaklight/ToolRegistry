@@ -339,9 +339,7 @@ class MCPToolWrapper:
                     if param_name in kwargs:
                         validated_params[param_name] = kwargs[param_name]
 
-                result = await self.client.call_tool(
-                    self.name, validated_params, _return_raw_result=True
-                )
+                result = await self.client.call_tool_mcp(self.name, validated_params)
                 return self._post_process_result(result)
 
         except Exception as e:
