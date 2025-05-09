@@ -1,5 +1,6 @@
 import asyncio
 import atexit
+import inspect
 import json
 import random
 import string
@@ -9,13 +10,22 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Set, Tuple, Typ
 
 import dill  # type: ignore
 from deprecated import deprecated  # type: ignore
-from fastmcp import FastMCP
-from fastmcp.client.transports import ClientTransport
 from loguru import logger
 from pydantic import AnyUrl
 
 from .tool import Tool
 from .utils import ChatCompletionMessageToolCall, normalize_tool_name
+
+try:
+    from fastmcp import FastMCP
+    from fastmcp.client.transports import ClientTransport
+except ImportError:
+    logger.warning(
+        inspect.cleandoc("""
+        fastmcp is not available. MCP related features will not work. 
+        Install toolregistry[mcp] to enable MCP support.
+    """)
+    )
 
 
 def _process_tool_call_helper(
@@ -336,7 +346,9 @@ class ToolRegistry:
 
     def register_from_mcp(
         self,
-        transport: ClientTransport | FastMCP | AnyUrl | Path | dict[str, Any] | str,
+        transport: Union[
+            "ClientTransport", "FastMCP", AnyUrl, Path, Dict[str, Any], str
+        ],
         with_namespace: Union[bool, str] = False,
     ):
         """Register all tools from an MCP server (synchronous entry point).
@@ -344,7 +356,7 @@ class ToolRegistry:
         Requires the [mcp] extra to be installed.
 
         Args:
-            transport (ClientTransport | FastMCP | AnyUrl | Path | dict[str, Any] | str): Can be:
+            transport (ClientTransport | FastMCP | AnyUrl | Path | Dict[str, Any] | str): Can be:
                 - URL string (http(s)://, ws(s)://)
                 - Path to script file (.py, .js)
                 - Existing ClientTransport instance
@@ -385,7 +397,9 @@ class ToolRegistry:
 
     async def register_from_mcp_async(
         self,
-        transport: ClientTransport | FastMCP | AnyUrl | Path | dict[str, Any] | str,
+        transport: Union[
+            "ClientTransport", "FastMCP", AnyUrl, Path, Dict[str, Any], str
+        ],
         with_namespace: Union[bool, str] = False,
     ):
         """Async implementation to register all tools from an MCP server.
@@ -393,7 +407,7 @@ class ToolRegistry:
         Requires the [mcp] extra to be installed.
 
         Args:
-            transport (ClientTransport | FastMCP | AnyUrl | Path | dict[str, Any] | str): Can be:
+            transport (ClientTransport | FastMCP | AnyUrl | Path | Dict[str, Any] | str): Can be:
                 - URL string (http(s)://, ws(s)://)
                 - Path to script file (.py, .js)
                 - Existing ClientTransport instance
@@ -783,7 +797,9 @@ class ToolRegistry:
     @deprecated(reason="use register_from_mcp instead", version="0.4.4")
     def register_mcp_tools(
         self,
-        transport: ClientTransport | FastMCP | AnyUrl | Path | dict[str, Any] | str,
+        transport: Union[
+            "ClientTransport", "FastMCP", AnyUrl, Path, Dict[str, Any], str
+        ],
         with_namespace: Union[bool, str] = False,
     ):
         return self.register_from_mcp(transport, with_namespace)
@@ -791,7 +807,9 @@ class ToolRegistry:
     @deprecated(reason="use register_from_mcp_async instead", version="0.4.4")
     async def register_mcp_tools_async(
         self,
-        transport: ClientTransport | FastMCP | AnyUrl | Path | dict[str, Any] | str,
+        transport: Union[
+            "ClientTransport", "FastMCP", AnyUrl, Path, Dict[str, Any], str
+        ],
         with_namespace: Union[bool, str] = False,
     ):
         return await self.register_from_mcp_async(transport, with_namespace)
