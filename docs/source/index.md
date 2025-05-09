@@ -2,6 +2,22 @@
 
 Welcome to the official documentation for **ToolRegistry**, a Python library designed to register, manage, and execute tools (functions) for Agentic AI and large language model applications. This documentation is organized by topic to help you quickly find and learn about different aspects of the library.
 
+## Overview
+
+ToolRegistry is a powerful Python library that simplifies the registration, management, and execution of tools (functions). Whether you're building systems integrated with large language models or need structured tool management, ToolRegistry provides a consistent interface supporting both synchronous and asynchronous tool calls.
+
+This documentation details how to install, configure, and use the library in real projects. Browse the sections in the left menu to find the information you need.
+
+## Getting Started
+
+Quickly start using ToolRegistry by installing it with this command:
+
+```bash
+pip install toolregistry
+```
+
+[Detailed setup instructions →](./installation)
+
 ## Documentation Contents
 
 Here are brief introductions and links to each section:
@@ -16,7 +32,7 @@ Here are brief introductions and links to each section:
     Explains how to use ToolRegistry with OpenAI API through function calling.
 
   - [**MCP Tool Usage**](mcp)
-    Guides on integrating MCP (Modular Component Protocol) with ToolRegistry to register and call MCP tools.
+    Guides on integrating MCP (Model Context Protocol) with ToolRegistry to register and call MCP tools.
 
   - [**OpenAPI Integration**](openapi)
     Guides on integrating OpenAPI specifications with ToolRegistry to register and call OpenAPI tools.
@@ -39,17 +55,6 @@ Here are brief introductions and links to each section:
 - [**API References**](api/toolregistry)
   Comprehensive API documentation for all classes and methods in ToolRegistry.
 
-```{toctree}
-:maxdepth: 1
-:caption: Documentation
-:hidden:
-
-Getting Started <self>
-installation
-usage
-API Reference <api/toolregistry>
-```
-
 ```{note}
 Starting from version 0.4.4, several API methods have been updated for better consistency and usability:
 
@@ -60,21 +65,16 @@ Starting from version 0.4.4, several API methods have been updated for better co
 The old methods are planned to be deprecated soon, so please migrate to the new interfaces as soon as possible. For backward compatibility, the old names remain as aliases to the new ones.
 ```
 
-## Overview
+```{toctree}
+:maxdepth: 1
+:caption: Documentation
+:hidden:
 
-ToolRegistry is a powerful Python library that simplifies the registration, management, and execution of tools (functions). Whether you're building systems integrated with large language models or need structured tool management, ToolRegistry provides a consistent interface supporting both synchronous and asynchronous tool calls.
-
-This documentation details how to install, configure, and use the library in real projects. Browse the sections in the left menu to find the information you need.
-
-## Getting Started
-
-Quickly start using ToolRegistry by installing it with this command:
-
-```bash
-pip install toolregistry
+Getting Started <self>
+installation
+usage
+API Reference <api/toolregistry>
 ```
-
-[Detailed setup instructions →](./installation)
 
 ## License
 
