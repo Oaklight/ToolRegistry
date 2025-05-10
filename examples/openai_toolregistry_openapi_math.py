@@ -12,6 +12,8 @@ load_dotenv()
 
 
 PORT = os.getenv("PORT", 8000)  # default port 8000, change via environment variable
+model_name = os.getenv("MODEL", "deepseek-v3")
+stream = os.getenv("STREAM", "True").lower() == "true"
 
 registry = ToolRegistry()
 
@@ -46,7 +48,7 @@ messages = [
 
 # Make the chat completion request
 response = client.chat.completions.create(
-    model="deepseek-v3",
+    model=model_name,
     messages=messages,
     tools=registry.get_tools_json(),
     tool_choice="auto",
@@ -70,7 +72,7 @@ if response.choices[0].message.tool_calls:
     # Send the results back to the model
     messages.extend(assistant_tool_messages)
     second_response = client.chat.completions.create(
-        model="deepseek-v3", messages=messages
+        model=model_name, messages=messages
     )
 
     # Print final response
