@@ -1,6 +1,6 @@
 # ToolRegistry
 
-[中文版](README_zh.md)
+[English Version](README_en.md) | [中文版](README_zh.md)
 
 A Python library for managing and executing tools in a structured way.
 
@@ -10,7 +10,8 @@ A Python library for managing and executing tools in a structured way.
 - JSON Schema generation for tool parameters
 - Tool execution and result handling
 - Support for both synchronous and asynchronous tools
-- Support [MCP sse](https://toolregistry.lab.oaklight.cn/mcp.html), [OpenAPI](https://toolregistry.lab.oaklight.cn/openapi.html) tools
+- Support multiple MCP transport methods: stdio, streamable HTTP, SSE, WebSocket
+- Support [OpenAPI](https://toolregistry.lab.oaklight.cn/openapi.html) tools
 
 ## Full Documentation
 
@@ -91,38 +92,53 @@ For more usage examples, please refer to [Documentation - Usage](https://toolreg
 The ToolRegistry provides first-class support for MCP (Model Context Protocol) tools with multiple transport options:
 
 ```python
-# Can be URL string, path to script, or transport instance
-transport = "http://localhost:8000/sse"
-transport = "examples/mcp_related/mcp_servers/math_server.py"
+# transport can be a URL string, script path, transport instance, or MCP instance.
+transport = "https://mcphub.url/mcp"  # Streamable HTTP MCP
+transport = "http://localhost:8000/sse/test_group"  # Legacy HTTP+SSE
+transport = "examples/mcp_related/mcp_servers/math_server.py"  # Local path
+transport = {
+    "mcpServers": {
+        "make_mcp": {
+            "command": f"{Path.home()}/mambaforge/envs/toolregistry_dev/bin/python",
+            "args": [
+                f"{Path.home()}/projects/toolregistry/examples/mcp_related/mcp_servers/math_server.py"
+            ],
+            "env": {},
+        }
+    }
+}  # MCP configuration dictionary example
+transport = FastMCP(name="MyFastMCP")  # FastMCP instance
+transport = StreamableHttpTransport(url="https://mcphub.example.com/mcp", headers={"Authorization": "Bearer token"})  # Transport instance with custom headers
 
 registry.register_from_mcp(transport)
 
-# Get all tools JSON including MCP tools
+# Get all tools' JSON, including MCP tools
 tools_json = registry.get_tools_json()
 ```
-
-Supported transport types:
-
-- URL string (http://, https://, ws://, wss://)
-- Path to script file (.py, .js)
-- Existing ClientTransport instance
-- FastMCP instance
 
 ## OpenAPI Integration
 
 ToolRegistry supports integration with OpenAPI for interacting with tools using a standardized API interface:
 
 ```python
-registry.register_from_openapi("http://localhost:8000/") # by providing baseurl
-registry.register_from_openapi("./openapi_spec.json", "http://localhost/") # by providing local OpenAPI spec file and base url
+registry.register_from_openapi("http://localhost:8000/")  # Providing base URL
+registry.register_from_openapi("./openapi_spec.json", "http://localhost/")  # Providing local OpenAPI specification file and base URL
 
-# Get all tools JSON including OpenAPI tools
+# Get all tools' JSON, including OpenAPI tools
 tools_json = registry.get_tools_json()
 ```
 
-## Registering Hub Tools
+### Note
 
-Hub tools are registered to ToolRegistry using the `register_from_class` method. This allows developers to extend the functionality of ToolRegistry by creating custom tool classes with reusable methods.
+When only providing a base URL, ToolRegistry will attempt a "best effort" auto-discovery to find the OpenAPI specification file (e.g., via `http://<base_url>/openapi.json` or `http://<base_url>/swagger.json`). If discovery fails, ensure the provided URL is correct or download the OpenAPI specification file yourself and register using the file + base URL method:
+
+```python
+registry.register_from_openapi("./openapi_spec.json", "http://localhost/")
+```
+
+## Registering Class Tools
+
+Class tools are registered to ToolRegistry using the `register_from_class` method. This allows developers to extend the functionality of ToolRegistry by creating custom tool classes with reusable methods.
 
 Example:
 
@@ -154,17 +170,15 @@ print(registry["instance_example.greet"]("Alice"))  # Hello, Alice! I'm Bob.
 
 ### Hub Tools
 
-[Latest Available Tools](src/toolregistry/hub/)
+[Available Tools](src/toolregistry/hub/)
 
-Hub tools encapsulate commonly used functionalities as methods in classes. These tools are grouped for better organization and reusability.
-
-Examples of available hub tools include:
+Hub tools encapsulate commonly used functionalities as methods in classes. Examples of available hub tools include:
 
 - **Calculator**: Basic arithmetic, scientific operations, statistical functions, financial calculations, and more.
-- **FileOps**: File manipulation operations like diff generation, patching, and verification.
-- **Filesystem**: Comprehensive file system operations such as directory listing, file reading/writing, and path manipulation.
-- **UnitConverter**: Extensive unit conversion tools for temperature, length, weight, and more.
-- **WebSearch**: Web search functionality supporting multiple search engines including SearxNG and Google.
+- **FileOps**: File manipulation like diff generation, patching, verification, merging, and splitting.
+- **Filesystem**: Comprehensive file system operations such as directory listing, file read/write, path normalization, and querying file attributes.
+- **UnitConverter**: Extensive unit conversions such as temperature, length, weight, volume, etc.
+- **WebSearch**: Web search functionality supporting multiple engines like SearxNG and Google.
 
 To register hub tools:
 
@@ -179,6 +193,10 @@ registry.register_from_class(Calculator, with_namespace=True)
 print(registry.get_available_tools())
 # Output: ['Calculator.add', 'Calculator.subtract', ..., 'Calculator.multiply', ...]
 ```
+
+### Community Contribution
+
+We welcome community contributions of new tool classes to ToolRegistry! If you have designs or implementations for other commonly used tools, feel free to submit them through a Pull Request on the [GitHub Repository](https://github.com/yourrepository/toolregistry). Your contributions will help expand the diversity and usability of the tools.
 
 ## License
 

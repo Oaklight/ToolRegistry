@@ -1,6 +1,6 @@
 # ToolRegistry
 
-[English Version](README_en.md)
+[English Version](README_en.md) | [中文版](README_zh.md)
 
 一个用于以结构化方式管理和执行工具的 Python 库。
 
@@ -10,7 +10,8 @@
 - 工具参数的 JSON Schema 生成
 - 工具执行与结果处理
 - 支持同步和异步工具
-- 支持 [MCP sse](https://toolregistry.lab.oaklight.cn/mcp.html)、[OpenAPI](https://toolregistry.lab.oaklight.cn/openapi.html) 工具
+- 支持多种 MCP 传输方式: stdio, streamable http, sse, websocket
+- 支持 [OpenAPI](https://toolregistry.lab.oaklight.cn/openapi.html) 工具
 
 ## 完整文档
 
@@ -91,38 +92,52 @@ print(add_result) # 9
 ToolRegistry 提供对 MCP（模型上下文协议）工具的一流支持：
 
 ```python
-# 可以是URL字符串、脚本路径或transport实例
-transport = "http://localhost:8000/sse"
-transport = "examples/mcp_related/mcp_servers/math_server.py"
+# transport 可以是 URL 字符串、脚本路径、transport 实例或 MCP 实例。
+transport = "https://mcphub.url/mcp"  # 使用 HTTP Streamable MCP
+transport = "http://localhost:8000/sse/test_group"  # 使用 legacy HTTP+sse
+transport = "examples/mcp_related/mcp_servers/math_server.py"  # 本地路径
+transport = {
+    "mcpServers": {
+        "make_mcp": {
+            "command": f"{Path.home()}/mambaforge/envs/toolregistry_dev/bin/python",
+            "args": [
+                f"{Path.home()}/projects/toolregistry/examples/mcp_related/mcp_servers/math_server.py"
+            ],
+            "env": {},
+        }
+    }
+} # 示例 MCP 配置字典
+transport = FastMCP(name="MyFastMCP")  # 使用 FastMCP 实例
+transport = StreamableHttpTransport(url="https://mcphub.example.com/mcp", headers={"Authorization": "Bearer token"})  # 使用自定义头的 transport 实例
 
 registry.register_from_mcp(transport)
 
 # 获取所有工具的 JSON，包括 MCP 工具
 tools_json = registry.get_tools_json()
-```
-
-支持的transport类型：
-
-- URL字符串 (http://, https://, ws://, wss://)
-- 脚本文件路径 (.py, .js)
-- 现有的ClientTransport实例
-- FastMCP实例
 
 ## OpenAPI 集成
 
 ToolRegistry 支持与 OpenAPI 集成，以使用标准化 API 接口与工具交互：
 
 ```python
-registry.register_from_openapi("http://localhost:8000/") # 提供基础 URL
-registry.register_from_openapi("./openapi_spec.json", "http://localhost/") # 提供本地 OpenAPI 规范文件和基础 URL
+registry.register_from_openapi("http://localhost:8000/")  # 提供基础 URL
+registry.register_from_openapi("./openapi_spec.json", "http://localhost/")  # 提供本地 OpenAPI 规范文件和基础 URL
 
 # 获取所有工具的 JSON，包括 OpenAPI 工具
 tools_json = registry.get_tools_json()
 ```
 
-## 注册 Hub 工具
+### 注意事项
 
-Hub 工具通过 `register_from_class` 方法注册到 ToolRegistry。这允许开发人员通过创建具有可重用方法的自定义工具类来扩展 ToolRegistry 的功能。
+在仅提供基础 URL 的情况下，ToolRegistry 会尝试 "best effort" 自动发现 OpenAPI 规范文件（例如通过 `http://<base_url>/openapi.json` 或 `http://<base_url>/swagger.json`）。如果发现失败，请检查所提供的 URL 是否正确，或者自行下载 OpenAPI 规范文件并使用文件 + 基础 URL 的方式注册工具。例如：
+
+```python
+registry.register_from_openapi("./openapi_spec.json", "http://localhost/")
+```
+
+## 注册 Class 工具
+
+Class 工具通过 `register_from_class` 方法注册到 ToolRegistry。这允许开发人员通过创建具有可重用方法的自定义工具类来扩展 ToolRegistry 的功能。
 
 示例：
 
@@ -203,6 +218,10 @@ registry.register_from_class(Calculator, with_namespace=True)
 print(registry.get_available_tools())
 # 输出：['Calculator.add', 'Calculator.subtract', ..., 'Calculator.multiply', ...]
 ```
+
+### 社区贡献
+
+我们欢迎社区贡献新的工具类到 ToolRegistry！如果您有其他常用工具类的设计或实现，欢迎通过 Pull Request 提交到 [GitHub 仓库](https://github.com/yourrepository/toolregistry)。您的贡献将帮助拓展工具的多样性和适用性。
 
 ## 许可证
 
