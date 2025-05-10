@@ -6,7 +6,6 @@ from cicada.core.utils import cprint
 from dotenv import load_dotenv
 
 from toolregistry import ToolRegistry
-from toolregistry.hub import Calculator
 
 load_dotenv()
 
