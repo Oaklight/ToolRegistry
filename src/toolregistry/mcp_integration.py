@@ -52,8 +52,8 @@ def infer_transport_overriden(
             warnings.warn(
                 inspect.cleandoc(
                     """
-                    As of FastMCP 2.3.0 and MCP protocol 2025-03-26, HTTP URLs are inferred to use Streamable HTTP. We hereby warn you that:
-                    The provided URL contains `/sse/`. This transport will be deprecated in the near future. Please consider updating to use Streamable HTTP, or use `SSETransport` class directly.
+                    The provided URL contains `/sse/`. As of MCP protocol 2025-03-26, HTTP URLs are inferred to use Streamable HTTP. We provide a fallback mechanism.
+                    This transport and fallback support may be removed or deprecated in the near future. Please consider updating to use Streamable HTTP, or use `SSETransport` class directly.
                     """
                 ),
                 category=UserWarning,
