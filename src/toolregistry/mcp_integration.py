@@ -1,7 +1,5 @@
 import asyncio
-import inspect
 import re
-import warnings
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 
@@ -15,6 +13,7 @@ from fastmcp.client.transports import (
     WSTransport,
     infer_transport,
 )
+from loguru import logger
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client
@@ -49,15 +48,10 @@ def infer_transport_overriden(
     """
     if isinstance(transport, AnyUrl | str) and str(transport).startswith("http"):
         if re.search(r"(^|/)sse(/|$)", str(transport)):
-            warnings.warn(
-                inspect.cleandoc(
-                    """
-                    The provided URL contains `/sse/`. As of MCP protocol 2025-03-26, HTTP URLs are inferred to use Streamable HTTP. We provide a fallback mechanism.
-                    This transport and fallback support may be removed or deprecated in the near future. Please consider updating to use Streamable HTTP, or use `SSETransport` class directly.
-                    """
-                ),
-                category=UserWarning,
-                stacklevel=2,
+            logger.warning(
+                "Detected `/sse/` in the URL. "
+                "As of MCP protocol 2025-03-26, HTTP URLs are inferred to use Streamable HTTP. "
+                "Fallback may be deprecated. Please migrate to Streamable HTTP"
             )
             return SSETransport(url=transport)
         return StreamableHttpTransport(url=transport)
