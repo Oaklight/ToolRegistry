@@ -40,9 +40,9 @@ client = OpenAI(
 messages = [
     {
         "role": "user",
-        "content": """
+        "content": f"""
 I have a few test results from multiple runs. 
-Please compute the averages of the metrics for each category. Attention to the EXEC_MODE, there are two different types. Compute average metrics separately. So there should be 8 results The input is at {input_file}. Write your output to {output_file}
+Please compute the averages of the metrics for each category. Attention to the EXEC_MODE, there are two different types. Compute average metrics separately. So there should be 8 results The input is at {input_file}. Write your output to {output_file}. Use your available tools at hand to do this.
 """,
     }
 ]
