@@ -40,7 +40,7 @@ You should see a schema printed as follow. Here, we only display the first entry
   {
     "type": "function",
     "function": {
-      "name": "add_add_get",
+      "name": "add_get",
       "description": "Calculate a + b and return the result.\n\nArgs:\n    a (float): The first operand.\n    b (float): The second operand.\n\nReturns:\n    dict: A dictionary containing the key \"result\" with the sum of a and b.",
       "parameters": {
         "type": "object",
@@ -92,17 +92,17 @@ Tools can be invoked directly as Python callables, or you can retrieve them usin
 
 ```python
 # Direct access using subscript notation
-add_func = registry["add_add_get"]
+add_func = registry["add_get"]
 result = add_func(1, 2)
 print(result)  # Expected output: 3.0
 
 # Retrieve the callable with get_callable and call it
-add_func = registry.get_callable("add_add_get")
+add_func = registry.get_callable("add_get")
 result = add_func(3, 4)
 print(result)  # Expected output: 7.0
 
 # Retrieve the tool object with get_tool and invoke its run method
-add_tool = registry.get_tool("add_add_get")
+add_tool = registry.get_tool("add_get")
 result = add_tool.run({"a": 5, "b": 6})
 print(result)  # Expected output: 11.0
 ```
@@ -116,12 +116,12 @@ import asyncio
 
 async def call_async_add_func():
     # Retrieve the tool callable for asynchronous invocation
-    add_func = registry.get_callable("add_add_get")
+    add_func = registry.get_callable("add_get")
     result = await add_func(7, 7)
     print(result)  # Expected output: 14.0
 
     # Direct subscript access for asynchronous invocation
-    add_func2 = registry["add_add_get"]
+    add_func2 = registry["add_get"]
     result = await add_func2(7, 8)
     print(result)  # Expected output: 15.0
 
@@ -129,7 +129,7 @@ asyncio.run(call_async_add_func())
 
 async def call_async_add_tool():
     # Retrieve the tool object for asynchronous invocation
-    add_tool = registry.get_tool("add_add_get")
+    add_tool = registry.get_tool("add_get")
     result = await add_tool.arun({"a": 9, "b": 10})
     print(result)  # Expected output: 19.0
 
@@ -221,7 +221,7 @@ if response.choices[0].message.tool_calls:
 ## Notes
 
 1. OpenAPI tool registration supports both synchronous and asynchronous methods. Once tools are registered, they can be invoked as simple Python functions or as tool objects.
-2. During invocation, parameters are automatically converted based on the tool definition. For example, the `add_add_get` tool expects numeric inputs and returns a numeric result.
+2. During invocation, parameters are automatically converted based on the tool definition. For example, the `add_get` tool expects numeric inputs and returns a numeric result.
 3. The integration with the OpenAI client allows you to seamlessly incorporate tool execution into your chat workflows.
 
 Follow the examples above to efficiently integrate and utilize OpenAPI tools with ToolRegistry.
