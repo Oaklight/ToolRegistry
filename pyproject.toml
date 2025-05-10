@@ -46,3 +46,6 @@ Issues = "https://github.com/Oaklight/ToolRegistry/issues"
 # The mcp package dependencies should be listed in this file
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"toolregistry" = ["py.typed"]
