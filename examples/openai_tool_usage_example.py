@@ -3,10 +3,14 @@ import os
 from dotenv import load_dotenv
 from openai import OpenAI
 
-# Load environment variables from .env file
-load_dotenv()
 from toolregistry import ToolRegistry
 from toolregistry.hub import UnitConverter
+
+# Load environment variables from .env file
+load_dotenv()
+
+model_name = os.getenv("MODEL", "deepseek-v3")
+stream = os.getenv("STREAM", "True").lower() == "true"
 
 # Initialize ToolRegistry
 tool_registry = ToolRegistry()
@@ -43,7 +47,7 @@ messages = [
 ]
 # Make the chat completion request
 response = client.chat.completions.create(
-    model="deepseek-v3",
+    model=model_name,
     messages=messages,
     tools=tool_registry.get_tools_json(),
     tool_choice="auto",
@@ -68,7 +72,7 @@ def handle_tool_calls(response, messages):
 
         # Send the results back to the model
         response = client.chat.completions.create(
-            model="deepseek-v3",
+            model=model_name,
             messages=messages,
             tools=tool_registry.get_tools_json(),
             tool_choice="auto",

@@ -48,7 +48,7 @@ Please compute the averages of the metrics for each category. Attention to the E
 ]
 # Make the chat completion request
 response = client.chat.completions.create(
-    model="deepseek-v3",
+    model=model_name,
     messages=messages,
     tools=tool_registry.get_tools_json(),
     tool_choice="auto",
@@ -73,7 +73,7 @@ def handle_tool_calls(response, messages):
 
         # Send the results back to the model
         response = client.chat.completions.create(
-            model="deepseek-v3",
+            model=model_name,
             messages=messages,
             tools=tool_registry.get_tools_json(),
             tool_choice="auto",
