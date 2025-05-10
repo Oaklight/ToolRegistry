@@ -383,7 +383,7 @@ class ToolRegistry:
             from .mcp_integration import MCPIntegration
         except ImportError:
             raise ImportError(
-                "MCP integration requires the [mcp] extra. "
+                "MCP integration requires the [mcp] extra and Python >= 3.10. "
                 "Install with: pip install toolregistry[mcp]"
             )
         mcp = MCPIntegration(self)
@@ -434,7 +434,7 @@ class ToolRegistry:
             from .mcp_integration import MCPIntegration
         except ImportError:
             raise ImportError(
-                "MCP integration requires the [mcp] extra. "
+                "MCP integration requires the [mcp] extra and Python >= 3.10. "
                 "Install with: pip install toolregistry[mcp]"
             )
         mcp = MCPIntegration(self)
