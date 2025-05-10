@@ -20,12 +20,7 @@ try:
     from fastmcp import FastMCP
     from fastmcp.client.transports import ClientTransport
 except ImportError:
-    logger.warning(
-        inspect.cleandoc("""
-        fastmcp is not available. MCP related features will not work. 
-        Install toolregistry[mcp] to enable MCP support.
-    """)
-    )
+    pass
 
 
 def _process_tool_call_helper(
@@ -382,18 +377,17 @@ class ToolRegistry:
                 Defaults to False.
 
         Raises:
-            ImportError: If [mcp] extra is not installed.
+            ImportError: If [mcp] extra is not installed
         """
         try:
             from .mcp_integration import MCPIntegration
-
-            mcp = MCPIntegration(self)
-            return mcp.register_mcp_tools(transport, with_namespace)
         except ImportError:
             raise ImportError(
                 "MCP integration requires the [mcp] extra. "
                 "Install with: pip install toolregistry[mcp]"
             )
+        mcp = MCPIntegration(self)
+        return mcp.register_mcp_tools(transport, with_namespace)
 
     async def register_from_mcp_async(
         self,
@@ -434,18 +428,17 @@ class ToolRegistry:
                 Defaults to False.
 
         Raises:
-            ImportError: If [mcp] extra is not installed.
+            ImportError: If [mcp] extra is not installed
         """
         try:
             from .mcp_integration import MCPIntegration
-
-            mcp = MCPIntegration(self)
-            return await mcp.register_mcp_tools_async(transport, with_namespace)
         except ImportError:
             raise ImportError(
                 "MCP integration requires the [mcp] extra. "
                 "Install with: pip install toolregistry[mcp]"
             )
+        mcp = MCPIntegration(self)
+        return await mcp.register_mcp_tools_async(transport, with_namespace)
 
     def register_from_openapi(
         self,
@@ -467,18 +460,17 @@ class ToolRegistry:
                 Defaults to False.
 
         Raises:
-            ImportError: If [openapi] extra is not installed.
+            ImportError: If [openapi] extra is not installed
         """
         try:
             from .openapi_integration import OpenAPIIntegration
-
-            openapi = OpenAPIIntegration(self)
-            return openapi.register_openapi_tools(spec_url, base_url, with_namespace)
         except ImportError:
             raise ImportError(
                 "OpenAPI integration requires the [openapi] extra. "
                 "Install with: pip install toolregistry[openapi]"
             )
+        openapi = OpenAPIIntegration(self)
+        return openapi.register_openapi_tools(spec_url, base_url, with_namespace)
 
     async def register_from_openapi_async(
         self,
@@ -500,20 +492,19 @@ class ToolRegistry:
                 Defaults to False.
 
         Raises:
-            ImportError: If [openapi] extra is not installed.
+            ImportError: If [openapi] extra is not installed
         """
         try:
             from .openapi_integration import OpenAPIIntegration
-
-            openapi = OpenAPIIntegration(self)
-            return await openapi.register_openapi_tools_async(
-                spec_url, base_url, with_namespace
-            )
         except ImportError:
             raise ImportError(
                 "OpenAPI integration requires the [openapi] extra. "
                 "Install with: pip install toolregistry[openapi]"
             )
+        openapi = OpenAPIIntegration(self)
+        return await openapi.register_openapi_tools_async(
+            spec_url, base_url, with_namespace
+        )
 
     def register_from_class(
         self, cls: Union[Type, object], with_namespace: Union[bool, str] = False
