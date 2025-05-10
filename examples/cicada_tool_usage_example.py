@@ -2,17 +2,16 @@ import json
 import os
 from pprint import pprint
 
-from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
-
 # pip install cicada-agent
 from cicada.core.model import MultiModalModel
 from cicada.core.utils import cprint
+from dotenv import load_dotenv
 
 from toolregistry import ToolRegistry
 from toolregistry.hub import UnitConverter
+
+# Load environment variables from .env file
+load_dotenv()
 
 model_name = os.getenv("MODEL", "deepseek-v3")
 stream = os.getenv("STREAM", "True").lower() == "true"  # Configurable stream option
@@ -29,10 +28,12 @@ llm = MultiModalModel(
 
 tool_registry = ToolRegistry()
 
+
 # register tools
 @tool_registry.register
 def get_weather(location: str):
     return f"Weather in {location}: Sunny, 25°C"
+
 
 # @tool_registry.register
 # def c_to_f(celsius: float) -> float:
