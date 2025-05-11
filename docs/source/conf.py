@@ -6,14 +6,15 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
+import os
+import sys
+
 project = "ToolRegistry"
 copyright = "2024-2025, Peng Ding"
 author = "Peng Ding"
 html_title = "ToolRegistry"
 release = "0.4.7"
 
-import os
-import sys
 
 sys.path.insert(0, os.path.abspath("../../src"))
 print("Current sys.path:", sys.path)
@@ -61,9 +62,7 @@ html_css_files = [
 ]
 
 html_theme_options = {
-    "announcement": (
-        "Welcome to ToolRegistry, a Python library for managing and executing tools in a structured way."
-    ),
+    "announcement": ("v0.4.7 released! Better MCP support and new features!  🚀"),
     "source_repository": "https://github.com/Oaklight/ToolRegistry",
     "source_branch": "master",
     "source_directory": "docs/source/",
