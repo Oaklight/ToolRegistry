@@ -10,7 +10,8 @@ A Python library for managing and executing tools in a structured way.
 - JSON Schema generation for tool parameters
 - Tool execution and result handling
 - Support for both synchronous and asynchronous tools
-- Support multiple MCP transport methods: stdio, streamable HTTP, SSE, WebSocket
+- Support native Python functions and class methods as tools
+- Support multiple [MCP](https://toolregistry.lab.oaklight.cn/mcp.html) transport methods: STDIO, streamable HTTP, SSE, WebSocket, FastMCP instance, etc.
 - Support [OpenAPI](https://toolregistry.lab.oaklight.cn/openapi.html) tools
 
 ## Full Documentation

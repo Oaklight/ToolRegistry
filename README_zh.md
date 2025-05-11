@@ -10,7 +10,8 @@
 - 工具参数的 JSON Schema 生成
 - 工具执行与结果处理
 - 支持同步和异步工具
-- 支持多种 MCP 传输方式: stdio, streamable http, sse, websocket
+- 支持 Python 原生函数和类方法作为工具
+- 支持多种 [MCP](https://toolregistry.lab.oaklight.cn/mcp.html) 传输方式: STDIO, streamable http, sse, websocket, FastMCP 实例等
 - 支持 [OpenAPI](https://toolregistry.lab.oaklight.cn/openapi.html) 工具
 
 ## 完整文档
