@@ -5,28 +5,47 @@ from typing import Any, Dict, List, Optional, Union
 from urllib.parse import urlparse
 
 import httpx
+import jsonref  # type: ignore
 import yaml
-from openapi_spec_validator import validate_spec_url
-from prance import ResolvingParser  # type: ignore
-from prance.util.url import ResolutionError  # type: ignore
 
 from .tool import Tool
 from .tool_registry import ToolRegistry
 from .utils import normalize_tool_name
 
 
-def check_common_endpoints(url: str) -> Dict[str, Any]:
-    """Check common endpoints to locate the OpenAPI schema.
-
-    This function appends a set of common endpoint paths to the provided base URL
-    and checks if any of them return a valid response indicating the presence of an OpenAPI specification.
+def extract_base_url_from_specs(openapi_spec: Dict[str, Any]) -> str:
+    """
+    Extract and validate the base URL from the 'servers' field of the OpenAPI specification.
 
     Args:
-        url (str): Base URL of the web service.
+        openapi_spec (Dict[str, Any]): The parsed OpenAPI specification.
 
     Returns:
-        Dict[str, Any]: A dictionary with key "found" (bool). If a valid endpoint is found,
-        the dictionary also contains "schema_url" (str) with the full URL of the schema.
+        str: The validated base API URL extracted from the 'servers' field, or None if not valid.
+    """
+    servers = openapi_spec.get("servers", [])
+    if servers:
+        server_url = (
+            servers[0].get("url", "").strip()
+        )  # Get the first server URL and strip whitespace
+        parsed_url = urlparse(server_url)
+
+        # Validate the extracted URL
+        if parsed_url.scheme in ["http", "https"] and parsed_url.netloc:
+            return server_url.rstrip("/")
+
+    return None
+
+
+def determine_urls(url: str) -> Dict[str, Any]:
+    """
+    Determine whether the given URL or its common endpoints contain an OpenAPI schema.
+
+    Args:
+        url (str): Base URL or schema URL.
+
+    Returns:
+        Dict[str, Any]: Contains "found" (bool), "schema_url" (str) if valid or None, and "base_api_url" (str).
     """
     common_endpoints = [
         "/openapi.json",
@@ -37,6 +56,14 @@ def check_common_endpoints(url: str) -> Dict[str, Any]:
         "/openapi.yaml",
     ]
     base_url = url.rstrip("/")
+
+    # Direct schema check for common endpoints
+    for endpoint in common_endpoints:
+        if base_url.endswith(endpoint):
+            base_api_url = base_url.rstrip(endpoint)
+            return {"found": True, "schema_url": base_url, "base_api_url": base_api_url}
+
+    # Test appending endpoints to base URL
     with httpx.Client(timeout=5.0) as client:
         for endpoint in common_endpoints:
             full_url = f"{base_url}{endpoint}"
@@ -45,84 +72,70 @@ def check_common_endpoints(url: str) -> Dict[str, Any]:
                 if response.status_code == 200:
                     content_type = response.headers.get("Content-Type", "").lower()
                     if "json" in content_type or "yaml" in content_type:
-                        return {"found": True, "schema_url": full_url}
-            except Exception:
+                        return {
+                            "found": True,
+                            "schema_url": full_url,
+                            "base_api_url": base_url,
+                        }
+            except httpx.RequestError:
                 continue
-    return {"found": False}
+
+    return {"found": False, "base_api_url": base_url}
 
 
-def parse_openapi_spec_from_url(url: str) -> Dict[str, Any]:
-    """Retrieve and parse an OpenAPI specification from a URL.
-
-    The function first attempts to locate the schema by checking common endpoints.
-    If a valid schema is found there, it is returned; otherwise, it falls back to the original URL.
+def load_openapi_spec(uri: str) -> Dict[str, Any]:
+    """
+    Fetch and decode the OpenAPI specification from the URI as a dictionary.
 
     Args:
-        url (str): URL to the OpenAPI specification (in JSON or YAML format).
+        uri (str): URL or file path pointing to an OpenAPI specification.
 
     Returns:
-        Dict[str, Any]: The parsed OpenAPI specification.
+        Dict[str, Any]: A dictionary containing the parsed OpenAPI specification and the base API URL (if applicable).
 
     Raises:
-        ValueError: If the specification cannot be validated or parsed.
-    """
-    endpoint_result = check_common_endpoints(url)
-    if endpoint_result.get("found"):
-        schema_url = endpoint_result.get("schema_url", "")
-        try:
-            validate_spec_url(schema_url)
-            parser = ResolvingParser(schema_url)
-            return parser.specification
-        except Exception as e:
-            # Fallback to original URL if endpoint fails
-            pass
-    try:
-        validate_spec_url(url)
-        parser = ResolvingParser(url)
-        return parser.specification
-    except Exception as e:
-        raise ValueError(f"Could not retrieve a valid OpenAPI spec from URL: {e}")
-
-
-def get_openapi_spec(source: str) -> Dict[str, Any]:
-    """Parse the OpenAPI specification from a file path or URL.
-
-    This function determines whether the source is a URL or a local file.
-    For URLs, it retrieves and parses the specification over HTTP.
-    For local files, it reads and parses the file content.
-
-    Args:
-        source (str): The file path or URL to the OpenAPI specification (JSON/YAML).
-
-    Returns:
-        Dict[str, Any]: The fully resolved OpenAPI specification.
-
-    Raises:
-        FileNotFoundError: If the local file is not found.
-        ValueError: If the specification cannot be parsed.
-        RuntimeError: For any unexpected errors.
+        ValueError: If URI retrieval, parsing, or decoding fails.
     """
     try:
-        if source.startswith("http"):
-            return parse_openapi_spec_from_url(source)
+        parsed_uri = urlparse(uri)
 
-        if not os.path.exists(source):
-            raise FileNotFoundError(f"File not found: {source}")
+        if parsed_uri.scheme in ("", "file"):  # Handle file paths
+            file_path = parsed_uri.path if parsed_uri.scheme == "file" else uri
+            with open(file_path, "rb") as file:
+                openapi_spec_content = file.read()
+            base_url = None
+        else:  # Handle URLs
+            # First attempt to determine schema URL and fallback base URL
+            results = determine_urls(uri)
+            uri = results["schema_url"] if results["found"] else uri
+            base_url = results["base_api_url"]
 
-        with open(source, "r", encoding="utf-8") as file:
-            content = file.read()
+            with httpx.stream("GET", uri) as response:
+                response.raise_for_status()
+                openapi_spec_content = b"".join(response.iter_bytes())
 
-        if source.endswith((".json", ".yaml", ".yml")):
-            parser = ResolvingParser(content)
-            return parser.specification
-        raise ValueError("Unsupported file format for OpenAPI specification.")
+        # Load and parse OpenAPI spec
+        openapi_spec_dict = jsonref.replace_refs(yaml.safe_load(openapi_spec_content))
 
-    except (json.JSONDecodeError, yaml.YAMLError) as e:
-        raise ValueError(f"Failed to parse OpenAPI specification: {e}")
-    except ResolutionError as e:
-        raise ValueError(f"Failed to resolve URL specification: {e}")
+        # Refine the base_url using servers field if available and valid
+        refined_base_url = extract_base_url_from_specs(openapi_spec_dict)
+        if refined_base_url:
+            base_url = refined_base_url  # Replace fallback base_url from determine_urls
+
+        return {"spec": openapi_spec_dict, "base_url": base_url}
+
+    except yaml.YAMLError as e:
+        raise ValueError(f"Failed to parse OpenAPI content: {e}")
+    except httpx.RequestError as e:
+        raise ValueError(f"Network error when fetching URI: {e}")
+    except httpx.HTTPStatusError as e:
+        raise ValueError(
+            f"HTTP error: {e.response.status_code} {e.response.reason_phrase}"
+        )
+    except FileNotFoundError as e:
+        raise FileNotFoundError(f"Invalid file path: {e}")
     except Exception as e:
-        raise RuntimeError(f"An unexpected error occurred: {e}")
+        raise ValueError(f"Unexpected error: {e}")
 
 
 class OpenAPIToolWrapper:
@@ -281,7 +294,7 @@ class OpenAPITool(Tool):
         Returns:
             OpenAPITool: An instance of OpenAPITool configured for the specified operation.
         """
-        operation_id = spec.get("operationId", f'{method}_{path.replace("/", "_")}')
+        operation_id = spec.get("operationId", f"{method}_{path.replace('/', '_')}")
         func_name = normalize_tool_name(operation_id)
 
         description = spec.get("description", spec.get("summary", ""))
@@ -338,6 +351,7 @@ class OpenAPITool(Tool):
 
         return tool
 
+
 class OpenAPIIntegration:
     """Handles integration with OpenAPI services for tool registration.
 
@@ -350,14 +364,14 @@ class OpenAPIIntegration:
 
     async def register_openapi_tools_async(
         self,
-        spec_source: str,
+        uri: str,
         base_url: Optional[str] = None,
         with_namespace: Union[bool, str] = False,
     ) -> None:
         """Asynchronously register all tools defined in an OpenAPI specification.
 
         Args:
-            spec_source (str): File path or URL to the OpenAPI specification (JSON/YAML).
+            uri (str): File path or URL to the OpenAPI specification (JSON/YAML).
             base_url (Optional[str]): Base URL for API calls. If None, will be extracted from spec.
             with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
                 - If `False`, no namespace is used.
@@ -369,14 +383,14 @@ class OpenAPIIntegration:
             None
         """
 
-        openapi_spec = get_openapi_spec(spec_source)
+        specs = load_openapi_spec(uri)
+        openapi_spec = specs["spec"]
+        base_url = specs["base_url"] or base_url
+
         if not base_url:
-            if spec_source.startswith("http"):
-                parsed = urlparse(spec_source)
-                base_url = f"{parsed.scheme}://{parsed.netloc}"
-            else:
-                base_url = openapi_spec.get("servers", [{}])[0].get("url", "")
-        assert base_url != "", "base_url must be specified"
+            raise ValueError(
+                "base_url must be specified, either by argument or via OpenAPI spec"
+            )
 
         if isinstance(with_namespace, str):
             namespace = with_namespace
@@ -401,14 +415,14 @@ class OpenAPIIntegration:
 
     def register_openapi_tools(
         self,
-        spec_source: str,
+        uri: str,
         base_url: Optional[str] = None,
         with_namespace: Union[bool, str] = False,
     ) -> None:
-        """Synchronously register all tools defined in an OpenAPI specification.
+        """Asynchronously register all tools defined in an OpenAPI specification.
 
         Args:
-            spec_source (str): File path or URL to the OpenAPI specification (JSON/YAML).
+            uri (str): File path or URL to the OpenAPI specification (JSON/YAML).
             base_url (Optional[str]): Base URL for API calls. If None, will be extracted from spec.
             with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
                 - If `False`, no namespace is used.
@@ -427,13 +441,11 @@ class OpenAPIIntegration:
 
         if loop.is_running():
             future = asyncio.run_coroutine_threadsafe(
-                self.register_openapi_tools_async(
-                    spec_source, base_url, with_namespace
-                ),
+                self.register_openapi_tools_async(uri, base_url, with_namespace),
                 loop,
             )
             future.result()
         else:
             loop.run_until_complete(
-                self.register_openapi_tools_async(spec_source, base_url, with_namespace)
+                self.register_openapi_tools_async(uri, base_url, with_namespace)
             )
