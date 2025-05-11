@@ -17,8 +17,8 @@ from .tool import Tool
 from .utils import ChatCompletionMessageToolCall, normalize_tool_name
 
 try:
-    from fastmcp import FastMCP
-    from fastmcp.client.transports import ClientTransport
+    from fastmcp import FastMCP  # type: ignore
+    from fastmcp.client.transports import ClientTransport  # type: ignore
 except ImportError:
     pass
 
