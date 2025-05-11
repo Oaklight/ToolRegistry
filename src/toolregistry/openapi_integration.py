@@ -4,7 +4,7 @@ from urllib.parse import urlparse
 
 import httpx
 import jsonref  # type: ignore
-import yaml
+import yaml  # type: ignore
 
 from .tool import Tool
 from .tool_registry import ToolRegistry
