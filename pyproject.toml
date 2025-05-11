@@ -15,7 +15,7 @@ classifiers = [
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
     "Topic :: Software Development :: Libraries :: Python Modules",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence"
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
     "pydantic>=1.5.1",
@@ -28,12 +28,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-mcp = ["fastmcp==2.3.0"] # fix at 2.3.0, streamable http + sse are both available
+mcp = [
+    "fastmcp>=2.3.0", # since 2.3.0, streamable http & sse both available
+]
 openapi = [
-    "prance>=23.6.21.0",
-    "openapi-spec-validator>=0.7.1",
-    "PyYAML>=6.0.2",
-] # Add openapi optional dependencies here
+    "PyYAML>=6.0.2",  # safe load both json and yaml
+    "jsonref>=1.1.0", # deref $ref in openapi spec
+]
 dev = ["mypy>=1.14.1", "build>=1.2.2.post1", "twine>=6.1.0"]
 
 [project.urls]
