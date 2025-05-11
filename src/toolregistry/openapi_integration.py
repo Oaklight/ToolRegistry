@@ -1,6 +1,4 @@
 import asyncio
-import json
-import os
 from typing import Any, Dict, List, Optional, Union
 from urllib.parse import urlparse
 
@@ -13,7 +11,7 @@ from .tool_registry import ToolRegistry
 from .utils import normalize_tool_name
 
 
-def extract_base_url_from_specs(openapi_spec: Dict[str, Any]) -> str:
+def extract_base_url_from_specs(openapi_spec: Dict[str, Any]) -> Optional[str]:
     """
     Extract and validate the base URL from the 'servers' field of the OpenAPI specification.
 
@@ -21,7 +19,7 @@ def extract_base_url_from_specs(openapi_spec: Dict[str, Any]) -> str:
         openapi_spec (Dict[str, Any]): The parsed OpenAPI specification.
 
     Returns:
-        str: The validated base API URL extracted from the 'servers' field, or None if not valid.
+        Optional[str]: The validated base API URL extracted from the 'servers' field, or None if not valid.
     """
     servers = openapi_spec.get("servers", [])
     if servers:
