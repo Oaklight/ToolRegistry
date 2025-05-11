@@ -1,11 +1,10 @@
-import argparse
+import inspect
 import os
 
 from dotenv import load_dotenv
 from openai import OpenAI
 
 from toolregistry import ToolRegistry
-from toolregistry.hub import Calculator
 
 # Load environment variables from .env file
 load_dotenv()
@@ -63,9 +62,9 @@ def handle_tool_calls(response, messages):
 messages = [
     {
         "role": "user",
-        "content": f"""
+        "content": inspect.cleandoc(f"""
     I have a few test results from multiple runs. Please use the available tools to compute the averages of the metrics for each category. 
-    The input is as {input_content}""",
+    The input is as {input_content}"""),
     }
 ]
 if __name__ == "__main__":
