@@ -1,6 +1,5 @@
 import asyncio
 import atexit
-import inspect
 import json
 import random
 import string
