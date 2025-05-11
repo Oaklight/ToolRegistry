@@ -29,6 +29,7 @@ Example:
 
 import math
 import random
+import sys
 from typing import Dict, List, Union
 
 
@@ -369,12 +370,24 @@ class Calculator:
 
     @staticmethod
     def nextafter(x: float, y: float) -> float:
-        """Returns next floating-point value after x towards y."""
+        """Returns next floating-point value after x towards y.
+
+        Raises:
+            NotImplementedError: If Python version is lower than 3.9
+        """
+        if sys.version_info < (3, 9):
+            raise NotImplementedError("nextafter requires Python 3.9 or higher")
         return math.nextafter(x, y)
 
     @staticmethod
     def ulp(x: float) -> float:
-        """Returns the value of the least significant bit of x."""
+        """Returns the value of the least significant bit of x.
+
+        Raises:
+            NotImplementedError: If Python version is lower than 3.9
+        """
+        if sys.version_info < (3, 9):
+            raise NotImplementedError("ulp requires Python 3.9 or higher")
         return math.ulp(x)
 
     @staticmethod
