@@ -1,5 +1,7 @@
 # Installation
 
+[![PyPI version](https://badge.fury.io/py/toolregistry.svg)](https://badge.fury.io/py/toolregistry)
+
 ## Prerequisites
 
 Before setting up ToolRegistry, ensure you have the following installed:
