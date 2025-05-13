@@ -13,7 +13,7 @@ class TestEvaluate(unittest.TestCase):
 
     def test_calculator_methods(self):
         self.assertEqual(Calculator.evaluate("sqrt(16)"), 4)
-        self.assertEqual(Calculator.evaluate("power(2, 5)"), 32)
+        self.assertEqual(Calculator.evaluate("pow(2, 5)"), 32)
         self.assertEqual(Calculator.evaluate("average([1, 2, 3, 4])"), 2.5)
         self.assertGreater(
             Calculator.evaluate("compound_interest(1000, 0.05, 5, 12)"), 1000
@@ -34,7 +34,7 @@ class TestEvaluate(unittest.TestCase):
         self.assertTrue(result_bool)
 
     def test_combined_expressions(self):
-        expr = "average([1,2,3]) + sqrt(power(2,4))"
+        expr = "average([1,2,3]) + sqrt(pow(2,4))"
         self.assertEqual(Calculator.evaluate(expr), 6.0)
 
         expr = "gcd(36, 48) + lcm(6, 8)"
@@ -70,7 +70,7 @@ class TestEvaluate(unittest.TestCase):
 
     def test_scientific_operations(self):
         # Test power, sqrt, trigonometric, and logarithmic functions
-        self.assertEqual(Calculator.evaluate("power(2,3)"), 8)
+        self.assertEqual(Calculator.evaluate("pow(2,3)"), 8)
         self.assertEqual(Calculator.evaluate("sqrt(9)"), 3)
         self.assertEqual(Calculator.evaluate("sin(0)"), 0)
         self.assertAlmostEqual(Calculator.evaluate("cos(0)"), 1, places=5)
@@ -112,9 +112,28 @@ class TestEvaluate(unittest.TestCase):
             Calculator.evaluate("compound_interest(1000,0.05,3,1)"), 1157.625, places=3
         )
 
-    def test_random_functions(self):
-        # Test random and randint functions
-        val = Calculator.evaluate("random()")
-        self.assertTrue(0 <= val < 1)
-        val_int = Calculator.evaluate("randint(1,10)")
-        self.assertTrue(1 <= val_int <= 10)
+    def test_distance_and_norm(self):
+        # Test dist and norm_euclidean functions
+        self.assertEqual(Calculator.evaluate("dist([0,0], [3,4], 'euclidean')"), 5)
+        self.assertEqual(Calculator.evaluate("dist([0,0], [3,4], 'manhattan')"), 7)
+        self.assertEqual(Calculator.evaluate("norm_euclidean([3,4])"), 5)
+
+        # Test error cases
+        with self.assertRaises(ValueError):
+            Calculator.evaluate("dist([0,0], [3,4,5], 'euclidean')")
+
+    def test_cbrt_function(self):
+        # Test cube root function
+        self.assertEqual(Calculator.evaluate("cbrt(8)"), 2)
+        self.assertEqual(Calculator.evaluate("cbrt(-27)"), -3)
+        self.assertAlmostEqual(Calculator.evaluate("cbrt(10)"), 2.15443469003, places=5)
+
+    def test_help_and_allowed_functions(self):
+        # Test help documentation and allowed functions list
+        help_text = Calculator.help("sqrt")
+        self.assertIn("square root of a number", help_text)
+
+        allowed_fns = Calculator.allowed_fns_in_evaluate()
+        self.assertIn("sqrt", allowed_fns)
+        self.assertIn("add", allowed_fns)
+        self.assertNotIn("eval", allowed_fns)
