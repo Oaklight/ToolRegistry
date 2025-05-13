@@ -1,7 +1,9 @@
 import inspect
 import math
+import textwrap
 from typing import Dict, List, Literal, Union
 
+from ..utils import get_all_static_methods
 
 
 class Calculator:
@@ -252,30 +254,58 @@ class Calculator:
         return principal * (1 + rate / periods) ** (periods * time)
 
     # ====== Expression evaluation 表达式求值 ======
+
+    @staticmethod
+    def allowed_fns_in_evaluate() -> List[str]:
+        """Returns a list of allowed functions for the evaluate method."""
+
+        return _ALLOWED_FUNCTIONS + _MATH_LIB_FUNCTIONS
+
+    @staticmethod
+    def help(fn_name: str) -> str:
+        """Returns the help documentation for a specific function used in the evaluate method.
+
+        Args:
+            fn_name (str): Name of the function to get help for.
+
+        Returns:
+            str: Help documentation for the specified function.
+
+        Raises:
+            ValueError: If the function name is not recognized.
+        """
+        # Check if the function is in Calculator or math
+        if fn_name not in Calculator.allowed_fns_in_evaluate():
+            raise ValueError(f"Function '{fn_name}' is not recognized.")
+
+        # Resolving whether the function is from Calculator or math
+        if hasattr(Calculator, fn_name):
+            target = getattr(Calculator, fn_name)
+        elif hasattr(math, fn_name):  # Handle math functions
+            target = getattr(math, fn_name)
+        else:
+            target = None
+
+        if target is None:
+            raise ValueError(f"Function '{fn_name}' cannot be resolved.")
+
+        # Get docstring and function signature
+        docstring = inspect.getdoc(target)
+        docstring = docstring.strip() if docstring else ""
+        signature = inspect.signature(target) if callable(target) else None
+
+        return f"function: {fn_name}{signature}\n{textwrap.indent(docstring, ' ' * 4)}"
+
     @staticmethod
     def evaluate(expression: str) -> Union[float, int, bool]:
         """Evaluates a mathematical expression using a unified interface.
 
-        This method is intended for complex expressions that combine two or more operations.
+        This method is intended for complex expressions that combine two or more operations or advanced mathematical functions.
         For simple, single-step operations, please directly use the corresponding static method (e.g., add, subtract).
 
-        The evaluate method supports the following operations:
-            - Constants: pi, e, tau, inf, nan
-            - Basic arithmetic: add, subtract, multiply, divide, mod
-            - Power and roots: power, sqrt, cbrt, isqrt
-            - Distance and norm: dist, hypot
-            - Trigonometric functions: sin, cos, tan, asin, acos, atan, degrees, radians
-            - Hyperbolic functions: sinh, cosh, tanh, asinh, acosh, atanh
-            - Logarithmic and exponential functions: log, ln, log10, log2, log1p, exp, expm1
-            - Numerical processing: abs, round, floor, ceil, trunc, copysign, frexp, ldexp, modf, remainder, nextafter, ulp, fmod, isclose
-            - Combinatorics: factorial, gcd, lcm, comb, perm
-            - Special functions: erf, erfc, gamma, lgamma
-            - Numerical validation: isfinite, isinf, isnan
-            - Statistical functions: average, median, mode, standard_deviation, min, max, sum, prod, fsum
-            - Financial calculations: simple_interest, compound_interest
-            - Random number generation: random, randint
+        The full list of supported functions can be obtained by calling `allowed_fns_in_evaluate()`. Anything beyond this list is not supported. `help` method can be used to get detailed information about each function.
 
-        The expression should be a valid Python expression utilizing the above functions.
+        The `expression` should be a valid Python expression utilizing these functions.
         For example: "add(2, 3) * power(2, 3) + sqrt(16)".
 
         Args:
@@ -292,16 +322,36 @@ class Calculator:
         allowed_functions = {
             name: func.__func__
             for name, func in Calculator.__dict__.items()
-            if isinstance(func, staticmethod) and name not in ("evaluate")
+            if isinstance(func, staticmethod) and name in _ALLOWED_FUNCTIONS
         }
+        # Include math module functions which not already in Calculator class
+
         allowed_functions.update(
-            {
-                "pow": Calculator.power,
-            }
+            {name: getattr(math, name) for name in _MATH_LIB_FUNCTIONS}
         )
-        # Add basic builtins
 
         try:
-            return eval(expression, {"__builtins__": None}, allowed_functions)
+            # Allow safe builtins like abs, min, max, round etc
+            safe_builtins = {
+                "__builtins__": {
+                    "int": int,
+                    "float": float,
+                    "bool": bool,
+                }
+            }
+            return eval(expression, safe_builtins, allowed_functions)
         except Exception as e:
             raise ValueError(f"Invalid expression: {e}")
+
+
+# primarily because they don't have signature or are unsafe
+_EXCLUDE_FUNCTIONS = ["hypot", "eval", "exec", "open", "input"]
+_ALLOWED_FUNCTIONS = get_all_static_methods(
+    Calculator, skip_list=["evaluate", "allowed_fns_in_evaluate", "help"]
+)
+_MATH_LIB_FUNCTIONS = [
+    name
+    for name in dir(math)
+    if callable(getattr(math, name))
+    and name not in _ALLOWED_FUNCTIONS + _EXCLUDE_FUNCTIONS
+]
