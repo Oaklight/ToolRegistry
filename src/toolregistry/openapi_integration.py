@@ -8,6 +8,7 @@ import yaml  # type: ignore
 
 from .tool import Tool
 from .tool_registry import ToolRegistry
+from .tool_wrapper import BaseToolWrapper
 from .utils import normalize_tool_name
 
 
@@ -136,7 +137,7 @@ def load_openapi_spec(uri: str) -> Dict[str, Any]:
         raise ValueError(f"Unexpected error: {e}")
 
 
-class OpenAPIToolWrapper:
+class OpenAPIToolWrapper(BaseToolWrapper):
     """Wrapper class that provides both synchronous and asynchronous methods for OpenAPI tool calls.
 
     Args:
@@ -155,41 +156,10 @@ class OpenAPIToolWrapper:
         path: str,
         params: Optional[List[str]],
     ) -> None:
+        super().__init__(name=name, params=params)
         self.base_url = base_url
-        self.name = name
         self.method = method.lower()
         self.path = path
-        self.params = params
-
-    def _process_args(self, *args: Any, **kwargs: Any) -> Dict[str, Any]:
-        """Map positional arguments to parameter names and validate input.
-
-        Args:
-            *args: Positional arguments.
-            **kwargs: Keyword arguments.
-
-        Returns:
-            Dict[str, Any]: Processed keyword arguments with positional arguments mapped.
-
-        Raises:
-            ValueError: If the tool parameters are not initialized.
-            TypeError: If too many positional arguments are provided or a parameter is passed twice.
-        """
-        if args:
-            if not self.params:
-                raise ValueError("Tool parameters not initialized")
-            if len(args) > len(self.params):
-                raise TypeError(
-                    f"Expected at most {len(self.params)} positional arguments, got {len(args)}"
-                )
-            for i, arg in enumerate(args):
-                param_name = self.params[i]
-                if param_name in kwargs:
-                    raise TypeError(
-                        f"Parameter '{param_name}' passed both as positional and keyword argument"
-                    )
-                kwargs[param_name] = arg
-        return kwargs
 
     def call_sync(self, *args: Any, **kwargs: Any) -> Any:
         """Synchronously call the API using httpx.
@@ -249,23 +219,6 @@ class OpenAPIToolWrapper:
                 )
             response.raise_for_status()
             return response.json()
-
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        """Invoke the API call. Uses asynchronous call if in an async context,
-        otherwise defaults to the synchronous version.
-
-        Args:
-            *args: Positional arguments.
-            **kwargs: Keyword arguments.
-
-        Returns:
-            Any: The result of the API call.
-        """
-        try:
-            asyncio.get_running_loop()
-            return self.call_async(*args, **kwargs)
-        except RuntimeError:
-            return self.call_sync(*args, **kwargs)
 
 
 class OpenAPITool(Tool):

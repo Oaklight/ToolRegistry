@@ -33,6 +33,7 @@ from pydantic import AnyUrl
 
 from .tool import Tool
 from .tool_registry import ToolRegistry
+from .tool_wrapper import BaseToolWrapper
 from .utils import normalize_tool_name
 
 
@@ -141,11 +142,11 @@ async def get_initialize_result(transport: ClientTransport) -> InitializeResult:
         raise ValueError(f"Failed to initialize transport: {str(e)}") from e
 
 
-class MCPToolWrapper:
+class MCPToolWrapper(BaseToolWrapper):
     """Wrapper class providing both async and sync versions of MCP tool calls.
 
     Attributes:
-        url (str): URL of the MCP server.
+        transport (ClientTransport): fastmcp.client.ClientTransport instance for communication.
         name (str): Name of the tool/operation.
         params (Optional[List[str]]): List of parameter names.
     """
@@ -163,40 +164,8 @@ class MCPToolWrapper:
             name (str): Name of the tool/operation.
             params (Optional[List[str]]): List of parameter names.
         """
+        super().__init__(name=name, params=params)
         self.client = Client(transport)
-        self.name: str = name
-        self.params: Optional[List[str]] = params
-
-    def _process_args(self, *args: Any, **kwargs: Any) -> Dict[str, Any]:
-        """Process positional and keyword arguments into validated kwargs.
-
-        Args:
-            args (Any): Positional arguments to process.
-            kwargs (Any): Keyword arguments to process.
-
-        Returns:
-            Dict[str, Any]: Validated keyword arguments.
-
-        Raises:
-            ValueError: If tool parameters not initialized.
-            TypeError: If arguments are invalid or duplicated.
-        """
-        if args:
-            if not self.params:
-                raise ValueError("Tool parameters not initialized")
-            if len(args) > len(self.params):
-                raise TypeError(
-                    f"Expected at most {len(self.params)} positional arguments, got {len(args)}"
-                )
-            # Map positional args to their corresponding parameter names
-            for i, arg in enumerate(args):
-                param_name = self.params[i]
-                if param_name in kwargs:
-                    raise TypeError(
-                        f"Parameter '{param_name}' passed both as positional and keyword argument"
-                    )
-                kwargs[param_name] = arg
-        return kwargs
 
     def call_sync(self, *args: Any, **kwargs: Any) -> Any:
         """Synchronous implementation of MCP tool call.
@@ -261,29 +230,6 @@ class MCPToolWrapper:
                 f"Original Exception happens at {self.name}:\n{traceback.format_exc()}"
             )
             raise  # throw to keep the original behavior
-
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        """Make the wrapper directly callable, automatically choosing sync/async version.
-
-        Args:
-            args (Any): Positional arguments to pass to the tool.
-            kwargs (Any): Keyword arguments to pass to the tool.
-
-        Returns:
-            Any: Result from tool execution.
-
-        Raises:
-            ValueError: If URL or name not set.
-            Exception: If tool execution fails.
-        """
-        try:
-            # 尝试获取当前的 event loop
-            asyncio.get_running_loop()
-            # 如果成功，说明在异步环境中
-            return self.call_async(*args, **kwargs)
-        except RuntimeError:
-            # 捕获异常，说明在同步环境中
-            return self.call_sync(*args, **kwargs)
 
     def _post_process_result(self, result: Any) -> Any:
         """Post-process the result from an MCP tool call.
