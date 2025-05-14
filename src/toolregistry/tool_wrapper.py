@@ -1,9 +1,9 @@
-from abc import abstractmethod
-from typing import Any, Dict, List, Optional
 import asyncio
+from abc import ABC, abstractmethod
+from typing import Any, Dict, List, Optional
 
 
-class BaseToolWrapper:
+class BaseToolWrapper(ABC):
     """Base class for tool wrappers that provide support for synchronous
     and asynchronous calls.
 
