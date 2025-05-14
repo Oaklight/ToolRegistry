@@ -35,6 +35,7 @@ openapi = [
     "PyYAML>=6.0.2",  # safe load both json and yaml
     "jsonref>=1.1.0", # deref $ref in openapi spec
 ]
+langchain = ["langchain-core>=0.3,<0.4", "langchain-community>=0.3,<0.4"]
 dev = ["mypy>=1.14.1", "build>=1.2.2.post1", "twine>=6.1.0"]
 
 [project.urls]
