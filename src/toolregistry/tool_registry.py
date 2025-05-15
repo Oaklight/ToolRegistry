@@ -505,6 +505,68 @@ class ToolRegistry:
             spec_url, base_url, with_namespace
         )
 
+    def register_from_langchain(
+        self,
+        langchain_tool: Any,
+        with_namespace: Union[bool, str] = False,
+    ):
+        """Register a LangChain tool in the registry.
+
+        Requires the [langchain] extra to be installed.
+
+        Args:
+            langchain_tool (Any): The LangChain tool to register.
+            with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
+                - If `False`, no namespace is used.
+                - If `True`, the namespace is derived from the tool name.
+                - If a string is provided, it is used as the namespace.
+                Defaults to False.
+
+        Raises:
+            ImportError: If [langchain] extra is not installed
+        """
+        try:
+            from .langchain_integration import LangChainIntegration
+        except ImportError:
+            raise ImportError(
+                "LangChain integration requires the [langchain] extra. "
+                "Install with: pip install toolregistry[langchain]"
+            )
+        langchain = LangChainIntegration(self)
+        return langchain.register_langchain_tool(langchain_tool, with_namespace)
+
+    async def register_from_langchain_async(
+        self,
+        langchain_tool: Any,
+        with_namespace: Union[bool, str] = False,
+    ):
+        """Async implementation to register a LangChain tool in the registry.
+
+        Requires the [langchain] extra to be installed.
+
+        Args:
+            langchain_tool (Any): The LangChain tool to register.
+            with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
+                - If `False`, no namespace is used.
+                - If `True`, the namespace is derived from the tool name.
+                - If a string is provided, it is used as the namespace.
+                Defaults to False.
+
+        Raises:
+            ImportError: If [langchain] extra is not installed
+        """
+        try:
+            from .langchain_integration import LangChainIntegration
+        except ImportError:
+            raise ImportError(
+                "LangChain integration requires the [langchain] extra. "
+                "Install with: pip install toolregistry[langchain]"
+            )
+        langchain = LangChainIntegration(self)
+        return await langchain.register_langchain_tool_async(
+            langchain_tool, with_namespace
+        )
+
     def register_from_class(
         self, cls: Union[Type, object], with_namespace: Union[bool, str] = False
     ):
