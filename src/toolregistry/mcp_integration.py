@@ -226,7 +226,7 @@ class MCPToolWrapper(BaseToolWrapper):
             # record full exception stack
             import traceback
 
-            print(
+            logger.error(
                 f"Original Exception happens at {self.name}:\n{traceback.format_exc()}"
             )
             raise  # throw to keep the original behavior
