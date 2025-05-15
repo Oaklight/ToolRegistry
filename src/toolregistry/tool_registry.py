@@ -21,6 +21,11 @@ try:
 except ImportError:
     pass
 
+try:
+    from langchain_core.tools import BaseTool as LCBaseTool  # type: ignore
+except ImportError:
+    pass
+
 
 def _process_tool_call_helper(
     serialized_func: Optional[bytes],
@@ -503,6 +508,68 @@ class ToolRegistry:
         openapi = OpenAPIIntegration(self)
         return await openapi.register_openapi_tools_async(
             spec_url, base_url, with_namespace
+        )
+
+    def register_from_langchain(
+        self,
+        langchain_tool: Union["LCBaseTool", List["LCBaseTool"]],
+        with_namespace: Union[bool, str] = False,
+    ):
+        """Register a LangChain tool in the registry.
+
+        Requires the [langchain] extra to be installed.
+
+        Args:
+            langchain_tool (Any): The LangChain tool to register.
+            with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
+                - If `False`, no namespace is used.
+                - If `True`, the namespace is derived from the tool name.
+                - If a string is provided, it is used as the namespace.
+                Defaults to False.
+
+        Raises:
+            ImportError: If [langchain] extra is not installed
+        """
+        try:
+            from .langchain_integration import LangChainIntegration
+        except ImportError:
+            raise ImportError(
+                "LangChain integration requires the [langchain] extra. "
+                "Install with: pip install toolregistry[langchain]"
+            )
+        langchain = LangChainIntegration(self)
+        return langchain.register_langchain_tools(langchain_tool, with_namespace)
+
+    async def register_from_langchain_async(
+        self,
+        langchain_tool: Union["LCBaseTool", List["LCBaseTool"]],
+        with_namespace: Union[bool, str] = False,
+    ):
+        """Async implementation to register a LangChain tool in the registry.
+
+        Requires the [langchain] extra to be installed.
+
+        Args:
+            langchain_tool (Any): The LangChain tool to register.
+            with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
+                - If `False`, no namespace is used.
+                - If `True`, the namespace is derived from the tool name.
+                - If a string is provided, it is used as the namespace.
+                Defaults to False.
+
+        Raises:
+            ImportError: If [langchain] extra is not installed
+        """
+        try:
+            from .langchain_integration import LangChainIntegration
+        except ImportError:
+            raise ImportError(
+                "LangChain integration requires the [langchain] extra. "
+                "Install with: pip install toolregistry[langchain]"
+            )
+        langchain = LangChainIntegration(self)
+        return await langchain.register_langchain_tools_async(
+            langchain_tool, with_namespace
         )
 
     def register_from_class(
