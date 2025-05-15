@@ -82,9 +82,8 @@ def determine_urls(url: str) -> Dict[str, Any]:
     return {"found": False, "base_api_url": base_url}
 
 
-def load_openapi_spec(uri: str) -> Dict[str, Any]:
-    """
-    Fetch and decode the OpenAPI specification from the URI as a dictionary.
+async def load_openapi_spec_async(uri: str) -> Dict[str, Any]:
+    """Async version of load_openapi_spec using httpx.AsyncClient.
 
     Args:
         uri (str): URL or file path pointing to an OpenAPI specification.
@@ -105,21 +104,26 @@ def load_openapi_spec(uri: str) -> Dict[str, Any]:
             base_url = None
         else:  # Handle URLs
             # First attempt to determine schema URL and fallback base URL
-            results = determine_urls(uri)
+            loop = asyncio.get_event_loop()
+            results = await loop.run_in_executor(None, determine_urls, uri)
             uri = results["schema_url"] if results["found"] else uri
             base_url = results["base_api_url"]
 
-            with httpx.stream("GET", uri) as response:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(uri)
                 response.raise_for_status()
-                openapi_spec_content = b"".join(response.iter_bytes())
+                openapi_spec_content = response.content
 
-        # Load and parse OpenAPI spec
-        openapi_spec_dict = jsonref.replace_refs(yaml.safe_load(openapi_spec_content))
+        # Load and parse OpenAPI spec (CPU-bound operation)
+        loop = asyncio.get_event_loop()
+        openapi_spec_dict = await loop.run_in_executor(
+            None, lambda: jsonref.replace_refs(yaml.safe_load(openapi_spec_content))
+        )
 
         # Refine the base_url using servers field if available and valid
         refined_base_url = extract_base_url_from_specs(openapi_spec_dict)
         if refined_base_url:
-            base_url = refined_base_url  # Replace fallback base_url from determine_urls
+            base_url = refined_base_url
 
         return {"spec": openapi_spec_dict, "base_url": base_url}
 
@@ -135,6 +139,20 @@ def load_openapi_spec(uri: str) -> Dict[str, Any]:
         raise FileNotFoundError(f"Invalid file path: {e}")
     except Exception as e:
         raise ValueError(f"Unexpected error: {e}")
+
+
+def load_openapi_spec(uri: str) -> Dict[str, Any]:
+    """Sync version that calls the async implementation.
+
+    Args:
+        uri (str): URL or file path pointing to an OpenAPI specification.
+
+    Returns:
+        Dict[str, Any]: A dictionary containing the parsed OpenAPI specification and the base API URL (if applicable).
+
+    Raises:
+        ValueError: If URI retrieval, parsing, or decoding fails."""
+    return asyncio.run(load_openapi_spec_async(uri))
 
 
 class OpenAPIToolWrapper(BaseToolWrapper):
@@ -333,36 +351,40 @@ class OpenAPIIntegration:
         Returns:
             None
         """
+        try:
+            specs = await load_openapi_spec_async(uri)
+            openapi_spec = specs["spec"]
+            base_url = specs["base_url"] or base_url
 
-        specs = load_openapi_spec(uri)
-        openapi_spec = specs["spec"]
-        base_url = specs["base_url"] or base_url
+            if not base_url:
+                raise ValueError(
+                    "base_url must be specified, either by argument or via OpenAPI spec"
+                )
 
-        if not base_url:
-            raise ValueError(
-                "base_url must be specified, either by argument or via OpenAPI spec"
+            namespace = (
+                with_namespace
+                if isinstance(with_namespace, str)
+                else openapi_spec.get("info", {}).get("title", "OpenAPI service")
+                if with_namespace
+                else None
             )
 
-        if isinstance(with_namespace, str):
-            namespace = with_namespace
-        elif with_namespace:  # with_namespace is True
-            namespace = openapi_spec.get("info", {}).get("title", "OpenAPI service")
-        else:
-            namespace = None
+            # Process paths sequentially but keep async context
+            for path, methods in openapi_spec.get("paths", {}).items():
+                for method, spec in methods.items():
+                    if method.lower() not in ["get", "post", "put", "delete"]:
+                        continue
 
-        for path, methods in openapi_spec.get("paths", {}).items():
-            for method, spec in methods.items():
-                if method.lower() not in ["get", "post", "put", "delete"]:
-                    continue
-
-                open_api_tool = OpenAPITool.from_openapi_spec(
-                    base_url=base_url or "",
-                    path=path,
-                    method=method,
-                    spec=spec,
-                    namespace=namespace,
-                )
-                self.registry.register(open_api_tool, namespace=namespace)
+                    open_api_tool = OpenAPITool.from_openapi_spec(
+                        base_url=base_url or "",
+                        path=path,
+                        method=method,
+                        spec=spec,
+                        namespace=namespace,
+                    )
+                    self.registry.register(open_api_tool, namespace=namespace)
+        except Exception as e:
+            raise ValueError(f"Failed to register OpenAPI tools: {e}")
 
     def register_openapi_tools(
         self,
@@ -370,7 +392,7 @@ class OpenAPIIntegration:
         base_url: Optional[str] = None,
         with_namespace: Union[bool, str] = False,
     ) -> None:
-        """Asynchronously register all tools defined in an OpenAPI specification.
+        """Synchronously register all tools defined in an OpenAPI specification.
 
         Args:
             uri (str): File path or URL to the OpenAPI specification (JSON/YAML).
@@ -385,18 +407,10 @@ class OpenAPIIntegration:
             None
         """
         try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
             loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        if loop.is_running():
-            future = asyncio.run_coroutine_threadsafe(
-                self.register_openapi_tools_async(uri, base_url, with_namespace),
-                loop,
-            )
-            future.result()
-        else:
+            asyncio.set_event_loop(loop)  # used by load_openapi_spec_async
             loop.run_until_complete(
                 self.register_openapi_tools_async(uri, base_url, with_namespace)
             )
+        finally:
+            loop.close()
