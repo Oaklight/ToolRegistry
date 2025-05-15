@@ -13,6 +13,7 @@ Example:
     ['MyClass.method1', 'MyClass.method2', ...]
 """
 
+import asyncio
 from typing import Optional, Type, Union
 
 from .tool_registry import ToolRegistry
@@ -165,4 +166,7 @@ class ClassToolIntegration:
                 - If a string is provided, it is used as the namespace.
                 Defaults to False.
         """
-        self.register_class_methods(cls_or_instance, with_namespace)
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(
+            None, self.register_class_methods, cls_or_instance, with_namespace
+        )
