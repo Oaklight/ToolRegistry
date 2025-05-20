@@ -378,24 +378,29 @@ class MCPIntegration:
         Raises:
             RuntimeError: If connection to server fails.
         """
-        transport = (
+        client = Client(
             transport
             if isinstance(transport, ClientTransport)
             else infer_transport_overriden(transport)
         )
 
-        # hack to get server_info
-        init_result: InitializeResult = await get_initialize_result(transport)
-        server_info: Optional[Implementation] = getattr(init_result, "serverInfo", None)
+        async with client:
+            if hasattr(client, "initialize_result"):  # since fastmcp 2.3.5
+                init_result: InitializeResult = client.initialize_result
+            else:
+                init_result: InitializeResult = await get_initialize_result(transport)
 
-        if isinstance(with_namespace, str):
-            namespace = with_namespace
-        elif with_namespace:  # with_namespace is True
-            namespace = server_info.name if server_info else "MCP sse service"
-        else:
-            namespace = None
+            server_info: Optional[Implementation] = getattr(
+                init_result, "serverInfo", None
+            )
 
-        async with Client(transport) as client:
+            if isinstance(with_namespace, str):
+                namespace = with_namespace
+            elif with_namespace:  # with_namespace is True
+                namespace = server_info.name if server_info else "MCP sse service"
+            else:
+                namespace = None
+
             # Get available tools from server
             tools_response = await client.list_tools()
             # print(f"Found {len(tools_response)} tools on server")

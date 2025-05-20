@@ -29,7 +29,7 @@ dependencies = [
 
 [project.optional-dependencies]
 mcp = [
-    "fastmcp>=2.3.0", # since 2.3.0, streamable http & sse both available
+    "fastmcp>=2.3.5",
 ]
 openapi = [
     "PyYAML>=6.0.2",  # safe load both json and yaml
