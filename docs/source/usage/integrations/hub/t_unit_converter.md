@@ -1,7 +1,7 @@
 # UnitConverter - Extensive unit conversion tools
 
 ```{tip}
-Refined in version: 0.4.3
+Refined in version: 0.4.3 <br>
 New in version: 0.4.2
 ```
 

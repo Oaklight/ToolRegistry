@@ -1,8 +1,8 @@
 # Calculator - Mathematical calculation tools
 
 ```{tip}
-Refined in version: 0.4.8.post1
-Refined in version: 0.4.3
+Refined in version: 0.4.8.post1 <br>
+Refined in version: 0.4.3 <br>
 New in version: 0.4.2
 ```
 
