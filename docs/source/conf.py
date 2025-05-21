@@ -13,7 +13,7 @@ project = "ToolRegistry"
 copyright = "2024-2025, Peng Ding"
 author = "Peng Ding"
 html_title = "ToolRegistry"
-release = "0.4.8.post1"
+release = "0.4.9"
 
 
 sys.path.insert(0, os.path.abspath("../../src"))
@@ -62,7 +62,7 @@ html_css_files = [
 ]
 
 html_theme_options = {
-    "announcement": ("v0.4.8 released! Refined OpenAPI support! ✨"),
+    "announcement": ("v0.4.9 released! Now with support for LangChain tools! 🦜"),
     "source_repository": "https://github.com/Oaklight/ToolRegistry",
     "source_branch": "master",
     "source_directory": "docs/source/",
