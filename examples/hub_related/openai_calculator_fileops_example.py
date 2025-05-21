@@ -13,7 +13,6 @@ load_dotenv()
 
 model_name = os.getenv("MODEL", "deepseek-v3")
 stream = os.getenv("STREAM", "True").lower() == "true"
-SEARXNG_URL = os.getenv("SEARXNG_URL", "http://localhost:8080")  # SearxNG实例URL
 
 API_KEY = os.getenv("API_KEY", "your-api-key")
 BASE_URL = os.getenv("BASE_URL", "https://api.deepseek.com/")
