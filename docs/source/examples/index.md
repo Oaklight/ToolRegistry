@@ -1,6 +1,8 @@
 # Examples
 
 ```{toctree}
+:caption: Simple Examples
+
 consecutive_tool_calls
 ```
 

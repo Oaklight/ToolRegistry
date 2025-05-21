@@ -1,5 +1,9 @@
 # Consecutive Tool Calls
 
+In real agentic AI development, it's common to see LLM using multiple tools consecutively to accomplish a task. This example demonstrates how to handle such scenarios.
+
+We ask LLM to query the latest weather of some location (mock API call), which is often in Celsius, and then ask it to convert the temperature to Fahrenheit.
+
 ## OpenAI Client Implementation
 
 This example demonstrates integration with OpenAI's API. As we mentioned in previous article, we shall handle consecutive tool calls manually.
