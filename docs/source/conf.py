@@ -56,26 +56,31 @@ html_search_options = {"type": "default"}
 # html_logo = "https://em-content.zobj.net/source/animated-noto-color-emoji/356/mechanical-arm_1f9be.gif"
 
 
-html_css_files = [
-    "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/fontawesome.min.css",
-    "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/solid.min.css",
-    "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/brands.min.css",
-]
-
 html_theme_options = {
     "announcement": ("v0.4.9 released! Now with support for LangChain tools! 🦜"),
-    "source_repository": "https://github.com/Oaklight/ToolRegistry",
-    "source_branch": "master",
-    "source_directory": "docs/source/",
-    "footer_icons": [
+    "show_toc_level": 2,
+    "show_nav_level": 2,
+    "collapse_navigation": False,
+    "icon_links": [
         {
+            # Label for this link
             "name": "GitHub",
-            "url": "https://github.com/Oaklight/ToolRegistry",
-            "html": "",
-            "class": "fa-brands fa-solid fa-github fa-2x",
+            "url": "https://github.com/Oaklight/ToolRegistry",  # required
+            "icon": "fa-brands fa-github",
+        },
+        {
+            "name": "PyPI",
+            "url": "https://pypi.org/project/toolregistry/",
+            "icon": "https://pypi.org/static/images/logo-small.8998e9d1.svg",
+            "type": "url",
         },
     ],
-    "show_nav_level": 2,
-    "navigation_depth": 2,
-    "collapse_navigation": False,
+}
+
+html_context = {
+    # "github_url": "https://github.com", # or your GitHub Enterprise site
+    "github_user": "Oaklight",
+    "github_repo": "ToolRegistry",
+    "github_version": "master",
+    "doc_path": "docs",
 }

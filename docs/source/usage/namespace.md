@@ -10,7 +10,7 @@ Namespaces are used to organize tools within a registry and avoid name conflicts
 
 ### OpenAI Function Naming Convention
 
-Starting from GPT-4.1 release (April 14, 2025 release), OpenAI requires function names to match the pattern `^[a-zA-Z0-9_-]+$`. While dots (.) were previously accepted as namespace separators in GPT-4o on Azure, we now use dashes (-) as the default separator since toolregistry always normalizes function names to snake_case.
+Starting from GPT-4.1 release (April 14, 2025 release), OpenAI requires function names to match the pattern `^[a-zA-Z0-9_-]+$`. While dots (.) were previously accepted as namespace separators in GPT-4o, we now use dashes (-) as the default separator since toolregistry always normalizes function names to snake_case.
 
 **This change was implemented in version 0.4.5.** Users experiencing issues should upgrade as soon as possible. While dashes are the default, dots remain available as an optional separator for advanced users who need compatibility with other providers.
 
