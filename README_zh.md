@@ -42,10 +42,11 @@ pip install toolregistry[mcp,openapi]
 
 以下是可用额外模块的总结表：
 
-| 额外模块 | Python 要求    | 示例命令                          |
-| -------- | -------------- | --------------------------------- |
-| mcp      | Python >= 3.10 | pip install toolregistry[mcp]     |
-| openapi  | Python >= 3.8  | pip install toolregistry[openapi] |
+| 额外模块       | Python 要求       | 示例命令                            |
+| -------------- | ----------------- | ----------------------------------- |
+| mcp            | Python >= 3.10    | pip install toolregistry[mcp]       |
+| openapi        | Python >= 3.8     | pip install toolregistry[openapi]   |
+| langchain      | Python >= 3.9     | pip install toolregistry[langchain] |
 
 ## 示例
 
@@ -134,6 +135,20 @@ tools_json = registry.get_tools_json()
 
 ```python
 registry.register_from_openapi("./openapi_spec.json", "http://localhost/")
+```
+
+### LangChain 集成
+
+LangChain 集成模块允许 ToolRegistry 无缝注册和调用 LangChain 工具，支持同步和异步调用。
+
+```python
+from langchain_community.tools import ArxivQueryRun, PubmedQueryRun
+from toolregistry import ToolRegistry
+
+registry = ToolRegistry()
+
+registry.register_from_langchain([ArxivQueryRun(), PubmedQueryRun()])
+tools_json = registry.get_tools_json()
 ```
 
 ## 注册 Class 工具
