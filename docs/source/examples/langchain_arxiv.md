@@ -1,4 +1,4 @@
-# Register and Use LangChain Tools
+# Use LangChain Arxiv Tool to Summarize Recent Papers in a Specific Field
 
 Here is an example of LLM using Arxiv tool from LangChain community to make summary of recent papers in a specific field.
 
