@@ -28,15 +28,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-mcp = [
-    "fastmcp>=2.3.5",
-]
+mcp = ["fastmcp>=2.3.5"]
 openapi = [
     "PyYAML>=6.0.2",  # safe load both json and yaml
     "jsonref>=1.1.0", # deref $ref in openapi spec
 ]
 langchain = ["langchain-core>=0.3,<0.4", "langchain-community>=0.3,<0.4"]
-dev = ["mypy>=1.14.1", "build>=1.2.2.post1", "twine>=6.1.0"]
+dev = ["dotenv>=0.9.9", "openai>=1.79.0","mypy>=1.14.1", "build>=1.2.2.post1", "twine>=6.1.0"]
 
 [project.urls]
 Documentation = "https://toolregistry.lab.oaklight.cn"
