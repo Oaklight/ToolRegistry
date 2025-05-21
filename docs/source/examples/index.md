@@ -23,6 +23,7 @@ openapi_calculator
 :caption: Hub Tool Related
 
 hub_calculator
+hub_file_edit
 ```
 
 ```{toctree}
