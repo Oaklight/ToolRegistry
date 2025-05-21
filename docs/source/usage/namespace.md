@@ -1,4 +1,8 @@
-# Advanced Usage
+# Namespace and ToolRegistry Manipulation
+
+```{tip}
+New in version: 0.4.1
+```
 
 ## Namespaces in Tool Registries
 

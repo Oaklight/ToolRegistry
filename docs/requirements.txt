@@ -1,5 +1,6 @@
 sphinx>=7.3.7
-furo
+# furo
+pydata-sphinx-theme
 myst-parser==2.0.0
 sphinx-multitoc-numbering
 sphinx-copybutton

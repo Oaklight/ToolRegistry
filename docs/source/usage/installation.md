@@ -25,16 +25,18 @@ pip install toolregistry
 Extra modules can be installed by specifying extras in brackets. This method accommodates additional modules as the project evolves.
 
 For example, to install specific extra supports:
+
 ```bash
 pip install toolregistry[mcp,openapi]
 ```
 
 Below is a table summarizing available extra modules:
 
-| Extra Module | Python Requirement | Example Command                   |
-|--------------|--------------------|-----------------------------------|
-| mcp          | Python >= 3.10     | pip install toolregistry[mcp]     |
-| openapi      | Python >= 3.8      | pip install toolregistry[openapi] |
+| Extra Module | Python Requirement | Example Command                     |
+|--------------|--------------------|-------------------------------------|
+| mcp          | Python >= 3.10     | pip install toolregistry[mcp]       |
+| openapi      | Python >= 3.8      | pip install toolregistry[openapi]   |
+| langchain    | Python >= 3.9      | pip install toolregistry[langchain] |
 
 ### Installation from Source
 
@@ -53,4 +55,4 @@ Clone the repository and install the package with desired extras. For instance, 
 ```bash
 git clone https://github.com/Oaklight/ToolRegistry.git
 cd ToolRegistry
-pip install .[mcp,openapi]
+pip install .[mcp,openapi,langchain]

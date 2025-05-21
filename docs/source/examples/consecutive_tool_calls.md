@@ -1,77 +1,4 @@
-# Examples of Consecutive Tool Calls
-
-## Cicada `MultiModalModel` Implementation
-
-This example shows how to use ToolRegistry with the [Cicada](https://cicada.lab.oaklight.cn) `MultiModalModel`
-
-One nice thing here is that it handles consecutive tool calls automatically.
-
-```python
-import os
-from cicada.core.model import MultiModalModel
-from cicada.core.utils import cprint
-from toolregistry import ToolRegistry
-
-# Initialize Cicada model
-model_name = os.getenv("MODEL", "deepseek-v3")
-stream = os.getenv("STREAM", "True").lower() == "true"
-
-llm = MultiModalModel(
-    api_key="your-api-key",
-    api_base_url="https://api.deepseek.com/",
-    model_name=model_name,
-    stream=stream,
-)
-
-# Initialize ToolRegistry
-tool_registry = ToolRegistry()
-
-# Register tools
-@tool_registry.register
-def get_weather(location: str):
-    return f"Weather in {location}: Sunny, 25°C"
-
-@tool_registry.register
-def c_to_f(celsius: float) -> float:
-    fahrenheit = (celsius * 1.8) + 32
-    return f"{celsius} celsius degree == {fahrenheit} fahrenheit degree"
-
-# Query the model with tools
-response = llm.query(
-    "What's the temperature of Shanghai, reply using Fahrenheit?",
-    tools=tool_registry,
-    stream=llm.stream,
-)
-print(response["content"])
-cprint(json.dumps(response,indent=2))
-```
-
-response reads
-
-```python
-The current temperature in Shanghai is 77°F.
-```
-
-```json
-{
-  "content": "The current temperature in Shanghai is 77\u00b0F.",
-  "formatted_response": "[Response]: The current temperature in Shanghai is 77\u00b0F.",
-  "tool_chain": [
-    {
-      "content": "",
-      "tool_responses": {
-        "call_mOnZUGqQhhmvj0lIKEUcncAn": "Weather in Shanghai: Sunny, 25\u00b0C"
-      }
-    },
-    {
-      "content": "",
-      "tool_responses": {
-        "call_lDQ0Nq0HRXHnmhoX6PJzmBHo": "25.0 celsius degree == 77.0 fahrenheit degree"
-      }
-    }
-  ]
-}
-```
+# Consecutive Tool Calls
 
 ## OpenAI Client Implementation
 
@@ -169,4 +96,77 @@ location='Shanghai'
 Tool calls: [ChatCompletionMessageToolCall(id='call_ew7cm09z893u57102aeny2zp', function=Function(arguments='{"celsius":25}', name='c_to_f'), type='function', index=0)]
 celsius=25.0
 The temperature in Shanghai is 77°F.
+```
+
+## Cicada `MultiModalModel` Implementation
+
+This example shows how to use ToolRegistry with the [Cicada](https://cicada.lab.oaklight.cn) `MultiModalModel`
+
+One nice thing here is that it handles consecutive tool calls automatically.
+
+```python
+import os
+from cicada.core.model import MultiModalModel
+from cicada.core.utils import cprint
+from toolregistry import ToolRegistry
+
+# Initialize Cicada model
+model_name = os.getenv("MODEL", "deepseek-v3")
+stream = os.getenv("STREAM", "True").lower() == "true"
+
+llm = MultiModalModel(
+    api_key="your-api-key",
+    api_base_url="https://api.deepseek.com/",
+    model_name=model_name,
+    stream=stream,
+)
+
+# Initialize ToolRegistry
+tool_registry = ToolRegistry()
+
+# Register tools
+@tool_registry.register
+def get_weather(location: str):
+    return f"Weather in {location}: Sunny, 25°C"
+
+@tool_registry.register
+def c_to_f(celsius: float) -> float:
+    fahrenheit = (celsius * 1.8) + 32
+    return f"{celsius} celsius degree == {fahrenheit} fahrenheit degree"
+
+# Query the model with tools
+response = llm.query(
+    "What's the temperature of Shanghai, reply using Fahrenheit?",
+    tools=tool_registry,
+    stream=llm.stream,
+)
+print(response["content"])
+cprint(json.dumps(response,indent=2))
+```
+
+response reads
+
+```python
+The current temperature in Shanghai is 77°F.
+```
+
+```json
+{
+  "content": "The current temperature in Shanghai is 77\u00b0F.",
+  "formatted_response": "[Response]: The current temperature in Shanghai is 77\u00b0F.",
+  "tool_chain": [
+    {
+      "content": "",
+      "tool_responses": {
+        "call_mOnZUGqQhhmvj0lIKEUcncAn": "Weather in Shanghai: Sunny, 25\u00b0C"
+      }
+    },
+    {
+      "content": "",
+      "tool_responses": {
+        "call_lDQ0Nq0HRXHnmhoX6PJzmBHo": "25.0 celsius degree == 77.0 fahrenheit degree"
+      }
+    }
+  ]
+}
 ```

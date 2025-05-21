@@ -1,23 +1,9 @@
-# Usage Guide
-
-```{toctree}
-:hidden:
-advanced_usage
-openai
-mcp
-openapi
-hub
-concurrency_modes
-examples
-best_practices
-```
+# Basic Usage
 
 This page covers the basic usage of registering tools, processing tool calls, and bridging a tool registry to the OpenAI API.
 Let's use a simple math tool registry for demonstration purpose.
 
-## Basic Use Cases
-
-### Registering Tools
+## Registering Tools
 
 ```python
 from toolregistry import ToolRegistry
@@ -37,7 +23,7 @@ def subtract(a: int, b: int) -> int:
     return a - b
 ```
 
-### Get and Access Available Tool Names
+## Access Available Tool Names
 
 You can access the list of available tools by calling the `get_available_tools()` function:
 
@@ -85,7 +71,7 @@ You can access the available tools in the following ways:
 
    Note that the result is 15.0 instead of 15 because the `add` function's type hints specify both `a` and `b` as floats. During schema validation in `toolregistry.tool.Tool`, integer inputs are converted to floats (7.0 and 8.0), resulting in a float output.
 
-### JSON Schema of Tools
+## JSON Schema of Tools
 
 You can use the `get_tools_json` method **at ToolRegistry-level** to retrieve the tools' JSON schemas that are compatible with OpenAI's function calling interface.
 
@@ -182,10 +168,12 @@ add_tool.describe() # simpler interface
 }
 ```
 
-### Executing Tools
+## Executing Tools
+
+After obtain the tool calls instructions from LLM response, you can execute them using the `execute_tool_calls` method of the `ToolRegistry` class. This method takes a list of tool calls and returns a list of tool response. Each tool response contains the result of the tool execution and other metadata.
 
 ```python
-# Execute tool calls (tool_calls comes from OpenAI's API response)
+# tool_calls comes from OpenAI's API response. Here is a mock example.
 tool_calls = [
     {
         "id": "call_123",
@@ -200,9 +188,11 @@ tool_responses = registry.execute_tool_calls(tool_calls)
 print(tool_responses[0].result)  # Output: 3
 ```
 
-Please read [OpenAI Function Calling](openai) for detailed example and step-by-step breakdown with explanation.
+Please read [Function Calling via OpenAI Compatible API](function_calling) for detailed example and step-by-step breakdown with explanation.
 
 ### Manual Tool Execution
+
+You can also manually execute a tool by getting its callable function from the registry.
 
 ```python
 # Get a callable function

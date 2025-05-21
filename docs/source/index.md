@@ -18,41 +18,39 @@ Quickly start using ToolRegistry by installing it with this command:
 pip install toolregistry
 ```
 
-[Detailed setup instructions →](./installation)
+[Detailed setup instructions →](usage/installation)
 
 ## Documentation Contents
 
 Here are brief introductions and links to each section:
 
-- [**Installation Guide**](installation)
+- [**Installation Guide**](usage/installation)
   Detailed instructions for installing ToolRegistry, including basic installation and MCP-supported installation.
 
-- [**Usage Guide**](usage)
+- [**Basic Usage Guide**](usage/basics)
   Provides getting started examples and tutorials to help you quickly learn tool registration, invocation, and management.
 
-  - [**OpenAI Integration**](openai)
-    Explains how to use ToolRegistry with OpenAI API through function calling.
+- [**Function calling via OpenAI Compatible API**](usage/openai)
+  Explains how to use ToolRegistry with OpenAI compatible API through function calling.
 
-  - [**MCP Tool Usage**](mcp)
-    Guides on integrating MCP (Model Context Protocol) with ToolRegistry to register and call MCP tools.
+- Register Tools from Various Sources
 
-  - [**OpenAPI Integration**](openapi)
-    Guides on integrating OpenAPI specifications with ToolRegistry to register and call OpenAPI tools.
+  - [**MCP Tool Integration**](usage/integrations/mcp)
 
-  - [**Hub Tools Collection**](hub)
-    Provides a collection of utility tools for common llm function calling usage. These tools simplify common tasks and enhance productivity in projects requiring structured tool management.
+  - [**OpenAPI Tool Integration**](usage/integrations/openapi)
 
-  - [**Concurrency Modes**](concurrency_modes)
-    Explains thread and process execution modes and their performance characteristics.
+  - [**LangChain Tool Integration**](usage/integrations/langchain)
 
-  - [**Examples**](examples)
-    Demonstrates practical use cases, including consecutive tool call examples.
+  - [**Hub Tools Collection**](usage/integrations/hub)
 
-  - [**Best Practices**](best_practices)
-    Offers principles and recommendations for designing and implementing tools.
+- [**Concurrency Modes**](usage/concurrency_modes)
+  Explains thread and process execution modes and their performance characteristics.
 
-<!-- - **Dependencies**
-  Lists auxiliary projects that provide additional functionality. -->
+- [**Best Practices on Tool Implementation**](usage/best_practices)
+  Offers principles and recommendations for designing and implementing tools.
+
+- [**Examples**](examples)
+  Demonstrates practical use cases, including consecutive tool call examples.
 
 - [**API References**](api/toolregistry)
   Comprehensive API documentation for all classes and methods in ToolRegistry.
@@ -68,14 +66,12 @@ The old methods are planned to be deprecated soon, so please migrate to the new 
 ```
 
 ```{toctree}
-:maxdepth: 1
 :caption: Documentation
 :hidden:
 
-Getting Started <self>
-installation
-usage
-API Reference <api/toolregistry>
+usage/index
+examples/index
+api/index
 ```
 
 ## License

@@ -46,7 +46,8 @@ autodoc_default_options = {
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = "furo"
+# html_theme = "furo"
+html_theme = "pydata_sphinx_theme"
 html_static_path = ["_static"]
 autosummary_generate = True
 html_search_options = {"type": "default"}
@@ -74,4 +75,7 @@ html_theme_options = {
             "class": "fa-brands fa-solid fa-github fa-2x",
         },
     ],
+    "show_nav_level": 2,
+    "navigation_depth": 2,
+    "collapse_navigation": False,
 }

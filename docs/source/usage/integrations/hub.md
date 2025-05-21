@@ -1,5 +1,9 @@
 # Hub Tools and Static Method Integration
 
+```{tip}
+New in version: 0.4.2
+```
+
 ```{note}
 Starting from version 0.4.4, several API methods have been updated for better consistency and usability:
 

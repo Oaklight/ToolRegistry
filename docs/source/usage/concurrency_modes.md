@@ -1,5 +1,9 @@
 # Concurrency Modes: Thread Mode and Process Mode
 
+```{tip}
+New in version: 0.4.5
+```
+
 ## Overview
 
 Prior to version 0.4.5, the execution mode was determined by the number of tasks in `tool_calls`. For two or fewer tasks, the main thread executed them sequentially. For more than two tasks, a thread pool was used for parallel execution.
