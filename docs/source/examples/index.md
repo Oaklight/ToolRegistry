@@ -14,6 +14,12 @@ mcp_calculator
 ```
 
 ```{toctree}
+:caption: OpenAPI Related
+
+openapi_calculator
+```
+
+```{toctree}
 :caption: Hub Tool Related
 
 hub_calculator
