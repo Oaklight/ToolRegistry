@@ -1,4 +1,4 @@
-# Example Makde and Use of Calculator MCP Tool
+# Example Make and Use of Calculator MCP Tool
 
 The file [concurrent_raw_results.txt](concurrent_raw_results.txt) contains the raw statistics from the concurrent tool calls benchmark when developing different integrations of toolregistry.
 
