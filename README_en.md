@@ -42,10 +42,11 @@ pip install toolregistry[mcp,openapi]
 
 Below is a table summarizing available extra modules:
 
-| Extra Module | Python Requirement | Example Command                   |
-| ------------ | ------------------ | --------------------------------- |
-| mcp          | Python >= 3.10     | pip install toolregistry[mcp]     |
-| openapi      | Python >= 3.8      | pip install toolregistry[openapi] |
+| Extra Module | Python Requirement | Example Command                     |
+| ------------ | ------------------ | ----------------------------------- |
+| mcp          | Python >= 3.10     | pip install toolregistry[mcp]       |
+| openapi      | Python >= 3.8      | pip install toolregistry[openapi]   |
+| langchain    | Python >= 3.9      | pip install toolregistry[langchain] |
 
 ## Examples
 
@@ -135,6 +136,20 @@ When only providing a base URL, ToolRegistry will attempt a "best effort" auto-d
 
 ```python
 registry.register_from_openapi("./openapi_spec.json", "http://localhost/")
+```
+
+## LangChain Integration
+
+The LangChain integration module allows ToolRegistry to register and invoke LangChain tools seamlessly, supporting both synchronous and asynchronous calls.
+
+```python
+from langchain_community.tools import ArxivQueryRun, PubmedQueryRun
+from toolregistry import ToolRegistry
+
+registry = ToolRegistry()
+
+registry.register_from_langchain([ArxivQueryRun(), PubmedQueryRun()])
+tools_json = registry.get_tools_json()
 ```
 
 ## Registering Class Tools
