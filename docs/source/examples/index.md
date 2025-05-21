@@ -7,6 +7,12 @@ consecutive_tool_calls
 ```
 
 ```{toctree}
+:caption: MCP Related
+
+mcp_diverse_transport
+```
+
+```{toctree}
 :caption: Hub Tool Related
 
 hub_calculator
