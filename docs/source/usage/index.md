@@ -20,6 +20,6 @@ best_practices
 
 integrations/mcp
 integrations/openapi
-integrations/hub
+integrations/hub/index
 integrations/langchain
 ```
