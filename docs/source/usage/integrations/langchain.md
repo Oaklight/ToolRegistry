@@ -1,6 +1,6 @@
 # LangChain Tool Usage Guide
 
-```{tip}
+```{note}
 New in version: 0.4.9
 ```
 

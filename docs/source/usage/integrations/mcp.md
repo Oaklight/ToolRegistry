@@ -1,17 +1,7 @@
 # MCP Tool Usage Guide
 
-```{tip}
-New in version: 0.3.0
-```
-
 ```{note}
-Starting from version 0.4.4, several API methods have been updated for better consistency and usability:
-
-- `ToolRegistry.register_static_tools` has been replaced by `ToolRegistry.register_from_class`.
-- `ToolRegistry.register_mcp_tools` has been replaced by `ToolRegistry.register_from_mcp`.
-- `ToolRegistry.register_openapi_tools` has been replaced by `ToolRegistry.register_from_openapi`.
-
-The old methods are planned to be deprecated soon, so please migrate to the new interfaces as soon as possible. For backward compatibility, the old names remain as aliases to the new ones.
+New in version: 0.3.0
 ```
 
 ## Introduction

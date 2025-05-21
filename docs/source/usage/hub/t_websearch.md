@@ -1,6 +1,6 @@
 # WebSearch - Web search and content extraction via multiple engines
 
-```{tip}
+```{note}
 Refined in version: v0.4.6.post1 <br>
 New in version: 0.4.6
 ```

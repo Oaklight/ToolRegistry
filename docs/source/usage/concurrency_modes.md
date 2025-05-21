@@ -1,6 +1,6 @@
 # Concurrency Modes: Thread Mode and Process Mode
 
-```{tip}
+```{note}
 New in version: 0.4.5
 ```
 

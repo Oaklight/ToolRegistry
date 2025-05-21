@@ -20,6 +20,17 @@ best_practices
 
 integrations/mcp
 integrations/openapi
-integrations/hub/index
+integrations/class
+integrations/hub
 integrations/langchain
+```
+
+```{toctree}
+:caption: Available Hub Tools
+
+hub/t_calculator
+hub/t_fileops
+hub/t_filesystem
+hub/t_unit_converter
+hub/t_websearch
 ```

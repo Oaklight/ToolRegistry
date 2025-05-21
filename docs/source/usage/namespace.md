@@ -1,6 +1,6 @@
 # Namespace and ToolRegistry Manipulation
 
-```{tip}
+```{note}
 New in version: 0.4.1
 ```
 

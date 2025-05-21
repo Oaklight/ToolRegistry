@@ -1,6 +1,6 @@
 # Filesystem - Comprehensive file system operations
 
-```{tip}
+```{note}
 Refined in version: 0.4.3 <br>
 New in version: 0.4.2
 ```

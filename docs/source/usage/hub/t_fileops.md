@@ -1,6 +1,6 @@
 # FileOps - Atomic file operations toolkit for LLM agents
 
-```{tip}
+```{note}
 New in version: 0.4.2
 ```
 
