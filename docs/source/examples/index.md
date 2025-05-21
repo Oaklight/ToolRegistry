@@ -10,6 +10,7 @@ consecutive_tool_calls
 :caption: MCP Related
 
 mcp_diverse_transport
+mcp_calculator
 ```
 
 ```{toctree}
