@@ -9,3 +9,9 @@ consecutive_tool_calls
 
 ../../examples/hub_related/openai_calculator_example.py
 ```
+
+```{toctree}
+:caption: Langchain Tool Related
+
+langchain_arxiv
+```
