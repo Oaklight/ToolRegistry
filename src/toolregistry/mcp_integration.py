@@ -378,17 +378,18 @@ class MCPIntegration:
         Raises:
             RuntimeError: If connection to server fails.
         """
-        client = Client(
+        transport = (
             transport
             if isinstance(transport, ClientTransport)
             else infer_transport_overriden(transport)
         )
 
-        async with client:
+        async with Client(transport) as client:
+            init_result: InitializeResult
             if hasattr(client, "initialize_result"):  # since fastmcp 2.3.5
-                init_result: InitializeResult = client.initialize_result
+                init_result = client.initialize_result
             else:
-                init_result: InitializeResult = await get_initialize_result(transport)
+                init_result = await get_initialize_result(transport)
 
             server_info: Optional[Implementation] = getattr(
                 init_result, "serverInfo", None
@@ -439,7 +440,7 @@ class MCPIntegration:
         loop = asyncio.new_event_loop()
         try:
             loop.run_until_complete(
-                self.register_mcp_tools_async(transport, with_namespace)
+                self.register_mcp_tools_async(transport, with_namespace)  # type: ignore[arg-type]
             )
         finally:
             loop.close()
