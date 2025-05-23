@@ -20,14 +20,15 @@ from .calculator import Calculator
 from .file_ops import FileOps
 from .filesystem import FileSystem
 from .unit_converter import UnitConverter
-from .websearch.websearch_google import WebSearchGoogle
-from .websearch.websearch_searxng import WebSearchSearxng
+
+# Import the __all__ from the websearch package
+from .websearch import __all__ as websearch_all
 
 __all__ = [
     "Calculator",
     "FileSystem",
     "FileOps",
     "UnitConverter",
-    "WebSearchGoogle",
-    "WebSearchSearxng",
+    # Include all items from the websearch package
+    *websearch_all,
 ]
