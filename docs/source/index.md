@@ -39,9 +39,11 @@ Here are brief introductions and links to each section:
 
   - [**OpenAPI Tool Integration**](usage/integrations/openapi)
 
-  - [**LangChain Tool Integration**](usage/integrations/langchain)
-
+  - [**Class-based Tools Collection**](usage/integrations/class)
+  
   - [**Hub Tools Collection**](usage/integrations/hub)
+
+  - [**LangChain Tool Integration**](usage/integrations/langchain)
 
 - [**Concurrency Modes**](usage/concurrency_modes)
   Explains thread and process execution modes and their performance characteristics.
