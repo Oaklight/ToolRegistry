@@ -57,7 +57,7 @@ html_search_options = {"type": "default"}
 
 
 html_theme_options = {
-    "announcement": ("v0.4.9 released! Now with support for LangChain tools! 🦜"),
+    # "announcement": ("v0.4.10 released!"),
     "show_toc_level": 2,
     "show_nav_level": 2,
     "collapse_navigation": False,
