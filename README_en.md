@@ -194,7 +194,7 @@ Hub tools encapsulate commonly used functionalities as methods in classes. Examp
 - **FileOps**: File manipulation like diff generation, patching, verification, merging, and splitting.
 - **Filesystem**: Comprehensive file system operations such as directory listing, file read/write, path normalization, and querying file attributes.
 - **UnitConverter**: Extensive unit conversions such as temperature, length, weight, volume, etc.
-- **WebSearch**: Web search functionality supporting multiple engines like SearxNG and Google.
+- **WebSearch**: Web search functionality supporting multiple engines like Bing, Google and SearXNG, etc.
 
 To register hub tools:
 
