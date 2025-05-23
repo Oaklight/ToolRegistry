@@ -6,6 +6,7 @@ build:
     python: "3.10"
   jobs:
     pre_build:
+      - mkdir -p $READTHEDOCS_OUTPUT/html/
       - make -C docs/ regenerate
     build:
       html:

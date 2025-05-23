@@ -6,7 +6,7 @@
 SPHINXOPTS    ?=
 SPHINXBUILD   ?= sphinx-build
 SOURCEDIR     = source
-BUILDDIR      = build
+BUILDDIR      = $(shell if [ -n "$$READTHEDOCS_OUTPUT" ]; then echo "$$READTHEDOCS_OUTPUT"; else echo "build"; fi)
 DOCS_DIR      = $(BUILDDIR)/html  # Default Sphinx docs path
 
 # Put it first so that "make" without argument is like "make help".
@@ -27,11 +27,11 @@ host:
 	@DOCS_DIR="$(DOCS_DIR)" ./host_docs.sh
 
 # Combined target: generate and host documentation
-publish: html host
+publish: regenerate html host
 	@echo "Documentation has been generated and hosted."
 
 # Regenerate API templates before building HTML
-html: clean regenerate
+html: regenerate
 	@echo "Building HTML documentation..."
 	@$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
 
