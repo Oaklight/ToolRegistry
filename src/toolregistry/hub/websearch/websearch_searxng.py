@@ -28,10 +28,10 @@ class _WebSearchEntrySearxNG(dict):
 
 class WebSearchSearXNG(WebSearchGeneral):
     """WebSearchSearXNG provides a unified interface for performing web searches and processing results
-    through a SearxNG instance. It handles search queries, result filtering, and content extraction.
+    through a SearXNG instance. It handles search queries, result filtering, and content extraction.
 
     Features:
-    - Performs web searches using SearxNG instance
+    - Performs web searches using SearXNG instance
     - Filters results by relevance score threshold
     - Extracts and cleans webpage content using multiple methods (BeautifulSoup/Jina Reader)
     - Parallel processing of result fetching
@@ -52,7 +52,7 @@ class WebSearchSearXNG(WebSearchGeneral):
     ):
         """Initialize WebSearchSearXNG with configuration parameters.
         Args:
-           searxng_base_url (str): Base URL for the SearxNG instance (e.g. "http://localhost:8080").
+           searxng_base_url (str): Base URL for the SearXNG instance (e.g. "http://localhost:8080").
            proxy (Optional[str]): Proxy URL for HTTP requests.
         """
         self.searxng_base_url: str = searxng_base_url.rstrip("/")

@@ -20,7 +20,7 @@ from toolregistry.hub import WebSearchGoogle, WebSearchSearXNG
 # Load environment variables from .env file
 load_dotenv()
 
-parser = argparse.ArgumentParser(description="Cicada WebSearch SearxNG Example")
+parser = argparse.ArgumentParser(description="Cicada WebSearch SearXNG Example")
 parser.add_argument(
     "--query", type=str, default="Chicago weather today", help="Search query"
 )
@@ -53,7 +53,7 @@ tool_registry = ToolRegistry()
 
 if args.engine == "searxng":
     websearch = WebSearchSearXNG(SEARXNG_URL)
-    cprint(f"Using SearxNG search engine at {SEARXNG_URL}")
+    cprint(f"Using SearXNG search engine at {SEARXNG_URL}")
 else:
     websearch = WebSearchGoogle()  # Assuming there's a WebSearchGoogle class
 
@@ -92,7 +92,7 @@ from toolregistry.hub import UnitConverter, WebSearchGoogle, WebSearchSearXNG
 # Load environment variables from .env file
 load_dotenv()
 
-parser = argparse.ArgumentParser(description="Cicada WebSearch SearxNG Example")
+parser = argparse.ArgumentParser(description="Cicada WebSearch SearXNG Example")
 parser.add_argument(
     "--query", type=str, default="Chicago weather today", help="Search query"
 )
@@ -118,7 +118,7 @@ tool_registry = ToolRegistry()
 
 if args.engine == "searxng":
     websearch = WebSearchSearXNG(SEARXNG_URL)
-    print(f"Using SearxNG search engine at {SEARXNG_URL}")
+    print(f"Using SearXNG search engine at {SEARXNG_URL}")
 else:
     websearch = WebSearchGoogle()  # Assuming there's a WebSearchGoogle class
 

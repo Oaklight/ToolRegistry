@@ -10,7 +10,7 @@ Provides web search (`search`) and content extraction (`extract`) functionality 
 
 Available engines:
 
-- **SearxNG**: Self-hosted meta search engine
+- **SearXNG**: Self-hosted meta search engine
 - **Google**: Google search API (No API key required)
 - **Bing**: Bing search API (No API key required)
 
@@ -19,9 +19,9 @@ Available engines:
 - `timeout`: Request timeout in seconds (default: 10.0)
 - Proxy support: HTTP/HTTPS/SOCKS5 proxies can be configured during initialization
 
-**SearxNG Specific**:
+**SearXNG Specific**:
 
-- `searxng_base_url`: URL of SearxNG instance (e.g. "<http://localhost:8080>")
+- `searxng_base_url`: URL of SearXNG instance (e.g. "<http://localhost:8080>")
 - Proxy support: HTTP/HTTPS/SOCKS5 proxies can be configured during initialization
 - Note: the searxng instance needs to enable `json` format in `settings.yml`:
 
@@ -37,7 +37,7 @@ Example:
 ```python
 from toolregistry.hub import WebSearchSearXNG, WebSearchGoogle, WebSearchBing
 
-# Using SearxNG
+# Using SearXNG
 searx_tool = WebSearchSearXNG(searxng_base_url="http://localhost:8080")
 results = searx_tool.search(query="Python web scraping", number_results=3)
 extracted = searx_tool.extract(url=results[0]['url'])
