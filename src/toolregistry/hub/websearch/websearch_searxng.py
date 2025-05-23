@@ -26,8 +26,8 @@ class _WebSearchEntrySearxNG(dict):
     category: str
 
 
-class WebSearchSearxng(WebSearchGeneral):
-    """WebSearchSearxng provides a unified interface for performing web searches and processing results
+class WebSearchSearXNG(WebSearchGeneral):
+    """WebSearchSearXNG provides a unified interface for performing web searches and processing results
     through a SearxNG instance. It handles search queries, result filtering, and content extraction.
 
     Features:
@@ -38,8 +38,8 @@ class WebSearchSearxng(WebSearchGeneral):
     - Automatic emoji removal and text normalization
 
     Examples:
-        >>> from toolregistry.hub.websearch_searxng import WebSearchSearxng
-        >>> searcher = WebSearchSearxng("http://localhost:8080")
+        >>> from toolregistry.hub.websearch_searxng import WebSearchSearXNG
+        >>> searcher = WebSearchSearXNG("http://localhost:8080")
         >>> results = searcher.search("python web scraping", number_results=3)
         >>> for result in results:
         ...     print(result["title"])
@@ -50,7 +50,7 @@ class WebSearchSearxng(WebSearchGeneral):
         searxng_base_url: str,
         proxy: Optional[str] = None,
     ):
-        """Initialize WebSearchSearxng with configuration parameters.
+        """Initialize WebSearchSearXNG with configuration parameters.
         Args:
            searxng_base_url (str): Base URL for the SearxNG instance (e.g. "http://localhost:8080").
            proxy (Optional[str]): Proxy URL for HTTP requests.
@@ -143,13 +143,15 @@ class WebSearchSearxng(WebSearchGeneral):
         return results
 
 
+WebSearchSearxng = WebSearchSearXNG  # Alias for compatibility with existing code using WebSearchSearxng
+
 if __name__ == "__main__":
     import json
     import os
 
     SEARXNG_URL = os.getenv("SEARXNG_URL", "http://localhost:8080")
 
-    search_tool = WebSearchSearxng(SEARXNG_URL)
+    search_tool = WebSearchSearXNG(SEARXNG_URL)
     results = search_tool.search("Barcelona weather today", 5)
     for result in results:
         print(json.dumps(result, indent=2, ensure_ascii=False))

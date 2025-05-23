@@ -15,7 +15,7 @@ from cicada.core.utils import cprint
 from dotenv import load_dotenv
 
 from toolregistry import ToolRegistry
-from toolregistry.hub import WebSearchGoogle, WebSearchSearxng
+from toolregistry.hub import WebSearchGoogle, WebSearchSearXNG
 
 # Load environment variables from .env file
 load_dotenv()
@@ -52,7 +52,7 @@ llm = MultiModalModel(
 tool_registry = ToolRegistry()
 
 if args.engine == "searxng":
-    websearch = WebSearchSearxng(SEARXNG_URL)
+    websearch = WebSearchSearXNG(SEARXNG_URL)
     cprint(f"Using SearxNG search engine at {SEARXNG_URL}")
 else:
     websearch = WebSearchGoogle()  # Assuming there's a WebSearchGoogle class
@@ -87,7 +87,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from toolregistry import ToolRegistry
-from toolregistry.hub import UnitConverter, WebSearchGoogle, WebSearchSearxng
+from toolregistry.hub import UnitConverter, WebSearchGoogle, WebSearchSearXNG
 
 # Load environment variables from .env file
 load_dotenv()
@@ -117,7 +117,7 @@ BASE_URL = os.getenv("BASE_URL", "https://api.deepseek.com/")
 tool_registry = ToolRegistry()
 
 if args.engine == "searxng":
-    websearch = WebSearchSearxng(SEARXNG_URL)
+    websearch = WebSearchSearXNG(SEARXNG_URL)
     print(f"Using SearxNG search engine at {SEARXNG_URL}")
 else:
     websearch = WebSearchGoogle()  # Assuming there's a WebSearchGoogle class

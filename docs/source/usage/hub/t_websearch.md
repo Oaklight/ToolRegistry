@@ -34,10 +34,10 @@ Available engines:
 Example:
 
 ```python
-from toolregistry.hub import WebSearchSearxng, WebSearchGoogle, WebSearchBing
+from toolregistry.hub import WebSearchSearXNG, WebSearchGoogle, WebSearchBing
 
 # Using SearxNG
-searx_tool = WebSearchSearxng(searxng_base_url="http://localhost:8080")
+searx_tool = WebSearchSearXNG(searxng_base_url="http://localhost:8080")
 results = searx_tool.search(query="Python web scraping", number_results=3)
 extracted = searx_tool.extract(url=results[0]['url'])
 

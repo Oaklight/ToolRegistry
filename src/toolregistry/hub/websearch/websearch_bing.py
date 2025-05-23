@@ -77,7 +77,7 @@ class WebSearchBing(WebSearchGeneral):
                 - 'title': The title of the search result
                 - 'url': The URL of the search result
                 - 'content': The description/content from Bing
-                - 'excerpt': Same as content (for compatibility with WebSearchSearxng)
+                - 'excerpt': Same as content (for compatibility with WebSearchSearXNG)
         """
         try:
             results = WebSearchBing._meta_search_bing(

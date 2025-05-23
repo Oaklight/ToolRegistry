@@ -78,7 +78,7 @@ class WebSearchGoogle(WebSearchGeneral):
                 - 'title': The title of the search result
                 - 'url': The URL of the search result
                 - 'content': The description/content from Google
-                - 'excerpt': Same as content (for compatibility with WebSearchSearxng)
+                - 'excerpt': Same as content (for compatibility with WebSearchSearXNG)
         """
         try:
             results = WebSearchGoogle._meta_search_google(
