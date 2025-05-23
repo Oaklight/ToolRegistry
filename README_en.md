@@ -214,6 +214,21 @@ print(registry.get_available_tools())
 
 We welcome community contributions of new tool classes to ToolRegistry! If you have designs or implementations for other commonly used tools, feel free to submit them through a Pull Request on the [GitHub Repository](https://github.com/yourrepository/toolregistry). Your contributions will help expand the diversity and usability of the tools.
 
+## Citation
+
+If you use ToolRegistry in your research or project, please consider cite it as:
+
+```bibtex
+@software{toolregistry2024,
+  title={ToolRegistry: A Protocol-Agnostic Tool Management Library for OpenAI-Compatible LLM Applications},
+  author={Oaklight},
+  year={2024},
+  version={0.4.9},
+  url={https://github.com/Oaklight/ToolRegistry},
+  note={A Python library for unified tool registration, execution, and management across multiple protocols in OpenAI-compatible LLM applications}
+}
+```
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

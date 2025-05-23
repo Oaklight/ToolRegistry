@@ -1,4 +1,4 @@
-# ToolRegistry Documentation
+# ToolRegistry: A Protocol-Agnostic Tool Management Library for OpenAI-Compatible LLM Applications
 
 Welcome to the official documentation for **ToolRegistry**, a Python library designed to register, manage, and execute tools (functions) for Agentic AI and large language model applications. This documentation is organized by topic to help you quickly find and learn about different aspects of the library.
 
@@ -72,6 +72,21 @@ The old methods are planned to be deprecated soon, so please migrate to the new 
 usage/index
 examples/index
 api/index
+```
+
+## Citation
+
+If you use ToolRegistry in your research or project, please consider cite it as:
+
+```bibtex
+@software{toolregistry2024,
+  title={ToolRegistry: A Protocol-Agnostic Tool Management Library for OpenAI-Compatible LLM Applications},
+  author={Oaklight},
+  year={2024},
+  version={0.4.9},
+  url={https://github.com/Oaklight/ToolRegistry},
+  note={A Python library for unified tool registration, execution, and management across multiple protocols in OpenAI-compatible LLM applications}
+}
 ```
 
 ## License
