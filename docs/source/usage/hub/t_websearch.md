@@ -11,10 +11,12 @@ Available engines:
 
 - **SearxNG**: Self-hosted meta search engine
 - **Google**: Google search API (No API key required)
+- **Bing**: Bing search API (No API key required)
 
 **Common Configuration**:
 
 - `timeout`: Request timeout in seconds (default: 10.0)
+- Proxy support: HTTP/HTTPS/SOCKS5 proxies can be configured during initialization
 
 **SearxNG Specific**:
 
@@ -29,15 +31,10 @@ Available engines:
         - json # add this line
     ```
 
-**Google Search Specific**:
-
-- No API key required
-- Proxy support: HTTP/HTTPS/SOCKS5 proxies can be configured during initialization
-
 Example:
 
 ```python
-from toolregistry.hub import WebSearchSearxng, WebSearchGoogle
+from toolregistry.hub import WebSearchSearxng, WebSearchGoogle, WebSearchBing
 
 # Using SearxNG
 searx_tool = WebSearchSearxng(searxng_base_url="http://localhost:8080")
@@ -47,4 +44,8 @@ extracted = searx_tool.extract(url=results[0]['url'])
 # Using Google
 google_tool = WebSearchGoogle()
 results = google_tool.search(query="Python web scraping", number_results=3)
+
+# Using Bing
+bing_tool = WebSearchBing()
+results = bing_tool.search(query="Python web scraping", number_results=3)
 ```
