@@ -323,17 +323,17 @@ class MCPTool(Tool):
         Returns:
             MCPTool: A new instance of MCPTool configured with the provided parameters.
         """
-        func_name = normalize_tool_name(name)
 
         wrapper = MCPToolWrapper(
             transport=transport,
-            name=func_name,
+            name=name,
             params=(
                 list(input_schema.get("properties", {}).keys()) if input_schema else []
             ),
         )
+
         tool = cls(
-            name=func_name,
+            name=normalize_tool_name(name),
             description=description,
             parameters=input_schema,
             callable=wrapper,
