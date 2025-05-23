@@ -14,7 +14,7 @@ mcp = FastMCP(server_name)
 
 
 # Register all math tools
-@mcp.tool()
+@mcp.tool("my-math_add")  # Add a custom name for the tool to test normalization logic
 def add(a: float, b: float) -> float:
     """Add two numbers"""
     return a + b
