@@ -13,5 +13,6 @@ Submodules
    :maxdepth: 4
 
    toolregistry.hub.websearch.websearch
+   toolregistry.hub.websearch.websearch_bing
    toolregistry.hub.websearch.websearch_google
    toolregistry.hub.websearch.websearch_searxng
