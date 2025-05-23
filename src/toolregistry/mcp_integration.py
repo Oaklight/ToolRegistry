@@ -29,6 +29,7 @@ from mcp.types import (
     TextContent,
     TextResourceContents,
 )
+from mcp.types import Tool as ToolSpec
 from pydantic import AnyUrl
 
 from .tool import Tool
@@ -304,18 +305,14 @@ class MCPTool(Tool):
     @classmethod
     def from_tool_json(
         cls,
-        name: str,
-        description: str,
-        input_schema: Dict[str, Any],
+        tool_spec: ToolSpec,
         transport: ClientTransport,
         namespace: Optional[str] = None,
     ) -> "MCPTool":
         """Create an MCPTool instance from a JSON representation.
 
         Args:
-            name (str): The name of the tool.
-            description (str): The description of the tool.
-            input_schema (Dict[str, Any]): The input schema definition for the tool.
+            tool_spec (ToolSpec): The JSON representation of the tool.
             transport (ClientTransport): fastmcp.client.ClientTransport instance for communication.
             namespace (Optional[str]): An optional namespace to prefix the tool name.
                 If provided, the tool name will be formatted as "{namespace}.{name}".
@@ -323,6 +320,9 @@ class MCPTool(Tool):
         Returns:
             MCPTool: A new instance of MCPTool configured with the provided parameters.
         """
+        name = tool_spec.name
+        description = tool_spec.description or ""
+        input_schema = tool_spec.inputSchema
 
         wrapper = MCPToolWrapper(
             transport=transport,
@@ -402,15 +402,13 @@ class MCPIntegration:
                 namespace = None
 
             # Get available tools from server
-            tools_response = await client.list_tools()
+            tools_response: List[ToolSpec] = await client.list_tools()
             # print(f"Found {len(tools_response)} tools on server")
 
             # Register each tool with a wrapper function
             for tool_spec in tools_response:
                 mcp_sse_tool = MCPTool.from_tool_json(
-                    name=tool_spec.name,
-                    description=tool_spec.description or "",
-                    input_schema=tool_spec.inputSchema,
+                    tool_spec=tool_spec,
                     transport=transport,
                     namespace=namespace,
                 )
