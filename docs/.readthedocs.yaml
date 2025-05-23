@@ -15,7 +15,11 @@ build:
 python:
   install:
     - requirements: docs/requirements.txt
-    - pip install -e .[mcp,openapi,langchain]
-
+    - method: pip
+      path: .
+      extra_requirements:
+        - mcp
+        - openapi
+        - langchain
 sphinx:
   configuration: docs/source/conf.py
