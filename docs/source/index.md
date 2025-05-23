@@ -79,11 +79,10 @@ api/index
 If you use ToolRegistry in your research or project, please consider cite it as:
 
 ```bibtex
-@software{toolregistry2024,
+@software{toolregistry2025,
   title={ToolRegistry: A Protocol-Agnostic Tool Management Library for OpenAI-Compatible LLM Applications},
-  author={Oaklight},
-  year={2024},
-  version={0.4.9},
+  author={Peng Ding},
+  year={2025},
   url={https://github.com/Oaklight/ToolRegistry},
   note={A Python library for unified tool registration, execution, and management across multiple protocols in OpenAI-compatible LLM applications}
 }

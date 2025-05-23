@@ -244,11 +244,10 @@ print(registry.get_available_tools())
 如果您在研究或项目中使用了 ToolRegistry，请引用：
 
 ```bibtex
-@software{toolregistry2024,
+@software{toolregistry2025,
   title={ToolRegistry: A Protocol-Agnostic Tool Management Library for OpenAI-Compatible LLM Applications},
-  author={Oaklight},
-  year={2024},
-  version={0.4.9},
+  author={Peng Ding},
+  year={2025},
   url={https://github.com/Oaklight/ToolRegistry},
   note={A Python library for unified tool registration, execution, and management across multiple protocols in OpenAI-compatible LLM applications}
 }
