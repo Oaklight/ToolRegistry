@@ -36,13 +36,19 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Process some integers.")
     parser.add_argument(
-        "--mode", default="stdio", choices=["stdio", "sse"], help="Mode of transport"
+        "--mode",
+        default="stdio",
+        choices=["stdio", "streamable-http", "sse"],
+        help="Mode of transport",
     )
     args = parser.parse_args()
 
     if args.mode == "sse":
         # SSE
         transport = f"http://localhost:{PORT}/sse"
+    elif args.mode == "streamable-http":
+        # Streamable HTTP
+        transport = f"http://localhost:{PORT}/mcp"
     else:
         # stdio
         transport = "/home/pding/projects/toolregistry/examples/mcp_related/mcp_servers/math_server.py"

@@ -58,7 +58,7 @@ if __name__ == "__main__":
         "--mode",
         type=str,
         default="stdio",
-        choices=["stdio", "sse"],
+        choices=["stdio", "streamable-http", "sse"],
         help="Server transport mode: stdio, sse, ws or http",
     )
     parser.add_argument(
@@ -72,6 +72,12 @@ if __name__ == "__main__":
     elif args.mode == "sse":
         mcp.run(
             transport="sse",
+            host="localhost",
+            port=args.port,
+        )
+    else:  # arg.mode == 'streamable-http'
+        mcp.run(
+            transport="streamable-http",
             host="localhost",
             port=args.port,
         )
