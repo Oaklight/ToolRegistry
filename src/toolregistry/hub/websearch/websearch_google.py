@@ -8,13 +8,15 @@ from bs4 import BeautifulSoup
 from loguru import logger
 
 from .websearch import (
-    HEADER_LYNX,
+    HEADERS_LYNX,
     TIMEOUT_DEFAULT,
     WebSearchGeneral,
 )
 
 
 class _WebSearchEntryGoogle(dict):
+    """Internal class for representing Google search results"""
+
     def __init__(self, **data):
         super().__init__(**data)
 
@@ -123,7 +125,7 @@ class WebSearchGoogle(WebSearchGeneral):
         # Create a persistent client with connection pooling
         with httpx.Client(
             proxy=proxy,
-            headers=HEADER_LYNX,
+            headers=HEADERS_LYNX,
             timeout=timeout,
         ) as client:
             start = start_num

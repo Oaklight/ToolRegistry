@@ -7,13 +7,15 @@ from bs4 import BeautifulSoup
 from loguru import logger
 
 from .websearch import (
-    HEADER_LYNX,
+    HEADERS_LYNX,
     TIMEOUT_DEFAULT,
     WebSearchGeneral,
 )
 
 
 class _WebSearchEntryBing(dict):
+    """Internal class for representing Bing search results"""
+
     def __init__(self, **data):
         super().__init__(**data)
 
@@ -121,7 +123,7 @@ class WebSearchBing(WebSearchGeneral):
         # Create a persistent client with connection pooling
         with httpx.Client(
             proxy=proxy,
-            headers=HEADER_LYNX,
+            headers=HEADERS_LYNX,
             timeout=timeout,
         ) as client:
             offset = start_num

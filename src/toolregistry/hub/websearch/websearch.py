@@ -48,10 +48,11 @@ def _get_lynx_useragent():
     return f"{lynx_version} {libwww_version} {ssl_mm_version} {openssl_version}"
 
 
-HEADER_LYNX = {
+HEADERS_LYNX = {
     "User-Agent": _get_lynx_useragent(),
     "Accept": "*/*",
 }
+
 
 class _WebSearchEntryGeneral(dict):
     def __init__(self, **data):
