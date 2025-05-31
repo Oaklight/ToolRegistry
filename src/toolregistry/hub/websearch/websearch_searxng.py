@@ -10,7 +10,7 @@ from .headers import HEADERS_DEFAULT, TIMEOUT_DEFAULT
 from .websearch import WebSearchGeneral
 
 
-class _WebSearchEntrySearxNG(dict):
+class _WebSearchEntrySearXNG(dict):
     """Search result entry model with type validation."""
 
     def __init__(self, **data):
@@ -128,7 +128,7 @@ class WebSearchSearXNG(WebSearchGeneral):
         proxy: Optional[str] = None,
         timeout: Optional[float] = 5,
         searxng_base_url: str = "http://localhost:8080/search",
-    ) -> List[_WebSearchEntrySearxNG]:
+    ) -> List[_WebSearchEntrySearXNG]:
         """
         Perform a search using SearXNG and return the results.
         """
