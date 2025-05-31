@@ -8,6 +8,11 @@ New in version: 0.4.6
 
 Provides web search (`search`) and content extraction (`extract`) functionality through multiple search engines.
 
+**Filtering SEO Spam Sites**:
+
+- Supports filtering out SEO spam sites (e.g., machine-translated, AI-generated content) using [uBlacklist](https://github.com/iorate/uBlacklist) subscription lists.
+- This helps improve result quality by removing low-value or spammy sites.
+
 Available engines:
 
 - **SearXNG**: Self-hosted meta search engine
