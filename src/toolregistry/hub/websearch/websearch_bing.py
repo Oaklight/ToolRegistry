@@ -88,7 +88,7 @@ class WebSearchBing(WebSearchGeneral):
             )
 
             start_time = time.time()
-            filtered_results = filter_search_results(results)
+            filtered_results = filter_search_results([dict(entry) for entry in results])
             if len(filtered_results) > number_results:
                 filtered_results = filtered_results[:number_results]
             elapsed_time = time.time() - start_time
