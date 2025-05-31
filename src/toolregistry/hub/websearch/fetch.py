@@ -112,6 +112,7 @@ def _get_content_with_bs4(
             url,
             headers=HEADERS_DEFAULT,
             timeout=timeout or TIMEOUT_DEFAULT,
+            follow_redirects=True,
         )
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "html.parser")
