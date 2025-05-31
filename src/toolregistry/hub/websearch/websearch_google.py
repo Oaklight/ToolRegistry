@@ -1,3 +1,4 @@
+import time
 from concurrent.futures import ProcessPoolExecutor
 from time import sleep
 from typing import Dict, Generator, List, Optional, Set
@@ -7,7 +8,7 @@ import httpx
 from bs4 import BeautifulSoup
 from loguru import logger
 
-from .utils import HEADERS_LYNX, TIMEOUT_DEFAULT
+from .utils import HEADERS_LYNX, TIMEOUT_DEFAULT, filter_search_results
 from .websearch import WebSearchGeneral
 
 
@@ -80,14 +81,19 @@ class WebSearchGoogle(WebSearchGeneral):
         try:
             results = WebSearchGoogle._meta_search_google(
                 query,
-                num_results=number_results,
+                num_results=number_results * 2,
                 proxy=self.proxy,
                 timeout=timeout or TIMEOUT_DEFAULT,
                 google_base_url=self.google_base_url,
             )
 
             # TODO: find out how to get score from results
-            filtered_results = results
+            start_time = time.time()
+            filtered_results = filter_search_results(results)
+            if len(filtered_results) > number_results:
+                filtered_results = filtered_results[:number_results]
+            elapsed_time = time.time() - start_time
+            logger.debug(f"filter_search_results took {elapsed_time:.4f} seconds")
 
             with ProcessPoolExecutor() as executor:
                 enriched_results = list(

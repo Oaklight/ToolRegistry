@@ -1,10 +1,11 @@
+import time
 from concurrent.futures import ProcessPoolExecutor
 from typing import Dict, List, Optional
 
 import httpx
 from loguru import logger
 
-from .utils import HEADERS_DEFAULT, TIMEOUT_DEFAULT
+from .utils import HEADERS_DEFAULT, TIMEOUT_DEFAULT, filter_search_results
 from .websearch import WebSearchGeneral
 
 
@@ -87,7 +88,7 @@ class WebSearchSearXNG(WebSearchGeneral):
         try:
             results = self._meta_search_searxng(
                 query,
-                num_results=number_results,
+                num_results=number_results * 2,
                 proxy=self.proxy,
                 timeout=timeout,
                 searxng_base_url=self.searxng_base_url,
@@ -96,6 +97,13 @@ class WebSearchSearXNG(WebSearchGeneral):
             filtered_results = [
                 entry for entry in results if entry.get("score", 0) >= threshold
             ]
+
+            start_time = time.time()
+            filtered_results = filter_search_results(results)
+            if len(filtered_results) > number_results:
+                filtered_results = filtered_results[:number_results]
+            elapsed_time = time.time() - start_time
+            logger.debug(f"filter_search_results took {elapsed_time:.4f} seconds")
 
             with ProcessPoolExecutor() as executor:
                 enriched_results = list(
