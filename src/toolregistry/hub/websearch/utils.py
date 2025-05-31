@@ -42,7 +42,7 @@ def parse_blocklist_content(content: str) -> None:
                         domain_part = domain_part[2:]
                     # Remove trailing "/*" or similar patterns
                     if domain_part.endswith("/*"):
-                        domain_part = domain_part[:-2]
+                        domain_part = domain_part[:-1]
                     # Add the cleaned domain part
                     if domain_part:
                         _blocked_items.add(domain_part)
