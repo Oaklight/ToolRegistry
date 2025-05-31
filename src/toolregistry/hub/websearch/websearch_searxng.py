@@ -95,12 +95,14 @@ class WebSearchSearXNG(WebSearchGeneral):
                 searxng_base_url=self.searxng_base_url,
             )
 
-            filtered_results = [
+            scored_results = [
                 entry for entry in results if entry.get("score", 0) >= threshold
             ]
 
             start_time = time.time()
-            filtered_results = filter_search_results(results)
+            filtered_results = filter_search_results(
+                [dict(entry) for entry in scored_results]
+            )
             if len(filtered_results) > number_results:
                 filtered_results = filtered_results[:number_results]
             elapsed_time = time.time() - start_time

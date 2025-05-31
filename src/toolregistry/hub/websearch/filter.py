@@ -14,7 +14,7 @@ CACHE_DURATION = 24 * 60 * 60 * 7
 UBLOCKLIST_URL = "https://raw.githubusercontent.com/eallion/uBlacklist-subscription-compilation/main/uBlacklist.txt"
 GITHUB_RAW_PROXY = "https://rawgithubusercontent.deno.dev"
 # Module-level variable to store blocked items
-_blocked_items = set()
+_blocked_items: set[str] = set()
 _last_blocklist_content = None
 
 
