@@ -13,7 +13,7 @@ project = "ToolRegistry"
 copyright = "2024-2025, Peng Ding"
 author = "Peng Ding"
 html_title = "ToolRegistry"
-release = "0.4.10"
+release = "0.4.11"
 
 
 sys.path.insert(0, os.path.abspath("../../src"))
@@ -57,7 +57,7 @@ html_search_options = {"type": "default"}
 
 
 html_theme_options = {
-    # "announcement": ("v0.4.10 released!"),
+    # "announcement": ("v0.4.10.post1 released!"),
     "show_toc_level": 2,
     "show_nav_level": 2,
     "collapse_navigation": False,

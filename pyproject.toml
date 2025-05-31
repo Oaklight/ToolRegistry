@@ -4,14 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "toolregistry"
-version = "0.4.10"
+version = "0.4.11"
 authors = [{ name = "Oaklight", email = "oaklight@gmx.com" }]
 description = "ToolRegistry: a library for easier function calling and tool use in LLMs"
 readme = "README.md"
 requires-python = ">=3.8"
 license = "MIT"
 classifiers = [
-    "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
     "Topic :: Software Development :: Libraries :: Python Modules",
@@ -34,7 +33,13 @@ openapi = [
     "jsonref>=1.1.0", # deref $ref in openapi spec
 ]
 langchain = ["langchain-core>=0.3,<0.4", "langchain-community>=0.3,<0.4"]
-dev = ["dotenv>=0.9.9", "openai>=1.79.0","mypy>=1.14.1", "build>=1.2.2.post1", "twine>=6.1.0"]
+dev = [
+    "python-dotenv>=1.0.1",
+    "openai>=1.79.0",
+    "mypy>=1.14.1",
+    "build>=1.2.2.post1",
+    "twine>=6.1.0",
+]
 
 [project.urls]
 Documentation = "https://toolregistry.lab.oaklight.cn"
