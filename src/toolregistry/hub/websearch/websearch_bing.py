@@ -6,11 +6,8 @@ import httpx
 from bs4 import BeautifulSoup
 from loguru import logger
 
-from .websearch import (
-    HEADERS_LYNX,
-    TIMEOUT_DEFAULT,
-    WebSearchGeneral,
-)
+from .utils import HEADERS_LYNX, TIMEOUT_DEFAULT
+from .websearch import WebSearchGeneral
 
 
 class _WebSearchEntryBing(dict):
@@ -216,5 +213,3 @@ if __name__ == "__main__":
     results = searcher.search("巴塞罗那今日天气", 5)
     for result in results:
         print(json.dumps(result, indent=2, ensure_ascii=False))
-
-    print(searcher.extract(results[0]["url"]))
