@@ -137,7 +137,7 @@ class WebSearchBing(WebSearchGeneral):
                     params={
                         "q": query,
                         "count": min(10, num_results - fetched_results),
-                        "offset": offset,
+                        "first": offset + 1,
                         "FORM": "PERE",
                     },
                     cookies={
