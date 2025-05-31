@@ -13,7 +13,8 @@ BLOCKLIST_CACHE_PATH = os.path.expanduser(
 )
 # Cache duration in seconds (e.g., 7 days)
 CACHE_DURATION = 24 * 60 * 60 * 7
-UBLOCKLIST_URL = "https://git.io/ublacklist"
+UBLOCKLIST_URL = "https://raw.githubusercontent.com/eallion/uBlacklist-subscription-compilation/main/uBlacklist.txt"
+GITHUB_RAW_PROXY = "https://rawgithubusercontent.deno.dev"
 # Module-level variable to store blocked items
 _blocked_items = set()
 _last_blocklist_content = None
@@ -86,7 +87,7 @@ def fetch_and_cache_blocklist(
 
     # Fetch the blocklist from the URL
     try:
-        with httpx.Client(timeout=10.0) as client:
+        with httpx.Client(timeout=2.0) as client:
             response = client.get(url)
             response.raise_for_status()
             content = response.text
@@ -97,21 +98,66 @@ def fetch_and_cache_blocklist(
             logger.debug("Fetched and cached blocklist to {}", cache_path)
             parse_blocklist_content(content)
             return content
+    except httpx.TimeoutException as e:
+        logger.error("Timeout when fetching blocklist from {}: {}", url, e)
+        if url.startswith("https://raw.githubusercontent.com"):
+            return _try_fetch_from_proxy(url, cache_path)
+        return _fallback_to_cache(cache_path)
     except Exception as e:
         logger.error("Failed to fetch blocklist from {}: {}", url, e)
-        # Fallback to cached content if available, even if outdated
-        if os.path.exists(cache_path):
-            try:
-                with open(cache_path, "r", encoding="utf-8") as f:
-                    logger.debug(
-                        "Falling back to outdated cached blocklist from {}", cache_path
-                    )
-                    content = f.read()
-                    parse_blocklist_content(content)
-                    return content
-            except Exception as e2:
-                logger.error("Error reading fallback cached blocklist: {}", e2)
-        return None
+        return _fallback_to_cache(cache_path)
+
+
+def _try_fetch_from_proxy(url: str, cache_path: str) -> Optional[str]:
+    """Attempt to fetch the blocklist from a proxy URL if the original times out.
+
+    Args:
+        url (str): The original URL to transform into a proxy URL.
+        cache_path (str): Path to store the cached blocklist.
+
+    Returns:
+        Optional[str]: The content of the blocklist if successful, None otherwise.
+    """
+    proxy_url = url.replace("https://raw.githubusercontent.com", GITHUB_RAW_PROXY)
+    logger.debug("Attempting to fetch blocklist from proxy: {}", proxy_url)
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            response = client.get(proxy_url)
+            response.raise_for_status()
+            content = response.text
+
+            # Save to cache
+            with open(cache_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            logger.debug("Fetched and cached blocklist from proxy to {}", cache_path)
+            parse_blocklist_content(content)
+            return content
+    except Exception as e:
+        logger.error("Failed to fetch blocklist from proxy {}: {}", proxy_url, e)
+        return _fallback_to_cache(cache_path)
+
+
+def _fallback_to_cache(cache_path: str) -> Optional[str]:
+    """Fallback to cached content if available, even if outdated.
+
+    Args:
+        cache_path (str): Path to the cached blocklist.
+
+    Returns:
+        Optional[str]: The content of the cached blocklist if available, None otherwise.
+    """
+    if os.path.exists(cache_path):
+        try:
+            with open(cache_path, "r", encoding="utf-8") as f:
+                logger.debug(
+                    "Falling back to outdated cached blocklist from {}", cache_path
+                )
+                content = f.read()
+                parse_blocklist_content(content)
+                return content
+        except Exception as e:
+            logger.error("Error reading fallback cached blocklist: {}", e)
+    return None
 
 
 def filter_search_results(
