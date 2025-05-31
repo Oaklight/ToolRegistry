@@ -11,7 +11,10 @@ if sys.version_info < (3, 9):
 else:
     from fake_useragent import UserAgent
 
-    HEADERS_DEFAULT = {"User-Agent": (UserAgent(platforms="mobile").random)}
+    HEADERS_DEFAULT = {
+        "User-Agent": (UserAgent(platforms="mobile").random),
+        "Accept": "*/*",
+    }
 
 
 def _get_lynx_useragent():
