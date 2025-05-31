@@ -7,7 +7,8 @@ import httpx
 from bs4 import BeautifulSoup
 from loguru import logger
 
-from .utils import HEADERS_LYNX, TIMEOUT_DEFAULT, filter_search_results
+from .filter import filter_search_results
+from .headers import HEADERS_LYNX, TIMEOUT_DEFAULT
 from .websearch import WebSearchGeneral
 
 

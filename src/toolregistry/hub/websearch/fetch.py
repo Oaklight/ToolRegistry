@@ -6,7 +6,7 @@ import httpx
 from bs4 import BeautifulSoup
 from loguru import logger
 
-from .utils import HEADERS_DEFAULT, TIMEOUT_DEFAULT
+from .headers import HEADERS_DEFAULT, TIMEOUT_DEFAULT
 
 
 class Fetch:
