@@ -4,7 +4,8 @@ from typing import Dict, List, Optional
 import httpx
 from loguru import logger
 
-from .websearch import HEADERS_DEFAULT, TIMEOUT_DEFAULT, WebSearchGeneral
+from .utils import HEADERS_DEFAULT, TIMEOUT_DEFAULT
+from .websearch import WebSearchGeneral
 
 
 class _WebSearchEntrySearxNG(dict):
@@ -155,5 +156,3 @@ if __name__ == "__main__":
     results = search_tool.search("Barcelona weather today", 5)
     for result in results:
         print(json.dumps(result, indent=2, ensure_ascii=False))
-
-    print(search_tool.extract(results[0]["url"]))
