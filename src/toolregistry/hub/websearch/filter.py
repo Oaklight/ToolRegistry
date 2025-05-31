@@ -9,13 +9,14 @@ from loguru import logger
 BLOCKLIST_CACHE_PATH = os.path.expanduser(
     "~/.cache/toolregistry/websearch_blocklist.txt"
 )
-# Cache duration in seconds (e.g., 7 days)
-CACHE_DURATION = 24 * 60 * 60 * 7
+# Cache duration in seconds (e.g., 30 days)
+CACHE_DURATION = 24 * 60 * 60 * 30
 UBLOCKLIST_URL = "https://raw.githubusercontent.com/eallion/uBlacklist-subscription-compilation/main/uBlacklist.txt"
 GITHUB_RAW_PROXY = "https://rawgithubusercontent.deno.dev"
 # Module-level variable to store blocked items
 _blocked_items: set[str] = set()
 _last_blocklist_content = None
+_last_blocklist_timestamp = None
 
 
 def parse_blocklist_content(content: str) -> None:
@@ -67,21 +68,17 @@ def fetch_and_cache_blocklist(
     Returns:
         Optional[str]: The content of the blocklist if successful, None otherwise.
     """
+    global _last_blocklist_timestamp, _last_blocklist_content
+
     # Ensure cache directory exists
     os.makedirs(os.path.dirname(cache_path), exist_ok=True)
 
     # Check if cache exists and is still valid
     if os.path.exists(cache_path):
         cache_age = time.time() - os.path.getmtime(cache_path)
-        if cache_age < cache_duration:
-            try:
-                with open(cache_path, "r", encoding="utf-8") as f:
-                    logger.debug("Using cached blocklist from {}", cache_path)
-                    content = f.read()
-                    parse_blocklist_content(content)
-                    return content
-            except Exception as e:
-                logger.error("Error reading cached blocklist: {}", e)
+        if cache_age < cache_duration and _last_blocklist_timestamp:
+            logger.debug("Using cached blocklist from module-level cache")
+            return _last_blocklist_content
 
     # Fetch the blocklist from the URL
     try:
@@ -94,6 +91,11 @@ def fetch_and_cache_blocklist(
             with open(cache_path, "w", encoding="utf-8") as f:
                 f.write(content)
             logger.debug("Fetched and cached blocklist to {}", cache_path)
+
+            # Update module-level cache
+            _last_blocklist_content = content
+            _last_blocklist_timestamp = time.time()
+
             parse_blocklist_content(content)
             return content
     except httpx.TimeoutException as e:
