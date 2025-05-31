@@ -5,7 +5,8 @@ from typing import Dict, List, Optional
 import httpx
 from loguru import logger
 
-from .utils import HEADERS_DEFAULT, TIMEOUT_DEFAULT, filter_search_results
+from .filter import filter_search_results
+from .headers import HEADERS_DEFAULT, TIMEOUT_DEFAULT
 from .websearch import WebSearchGeneral
 
 
