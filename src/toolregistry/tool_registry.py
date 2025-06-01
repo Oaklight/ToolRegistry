@@ -484,7 +484,7 @@ class ToolRegistry:
 
     def register_from_langchain(
         self,
-        langchain_tool: Union["LCBaseTool", List["LCBaseTool"]],
+        langchain_tool: "LCBaseTool",
         with_namespace: Union[bool, str] = False,
     ):
         """Register a LangChain tool in the registry.
@@ -492,7 +492,7 @@ class ToolRegistry:
         Requires the [langchain] extra to be installed.
 
         Args:
-            langchain_tool (Any): The LangChain tool to register.
+            langchain_tool (LCBaseTool): The LangChain tool to register.
             with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
                 - If `False`, no namespace is used.
                 - If `True`, the namespace is derived from the tool name.
@@ -508,7 +508,7 @@ class ToolRegistry:
 
     async def register_from_langchain_async(
         self,
-        langchain_tool: Union["LCBaseTool", List["LCBaseTool"]],
+        langchain_tool: "LCBaseTool",
         with_namespace: Union[bool, str] = False,
     ):
         """Async implementation to register a LangChain tool in the registry.
@@ -516,7 +516,7 @@ class ToolRegistry:
         Requires the [langchain] extra to be installed.
 
         Args:
-            langchain_tool (Any): The LangChain tool to register.
+            langchain_tool (LCBaseTool): The LangChain tool to register.
             with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
                 - If `False`, no namespace is used.
                 - If `True`, the namespace is derived from the tool name.

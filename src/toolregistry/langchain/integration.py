@@ -130,13 +130,13 @@ class LangChainIntegration:
 
     async def register_langchain_tools_async(
         self,
-        tools: Union[LCBaseTool, List[LCBaseTool]],
+        tool: LCBaseTool,
         with_namespace: Union[bool, str] = False,
     ) -> None:
-        """Async implementation to register LangChain tools using asyncio.
+        """Async implementation to register LangChain tool using asyncio.
 
         Args:
-            tools (Union[LCBaseTool, List[LCBaseTool]]): Single tool or list of tools to register.
+            tool (LCBaseTool): Single LangChain tool.
             with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
                 - If `False`, no namespace is used.
                 - If `True`, the namespace is derived from the tool's metadata if available.
@@ -148,42 +148,34 @@ class LangChainIntegration:
         """
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(
-            None, self.register_langchain_tools, tools, with_namespace
+            None, self.register_langchain_tools, tool, with_namespace
         )
 
     def register_langchain_tools(
         self,
-        tools: Union[LCBaseTool, List[LCBaseTool]],
+        tool: LCBaseTool,
         with_namespace: Union[bool, str] = False,
     ) -> None:
-        """Register LangChain tools (synchronous entry point).
+        """Register LangChain tool (synchronous entry point).
 
         Args:
-            tools (Union[LCBaseTool, List[LCBaseTool]]): Single tool or list of tools to register.
+            tool (LCBaseTool): Single LangChain tool
             with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
                 - If `False`, no namespace is used.
                 - If `True`, the namespace is derived from the tool's metadata if available.
                 - If a string is provided, it is used as the namespace.
                 Defaults to False.
         """
-        if not isinstance(tools, list):
-            tools = [tools]
 
-        for tool in tools:
-            if not isinstance(tool, LCBaseTool):
-                raise ValueError(
-                    f"Expected `langchain_core.tools.BaseTool` instance, got {type(tool)}"
-                )
+        if isinstance(with_namespace, str):
+            namespace = with_namespace
+        elif with_namespace:  # with_namespace is True
+            namespace = "langchain tool"
+        else:
+            namespace = None
 
-            if isinstance(with_namespace, str):
-                namespace = with_namespace
-            elif with_namespace:  # with_namespace is True
-                namespace = "langchain tool"
-            else:
-                namespace = None
-
-            langchain_tool = LangChainTool.from_langchain_tool(
-                tool=tool,
-                namespace=namespace,
-            )
-            self.registry.register(langchain_tool, namespace=namespace)
+        langchain_tool = LangChainTool.from_langchain_tool(
+            tool=tool,
+            namespace=namespace,
+        )
+        self.registry.register(langchain_tool, namespace=namespace)
