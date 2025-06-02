@@ -36,6 +36,7 @@ langchain = ["langchain-core>=0.3,<0.4", "langchain-community>=0.3,<0.4"]
 dev = [
     "python-dotenv>=1.0.1",
     "openai>=1.79.0",
+    "fastapi>=0.115.12",
     "mypy>=1.14.1",
     "build>=1.2.2.post1",
     "twine>=6.1.0",
