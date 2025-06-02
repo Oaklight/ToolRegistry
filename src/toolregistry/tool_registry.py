@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Literal, Optional, Set, Tuple, Type, Union
 
 import dill  # type: ignore
+import httpx
 from deprecated import deprecated  # type: ignore
 from loguru import logger
 from pydantic import AnyUrl
@@ -446,68 +447,52 @@ class ToolRegistry:
 
     def register_from_openapi(
         self,
-        spec_url: str,
-        base_url: Optional[str] = None,
+        client: httpx.AsyncClient,
+        openapi_spec: Dict[str, Any],
         with_namespace: Union[bool, str] = False,
     ):
-        """Register all tools from an OpenAPI specification (synchronous entry point).
-
-        Requires the [openapi] extra to be installed.
+        """Registers tools from OpenAPI specification synchronously.
 
         Args:
-            spec_url (str): URL or path to the OpenAPI specification.
-            base_url (Optional[str]): Optional base URL to use if the spec does not provide a server.
-            with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
-                - If `False`, no namespace is used.
-                - If `True`, the namespace is derived from the OpenAPI info.title.
-                - If a string is provided, it is used as the namespace.
+            client (httpx.AsyncClient): The HTTP client instance.
+            openapi_spec (Dict[str, Any]): Parsed OpenAPI specification dictionary.
+            with_namespace (Union[bool, str]): Specifies namespace usage:
+                - `False`: No namespace is applied.
+                - `True`: Namespace is derived from OpenAPI info.title.
+                - `str`: Use the provided string as namespace.
                 Defaults to False.
 
-        Raises:
-            ImportError: If [openapi] extra is not installed
+        Returns:
+            Any: Result of the OpenAPI tool registration process.
         """
-        try:
-            from .openapi_integration import OpenAPIIntegration
-        except ImportError:
-            raise ImportError(
-                "OpenAPI integration requires the [openapi] extra. "
-                "Install with: pip install toolregistry[openapi]"
-            )
+        OpenAPIIntegration = _import_openapi_integration()
         openapi = OpenAPIIntegration(self)
-        return openapi.register_openapi_tools(spec_url, base_url, with_namespace)
+        return openapi.register_openapi_tools(client, openapi_spec, with_namespace)
 
     async def register_from_openapi_async(
         self,
-        spec_url: str,
-        base_url: Optional[str] = None,
+        client: httpx.AsyncClient,
+        openapi_spec: Dict[str, Any],
         with_namespace: Union[bool, str] = False,
     ):
-        """Async implementation to register all tools from an OpenAPI specification.
-
-        Requires the [openapi] extra to be installed.
+        """Registers tools from OpenAPI specification asynchronously.
 
         Args:
-            spec_url (str): URL or path to the OpenAPI specification.
-            base_url (Optional[str]): Optional base URL to use if the spec does not provide a server.
-            with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
-                - If `False`, no namespace is used.
-                - If `True`, the namespace is derived from the OpenAPI info.title.
-                - If a string is provided, it is used as the namespace.
+            client (httpx.AsyncClient): The HTTP client instance.
+            openapi_spec (Dict[str, Any]): Parsed OpenAPI specification dictionary.
+            with_namespace (Union[bool, str]): Specifies namespace usage:
+                - `False`: No namespace is applied.
+                - `True`: Namespace is derived from OpenAPI info.title.
+                - `str`: Use the provided string as namespace.
                 Defaults to False.
 
-        Raises:
-            ImportError: If [openapi] extra is not installed
+        Returns:
+            Any: Result of the OpenAPI tool registration process.
         """
-        try:
-            from .openapi_integration import OpenAPIIntegration
-        except ImportError:
-            raise ImportError(
-                "OpenAPI integration requires the [openapi] extra. "
-                "Install with: pip install toolregistry[openapi]"
-            )
+        OpenAPIIntegration = _import_openapi_integration()
         openapi = OpenAPIIntegration(self)
         return await openapi.register_openapi_tools_async(
-            spec_url, base_url, with_namespace
+            client, openapi_spec, with_namespace
         )
 
     def register_from_langchain(
@@ -850,3 +835,22 @@ class ToolRegistry:
         """
         return self.get_callable(key)
 
+
+def _import_openapi_integration():
+    """Helper function to import the OpenAPI integration module.
+
+    Raises:
+        ImportError: If the [openapi] extra is not installed.
+
+    Returns:
+        OpenAPIIntegration: The imported OpenAPIIntegration class.
+    """
+    try:
+        from .openapi.integration import OpenAPIIntegration
+
+        return OpenAPIIntegration
+    except ImportError:
+        raise ImportError(
+            "OpenAPI integration requires the [openapi] extra. "
+            "Install with: pip install toolregistry[openapi]"
+        )
