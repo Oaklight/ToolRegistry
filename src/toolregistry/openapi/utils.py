@@ -1,10 +1,55 @@
 import asyncio
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 from urllib.parse import urlparse
 
 import httpx
 import jsonref  # type: ignore
 import yaml  # type: ignore
+
+
+class HttpxClientConfig:
+    def __init__(
+        self,
+        base_url: str,
+        headers: Optional[Dict[str, str]] = None,
+        timeout: float = 10.0,
+        auth: Optional[Tuple[str, str]] = None,
+        **extra_options,
+    ):
+        """
+        Container for httpx client configuration.
+
+        Args:
+            base_url (str): The base URL for the API. This is required.
+            headers (Optional[Dict[str, str]]): Custom request headers. Default is None.
+            timeout (float): Request timeout in seconds. Default is 10.0.
+            auth (Optional[Tuple[str, str]]): Basic authentication credentials (username, password). Default is None.
+            extra_options (Any): Additional httpx client parameters.
+        """
+        self.base_url = base_url.rstrip("/")
+        self.headers = headers or {}
+        self.timeout = timeout
+        self.auth = auth
+        self.extra_options = extra_options
+
+    def to_client(self, use_async: bool = False):
+        """
+        Creates an httpx client instance.
+
+        Args:
+            use_async (bool): Whether to create an asynchronous client. Default is False.
+
+        Returns:
+            Union[httpx.Client, httpx.AsyncClient]: An instance of httpx.Client or httpx.AsyncClient.
+        """
+        client_class = httpx.AsyncClient if use_async else httpx.Client
+        return client_class(
+            base_url=self.base_url,
+            headers=self.headers,
+            timeout=self.timeout,
+            auth=self.auth,
+            **self.extra_options,
+        )
 
 
 def extract_base_url_from_specs(openapi_spec: Dict[str, Any]) -> Optional[str]:

@@ -1,64 +1,18 @@
 import asyncio
-from typing import Any, Dict, List, Optional, Tuple, Union
-
-import httpx
+from typing import Any, Dict, List, Optional, Union
 
 from ..tool import Tool
 from ..tool_registry import ToolRegistry
 from ..tool_wrapper import BaseToolWrapper
 from ..utils import normalize_tool_name
-
-
-class ClientConfig:
-    def __init__(
-        self,
-        base_url: str,
-        headers: Optional[Dict[str, str]] = None,
-        timeout: float = 10.0,
-        auth: Optional[Tuple[str, str]] = None,
-        **extra_options,
-    ):
-        """
-        Container for httpx client configuration.
-
-        Args:
-            base_url (str): The base URL for the API. This is required.
-            headers (Optional[Dict[str, str]]): Custom request headers. Default is None.
-            timeout (float): Request timeout in seconds. Default is 10.0.
-            auth (Optional[Tuple[str, str]]): Basic authentication credentials (username, password). Default is None.
-            extra_options (Any): Additional httpx client parameters.
-        """
-        self.base_url = base_url.rstrip("/")
-        self.headers = headers or {}
-        self.timeout = timeout
-        self.auth = auth
-        self.extra_options = extra_options
-
-    def to_client(self, use_async: bool = False):
-        """
-        Creates an httpx client instance.
-
-        Args:
-            use_async (bool): Whether to create an asynchronous client. Default is False.
-
-        Returns:
-            Union[httpx.Client, httpx.AsyncClient]: An instance of httpx.Client or httpx.AsyncClient.
-        """
-        client_class = httpx.AsyncClient if use_async else httpx.Client
-        return client_class(
-            base_url=self.base_url,
-            headers=self.headers,
-            timeout=self.timeout,
-            auth=self.auth,
-            **self.extra_options,
-        )
+from .utils import HttpxClientConfig
 
 
 class OpenAPIToolWrapper(BaseToolWrapper):
     """Wrapper class that provides both synchronous and asynchronous methods for OpenAPI tool calls.
 
     Args:
-        client_config (ClientConfig): Configuration for the HTTP client.
+        client_config (HttpxClientConfig): Configuration for the HTTP client.
         name (str): The name of the tool.
         method (str): The HTTP method (e.g., "get", "post").
         path (str): The API endpoint path.
@@ -67,7 +21,7 @@ class OpenAPIToolWrapper(BaseToolWrapper):
 
     def __init__(
         self,
-        client_config: ClientConfig,
+        client_config: HttpxClientConfig,
         name: str,
         method: str,
         path: str,
@@ -141,7 +95,7 @@ class OpenAPITool(Tool):
     @classmethod
     def from_openapi_spec(
         cls,
-        client_config: ClientConfig,
+        client_config: HttpxClientConfig,
         path: str,
         method: str,
         spec: Dict[str, Any],
@@ -150,7 +104,7 @@ class OpenAPITool(Tool):
         """Create an OpenAPITool instance from an OpenAPI specification.
 
         Args:
-            client_config (ClientConfig): Configuration for HTTP client.
+            client_config (HttpxClientConfig): Configuration for HTTP client.
             path (str): API endpoint path.
             method (str): HTTP method.
             spec (Dict[str, Any]): The OpenAPI operation specification.
@@ -229,14 +183,14 @@ class OpenAPIIntegration:
 
     async def register_openapi_tools_async(
         self,
-        client_config: ClientConfig,
+        client_config: HttpxClientConfig,
         openapi_spec: Dict[str, Any],
         with_namespace: Union[bool, str] = False,
     ) -> None:
         """Asynchronously register all tools defined in an OpenAPI specification.
 
         Args:
-            client_config (ClientConfig): Configuration for the HTTP client.
+            client_config (HttpxClientConfig): Configuration for the HTTP client.
             openapi_spec (Dict[str, Any]): The OpenAPI specification dictionary.
             with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
                 - If `False`, no namespace is used.
@@ -275,14 +229,14 @@ class OpenAPIIntegration:
 
     def register_openapi_tools(
         self,
-        client_config: ClientConfig,
+        client_config: HttpxClientConfig,
         openapi_spec: Dict[str, Any],
         with_namespace: Union[bool, str] = False,
     ) -> None:
         """Synchronously register all tools defined in an OpenAPI specification.
 
         Args:
-            client_config (ClientConfig): Configuration for the HTTP client.
+            client_config (HttpxClientConfig): Configuration for the HTTP client.
             openapi_spec (Dict[str, Any]): The OpenAPI specification dictionary.
             with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
                 - If `False`, no namespace is used.
