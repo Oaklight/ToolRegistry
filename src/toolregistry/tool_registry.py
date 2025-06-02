@@ -846,7 +846,7 @@ def _import_openapi_integration():
         OpenAPIIntegration: The imported OpenAPIIntegration class.
     """
     try:
-        from .openapi.integration import OpenAPIIntegration
+        from .openapi import OpenAPIIntegration
 
         return OpenAPIIntegration
     except ImportError:
