@@ -6,6 +6,7 @@ from cicada.core.utils import cprint
 from dotenv import load_dotenv
 
 from toolregistry import ToolRegistry
+from toolregistry.openapi import HttpxClientConfig, load_openapi_spec
 
 load_dotenv()
 
@@ -13,6 +14,8 @@ load_dotenv()
 model_name = os.getenv("MODEL", "deepseek-v3")
 API_KEY = os.getenv("API_KEY", "your-api-key")
 BASE_URL = os.getenv("BASE_URL", "https://api.deepseek.com/")
+OPENAPI_SERVER_URL = os.getenv("OPENAPI_SERVER_URL", "http://localhost:8000")
+OPENAPI_BEARER_TOKENS = os.getenv("OPENAPI_BEARER_TOKENS", None)
 stream = os.getenv("STREAM", "True").lower() == "true"
 
 llm = MultiModalModel(
@@ -22,10 +25,19 @@ llm = MultiModalModel(
     stream=stream,
 )
 
-spec_url = "http://localhost:8000"
+base_url = OPENAPI_SERVER_URL
+client_config = HttpxClientConfig(
+    base_url=base_url,
+    headers={"Authorization": f"Bearer {OPENAPI_BEARER_TOKENS}"}
+    if OPENAPI_BEARER_TOKENS
+    else None,
+    timeout=10.0,
+)
+openapi_spec = load_openapi_spec(base_url)
+
 # Initialize tool registry and register Calculator static methods
 tool_registry = ToolRegistry()
-tool_registry.register_from_openapi(spec_url)
+tool_registry.register_from_openapi(client_config, openapi_spec)
 print(tool_registry.get_available_tools())
 
 input_file = "examples/hub_related/concurrent_raw_results.txt"

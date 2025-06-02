@@ -5,16 +5,18 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from toolregistry import ToolRegistry
+from toolregistry.openapi import HttpxClientConfig, load_openapi_spec
 
 # Load environment variables from .env file
 load_dotenv()
 
 
 model_name = os.getenv("MODEL", "deepseek-v3")
-stream = os.getenv("STREAM", "True").lower() == "true"
-
 API_KEY = os.getenv("API_KEY", "your-api-key")
 BASE_URL = os.getenv("BASE_URL", "https://api.deepseek.com/")
+OPENAPI_SERVER_URL = os.getenv("OPENAPI_SERVER_URL", "http://localhost:8000")
+OPENAPI_BEARER_TOKENS = os.getenv("OPENAPI_BEARER_TOKENS", None)
+stream = os.getenv("STREAM", "True").lower() == "true"
 
 # Initialize tool registry and register Calculator static methods
 tool_registry = ToolRegistry()
@@ -67,9 +69,19 @@ messages = [
     }
 ]
 if __name__ == "__main__":
-    spec_url = "http://localhost:8000"
+    base_url = OPENAPI_SERVER_URL
+    client_config = HttpxClientConfig(
+        base_url=base_url,
+        headers={"Authorization": f"Bearer {OPENAPI_BEARER_TOKENS}"}
+        if OPENAPI_BEARER_TOKENS
+        else None,
+        timeout=10.0,
+    )
+    openapi_spec = load_openapi_spec(base_url)
 
-    tool_registry.register_from_openapi(spec_url, with_namespace=True)
+    tool_registry.register_from_openapi(
+        client_config, openapi_spec, with_namespace=True
+    )
 
     print(tool_registry.get_available_tools())
 

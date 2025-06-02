@@ -9,6 +9,7 @@ from pprint import pprint
 from typing import Any, Dict, List, Optional, Tuple
 
 from toolregistry import ToolRegistry
+from toolregistry.openapi import HttpxClientConfig, load_openapi_spec
 from toolregistry.utils import (
     ChatCompletionMessageToolCall,
     Function,
@@ -116,9 +117,8 @@ def generate_tool_calls(
 
 
 def main():
-
     # ========= native func tools =========
-    print("-" * 10 + f" Native Func Tool " + "-" * 10)
+    print("-" * 10 + " Native Func Tool " + "-" * 10)
 
     registry = ToolRegistry()
     registry.register(local_add)
@@ -145,7 +145,7 @@ def main():
     print(f"Throughput: {throughput:.2f} calls/second")
 
     # ========= native (hub) class tools =========
-    print("-" * 10 + f" Native Class Tool " + "-" * 10)
+    print("-" * 10 + " Native Class Tool " + "-" * 10)
     from toolregistry.hub import Calculator
 
     registry = ToolRegistry()
@@ -170,13 +170,15 @@ def main():
     print(f"Throughput: {throughput:.2f} calls/second")
 
     # ========= openapi tools =========
-    print("-" * 10 + f" OpenAPI Tool " + "-" * 10)
+    print("-" * 10 + " OpenAPI Tool " + "-" * 10)
     registry = ToolRegistry()
 
     OPENAPI_PORT = os.getenv("OPENAPI_PORT", 8000)
-    registry.register_from_openapi(
-        f"http://localhost:{OPENAPI_PORT}", with_namespace=True
-    )
+
+    client_config = HttpxClientConfig(base_url=f"http://localhost:{OPENAPI_PORT}")
+    openapi_spec = load_openapi_spec(f"http://localhost:{OPENAPI_PORT}")
+
+    registry.register_from_openapi(client_config, openapi_spec, with_namespace=True)
     # print(registry.get_available_tools())
     if FUNC:
         target_func_name = [
