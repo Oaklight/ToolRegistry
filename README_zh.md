@@ -144,13 +144,13 @@ registry.register_from_openapi(
 tools_json = registry.get_tools_json()
 ```
 
-### 注意事项
+### 注意
 
-在仅提供基础 URL 的情况下，ToolRegistry 会尝试 "best effort" 自动发现 OpenAPI 规范文件（例如通过 `http://<base_url>/openapi.json` 或 `http://<base_url>/swagger.json`）。如果发现失败，请检查所提供的 URL 是否正确，或者自行下载 OpenAPI 规范文件并使用文件 + 基础 URL 的方式注册工具。例如：
+在使用 `load_openapi_spec` 或 `load_openapi_spec_async` 函数时，具有以下行为：
 
-```python
-registry.register_from_openapi("./openapi_spec.json", "http://localhost/")
-```
+1. **提供基础 URL**：如果仅指定基础 URL（例如 `http://localhost:8000`），加载器将尝试“尽力而为”自动发现 OpenAPI 规范文件。会检查诸如 `http://<base_url>/openapi.json` 或 `http://<base_url>/swagger.json` 的端点。如果自动发现失败，请确保基础 URL 是准确的并且规范文件可以访问。
+
+2. **提供文件路径**：如果您提供文件路径（例如 `./openapi_spec.json`），函数将直接从文件中加载 OpenAPI 规范。与简单的直接加载不同，此功能还包括解析 OpenAPI 规范中常见的 `$ref` 块。这确保返回的字典中任何模式引用都被完全解析。
 
 ## LangChain 集成
 

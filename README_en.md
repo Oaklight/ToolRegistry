@@ -123,7 +123,7 @@ tools_json = registry.get_tools_json()
 The `register_from_openapi` method now accepts two parameters:
 
 - `client_config`: a `toolregistry.openapi.HttpxClientConfig` object that configures the HTTP client used to interact with the API. You can configure the headers, authorization, timeout, and other settings. Allowing greater flexibility than the previous version.
-- `openapi_spec`: The OpenAPI specification as Dict[str, Any], loaded with a function like `load_openapi_spec` or `load_openapi_spec_async`. These functions accept a file path or a URL to the OpenAPI specification or a URL to the base api and return the parsed OpenAPI specification as a dictionary.
+- `openapi_spec`: The OpenAPI specification as `Dict[str, Any]`, loaded with a function like `load_openapi_spec` or `load_openapi_spec_async`. These functions accept a file path or a URL to the OpenAPI specification or a URL to the base api and return the parsed OpenAPI specification as a dictionary.
 
 Example:
 
@@ -146,11 +146,11 @@ tools_json = registry.get_tools_json()
 
 ### Note
 
-When only providing a base URL, ToolRegistry will attempt a "best effort" auto-discovery to find the OpenAPI specification file (e.g., via `http://<base_url>/openapi.json` or `http://<base_url>/swagger.json`). If discovery fails, ensure the provided URL is correct or download the OpenAPI specification file yourself and register using the file + base URL method:
+When using the functions `load_openapi_spec` or `load_openapi_spec_async`, the following behaviors apply:
 
-```python
-registry.register_from_openapi("./openapi_spec.json", "http://localhost/")
-```
+1. **Base URL provided**: If you specify only a base URL (e.g., `http://localhost:8000`), the loader will attempt "best effort" auto-discovery to locate the OpenAPI specification file. It checks endpoints such as `http://<base_url>/openapi.json` or `http://<base_url>/swagger.json`. If auto-discovery fails, ensure the base URL is accurate and the specification is accessible.
+
+2. **File path provided**: If you provide a file path (e.g., `./openapi_spec.json`), the function will load the OpenAPI specification directly from the file. Unlike simple direct load, the functionality includes unwinding `$ref` blocks commonly found in OpenAPI specifications. This ensures that any schema references are fully resolved within the returned dictionary.
 
 ## LangChain Integration
 
