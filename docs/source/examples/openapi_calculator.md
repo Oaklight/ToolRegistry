@@ -1,9 +1,9 @@
 # Example Make and Use of Calculator OpenAPI Tool
 
-This example demonstrates how to
+This example demonstrates how to:
 
-1. create a simple calculator API using FastAPI. The API will provide basic arithmetic operations such as addition, subtraction, multiplication, and division.
-2. use this api service as ToolRegistry tool for LLM to compute the average of metrics from a file.
+1. Create a simple calculator API using FastAPI. The API provides basic arithmetic operations such as addition, subtraction, multiplication, and division.
+2. Use this API service as a `ToolRegistry` tool for LLMs to compute the average of metrics from a file.
 
 We will reuse the file from previous calculator examples, [concurrent_raw_results.txt](concurrent_raw_results.txt).
 
@@ -107,20 +107,45 @@ or
 python openapi_calculator.py
 ```
 
-## How to Register and Use It
+## Step 2: Register and Use the OpenAPI Tool
+
+### Updated Registration Method (As of 0.4.12)
+
+Previously, `register_from_openapi` requires `spec_url` and optional `base_url`. It was designed to be simple. Yet in practice, we found the need for customization in HTTP requests, for example many OpenAPI services requires authentication headers or custom timeouts. Thus we made the following changes:
+
+The `register_from_openapi` method new requires two parameters:
+
+- `client_config`: Configures the HTTP client (headers, auth, timeout, etc.) using a `toolregistry.openapi.HttpxClientConfig` object, allowing greater flexibility.
+- `openapi_spec`: The OpenAPI specification loaded as `Dict[str, Any]` using functions like `load_openapi_spec` or `load_openapi_spec_async` from a file path or URL to the service or specification.
 
 We implement using both Cicada `MultiModalModel` and OpenAI client to showcase different ways to integrate with the tool registry.
+
+Example:
+
+```python
+from toolregistry.openapi import HttpxClientConfig, load_openapi_spec
+
+client_config = HttpxClientConfig(base_url="http://localhost:8000")
+openapi_spec = load_openapi_spec("./openapi_spec.json") # specification at local path
+openapi_spec = load_openapi_spec("http://localhost:8000") # URL to service root
+openapi_spec = load_openapi_spec("http://localhost:8000/openapi.json") # URL to specification
+
+registry.register_from_openapi(
+    client_config=client_config,
+    openapi_spec=openapi_spec,
+    with_namespace=False,
+)
+```
 
 ## Cicada `MultiModalModel` Example
 
 ```python
 import json
 import os
-
 from cicada.core.model import MultiModalModel
 from cicada.core.utils import cprint
 from dotenv import load_dotenv
-
+from toolregistry.openapi import HttpxClientConfig, load_openapi_spec
 from toolregistry import ToolRegistry
 
 load_dotenv()
@@ -138,24 +163,27 @@ llm = MultiModalModel(
     stream=stream,
 )
 
-spec_url = "http://localhost:8000"
-# Initialize tool registry and register Calculator static methods
+# Initialize tool registry
 tool_registry = ToolRegistry()
-tool_registry.register_from_openapi(spec_url)
+
+client_config = HttpxClientConfig(base_url="http://localhost:8000")
+openapi_spec = load_openapi_spec("http://localhost:8000")
+tool_registry.register_from_openapi(client_config, openapi_spec)
+
 print(tool_registry.get_available_tools())
 
+# Read input file
 input_file = "examples/hub_related/concurrent_raw_results.txt"
 
 with open(input_file) as f:
     input_content = f.read()
 
-# Example instruction to compute the averages
 instruction = f"""
-I have a few test results from multiple runs. Please use the available tools to compute the averages of the metrics for each category. The input is as 
-{input_content}
+I have a few test results from multiple runs. Please use the available tools to compute the averages of the metrics for each category. 
+The input is as {input_content}
 """
 
-# Query LLM to get result
+# Query LLM and fetch result
 response = llm.query(instruction, tools=tool_registry, stream=stream)
 cprint(json.dumps(response, indent=2))
 ```
@@ -165,15 +193,12 @@ cprint(json.dumps(response, indent=2))
 ```python
 import inspect
 import os
-
 from dotenv import load_dotenv
+from toolregistry.openapi import HttpxClientConfig, load_openapi_spec
+from toolregistry import ToolRegistry
 from openai import OpenAI
 
-from toolregistry import ToolRegistry
-
-# Load environment variables from .env file
 load_dotenv()
-
 
 model_name = os.getenv("MODEL", "deepseek-v3")
 stream = os.getenv("STREAM", "True").lower() == "true"
@@ -181,14 +206,20 @@ stream = os.getenv("STREAM", "True").lower() == "true"
 API_KEY = os.getenv("API_KEY", "your-api-key")
 BASE_URL = os.getenv("BASE_URL", "https://api.deepseek.com/")
 
-# Initialize tool registry and register Calculator static methods
+# Initialize tool registry
 tool_registry = ToolRegistry()
 
+client_config = HttpxClientConfig(base_url="http://localhost:8000")
+openapi_spec = load_openapi_spec("http://localhost:8000")
+tool_registry.register_from_openapi(client_config, openapi_spec)
+
+print(tool_registry.get_available_tools())
+
+# Read input file
 input_file = "examples/hub_related/concurrent_raw_results.txt"
 
 with open(input_file) as f:
     input_content = f.read()
-
 
 # Set up OpenAI client
 client = OpenAI(
@@ -231,25 +262,19 @@ messages = [
     The input is as {input_content}"""),
     }
 ]
-if __name__ == "__main__":
-    spec_url = "http://localhost:8000"
 
-    tool_registry.register_from_openapi(spec_url, with_namespace=True)
+# Make the chat completion request
+response = client.chat.completions.create(
+    model=model_name,
+    messages=messages,
+    tools=tool_registry.get_tools_json(),
+    tool_choice="auto",
+)
 
-    print(tool_registry.get_available_tools())
+# Handle tool calls using the new function (without iteration limit)
+response = handle_tool_calls(response, messages)
 
-    # Make the chat completion request
-    response = client.chat.completions.create(
-        model=model_name,
-        messages=messages,
-        tools=tool_registry.get_tools_json(),
-        tool_choice="auto",
-    )
-
-    # Handle tool calls using the new function (without iteration limit)
-    response = handle_tool_calls(response, messages)
-
-    # Print final response
-    if response.choices[0].message.content:
-        print(response.choices[0].message.content)
+# Print final response
+if response.choices[0].message.content:
+    print(response.choices[0].message.content)
 ```
