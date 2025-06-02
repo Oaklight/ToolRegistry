@@ -1,12 +1,16 @@
 import asyncio
 
+from toolregistry.openapi import HttpxClientConfig, load_openapi_spec
 from toolregistry.tool_registry import ToolRegistry
 
-spec_url = "http://localhost:8000"
+base_url = "http://localhost:8000"
+openapi_spec = load_openapi_spec(base_url)
+
+client_config = HttpxClientConfig(base_url=base_url)
 
 # Initialize the ToolRegistry and register OpenAPI tools synchronously
 registry = ToolRegistry()
-registry.register_from_openapi(spec_url, with_namespace=True)
+registry.register_from_openapi(client_config, openapi_spec, with_namespace=True)
 
 # print("Registry:", registry)
 
@@ -34,9 +38,6 @@ print(result)  # Expected output: 11.0
 # -------------------------------
 # Asynchronous Tests
 # -------------------------------
-
-
-import asyncio
 
 
 async def call_async_add_func():

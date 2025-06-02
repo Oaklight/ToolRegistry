@@ -6,6 +6,11 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from toolregistry import ToolRegistry
+from toolregistry.openapi import (
+    HttpxClientConfig,
+    load_openapi_spec,
+    load_openapi_spec_async,
+)
 
 # Load environment variables from .env file
 load_dotenv()
@@ -18,8 +23,11 @@ print("================ OpenAPI ================")
 
 
 async def async_register():
+    client_config = HttpxClientConfig(base_url=openapi_spec_url)
+    openapi_spec = await load_openapi_spec_async(openapi_spec_url)
+
     await openapi_registry.register_from_openapi_async(
-        openapi_spec_url, with_namespace=True
+        client_config, openapi_spec, with_namespace=True
     )
 
 
