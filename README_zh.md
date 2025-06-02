@@ -18,9 +18,9 @@
 
 完整文档可访问 [https://toolregistry.lab.oaklight.cn](https://toolregistry.lab.oaklight.cn)
 
-## API 变更（从 0.4.4 开始）
+## API 弃用（自 0.4.12 起）
 
-之前用于从类中注册静态方法的 `ToolRegistry.register_static_tools` 方法已被替换为 `ToolRegistry.register_from_class`。类似地，`ToolRegistry.register_mcp_tools` 已被替换为 `ToolRegistry.register_from_mcp`，`ToolRegistry.register_openapi_tools` 已被替换为 `ToolRegistry.register_from_openapi`。所有旧方法计划很快被弃用，请尽快迁移到新的接口。为了向后兼容，旧名称仍作为新名称的别名。
+从版本 0.4.12 开始，之前已被弃用的方法 `ToolRegistry.register_static_tools`、`ToolRegistry.register_mcp_tools` 和 `ToolRegistry.register_openapi_tools` 已被**移除**。用户必须更新其实现，改为使用新方法：`ToolRegistry.register_from_class`、`ToolRegistry.register_from_mcp` 和 `ToolRegistry.register_from_openapi`。请确保您的代码库与此更新兼容，以确保功能不受影响。
 
 ## 安装
 
@@ -116,16 +116,31 @@ registry.register_from_mcp(transport)
 
 # 获取所有工具的 JSON，包括 MCP 工具
 tools_json = registry.get_tools_json()
+```
 
-## OpenAPI 集成
+## OpenAPI集成（更新至0.4.12）
 
-ToolRegistry 支持与 OpenAPI 集成，以使用标准化 API 接口与工具交互：
+`register_from_openapi`方法现在接受两个参数：
+
+- `client_config`：一个`toolregistry.openapi.HttpxClientConfig`对象，用于配置与API交互的HTTP客户端。可以配置请求头、认证、超时等设置，提供比以前版本更大的灵活性。
+- `openapi_spec`：以`Dict[str, Any]`形式表示的OpenAPI规范，使用`load_openapi_spec`或`load_openapi_spec_async`等函数加载。这些函数支持通过文件路径或URL获取OpenAPI规范，或者通过API的基础URL获取，并返回解析后的OpenAPI规范字典。
+
+示例：
 
 ```python
-registry.register_from_openapi("http://localhost:8000/")  # 提供基础 URL
-registry.register_from_openapi("./openapi_spec.json", "http://localhost/")  # 提供本地 OpenAPI 规范文件和基础 URL
+from toolregistry.openapi import HttpxClientConfig, load_openapi_spec
 
-# 获取所有工具的 JSON，包括 OpenAPI 工具
+client_config = HttpxClientConfig(base_url="http://localhost:8000")
+openapi_spec = load_openapi_spec("./openapi_spec.json")
+openapi_spec = load_openapi_spec("http://localhost:8000")
+openapi_spec = load_openapi_spec("http://localhost:8000/openapi.json")
+
+registry.register_from_openapi(
+    client_config=client_config,
+    openapi_spec=openapi_spec
+)
+
+# 获取所有工具的JSON，包括OpenAPI工具
 tools_json = registry.get_tools_json()
 ```
 
