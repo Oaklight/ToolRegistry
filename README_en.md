@@ -18,9 +18,9 @@ A Python library for managing and executing tools in a structured way.
 
 Full documentation is available at [https://toolregistry.lab.oaklight.cn](https://toolregistry.lab.oaklight.cn)
 
-## API Changes (starting 0.4.4)
+## API Deprecation (starting 0.4.12)
 
-Previously, the method `ToolRegistry.register_static_tools` was used for registering static methods from classes. This has now been replaced by `ToolRegistry.register_from_class`. Similarly, `ToolRegistry.register_mcp_tools` has been replaced by `ToolRegistry.register_from_mcp`, and `ToolRegistry.register_openapi_tools` by `ToolRegistry.register_from_openapi`. All old methods are planned to be deprecated soon, so please migrate to the new interfaces as soon as possible. For backward compatibility, the old names remain as aliases to the new ones.
+As of version 0.4.12, the previously deprecated methods `ToolRegistry.register_static_tools`, `ToolRegistry.register_mcp_tools`, and `ToolRegistry.register_openapi_tools` have been **REMOVED**. Users must update their implementations to use the new methods: `ToolRegistry.register_from_class`, `ToolRegistry.register_from_mcp`, and `ToolRegistry.register_from_openapi`. Please ensure your codebase is compatible with this update for uninterrupted functionality.
 
 ## Installation
 
@@ -118,13 +118,27 @@ registry.register_from_mcp(transport)
 tools_json = registry.get_tools_json()
 ```
 
-## OpenAPI Integration
+## OpenAPI Integration (updated as of 0.4.12)
 
-ToolRegistry supports integration with OpenAPI for interacting with tools using a standardized API interface:
+The `register_from_openapi` method now accepts two parameters:
+
+- `client_config`: a `toolregistry.openapi.HttpxClientConfig` object that configures the HTTP client used to interact with the API. You can configure the headers, authorization, timeout, and other settings. Allowing greater flexibility than the previous version.
+- `openapi_spec`: The OpenAPI specification as Dict[str, Any], loaded with a function like `load_openapi_spec` or `load_openapi_spec_async`. These functions accept a file path or a URL to the OpenAPI specification or a URL to the base api and return the parsed OpenAPI specification as a dictionary.
+
+Example:
 
 ```python
-registry.register_from_openapi("http://localhost:8000/")  # Providing base URL
-registry.register_from_openapi("./openapi_spec.json", "http://localhost/")  # Providing local OpenAPI specification file and base URL
+from toolregistry.openapi import HttpxClientConfig, load_openapi_spec
+
+client_config = HttpxClientConfig(base_url="http://localhost:8000")
+openapi_spec = load_openapi_spec("./openapi_spec.json")
+openapi_spec = load_openapi_spec("http://localhost:8000")
+openapi_spec = load_openapi_spec("http://localhost:8000/openapi.json")
+
+registry.register_from_openapi(
+    client_config=client_config,
+    openapi_spec=openapi_spec
+)
 
 # Get all tools' JSON, including OpenAPI tools
 tools_json = registry.get_tools_json()
