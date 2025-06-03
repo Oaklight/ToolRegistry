@@ -384,13 +384,7 @@ class ToolRegistry:
         Raises:
             ImportError: If [mcp] extra is not installed
         """
-        try:
-            from .mcp_integration import MCPIntegration
-        except ImportError:
-            raise ImportError(
-                "MCP integration requires the [mcp] extra and Python >= 3.10. "
-                "Install with: pip install toolregistry[mcp]"
-            )
+        MCPIntegration = _import_mcp_integration()
         mcp = MCPIntegration(self)
         return mcp.register_mcp_tools(transport, with_namespace)
 
@@ -435,13 +429,7 @@ class ToolRegistry:
         Raises:
             ImportError: If [mcp] extra is not installed
         """
-        try:
-            from .mcp_integration import MCPIntegration
-        except ImportError:
-            raise ImportError(
-                "MCP integration requires the [mcp] extra and Python >= 3.10. "
-                "Install with: pip install toolregistry[mcp]"
-            )
+        MCPIntegration = _import_mcp_integration()
         mcp = MCPIntegration(self)
         return await mcp.register_mcp_tools_async(transport, with_namespace)
 
@@ -853,4 +841,23 @@ def _import_openapi_integration():
         raise ImportError(
             "OpenAPI integration requires the [openapi] extra. "
             "Install with: pip install toolregistry[openapi]"
+        )
+
+def _import_mcp_integration():
+    """Helper function to import the MCP integration module.
+
+    Raises:
+        ImportError: If the [mcp] extra is not installed.
+
+    Returns:
+        MCPIntegration: The imported OpenAPIIntegration class.
+    """
+    try:
+        from .mcp import MCPIntegration
+
+        return MCPIntegration
+    except ImportError:
+        raise ImportError(
+            "MCP integration requires the [mcp] extra. "
+            "Install with: pip install toolregistry[mcp]"
         )
