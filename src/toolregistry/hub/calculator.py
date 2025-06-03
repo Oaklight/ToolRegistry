@@ -3,7 +3,7 @@ import math
 import textwrap
 from typing import Dict, List, Literal, Union
 
-from ..utils import get_all_static_methods
+from ..native.utils import get_all_static_methods
 
 
 class Calculator:
