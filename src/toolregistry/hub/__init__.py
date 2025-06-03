@@ -16,7 +16,7 @@ Example:
     >>> ops.replace_lines('file.txt', 5, 'new content')
 """
 
-from .calculator import Calculator
+from .calculator import BaseCalculator, Calculator
 from .file_ops import FileOps
 from .filesystem import FileSystem
 from .unit_converter import UnitConverter
@@ -29,6 +29,7 @@ from .websearch import (
 )
 
 __all__ = [
+    "BaseCalculator",
     "Calculator",
     "FileSystem",
     "FileOps",

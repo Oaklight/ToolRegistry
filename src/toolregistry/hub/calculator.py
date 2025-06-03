@@ -1,4 +1,5 @@
 import inspect
+import json
 import math
 import textwrap
 from typing import Dict, List, Literal, Union
@@ -6,33 +7,8 @@ from typing import Dict, List, Literal, Union
 from ..native.utils import get_all_static_methods
 
 
-class Calculator:
-    """Performs mathematical calculations.
-
-    This class provides a unified interface for a wide range of mathematical operations,
-    including basic arithmetic, scientific functions, statistical calculations,
-    financial computations, random number generation, and expression evaluation.
-
-    Methods:
-        Basic arithmetic:
-            add, subtract, multiply, divide, mod
-        Numerical processing:
-            abs, round
-        Power and roots:
-            pow, sqrt, cbrt
-        Logarithmic and exponential functions:
-            log, ln, exp
-        Statistical functions:
-            min, max, sum, average, median, mode, standard_deviation
-        Combinatorics:
-            factorial, gcd, lcm, comb, perm
-        Distance and norm:
-            dist, dist_manhattan, norm_euclidean
-        Financial calculations:
-            simple_interest, compound_interest
-        Expression evaluation:
-            evaluate, allowed_fns_in_evaluate, help
-    """
+class BaseCalculator:
+    """Base class for Calculator, providing core mathematical operations."""
 
     # ====== Basic arithmetic 基本算术运算 ======
     @staticmethod
@@ -56,6 +32,13 @@ class Calculator:
         if b == 0:
             raise ValueError("Cannot divide by zero")
         return a / b
+
+    @staticmethod
+    def floor_divide(a: float, b: float) -> float:
+        """Floor divides a by b. b != 0"""
+        if b == 0:
+            raise ValueError("Cannot divide by zero")
+        return a // b
 
     @staticmethod
     def mod(a: float, b: float) -> float:
@@ -175,7 +158,7 @@ class Calculator:
         """Calculates population standard deviation of numbers."""
         if not numbers:
             raise ValueError("numbers list cannot be empty")
-        mean = Calculator.average(numbers)
+        mean = BaseCalculator.average(numbers)
         variance = sum((x - mean) ** 2 for x in numbers) / len(numbers)
         return math.sqrt(variance)
 
@@ -219,6 +202,11 @@ class Calculator:
         """Calculates Euclidean norm of a point."""
         return math.hypot(*p)  # Using math.hypot for Euclidean norm
 
+    @staticmethod
+    def hypot(*args: float) -> float:
+        """Calculates Euclidean norm (hypotenuse) of input values."""
+        return math.hypot(*args)
+
     # ====== Financial calculations 金融计算 ======
     @staticmethod
     def simple_interest(principal: float, rate: float, time: float) -> float:
@@ -253,13 +241,65 @@ class Calculator:
         # No range check needed for compound_interest
         return principal * (1 + rate / periods) ** (periods * time)
 
+
+class Calculator:
+    """Performs mathematical calculations.
+
+    This class provides a unified interface for a wide range of mathematical operations,
+    including basic arithmetic, scientific functions, statistical calculations,
+    financial computations, random number generation, and expression evaluation.
+
+    Methods:
+        Basic arithmetic:
+            add, subtract, multiply, divide, mod
+        Numerical processing:
+            abs, round
+        Power and roots:
+            pow, sqrt, cbrt
+        Logarithmic and exponential functions:
+            log, ln, exp
+        Statistical functions:
+            min, max, sum, average, median, mode, standard_deviation
+        Combinatorics:
+            factorial, gcd, lcm, comb, perm
+        Distance and norm:
+            dist, dist_manhattan, norm_euclidean
+        Financial calculations:
+            simple_interest, compound_interest
+        Expression evaluation:
+            evaluate, list_allowed_fns, help
+    """
+
     # ====== Expression evaluation 表达式求值 ======
 
     @staticmethod
-    def allowed_fns_in_evaluate() -> List[str]:
-        """Returns a list of allowed functions for the evaluate method."""
-
+    def _allowed_functions() -> List[str]:
         return _ALLOWED_FUNCTIONS + _MATH_LIB_FUNCTIONS
+
+    @staticmethod
+    def list_allowed_fns(with_help: bool = False) -> str:
+        """Returns a JSON string of allowed functions for the evaluate method with their descriptions.
+
+        Each key is the name of an allowed function, and the value is its help message.
+        This allows quick access to both the list of functions and their descriptions without needing multiple queries.
+
+        Args:
+            with_help (bool, optional): If True, includes descriptions of each function. Defaults to False.
+
+        Returns:
+            str: A JSON string containing the allowed functions, if with_help is True, their descriptions.
+        """
+        allowed_functions = Calculator._allowed_functions()
+
+        if not with_help:
+            return json.dumps(allowed_functions)
+
+        function_help = {}
+
+        for fn_name in allowed_functions:
+            function_help[fn_name] = Calculator.help(fn_name)
+
+        return json.dumps(function_help)
 
     @staticmethod
     def help(fn_name: str) -> str:
@@ -275,12 +315,15 @@ class Calculator:
             ValueError: If the function name is not recognized.
         """
         # Check if the function is in Calculator or math
-        if fn_name not in Calculator.allowed_fns_in_evaluate():
+        if fn_name not in Calculator._allowed_functions() + [
+            "evaluate",
+            "list_allowed_fns",
+        ]:
             raise ValueError(f"Function '{fn_name}' is not recognized.")
 
         # Resolving whether the function is from Calculator or math
-        if hasattr(Calculator, fn_name):
-            target = getattr(Calculator, fn_name)
+        if hasattr(BaseCalculator, fn_name):
+            target = getattr(BaseCalculator, fn_name)
         elif hasattr(math, fn_name):  # Handle math functions
             target = getattr(math, fn_name)
         else:
@@ -298,36 +341,38 @@ class Calculator:
 
     @staticmethod
     def evaluate(expression: str) -> Union[float, int, bool]:
-        """Evaluates a mathematical expression using a unified interface.
+        """Evaluates a mathematical expression.
 
-        This method is intended for complex expressions that combine two or more operations or advanced mathematical functions.
-        For simple, single-step operations, please directly use the corresponding static method (e.g., add, subtract).
+        The `expression` can use named functions like `add(2, 3)` or native operators like `2 + 3`. Pay attention to operator precedence and use parentheses to ensure the intended order of operations. For example: `"add(2, 3) * pow(2, 3) + sqrt(16)"` or `"(2 + 3) * (2 ** 3) + sqrt(16)"` or mixed.
 
-        The full list of supported functions can be obtained by calling `allowed_fns_in_evaluate()`. Anything beyond this list is not supported. `help` method can be used to get detailed information about each function.
+        - Use `list_allowed_fns()` to view available functions. Set `with_help` to `True` to include function signatures and docstrings.
+        - Use `help` for detailed information on specific functions.
 
-        The `expression` should be a valid Python expression utilizing these functions.
-        For example: "add(2, 3) * power(2, 3) + sqrt(16)".
+        **Note**: If an error occurs due to an invalid expression, query the `help` method to check the function usage and ensure it is listed by `list_allowed_fns()`.
 
         Args:
             expression (str): Mathematical expression to evaluate.
 
         Returns:
-            Union[float, int, bool]: The result of the evaluated expression.
+            Union[float, int, bool]: Result of the evaluation.
 
         Raises:
-            ValueError: If the expression is invalid or its evaluation fails.
+            ValueError: If the expression is invalid or evaluation fails.
         """
         # Get all static methods from Calculator class using __dict__,
         # excluding 'evaluate' to avoid redundancy.
-        allowed_functions = {
-            name: func.__func__
-            for name, func in Calculator.__dict__.items()
-            if isinstance(func, staticmethod) and name in _ALLOWED_FUNCTIONS
-        }
-        # Include math module functions which not already in Calculator class
+        allowed_functions = {}
 
         allowed_functions.update(
             {name: getattr(math, name) for name in _MATH_LIB_FUNCTIONS}
+        )
+
+        allowed_functions.update(
+            {
+                name: func.__func__
+                for name, func in BaseCalculator.__dict__.items()
+                if isinstance(func, staticmethod) and name in _ALLOWED_FUNCTIONS
+            }
         )
 
         try:
@@ -345,13 +390,13 @@ class Calculator:
 
 
 # primarily because they don't have signature or are unsafe
+_ALLOWED_FUNCTIONS = get_all_static_methods(BaseCalculator)
 _EXCLUDE_FUNCTIONS = ["hypot", "eval", "exec", "open", "input"]
-_ALLOWED_FUNCTIONS = get_all_static_methods(
-    Calculator, skip_list=["evaluate", "allowed_fns_in_evaluate", "help"]
-)
 _MATH_LIB_FUNCTIONS = [
     name
     for name in dir(math)
-    if callable(getattr(math, name))
+    if (
+        callable(getattr(math, name)) or isinstance(getattr(math, name), float)
+    )  # include constants
     and name not in _ALLOWED_FUNCTIONS + _EXCLUDE_FUNCTIONS
 ]
