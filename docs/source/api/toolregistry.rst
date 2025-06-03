@@ -13,6 +13,9 @@ Subpackages
    :maxdepth: 4
 
    toolregistry.hub
+   toolregistry.langchain
+   toolregistry.mcp
+   toolregistry.native
    toolregistry.openapi
 
 Submodules
@@ -21,9 +24,6 @@ Submodules
 .. toctree::
    :maxdepth: 4
 
-   toolregistry.class_tool_integration
-   toolregistry.langchain_integration
-   toolregistry.mcp_integration
    toolregistry.parameter_models
    toolregistry.tool
    toolregistry.tool_registry
