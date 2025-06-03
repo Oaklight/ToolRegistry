@@ -503,13 +503,7 @@ class ToolRegistry:
         Raises:
             ImportError: If [langchain] extra is not installed
         """
-        try:
-            from .langchain_integration import LangChainIntegration
-        except ImportError:
-            raise ImportError(
-                "LangChain integration requires the [langchain] extra. "
-                "Install with: pip install toolregistry[langchain]"
-            )
+        LangChainIntegration = _import_langchain_integration()
         langchain = LangChainIntegration(self)
         return langchain.register_langchain_tools(langchain_tool, with_namespace)
 
@@ -533,13 +527,7 @@ class ToolRegistry:
         Raises:
             ImportError: If [langchain] extra is not installed
         """
-        try:
-            from .langchain_integration import LangChainIntegration
-        except ImportError:
-            raise ImportError(
-                "LangChain integration requires the [langchain] extra. "
-                "Install with: pip install toolregistry[langchain]"
-            )
+        LangChainIntegration = _import_langchain_integration()
         langchain = LangChainIntegration(self)
         return await langchain.register_langchain_tools_async(
             langchain_tool, with_namespace
@@ -843,6 +831,7 @@ def _import_openapi_integration():
             "Install with: pip install toolregistry[openapi]"
         )
 
+
 def _import_mcp_integration():
     """Helper function to import the MCP integration module.
 
@@ -860,4 +849,24 @@ def _import_mcp_integration():
         raise ImportError(
             "MCP integration requires the [mcp] extra. "
             "Install with: pip install toolregistry[mcp]"
+        )
+
+
+def _import_langchain_integration():
+    """Helper function to import the LangChain integration module.
+
+    Raises:
+        ImportError: If the [langchain] extra is not installed.
+
+    Returns:
+        LangChainIntegration: The imported LangChainIntegration class.
+    """
+    try:
+        from .langchain import LangChainIntegration
+
+        return LangChainIntegration
+    except ImportError:
+        raise ImportError(
+            "LangChain integration requires the [langchain] extra. "
+            "Install with: pip install toolregistry[langchain]"
         )
