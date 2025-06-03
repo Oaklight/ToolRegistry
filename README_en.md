@@ -222,7 +222,7 @@ registry.register_from_class(Calculator, with_namespace=True)
 
 # Get available tools list
 print(registry.get_available_tools())
-# Output: ['Calculator.add', 'Calculator.subtract', ..., 'Calculator.multiply', ...]
+# ['calculator-list_allowed_fns', 'calculator-help', 'calculator-evaluate']
 ```
 
 ### Community Contribution

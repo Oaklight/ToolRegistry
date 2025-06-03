@@ -3,7 +3,7 @@ The Calculator tool has been thoroughly examined, particularly focusing on the `
 ### ✅ Functionality Verified
 
 1. **Allowed Functions**:
-   - The function `calculator-allowed_fns_in_evaluate` successfully returned a comprehensive list of supported functions.
+   - The function `calculator-list_allowed_fns` successfully returned a comprehensive list of supported functions.
    - These include basic arithmetic, statistical, financial, and advanced mathematical operations.
 
 2. **Help Documentation**:

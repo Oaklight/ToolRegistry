@@ -133,7 +133,7 @@ class TestEvaluate(unittest.TestCase):
         help_text = Calculator.help("sqrt")
         self.assertIn("square root of a number", help_text)
 
-        allowed_fns = Calculator.allowed_fns_in_evaluate()
+        allowed_fns = Calculator.list_allowed_fns()
         self.assertIn("sqrt", allowed_fns)
         self.assertIn("add", allowed_fns)
         self.assertNotIn("eval", allowed_fns)

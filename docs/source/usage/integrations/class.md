@@ -62,14 +62,14 @@ print(registry["instance_example.greet"]("Alice"))  # Hello, Alice! I'm Bob.
 
 ### Additional Example: A Predefined Class from a Tool Hub
 
-For predefined classes with pre-implemented functionalities (e.g., `Calculator`), registration is straightforward:
+For predefined classes with pre-implemented functionalities (e.g., `BaseCalculator`, `Calculator`), registration is straightforward:
 
 ```python
 from toolregistry import ToolRegistry
-from toolregistry.hub import Calculator
+from toolregistry.hub import BaseCalculator
 
 registry = ToolRegistry()
-registry.register_from_class(Calculator)  # Basic registration for methods of a class
+registry.register_from_class(BaseCalculator)  # Basic registration for methods of a class
 ```
 
 These examples highlight how to manage varying needs for class-based registrations, allowing users to adapt `ToolRegistry` for diverse scenarios.
@@ -79,10 +79,10 @@ These examples highlight how to manage varying needs for class-based registratio
 Using `with_namespace=True` parameter adds the class name as a namespace prefix to tool names:
 
 ```python
-registry.register_from_class(Calculator, with_namespace=True)
+registry.register_from_class(BaseCalculator, with_namespace=True)
 ```
 
-This will register tools with names like `Calculator.add`, `Calculator.subtract`, etc.
+This will register tools with names like `base_calculator-add`, `base_calculator-subtract`, etc.
 
 **Advantages of using with_namespace**:
 
@@ -107,4 +107,4 @@ registry.register_from_class(FileOps)
 
 # Get available tools list
 print(registry.get_available_tools())
-# Output: ['Calculator.add', 'Calculator.subtract', ..., 'read_file', 'write_file', ...]
+# Output: ['calculator-list_allowed_fns', 'calculator-help', 'calculator-evaluate', 'read_file', 'write_file', ...]
