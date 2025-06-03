@@ -19,7 +19,7 @@ class InstanceExample:
 registry = ToolRegistry()
 registry.register_from_class(StaticExample, with_namespace=True)
 print(registry.get_available_tools())  # ['static_example.greet']
-print(registry["static_example.greet"]("Alice"))  # Hello, Alice!
+print(registry["static_example-greet"]("Alice"))  # Hello, Alice!
 
 
 async def test_register_from_class_async():
@@ -32,4 +32,4 @@ async def test_register_from_class_async():
 registry = ToolRegistry()
 asyncio.run(test_register_from_class_async())
 print(registry.get_available_tools())  # ['instance_example.greet']
-print(registry["instance_example.greet"]("Alice"))  # Hello, Alice! I'm Bob.
+print(registry["instance_example-greet"]("Alice"))  # Hello, Alice! I'm Bob.
