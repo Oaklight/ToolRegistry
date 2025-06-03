@@ -9,7 +9,6 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Set, Tuple, Typ
 
 import dill  # type: ignore
 import httpx
-from deprecated import deprecated  # type: ignore
 from loguru import logger
 from pydantic import AnyUrl
 
