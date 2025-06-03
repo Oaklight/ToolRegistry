@@ -19,7 +19,6 @@ classifiers = [
 dependencies = [
     "pydantic>=1.5.1",
     "loguru>=0.7.3",
-    "deprecated>=1.2.18",
     "dill>=0.4.0",
     "httpx>=0.28.1",
     "fake-useragent>=2.0.0",  # 2.0.0 is the max version compatible with Python 3.8
@@ -40,6 +39,7 @@ dev = [
     "mypy>=1.14.1",
     "build>=1.2.2.post1",
     "twine>=6.1.0",
+    "deprecated>=1.2.18",
 ]
 
 [project.urls]
