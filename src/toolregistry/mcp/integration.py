@@ -2,8 +2,8 @@ import asyncio
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from fastmcp import FastMCP
-from fastmcp.client import Client, ClientTransport
+from fastmcp import FastMCP  # type: ignore
+from fastmcp.client import Client, ClientTransport  # type: ignore
 from loguru import logger
 from mcp.types import (
     BlobResourceContents,

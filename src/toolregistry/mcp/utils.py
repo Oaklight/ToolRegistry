@@ -2,9 +2,9 @@ import re
 from pathlib import Path
 from typing import Any
 
-from fastmcp import FastMCP
-from fastmcp.client import ClientTransport
-from fastmcp.client.transports import (
+from fastmcp import FastMCP  # type: ignore
+from fastmcp.client import ClientTransport  # type: ignore
+from fastmcp.client.transports import (  # type: ignore
     FastMCPTransport,
     SSETransport,
     StdioTransport,
