@@ -554,7 +554,7 @@ class ToolRegistry:
             This method is now a convenience wrapper around the register() method's
             static method handling capability.
         """
-        from .class_tool_integration import ClassToolIntegration
+        from .native import ClassToolIntegration
 
         hub = ClassToolIntegration(self)
         return hub.register_class_methods(cls, with_namespace)
@@ -577,7 +577,7 @@ class ToolRegistry:
             >>> registry = ToolRegistry()
             >>> registry.register_from_class(Calculator)
         """
-        from .class_tool_integration import ClassToolIntegration
+        from .native import ClassToolIntegration
 
         hub = ClassToolIntegration(self)
         return await hub.register_class_methods_async(cls, with_namespace)
