@@ -13,7 +13,7 @@ project = "ToolRegistry"
 copyright = "2024-2025, Peng Ding"
 author = "Peng Ding"
 html_title = "ToolRegistry"
-release = "0.4.11"
+release = "0.4.12"
 
 
 sys.path.insert(0, os.path.abspath("../../src"))
