@@ -1,6 +1,6 @@
 import os
 import time
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
 import httpx
 from loguru import logger
@@ -14,7 +14,7 @@ CACHE_DURATION = 24 * 60 * 60 * 30
 UBLOCKLIST_URL = "https://raw.githubusercontent.com/eallion/uBlacklist-subscription-compilation/main/uBlacklist.txt"
 GITHUB_RAW_PROXY = "https://rawgithubusercontent.deno.dev"
 # Module-level variable to store blocked items
-_blocked_items: set[str] = set()
+_blocked_items: Set[str] = set()
 _last_blocklist_content = None
 _last_blocklist_timestamp = None
 
