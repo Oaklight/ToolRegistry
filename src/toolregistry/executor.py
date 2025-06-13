@@ -8,7 +8,7 @@ import dill
 from loguru import logger
 
 from .tool import Tool
-from .types import ChatCompletionMessageToolCall
+from .types import ToolCall
 
 
 class Executor:
@@ -94,10 +94,10 @@ class Executor:
             ): callid
             for (cfunc, callid, fname, fargs) in tasks_to_submit
         }
-        for future in futures:
-            callid = futures[future]
+        for fut in futures:
+            callid = futures[fut]
             try:
-                t_id, t_result = future.result()
+                t_id, t_result = fut.result()
                 tool_responses[t_id] = t_result
             except Exception as e:
                 tool_responses[callid] = f"Error executing tool call: {str(e)}"
@@ -122,7 +122,7 @@ class Executor:
     def execute_tool_calls(
         self,
         get_tool_fn: Callable[[str], Tool],
-        tool_calls: List[ChatCompletionMessageToolCall],
+        tool_calls: List[ToolCall],
         execution_mode: Optional[Literal["process", "thread"]] = None,
     ) -> Dict[str, str]:
         """Execute tool calls with concurrency using dill for serialization.
@@ -143,11 +143,11 @@ class Executor:
         assert execution_mode in ["process", "thread"], "execution_mode must be set"
 
         # Prepare tasks
-        for tool_call in tool_calls:
+        for tc in tool_calls:
             try:
-                function_name = tool_call.function.name
-                function_args = json.loads(tool_call.function.arguments)
-                tool_call_id = tool_call.id
+                function_name = tc.name
+                function_args = json.loads(tc.arguments)
+                tool_call_id = tc.id
                 tool_obj = get_tool_fn(function_name)
                 callable_func = tool_obj.callable if tool_obj else None
 
@@ -158,8 +158,8 @@ class Executor:
                     (serialized_func, tool_call_id, function_name, function_args)
                 )
             except Exception as e:
-                tool_responses[getattr(tool_call, "id", "unknown_id")] = (
-                    f"Error preparing tool call {getattr(tool_call.function, 'name', 'unknown_name')}: {str(e)}"
+                tool_responses[getattr(tc, "id", "unknown_id")] = (
+                    f"Error preparing tool call {getattr(tc, 'name', 'unknown_name')}: {str(e)}"
                 )
 
         if not tasks_to_submit:
