@@ -1,4 +1,4 @@
-from typing import Any, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel
 
@@ -169,7 +169,8 @@ class ToolCallResult(BaseModel):
 
 
 API_FORMATS = Literal[
-    "openai",  # chat completion
+    "openai",  # old default, alias to openai-chatcompletion
+    "openai-chatcompletion",  # chat completion
     "openai-response",
     "anthropic",
     "gemini",
@@ -184,7 +185,43 @@ def resemble_type(obj: object, cls: type) -> bool:
     return False
 
 
-def convert_tool_calls(
-    tool_calls: List[Any], *, api_format: API_FORMATS = "openai"
-) -> List[ToolCall]:
+def convert_tool_calls(tool_calls: List[Any]) -> List[ToolCall]:
     return [ToolCall.from_tool_call(tool_call) for tool_call in tool_calls]
+
+
+def recover_assistant_message(
+    tool_calls: List[ToolCall],
+    *,
+    api_format: API_FORMATS = "openai",
+) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
+    if api_format in ["openai", "openai-chatcompletion"]:
+        message = ChatCompletionMessage(
+            tool_calls=[
+                ChatCompletionMessageToolCall(
+                    id=tool_call.id,
+                    function=Function(
+                        name=tool_call.name,
+                        arguments=tool_call.arguments,
+                    ),
+                )
+                for tool_call in tool_calls
+                if tool_call.name and tool_call.arguments
+            ]
+        ).model_dump()
+
+        return message
+
+    elif api_format == "openai-response":
+        message = [
+            ResponseFunctionToolCall(**tool_call.model_dump())
+            for tool_call in tool_calls
+        ]
+
+        return message
+
+    elif api_format == "anthropic":
+        raise NotImplementedError("Anthropic API format is not supported yet.")
+    elif api_format == "gemini":
+        raise NotImplementedError("Gemini API format is not supported yet.")
+    else:
+        raise ValueError(f"Unsupported API format: {api_format}")

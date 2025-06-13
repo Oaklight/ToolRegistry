@@ -8,7 +8,16 @@ import httpx
 from pydantic import AnyUrl
 
 from .tool import Tool
-from .types import ChatCompletionMessageToolCall, normalize_tool_name
+from .types import (
+    API_FORMATS,
+    ChatCompetionMessageToolCallResult,
+    ChatCompletionMessageToolCall,
+    ResponseFunctionToolCall,
+    ToolCall,
+    convert_tool_calls,
+    recover_assistant_message,
+)
+from .utils import normalize_tool_name
 
 try:
     from fastmcp import FastMCP  # type: ignore
@@ -114,7 +123,12 @@ class ToolRegistry:
 
     def execute_tool_calls(
         self,
-        tool_calls: List[ChatCompletionMessageToolCall],
+        tool_calls: List[
+            Union[
+                ChatCompletionMessageToolCall,
+                ResponseFunctionToolCall,
+            ]
+        ],
         execution_mode: Optional[Literal["process", "thread"]] = None,
     ) -> Dict[str, str]:
         """Execute tool calls with concurrency using dill for serialization.
@@ -126,7 +140,47 @@ class ToolRegistry:
         Returns:
             Dict[str, str]: Dictionary mapping tool call IDs to their results.
         """
-        return self._executor.execute_tool_calls(tool_calls, execution_mode)
+        tool_calls = convert_tool_calls(tool_calls)
+
+        return self._executor.execute_tool_calls(
+            self.get_tool, tool_calls, execution_mode
+        )
+
+    def recover_tool_call_assistant_message(
+        self,
+        tool_calls: List[ChatCompletionMessageToolCall],
+        tool_responses: Dict[str, str],
+        api_format: API_FORMATS = "openai-chatcompletion",
+    ) -> List[Dict[str, Any]]:
+        """Construct assistant messages from tool call results.
+
+        Creates a conversation history with:
+            - Assistant tool call requests
+            - Tool execution responses
+
+        Args:
+            tool_calls (List[ChatCompletionMessageToolCall]): List of tool call objects.
+            tool_responses (Dict[str, str]): Dictionary of tool call IDs to results.
+
+        Returns:
+            List[Dict[str, Any]]: List of message dictionaries in conversation format.
+        """
+        messages = []
+        tool_calls: List[ToolCall] = convert_tool_calls(tool_calls)
+
+        messages.append(recover_assistant_message(tool_calls, api_format=api_format))
+
+        for tc in tool_calls:
+            if tc.id not in tool_responses:
+                tool_responses[tc.id] = (
+                    "No result (possibly concurrency/dill serialization error)"
+                )
+            tool_message = ChatCompetionMessageToolCallResult(
+                tool_call_id=tc.id,
+                content=f"{tc.name} --> {tool_responses[tc.id]}",
+            )
+            messages.append(tool_message.model_dump())
+        return messages
 
     # ============== Namespace ==============
 
@@ -625,57 +679,6 @@ class ToolRegistry:
         """
         tool = self.get_tool(tool_name)
         return tool.callable if tool else None
-
-    def recover_tool_call_assistant_message(
-        self,
-        tool_calls: List[ChatCompletionMessageToolCall],
-        tool_responses: Dict[str, str],
-    ) -> List[Dict[str, Any]]:
-        """Construct assistant messages from tool call results.
-
-        Creates a conversation history with:
-            - Assistant tool call requests
-            - Tool execution responses
-
-        Args:
-            tool_calls (List[ChatCompletionMessageToolCall]): List of tool call objects.
-            tool_responses (Dict[str, str]): Dictionary of tool call IDs to results.
-
-        Returns:
-            List[Dict[str, Any]]: List of message dictionaries in conversation format.
-        """
-        messages = []
-        for tool_call in tool_calls:
-            # Always ensure there's at least a placeholder in tool_responses to avoid KeyError
-            if tool_call.id not in tool_responses:
-                tool_responses[tool_call.id] = (
-                    "No result (possibly concurrency/dill serialization error)"
-                )
-
-            messages.append(
-                {
-                    "role": "assistant",
-                    "content": None,
-                    "tool_calls": [
-                        {
-                            "id": tool_call.id,
-                            "type": "function",
-                            "function": {
-                                "name": tool_call.function.name,
-                                "arguments": tool_call.function.arguments,
-                            },
-                        }
-                    ],
-                }
-            )
-            messages.append(
-                {
-                    "role": "tool",
-                    "content": f"{tool_call.function.name} --> {tool_responses[tool_call.id]}",
-                    "tool_call_id": tool_call.id,
-                }
-            )
-        return messages
 
 
 def _import_openapi_integration():
