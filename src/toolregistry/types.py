@@ -39,6 +39,26 @@ class ChatCompletionMessageToolCall(BaseModel):
     type: Literal["function"] = "function"
     """The type of the tool. Currently, only `function` is supported."""
 
+class ChatCompetionMessageToolCallResult(BaseModel):
+    """
+    Example usage
+
+    {
+        "role": "tool",
+        "tool_call_id": tool_call.id,
+        "content": str(result)
+    }
+    """
+
+    role: Literal["tool"] = "tool"
+    """The role of the message. Always `tool`."""
+
+    tool_call_id: str
+    """The ID of the tool call that this message is responding to."""
+
+    content: str
+    """Result of the tool call in string format."""
+
 
 class ResponseFunctionToolCall(BaseModel):
     """
@@ -74,3 +94,23 @@ class ResponseFunctionToolCall(BaseModel):
     One of `in_progress`, `completed`, or `incomplete`. Populated when items are
     returned via API.
     """
+
+class ResponseFunctionToolCallResult(BaseModel):
+    """
+    Example usage
+
+    {
+        "type": "function_call_output",
+        "call_id": tool_call.call_id,
+        "output": str(result)
+    }
+    """
+
+    type: Literal["function_call_output"] = "function_call_output"
+    """The type of the function tool call result. Always `function_call_output`."""
+
+    call_id: str
+    """The unique ID of the function tool call."""
+
+    output: str
+    """The output of the function tool call as a string."""
