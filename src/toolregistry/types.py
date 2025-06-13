@@ -195,6 +195,7 @@ API_FORMATS = Literal[
     "gemini",
 ]
 
+
 def resemble_type(obj: object, cls: type) -> bool:
     """Check if the object's class matches the given class type.
 
@@ -228,7 +229,7 @@ def recover_assistant_message(
     tool_calls: List[ToolCall],
     *,
     api_format: API_FORMATS = "openai",
-) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
+) -> List[Dict[str, Any]]:
     """Recover the assistant message from tool calls in various API formats.
 
     Args:
@@ -236,26 +237,28 @@ def recover_assistant_message(
         api_format (API_FORMATS, optional): The desired API format. Defaults to "openai".
 
     Returns:
-        Union[List[Dict[str, Any]], Dict[str, Any]]: The assistant message in the specified API format.
+        List[Dict[str, Any]]: The assistant message in the specified API format.
 
     Raises:
         NotImplementedError: If the API format is "anthropic" or "gemini".
         ValueError: If the API format is unsupported.
     """
     if api_format in ["openai", "openai-chatcompletion"]:
-        message = ChatCompletionMessage(
-            tool_calls=[
-                ChatCompletionMessageToolCall(
-                    id=tool_call.id,
-                    function=Function(
-                        name=tool_call.name,
-                        arguments=tool_call.arguments,
-                    ),
-                )
-                for tool_call in tool_calls
-                if tool_call.name and tool_call.arguments
-            ]
-        ).model_dump()
+        message = [
+            ChatCompletionMessage(
+                tool_calls=[
+                    ChatCompletionMessageToolCall(
+                        id=tool_call.id,
+                        function=Function(
+                            name=tool_call.name,
+                            arguments=tool_call.arguments,
+                        ),
+                    )
+                    for tool_call in tool_calls
+                    if tool_call.name and tool_call.arguments
+                ]
+            ).model_dump()
+        ]
 
         return message
 
