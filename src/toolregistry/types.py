@@ -36,7 +36,7 @@ class ChatCompletionMessageToolCall(BaseModel):
     function: Function
     """The function that the model called."""
 
-    type: Literal["function"]
+    type: Literal["function"] = "function"
     """The type of the tool. Currently, only `function` is supported."""
 
 
@@ -62,7 +62,7 @@ class ResponseFunctionToolCall(BaseModel):
     name: str
     """The name of the function to run."""
 
-    type: Literal["function_call"]
+    type: Literal["function_call"] = "function_call"
     """The type of the function tool call. Always `function_call`."""
 
     id: Optional[str] = None
