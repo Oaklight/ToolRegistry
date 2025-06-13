@@ -8,7 +8,7 @@ import httpx
 from pydantic import AnyUrl
 
 from .tool import Tool
-from .utils import ChatCompletionMessageToolCall, normalize_tool_name
+from .types import ChatCompletionMessageToolCall, normalize_tool_name
 
 try:
     from fastmcp import FastMCP  # type: ignore

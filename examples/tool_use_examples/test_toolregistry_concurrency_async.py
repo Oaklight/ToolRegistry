@@ -6,7 +6,7 @@ from pprint import pprint
 from typing import Any, Dict, List
 
 from toolregistry import ToolRegistry
-from toolregistry.utils import (
+from toolregistry.types import (
     ChatCompletionMessageToolCall,
     Function,
 )

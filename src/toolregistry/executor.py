@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 import dill
 from loguru import logger
 
-from .utils import ChatCompletionMessageToolCall  # type: ignore
+from .types import ChatCompletionMessageToolCall  # type: ignore
 
 
 class Executor:
