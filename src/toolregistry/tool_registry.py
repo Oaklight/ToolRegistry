@@ -582,7 +582,7 @@ class ToolRegistry:
         Raises:
             ValueError: If an invalid mode is provided.
         """
-        self._executor.set_execution_mode(mode)
+        return self._executor.set_execution_mode(mode)
 
     def execute_tool_calls(
         self,
@@ -598,7 +598,7 @@ class ToolRegistry:
         Returns:
             Dict[str, str]: Dictionary mapping tool call IDs to their results.
         """
-        self._executor.execute_tool_calls(tool_calls, execution_mode)
+        return self._executor.execute_tool_calls(tool_calls, execution_mode)
 
     def recover_tool_call_assistant_message(
         self,
