@@ -61,34 +61,11 @@ class ToolRegistry:
         self._sub_registries: Set[str] = set()
         self._executor = Executor()
 
-    def _find_sub_registries(self) -> Set:
-        """
-        Find sub-registries within the tools registered in this registry.
-
-        This method identifies sub-registries by examining the names of tools
-        and determining prefixes separated by a dot (`.`). For example, a tool
-        named `calculator.add` would indicate that `calculator` is
-        a sub-registry.
-
-        Returns:
-            Set: A set of strings representing sub-registry prefixes found
-                within the registered tool names.
-
-        Example:
-            If `_tools` contains: {"a.tool1", "b.tool2", "tool3"}, this
-            method will return {"a", "b"}.
-        """
-        return {
-            tool_name.split(".", 1)[0]
-            for tool_name in self._tools.keys()
-            if "." in tool_name
-        }
-
     def _update_sub_registries(self) -> None:
         """
         Update the internal set of sub-registries based on the registered tools.
 
-        This method calls `_find_sub_registries` to identify sub-registry prefixes
+        This method identifies sub-registry prefixes by examining tool names
         and updates the private `_sub_registries` set accordingly.
 
         Side Effects:
@@ -97,7 +74,11 @@ class ToolRegistry:
         Returns:
             None
         """
-        self._sub_registries = self._find_sub_registries()
+        self._sub_registries = {
+            tool_name.split(".", 1)[0]
+            for tool_name in self._tools.keys()
+            if "." in tool_name
+        }
 
     def __contains__(self, name: str) -> bool:
         """Check if a tool with the given name is registered.
