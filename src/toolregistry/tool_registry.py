@@ -575,11 +575,21 @@ class ToolRegistry:
 
     get_available_tools = list_tools  # Alias for backward compatibility
 
-    def get_tools_json(self, tool_name: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_tools_json(
+        self,
+        tool_name: Optional[str] = None,
+        *,
+        api_mode: Literal[
+            "openai-chatcompletion", "openai-response"
+        ] = "openai-chatcompletion",
+    ) -> List[Dict[str, Any]]:
         """Get the JSON representation of all registered tools, following JSON Schema.
 
         Args:
             tool_name (Optional[str]): Optional name of specific tool to get schema for.
+            api_mode (Literal): Optional mode for formatting the schema.
+                - 'openai-chatcompletion': Legacy format with is_async
+                - 'openai-response': OpenAI function calling format
 
         Returns:
             List[Dict[str, Any]]: A list of tools in JSON format, compliant with JSON Schema.
@@ -590,7 +600,7 @@ class ToolRegistry:
         else:
             tools = list(self._tools.values())
 
-        return [tool.get_json_schema() for tool in tools]
+        return [tool.get_json_schema(api_mode) for tool in tools]
 
     def get_tool(self, tool_name: str) -> Optional[Tool]:
         """Get a tool by its name.
