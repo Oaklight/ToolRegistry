@@ -37,6 +37,7 @@ class ToolRegistry:
         sub-registries. These attributes are not intended for external use.
     """
 
+    # ============== dunder methods ==============
     def __init__(self, name: Optional[str] = None) -> None:
         """Initialize an empty ToolRegistry.
 
@@ -61,6 +62,74 @@ class ToolRegistry:
         self._sub_registries: Set[str] = set()
         self._executor = Executor()
 
+    def __contains__(self, name: str) -> bool:
+        """Check if a tool with the given name is registered.
+
+        Args:
+            name (str): Name of the tool to check.
+
+        Returns:
+            bool: True if tool is registered, False otherwise.
+        """
+        return name in self._tools
+
+    def __repr__(self):
+        """Return the JSON representation of the registry for debugging purposes.
+
+        Returns:
+            str: JSON string representation of the registry.
+        """
+        return json.dumps(self.get_tools_json(), indent=2)
+
+    def __str__(self):
+        """Return the JSON representation of the registry as a string.
+
+        Returns:
+            str: JSON string representation of the registry.
+        """
+        return json.dumps(self.get_tools_json(), indent=2)
+
+    def __getitem__(self, key: str) -> Optional[Callable[..., Any]]:
+        """Enable key-value access to retrieve callables.
+
+        Args:
+            key (str): Name of the function.
+
+        Returns:
+            Optional[Callable[..., Any]]: The function to call, or None if not found.
+        """
+        return self.get_callable(key)
+
+    # ============== Execution ==============
+    def set_execution_mode(self, mode: Literal["thread", "process"]) -> None:
+        """Set the execution mode for parallel tasks.
+
+        Args:
+            mode (Literal["thread", "process"]): The desired execution mode.
+
+        Raises:
+            ValueError: If an invalid mode is provided.
+        """
+        return self._executor.set_execution_mode(mode)
+
+    def execute_tool_calls(
+        self,
+        tool_calls: List[ChatCompletionMessageToolCall],
+        execution_mode: Optional[Literal["process", "thread"]] = None,
+    ) -> Dict[str, str]:
+        """Execute tool calls with concurrency using dill for serialization.
+
+        Args:
+            tool_calls: List of tool calls to be executed.
+            execution_mode: Execution mode to use; defaults to the Executor's current mode.
+
+        Returns:
+            Dict[str, str]: Dictionary mapping tool call IDs to their results.
+        """
+        return self._executor.execute_tool_calls(tool_calls, execution_mode)
+
+    # ============== Namespace ==============
+
     def _update_sub_registries(self) -> None:
         """
         Update the internal set of sub-registries based on the registered tools.
@@ -79,44 +148,6 @@ class ToolRegistry:
             for tool_name in self._tools.keys()
             if "." in tool_name
         }
-
-    def __contains__(self, name: str) -> bool:
-        """Check if a tool with the given name is registered.
-
-        Args:
-            name (str): Name of the tool to check.
-
-        Returns:
-            bool: True if tool is registered, False otherwise.
-        """
-        return name in self._tools
-
-    def register(
-        self,
-        tool_or_func: Union[Callable, Tool],
-        description: Optional[str] = None,
-        name: Optional[str] = None,
-        namespace: Optional[str] = None,
-    ):
-        """Register a tool, either as a function, Tool instance, or static method.
-
-        Args:
-            tool_or_func (Union[Callable, Tool]): The tool to register, either as a function, Tool instance, or static method.
-            description (Optional[str]): Description for function tools. If not provided, the function's docstring will be used.
-            name (Optional[str]): Custom name for the tool. If not provided, defaults to function name for functions or tool.name for Tool instances.
-            namespace (Optional[str]): Namespace for the tool. For static methods, defaults to class name if not provided.
-        """
-        if namespace:
-            self._sub_registries.add(normalize_tool_name(namespace))
-
-        if isinstance(tool_or_func, Tool):
-            tool_or_func.update_namespace(namespace, force=True)
-            self._tools[tool_or_func.name] = tool_or_func
-        else:
-            tool = Tool.from_function(
-                tool_or_func, description=description, name=name, namespace=namespace
-            )
-            self._tools[tool.name] = tool
 
     def _prefix_tools_namespace(self, force: bool = False) -> None:
         """Add the registry name as a prefix to the names of tools in the registry.
@@ -264,6 +295,34 @@ class ToolRegistry:
             self.reduce_namespace()
 
         return new_registry
+
+    # ============== Registration Methods ==============
+    def register(
+        self,
+        tool_or_func: Union[Callable, Tool],
+        description: Optional[str] = None,
+        name: Optional[str] = None,
+        namespace: Optional[str] = None,
+    ):
+        """Register a tool, either as a function, Tool instance, or static method.
+
+        Args:
+            tool_or_func (Union[Callable, Tool]): The tool to register, either as a function, Tool instance, or static method.
+            description (Optional[str]): Description for function tools. If not provided, the function's docstring will be used.
+            name (Optional[str]): Custom name for the tool. If not provided, defaults to function name for functions or tool.name for Tool instances.
+            namespace (Optional[str]): Namespace for the tool. For static methods, defaults to class name if not provided.
+        """
+        if namespace:
+            self._sub_registries.add(normalize_tool_name(namespace))
+
+        if isinstance(tool_or_func, Tool):
+            tool_or_func.update_namespace(namespace, force=True)
+            self._tools[tool_or_func.name] = tool_or_func
+        else:
+            tool = Tool.from_function(
+                tool_or_func, description=description, name=name, namespace=namespace
+            )
+            self._tools[tool.name] = tool
 
     def register_from_mcp(
         self,
@@ -504,7 +563,8 @@ class ToolRegistry:
         hub = ClassToolIntegration(self)
         return await hub.register_class_methods_async(cls, with_namespace)
 
-    def get_available_tools(self) -> List[str]:
+    # ============== Presentation ==============
+    def list_tools(self) -> List[str]:
         """List all registered tools.
 
         Returns:
@@ -512,6 +572,8 @@ class ToolRegistry:
         """
 
         return list(self._tools.keys())
+
+    get_available_tools = list_tools  # Alias for backward compatibility
 
     def get_tools_json(self, tool_name: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get the JSON representation of all registered tools, following JSON Schema.
@@ -553,33 +615,6 @@ class ToolRegistry:
         """
         tool = self.get_tool(tool_name)
         return tool.callable if tool else None
-
-    def set_execution_mode(self, mode: Literal["thread", "process"]) -> None:
-        """Set the execution mode for parallel tasks.
-
-        Args:
-            mode (Literal["thread", "process"]): The desired execution mode.
-
-        Raises:
-            ValueError: If an invalid mode is provided.
-        """
-        return self._executor.set_execution_mode(mode)
-
-    def execute_tool_calls(
-        self,
-        tool_calls: List[ChatCompletionMessageToolCall],
-        execution_mode: Optional[Literal["process", "thread"]] = None,
-    ) -> Dict[str, str]:
-        """Execute tool calls with concurrency using dill for serialization.
-
-        Args:
-            tool_calls: List of tool calls to be executed.
-            execution_mode: Execution mode to use; defaults to the Executor's current mode.
-
-        Returns:
-            Dict[str, str]: Dictionary mapping tool call IDs to their results.
-        """
-        return self._executor.execute_tool_calls(tool_calls, execution_mode)
 
     def recover_tool_call_assistant_message(
         self,
@@ -631,33 +666,6 @@ class ToolRegistry:
                 }
             )
         return messages
-
-    def __repr__(self):
-        """Return the JSON representation of the registry for debugging purposes.
-
-        Returns:
-            str: JSON string representation of the registry.
-        """
-        return json.dumps(self.get_tools_json(), indent=2)
-
-    def __str__(self):
-        """Return the JSON representation of the registry as a string.
-
-        Returns:
-            str: JSON string representation of the registry.
-        """
-        return json.dumps(self.get_tools_json(), indent=2)
-
-    def __getitem__(self, key: str) -> Optional[Callable[..., Any]]:
-        """Enable key-value access to retrieve callables.
-
-        Args:
-            key (str): Name of the function.
-
-        Returns:
-            Optional[Callable[..., Any]]: The function to call, or None if not found.
-        """
-        return self.get_callable(key)
 
 
 def _import_openapi_integration():
