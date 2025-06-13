@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from toolregistry import ToolRegistry
 from toolregistry.openapi import HttpxClientConfig, load_openapi_spec
-from toolregistry.utils import (
+from toolregistry.types import (
     ChatCompletionMessageToolCall,
     Function,
 )
