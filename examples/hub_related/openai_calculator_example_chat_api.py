@@ -1,4 +1,3 @@
-import json
 import os
 
 from dotenv import load_dotenv
@@ -44,19 +43,13 @@ def handle_tool_calls(response, messages):
 
         messages.extend(assistant_tool_messages)
 
-        print(json.dumps(messages, indent=2, ensure_ascii=False))
-
-        try:
-            # Send the results back to the model
-            response = client.chat.completions.create(
-                model=model_name,
-                messages=messages,
-                tools=tool_registry.get_tools_json(),
-                tool_choice="auto",
-            )
-        except Exception as e:
-            print(f"Error in tool call response: {e}")
-            break
+        # Send the results back to the model
+        response = client.chat.completions.create(
+            model=model_name,
+            messages=messages,
+            tools=tool_registry.get_tools_json(),
+            tool_choice="auto",
+        )
     return response
 
 
