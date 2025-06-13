@@ -1,4 +1,4 @@
-from typing import Literal, Optional
+from typing import Literal, Optional, Union, overload
 
 from pydantic import BaseModel
 
@@ -114,3 +114,36 @@ class ResponseFunctionToolCallResult(BaseModel):
 
     output: str
     """The output of the function tool call as a string."""
+
+
+@overload
+def convert_to_chat_completion(
+    response_call: ChatCompletionMessageToolCall,
+) -> ChatCompletionMessageToolCall: ...
+
+
+@overload
+def convert_to_chat_completion(
+    response_call: ResponseFunctionToolCall,
+) -> ChatCompletionMessageToolCall: ...
+
+
+def convert_to_chat_completion(
+    response_call: Union[
+        ChatCompletionMessageToolCall,
+        ResponseFunctionToolCall,
+    ],
+) -> ChatCompletionMessageToolCall:
+    """Convert ResponseFunctionToolCall to ChatCompletionMessageToolCall format."""
+    if isinstance(response_call, ChatCompletionMessageToolCall):
+        return response_call
+
+    if isinstance(response_call, ResponseFunctionToolCall):
+        return ChatCompletionMessageToolCall(
+            id=response_call.call_id,
+            function=Function(
+                name=response_call.name, arguments=response_call.arguments
+            ),
+        )
+
+    raise TypeError("Unsupported type for conversion")
