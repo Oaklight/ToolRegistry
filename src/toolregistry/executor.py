@@ -2,12 +2,13 @@ import asyncio
 import atexit
 import json
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
 
 import dill
 from loguru import logger
 
-from .types import ChatCompletionMessageToolCall  # type: ignore
+from .tool import Tool
+from .types import ChatCompletionMessageToolCall
 
 
 class Executor:
@@ -120,12 +121,14 @@ class Executor:
 
     def execute_tool_calls(
         self,
+        get_tool_fn: Callable[[str], Tool],
         tool_calls: List[ChatCompletionMessageToolCall],
         execution_mode: Optional[Literal["process", "thread"]] = None,
     ) -> Dict[str, str]:
         """Execute tool calls with concurrency using dill for serialization.
 
         Args:
+            get_tool_fn: Function to retrieve a Tool object by name.
             tool_calls: List of tool calls to be executed.
             execution_mode: Execution mode to use; defaults to the Executor's current mode.
 
@@ -145,7 +148,7 @@ class Executor:
                 function_name = tool_call.function.name
                 function_args = json.loads(tool_call.function.arguments)
                 tool_call_id = tool_call.id
-                tool_obj = self.get_tool(function_name)
+                tool_obj = get_tool_fn(function_name)
                 callable_func = tool_obj.callable if tool_obj else None
 
                 # Serialize the function using dill if using process pool
