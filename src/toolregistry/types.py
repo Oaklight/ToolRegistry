@@ -238,3 +238,32 @@ def recover_assistant_message(
         raise NotImplementedError("Gemini API format is not supported yet.")
     else:
         raise ValueError(f"Unsupported API format: {api_format}")
+
+
+def recover_tool_message(
+    tool_responses: Dict[str, str],
+    *,
+    api_format: API_FORMATS = "openai",
+) -> List[Dict[str, Any]]:
+    messages = []
+    for call_id, result in tool_responses.items():
+        if api_format in ["openai", "openai-chatcompletion"]:
+            tool_message = ChatCompetionMessageToolCallResult(
+                tool_call_id=call_id,
+                content=str(result),
+            )
+            messages.append(tool_message.model_dump())
+        elif api_format == "openai-response":
+            tool_message = ResponseFunctionToolCallResult(
+                call_id=call_id,
+                output=str(result),
+            )
+            messages.append(tool_message.model_dump())
+        elif api_format == "anthropic":
+            raise NotImplementedError("Anthropic API format is not supported yet")
+        elif api_format == "gemini":
+            raise NotImplementedError("Gemini API format is not supported yet")
+        else:
+            raise ValueError(f"Unsupported API format: {api_format}")
+
+    return messages
