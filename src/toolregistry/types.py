@@ -17,6 +17,19 @@ class Function(BaseModel):
 
 
 class ChatCompletionMessageToolCall(BaseModel):
+    """
+    Example usage
+
+    {
+        "id": "call_12345xyz",
+        "type": "function",
+        "function": {
+            "name": "get_weather",
+            "arguments": "{\"location\":\"Paris, France\"}"
+        }
+    }
+    """
+
     id: str
     """The ID of the tool call."""
 
@@ -28,6 +41,18 @@ class ChatCompletionMessageToolCall(BaseModel):
 
 
 class ResponseFunctionToolCall(BaseModel):
+    """
+    Example usage
+
+    {
+        "id": "fc_12345xyz",
+        "call_id": "call_12345xyz",
+        "type": "function_call",
+        "name": "get_weather",
+        "arguments": "{\"location\":\"Paris, France\"}"
+    }
+    """
+
     arguments: str
     """A JSON string of the arguments to pass to the function."""
 
