@@ -189,8 +189,16 @@ API_FORMATS = Literal[
     "gemini",
 ]
 
-
 def resemble_type(obj: object, cls: type) -> bool:
+    """Check if the object's class matches the given class type.
+
+    Args:
+        obj (object): The object to check.
+        cls (type): The class type to compare against.
+
+    Returns:
+        bool: True if the object's class name matches the given class type name, False otherwise.
+    """
     class_name = obj.__class__.__name__
 
     if class_name == cls.__name__:
@@ -199,6 +207,14 @@ def resemble_type(obj: object, cls: type) -> bool:
 
 
 def convert_tool_calls(tool_calls: List[Any]) -> List[ToolCall]:
+    """Convert a list of tool calls into a list of ToolCall objects.
+
+    Args:
+        tool_calls (List[Any]): A list of tool call objects to convert.
+
+    Returns:
+        List[ToolCall]: A list of converted ToolCall objects.
+    """
     return [ToolCall.from_tool_call(tool_call) for tool_call in tool_calls]
 
 
@@ -207,6 +223,19 @@ def recover_assistant_message(
     *,
     api_format: API_FORMATS = "openai",
 ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
+    """Recover the assistant message from tool calls in various API formats.
+
+    Args:
+        tool_calls (List[ToolCall]): A list of ToolCall objects.
+        api_format (API_FORMATS, optional): The desired API format. Defaults to "openai".
+
+    Returns:
+        Union[List[Dict[str, Any]], Dict[str, Any]]: The assistant message in the specified API format.
+
+    Raises:
+        NotImplementedError: If the API format is "anthropic" or "gemini".
+        ValueError: If the API format is unsupported.
+    """
     if api_format in ["openai", "openai-chatcompletion"]:
         message = ChatCompletionMessage(
             tool_calls=[
@@ -245,6 +274,19 @@ def recover_tool_message(
     *,
     api_format: API_FORMATS = "openai",
 ) -> List[Dict[str, Any]]:
+    """Recover the tool message from tool responses in various API formats.
+
+    Args:
+        tool_responses (Dict[str, str]): A dictionary of tool responses with call_ids as keys and results as values.
+        api_format (API_FORMATS, optional): The desired API format. Defaults to "openai".
+
+    Returns:
+        List[Dict[str, Any]]: A list of tool messages in the specified API format.
+
+    Raises:
+        NotImplementedError: If the API format is "anthropic" or "gemini".
+        ValueError: If the API format is unsupported.
+    """
     messages = []
     for call_id, result in tool_responses.items():
         if api_format in ["openai", "openai-chatcompletion"]:
