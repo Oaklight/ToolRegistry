@@ -44,7 +44,7 @@ class Executor:
             function_args: Dictionary of arguments to pass to the function.
 
         Returns:
-            Tuple[str, str]: A tuple containing (tool_call_id, tool_result).
+            Tuple[str, str]: A tuple containing the tool call ID and the tool result.
         """
         try:
             if serialized_func:
@@ -77,16 +77,15 @@ class Executor:
         executor_pool: Union[ProcessPoolExecutor, ThreadPoolExecutor],
         tasks_to_submit: List[Tuple[Optional[bytes], str, str, Dict[str, Any]]],
     ) -> Dict[str, str]:
-        """Execute tool calls in parallel using executor pool.
+        """Execute tool calls in parallel using an executor pool.
 
         Args:
-            executor_pool: Process or thread pool executor.
-            tasks_to_submit: List of tasks to submit to executor.
+            executor_pool: Either a ProcessPoolExecutor or ThreadPoolExecutor.
+            tasks_to_submit: List of tasks to be submitted to the executor pool.
 
         Returns:
-            Dict[str, str]: Dictionary mapping tool call IDs to results.
+            Dict[str, str]: A dictionary mapping tool call IDs to their respective results.
         """
-        """Execute tool calls using concurrent.futures executors."""
         tool_responses = {}
         futures = {
             executor_pool.submit(
@@ -107,7 +106,7 @@ class Executor:
         """Set the execution mode for parallel tasks.
 
         Args:
-            mode (Literal["thread", "process"]): The desired execution mode.
+            mode: The desired execution mode, either "thread" or "process".
 
         Raises:
             ValueError: If an invalid mode is provided.
@@ -124,7 +123,15 @@ class Executor:
         tool_calls: List[ChatCompletionMessageToolCall],
         execution_mode: Optional[Literal["process", "thread"]] = None,
     ) -> Dict[str, str]:
-        """Execute tool calls with concurrency using dill for serialization."""
+        """Execute tool calls with concurrency using dill for serialization.
+
+        Args:
+            tool_calls: List of tool calls to be executed.
+            execution_mode: Execution mode to use; defaults to the Executor's current mode.
+
+        Returns:
+            Dict[str, str]: Dictionary mapping tool call IDs to their results.
+        """
         tool_responses = {}
         tasks_to_submit = []
 

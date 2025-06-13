@@ -589,7 +589,15 @@ class ToolRegistry:
         tool_calls: List[ChatCompletionMessageToolCall],
         execution_mode: Optional[Literal["process", "thread"]] = None,
     ) -> Dict[str, str]:
-        """Execute tool calls with concurrency using dill for serialization."""
+        """Execute tool calls with concurrency using dill for serialization.
+
+        Args:
+            tool_calls: List of tool calls to be executed.
+            execution_mode: Execution mode to use; defaults to the Executor's current mode.
+
+        Returns:
+            Dict[str, str]: Dictionary mapping tool call IDs to their results.
+        """
         self._executor.execute_tool_calls(tool_calls, execution_mode)
 
     def recover_tool_call_assistant_message(
