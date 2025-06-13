@@ -168,8 +168,8 @@ class ToolRegistry:
         messages = []
         tool_calls: List[ToolCall] = convert_tool_calls(tool_calls)
 
-        # append assistant message of tool calls
-        messages.append(recover_assistant_message(tool_calls, api_format=api_format))
+        # extend assistant message(s) of tool calls
+        messages.extend(recover_assistant_message(tool_calls, api_format=api_format))
         # extend messages with tool responses
         messages.extend(recover_tool_message(tool_responses, api_format=api_format))
         return messages
