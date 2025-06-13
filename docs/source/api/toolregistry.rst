@@ -24,8 +24,10 @@ Submodules
 .. toctree::
    :maxdepth: 4
 
+   toolregistry.executor
    toolregistry.parameter_models
    toolregistry.tool
    toolregistry.tool_registry
    toolregistry.tool_wrapper
+   toolregistry.types
    toolregistry.utils
