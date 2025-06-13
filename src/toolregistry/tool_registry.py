@@ -10,12 +10,12 @@ from pydantic import AnyUrl
 from .tool import Tool
 from .types import (
     API_FORMATS,
-    ChatCompetionMessageToolCallResult,
     ChatCompletionMessageToolCall,
     ResponseFunctionToolCall,
     ToolCall,
     convert_tool_calls,
     recover_assistant_message,
+    recover_tool_message,
 )
 from .utils import normalize_tool_name
 
@@ -168,18 +168,10 @@ class ToolRegistry:
         messages = []
         tool_calls: List[ToolCall] = convert_tool_calls(tool_calls)
 
+        # append assistant message of tool calls
         messages.append(recover_assistant_message(tool_calls, api_format=api_format))
-
-        for tc in tool_calls:
-            if tc.id not in tool_responses:
-                tool_responses[tc.id] = (
-                    "No result (possibly concurrency/dill serialization error)"
-                )
-            tool_message = ChatCompetionMessageToolCallResult(
-                tool_call_id=tc.id,
-                content=f"{tc.name} --> {tool_responses[tc.id]}",
-            )
-            messages.append(tool_message.model_dump())
+        # extend messages with tool responses
+        messages.extend(recover_tool_message(tool_responses, api_format=api_format))
         return messages
 
     # ============== Namespace ==============
