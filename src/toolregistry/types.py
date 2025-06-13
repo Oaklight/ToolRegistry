@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_serializer
 
 # =============== OpenAI ===============
 # We have ChatCompletion and Response APIs
@@ -164,8 +164,21 @@ class ToolCall(BaseModel):
 class ToolCallResult(BaseModel):
     id: str
     """The ID of the tool call."""
-    result: str
+    result: Any
     """The result of the tool call."""
+
+    @field_serializer("result")
+    def convert_any_field_to_str(self, value: Any) -> str:
+        """Convert `result` to string during serialization.
+
+        Args:
+            value: Current value of `any_field`.
+
+        Returns:
+            str: String representation of the field.
+        """
+        # simple case for now, can be extended to handle more complex cases
+        return str(value)
 
 
 API_FORMATS = Literal[
