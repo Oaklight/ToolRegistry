@@ -86,18 +86,13 @@ class MCPToolWrapper(BaseToolWrapper):
             Exception: If tool execution fails.
         """
         try:
-            kwargs = self._process_args(*args, **kwargs)
             if not self.client or not self.name:
                 raise ValueError("Client and name must be set before calling")
 
             async with self.client:
-                tools = await self.client.list_tools()
-                tool = next((t for t in tools if t.name == self.name), None)
-                if not tool:
-                    raise ValueError(f"Tool {self.name} not found on server")
-
                 validated_params = {}
-                for param_name, _ in tool.inputSchema.get("properties", {}).items():
+                kwargs = self._process_args(*args, **kwargs)
+                for param_name in self.params:
                     if param_name in kwargs:
                         validated_params[param_name] = kwargs[param_name]
 
