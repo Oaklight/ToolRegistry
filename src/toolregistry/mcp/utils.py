@@ -1,8 +1,7 @@
-import re
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
-from fastmcp import FastMCP  # type: ignore
 from fastmcp.client import ClientTransport  # type: ignore
 from fastmcp.client.transports import (  # type: ignore
     FastMCPTransport,
@@ -12,38 +11,51 @@ from fastmcp.client.transports import (  # type: ignore
     WSTransport,
     infer_transport,
 )
-from loguru import logger
+from fastmcp.server import FastMCP as FastMCPServer  # type: ignore
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client
 from mcp.client.streamable_http import streamablehttp_client
 from mcp.client.websocket import websocket_client
+from mcp.server.fastmcp import FastMCP as FastMCP1Server  # type: ignore
 from mcp.shared.memory import create_connected_server_and_client_session
 from mcp.types import InitializeResult
 from pydantic import AnyUrl
 
 
 def infer_transport_overriden(
-    transport: ClientTransport | FastMCP | AnyUrl | Path | dict[str, Any] | str,
+    transport: ClientTransport
+    | FastMCPServer
+    | FastMCP1Server
+    | AnyUrl
+    | Path
+    | dict[str, Any]
+    | str,
 ) -> ClientTransport:
     """
     Infer the appropriate transport type from the given transport argument.
+    This override only applies to FastMCP versions <= 2.3.5.
 
-    This function overrides the default `infer_transport` function to provide additional handling for HTTP URLs.
-    For SSE urls, it returns an `SSETransport` instance. For other HTTP URLs, it returns a `StreamableHttpTransport` instance.
-    For other types of transports, it falls back to the default behavior.
+    For FastMCP > 2.3.5, falls back to the default `infer_transport` function.
     """
-    if isinstance(transport, AnyUrl | str) and str(transport).startswith("http"):
-        if re.search(r"(^|/)sse(/|$)", str(transport)):
-            logger.warning(
-                "Detected `/sse/` in the URL. "
-                "As of MCP protocol 2025-03-26, HTTP URLs are inferred to use Streamable HTTP. "
-                "Fallback may be deprecated. Please migrate to Streamable HTTP"
-            )
-            return SSETransport(url=transport)
-        return StreamableHttpTransport(url=transport)
+    from importlib.metadata import version
 
-    return infer_transport(transport)  # Fallback to default transport inference logic.
+    from packaging import version as pkg_version
+
+    # Skip override if FastMCP version > 2.3.5
+    if pkg_version.parse(version("fastmcp")) > pkg_version.parse("2.3.5"):
+        return infer_transport(transport)
+
+    if isinstance(transport, AnyUrl | str) and str(transport).startswith("http"):
+        parsed_url = urlparse(str(transport))
+        path = parsed_url.path
+
+        if "/sse/" in path or path.rstrip("/").endswith("/sse"):
+            return SSETransport(url=transport)
+        else:
+            return StreamableHttpTransport(url=transport)
+
+    return infer_transport(transport)
 
 
 async def get_initialize_result(transport: ClientTransport) -> InitializeResult:
