@@ -2,9 +2,10 @@ import asyncio
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from fastmcp import FastMCP  # type: ignore
 from fastmcp.client import Client, ClientTransport  # type: ignore
+from fastmcp.server import FastMCP as FastMCPServer  # type: ignore
 from loguru import logger
+from mcp.server.fastmcp import FastMCP as FastMCP1Server  # type: ignore
 from mcp.types import (
     BlobResourceContents,
     EmbeddedResource,
@@ -47,7 +48,7 @@ class MCPToolWrapper(BaseToolWrapper):
             params (Optional[List[str]]): List of parameter names.
         """
         super().__init__(name=name, params=params)
-        self.client = Client(transport)
+        self.transport = transport
 
     def call_sync(self, *args: Any, **kwargs: Any) -> Any:
         """Synchronous implementation of MCP tool call.
@@ -86,17 +87,17 @@ class MCPToolWrapper(BaseToolWrapper):
             Exception: If tool execution fails.
         """
         try:
-            if not self.client or not self.name:
+            if not self.transport or not self.name:
                 raise ValueError("Client and name must be set before calling")
 
-            async with self.client:
+            async with Client(self.transport) as client:
                 validated_params = {}
                 kwargs = self._process_args(*args, **kwargs)
                 for param_name in self.params:
                     if param_name in kwargs:
                         validated_params[param_name] = kwargs[param_name]
 
-                result = await self.client.call_tool_mcp(self.name, validated_params)
+                result = await client.call_tool_mcp(self.name, validated_params)
                 return self._post_process_result(result)
 
         except Exception as e:
@@ -234,17 +235,23 @@ class MCPIntegration:
 
     async def register_mcp_tools_async(
         self,
-        transport: ClientTransport | FastMCP | AnyUrl | Path | dict[str, Any] | str,
+        transport: ClientTransport
+        | FastMCPServer
+        | FastMCP1Server
+        | AnyUrl
+        | Path
+        | dict[str, Any]
+        | str,
         with_namespace: Union[bool, str] = False,
     ) -> None:
         """Async implementation to register all tools from an MCP server.
 
         Args:
-            transport (ClientTransport | FastMCP | AnyUrl | Path | dict[str, Any] | str): Can be:
+            transport (ClientTransport | FastMCPServer | FastMCP1Server | AnyUrl | Path | dict[str, Any] | str): Can be:
                 - URL string (http(s)://, ws(s)://)
                 - Path to script file (.py, .js)
                 - Existing ClientTransport instance
-                - FastMCP instance
+                - FastMCPServer | FastMCP1Server instance
             with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
                 - If `False`, no namespace is used.
                 - If `True`, the namespace is derived from the OpenAPI info.title.
@@ -296,13 +303,19 @@ class MCPIntegration:
 
     def register_mcp_tools(
         self,
-        transport: ClientTransport | FastMCP | AnyUrl | Path | dict[str, Any] | str,
+        transport: ClientTransport
+        | FastMCPServer
+        | FastMCP1Server
+        | AnyUrl
+        | Path
+        | dict[str, Any]
+        | str,
         with_namespace: Union[bool, str] = False,
     ) -> None:
         """Register all tools from an MCP server (synchronous entry point).
 
         Args:
-            transport (ClientTransport | FastMCP | AnyUrl | Path | dict[str, Any] | str): Can be:
+            transport (ClientTransport | FastMCPServer | FastMCP1Server | AnyUrl | Path | dict[str, Any] | str):
                 - URL string (http(s)://, ws(s)://)
                 - Path to script file (.py, .js)
                 - Existing ClientTransport instance
