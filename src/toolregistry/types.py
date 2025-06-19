@@ -134,12 +134,6 @@ class ResponseFunctionToolCallResult(BaseModel):
     """The output of the function tool call as a string."""
 
 
-class ParsedResponseFunctionToolCall(ResponseFunctionToolCall):
-    parsed_arguments: object = None
-
-    __api_exclude__ = {"parsed_arguments"}
-
-
 # =============== Common ===============
 class ToolCall(BaseModel):
     id: str
@@ -264,15 +258,11 @@ def recover_assistant_message(
 
     elif api_format == "openai-response":
         message = [
-            ParsedResponseFunctionToolCall(
-                **(
-                    ResponseFunctionToolCall(
-                        call_id=tool_call.id,
-                        name=tool_call.name,
-                        arguments=tool_call.arguments,
-                    ).model_dump()
-                )
-            )
+            ResponseFunctionToolCall(
+                call_id=tool_call.id,
+                name=tool_call.name,
+                arguments=tool_call.arguments,
+            ).model_dump()
             for tool_call in tool_calls
         ]
 
