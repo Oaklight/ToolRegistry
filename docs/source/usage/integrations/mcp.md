@@ -20,8 +20,10 @@ The MCP integration supports flexible transport options:
   - Script file paths (e.g., `.py`, `.js`)
   - Config-based setup
 - **FastMCP Transport**:
-  - Pythonic instances of FastMCP servers
-
+  - Pythonic instances of
+    - FastMCP 2.x servers
+    - FastMCP 1.x servers from the `mcp.server.fastmcp` package
+  
 Supported inputs include URLs (`http://`, `https://`, `ws://`), script paths, client transport instances, or FastMCP objects. We will demonstrate in [registration example](#registration-synchronous) below.
 
 ```{note}
