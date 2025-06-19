@@ -60,7 +60,6 @@ class Executor:
             if serialized_func:
                 # Deserialize the function using dill
                 callable_func = dill.loads(serialized_func)
-                logger.warning(f"callable_func: {callable_func}")
                 # Check if callable_func is a coroutine function
                 tool_result = callable_func(**function_args)
                 # Ensure the result is JSON serializable (or handle appropriately)
