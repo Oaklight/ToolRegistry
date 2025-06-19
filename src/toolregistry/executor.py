@@ -10,6 +10,15 @@ from loguru import logger
 from .tool import Tool
 from .types import ToolCall
 
+def make_sync_wrapper(async_func):
+    def wrapper(*args, **kwargs):
+        try:
+            loop = asyncio.get_running_loop()
+            return loop.run_until_complete(async_func(*args, **kwargs))
+        except RuntimeError:
+            return asyncio.run(async_func(*args, **kwargs))
+
+    return wrapper
 
 class Executor:
     """Handles execution of tool calls using thread/process pools."""
@@ -51,14 +60,9 @@ class Executor:
             if serialized_func:
                 # Deserialize the function using dill
                 callable_func = dill.loads(serialized_func)
-
+                logger.warning(f"callable_func: {callable_func}")
                 # Check if callable_func is a coroutine function
-                if asyncio.iscoroutinefunction(callable_func):
-                    # Run the coroutine and get the result
-                    tool_result = asyncio.run(callable_func(**function_args))
-                else:
-                    # Directly execute the callable with unpacked arguments
-                    tool_result = callable_func(**function_args)
+                tool_result = callable_func(**function_args)
                 # Ensure the result is JSON serializable (or handle appropriately)
                 # For simplicity, converting non-JSON serializable results to string
                 try:
@@ -150,6 +154,8 @@ class Executor:
                 tool_call_id = tc.id
                 tool_obj = get_tool_fn(function_name)
                 callable_func = tool_obj.callable if tool_obj else None
+                if callable_func and asyncio.iscoroutinefunction(callable_func):
+                    callable_func = make_sync_wrapper(callable_func)
 
                 # Serialize the function using dill if using process pool
                 serialized_func = dill.dumps(callable_func) if callable_func else None
