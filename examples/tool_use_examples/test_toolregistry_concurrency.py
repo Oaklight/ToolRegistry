@@ -146,10 +146,10 @@ def main():
 
     # ========= native (hub) class tools =========
     print("-" * 10 + " Native Class Tool " + "-" * 10)
-    from toolregistry.hub import Calculator
+    from toolregistry.hub import BaseCalculator
 
     registry = ToolRegistry()
-    registry.register_from_class(Calculator, with_namespace=True)
+    registry.register_from_class(BaseCalculator, with_namespace=True)
     # print(registry.get_available_tools())
     if FUNC:
         target_func_name = [
