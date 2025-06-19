@@ -83,20 +83,18 @@ def _create_field(
     Returns:
         Tuple[Any, FieldInfo]: A tuple of (annotated_type, field_info).
     """
-    default = param.default if param.default is not inspect.Parameter.empty else None
     if param.default is inspect.Parameter.empty:
-        field_info = (
-            Field(title=param.name)
-            if param.annotation is inspect.Parameter.empty
-            else Field()
-        )
+        if param.annotation is inspect.Parameter.empty:
+            field_info = Field(title=param.name)
+        else:
+            field_info = Field()
         return (annotation_type, field_info)
     else:
-        field_info = (
-            Field(default=default, title=param.name)
-            if param.annotation is inspect.Parameter.empty
-            else Field(default=default)
-        )
+        default = param.default
+        if param.annotation is inspect.Parameter.empty:
+            field_info = Field(default=default, title=param.name)
+        else:
+            field_info = Field(default=default)
         return (Optional[annotation_type], field_info)
 
 
