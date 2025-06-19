@@ -17,7 +17,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "pydantic>=1.5.1",
+    "pydantic>=2.7.2,<3.0.0",
     "loguru>=0.7.3",
     "dill>=0.4.0",
     "httpx>=0.28.1",
@@ -26,7 +26,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-mcp = ["fastmcp>=2.3.5,<=2.5.1"]
+mcp = ["fastmcp>=2.3.0"]
 openapi = [
     "PyYAML>=6.0.2",  # safe load both json and yaml
     "jsonref>=1.1.0", # deref $ref in openapi spec
