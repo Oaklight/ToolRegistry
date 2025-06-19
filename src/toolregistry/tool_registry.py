@@ -21,7 +21,7 @@ from .types import (
 from .utils import normalize_tool_name
 
 try:
-    from fastmcp import FastMCP as FastMCPServer  # type: ignore
+    from fastmcp import FastMCP  # type: ignore
     from fastmcp.client.transports import ClientTransport  # type: ignore
     from mcp.server.fastmcp import FastMCP as FastMCP1Server  # type: ignore
 except ImportError:
@@ -375,7 +375,7 @@ class ToolRegistry:
         self,
         transport: Union[
             "ClientTransport",
-            "FastMCPServer",
+            "FastMCP",
             "FastMCP1Server",
             AnyUrl,
             Path,
@@ -389,7 +389,7 @@ class ToolRegistry:
         Requires the [mcp] extra to be installed.
 
         Args:
-            transport (ClientTransport | FastMCPServer | FastMCP1Server | AnyUrl | Path | Dict[str, Any] | str): Can be:
+            transport (ClientTransport | FastMCP | FastMCP1Server | AnyUrl | Path | Dict[str, Any] | str): Can be:
                 - URL string (http(s)://, ws(s)://)
                 - Path to script file (.py, .js)
                 - Existing ClientTransport instance
@@ -425,7 +425,7 @@ class ToolRegistry:
         self,
         transport: Union[
             "ClientTransport",
-            "FastMCPServer",
+            "FastMCP",
             "FastMCP1Server",
             AnyUrl,
             Path,
@@ -439,7 +439,7 @@ class ToolRegistry:
         Requires the [mcp] extra to be installed.
 
         Args:
-            transport (ClientTransport | FastMCPServer | FastMCP1Server | AnyUrl | Path | Dict[str, Any] | str): Can be:
+            transport (ClientTransport | FastMCP | FastMCP1Server | AnyUrl | Path | Dict[str, Any] | str): Can be:
                 - URL string (http(s)://, ws(s)://)
                 - Path to script file (.py, .js)
                 - Existing ClientTransport instance
