@@ -70,7 +70,7 @@ def local_divide(a: float, b: float) -> float:
 
 EXEC_MODE = os.getenv("EXEC_MODE", "process")
 FUNC = os.getenv("FUNC", None)
-N = os.getenv("N", 100)
+N = int(os.getenv("N", 100))
 
 
 def generate_tool_calls(
