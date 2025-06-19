@@ -7,6 +7,7 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Set, Type, Unio
 import httpx
 from pydantic import AnyUrl
 
+from .executor import Executor
 from .tool import Tool
 from .types import (
     API_FORMATS,
@@ -20,8 +21,9 @@ from .types import (
 from .utils import normalize_tool_name
 
 try:
-    from fastmcp import FastMCP  # type: ignore
+    from fastmcp import FastMCP as FastMCPServer  # type: ignore
     from fastmcp.client.transports import ClientTransport  # type: ignore
+    from mcp.server.fastmcp import FastMCP as FastMCP1Server  # type: ignore
 except ImportError:
     pass
 
@@ -29,7 +31,6 @@ try:
     from langchain_core.tools import BaseTool as LCBaseTool  # type: ignore
 except ImportError:
     pass
-from .executor import Executor
 
 
 class ToolRegistry:
@@ -373,7 +374,13 @@ class ToolRegistry:
     def register_from_mcp(
         self,
         transport: Union[
-            "ClientTransport", "FastMCP", AnyUrl, Path, Dict[str, Any], str
+            "ClientTransport",
+            "FastMCPServer",
+            "FastMCP1Server",
+            AnyUrl,
+            Path,
+            Dict[str, Any],
+            str,
         ],
         with_namespace: Union[bool, str] = False,
     ):
@@ -382,7 +389,7 @@ class ToolRegistry:
         Requires the [mcp] extra to be installed.
 
         Args:
-            transport (ClientTransport | FastMCP | AnyUrl | Path | Dict[str, Any] | str): Can be:
+            transport (ClientTransport | FastMCPServer | FastMCP1Server | AnyUrl | Path | Dict[str, Any] | str): Can be:
                 - URL string (http(s)://, ws(s)://)
                 - Path to script file (.py, .js)
                 - Existing ClientTransport instance
@@ -417,7 +424,13 @@ class ToolRegistry:
     async def register_from_mcp_async(
         self,
         transport: Union[
-            "ClientTransport", "FastMCP", AnyUrl, Path, Dict[str, Any], str
+            "ClientTransport",
+            "FastMCPServer",
+            "FastMCP1Server",
+            AnyUrl,
+            Path,
+            Dict[str, Any],
+            str,
         ],
         with_namespace: Union[bool, str] = False,
     ):
@@ -426,7 +439,7 @@ class ToolRegistry:
         Requires the [mcp] extra to be installed.
 
         Args:
-            transport (ClientTransport | FastMCP | AnyUrl | Path | Dict[str, Any] | str): Can be:
+            transport (ClientTransport | FastMCPServer | FastMCP1Server | AnyUrl | Path | Dict[str, Any] | str): Can be:
                 - URL string (http(s)://, ws(s)://)
                 - Path to script file (.py, .js)
                 - Existing ClientTransport instance
