@@ -1,3 +1,4 @@
+from ..utils import HttpxClientConfig
 from .integration import OpenAPIIntegration, OpenAPITool, OpenAPIToolWrapper
 from .utils import load_openapi_spec, load_openapi_spec_async
 
@@ -6,6 +7,7 @@ __all__ = [
     "OpenAPITool",
     "OpenAPIToolWrapper",
     # Helpers and utilities for OpenAPI integration.
+    "HttpxClientConfig",
     "load_openapi_spec",
     "load_openapi_spec_async",
 ]
