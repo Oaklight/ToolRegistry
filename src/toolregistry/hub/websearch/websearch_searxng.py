@@ -1,5 +1,6 @@
 import time
 from concurrent.futures import ProcessPoolExecutor
+from functools import partial
 from typing import Dict, List, Optional
 
 import httpx
@@ -111,7 +112,11 @@ class WebSearchSearXNG(WebSearchGeneral):
             with ProcessPoolExecutor() as executor:
                 enriched_results = list(
                     executor.map(
-                        self._fetch_webpage_content,
+                        partial(
+                            self._fetch_webpage_content,
+                            timeout=timeout or TIMEOUT_DEFAULT,
+                            proxy=self.proxy,
+                        ),
                         filtered_results,
                     )
                 )
