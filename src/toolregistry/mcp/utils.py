@@ -19,6 +19,7 @@ from mcp.client.stdio import stdio_client
 from mcp.client.streamable_http import streamablehttp_client
 from mcp.client.websocket import websocket_client
 from mcp.server.fastmcp import FastMCP as FastMCP1Server  # type: ignore
+from mcp.server.lowlevel.server import Server as MCPServer
 from mcp.shared.memory import create_connected_server_and_client_session
 from mcp.types import InitializeResult
 from packaging import version as pkg_version
@@ -127,7 +128,7 @@ async def get_initialize_result(transport: ClientTransport) -> InitializeResult:
         # Handle FastMCP in-memory transport
         elif isinstance(transport, FastMCPTransport):
             async with create_connected_server_and_client_session(
-                server=transport._fastmcp._mcp_server
+                server=get_internal_mcp_server(transport)
             ) as session:
                 return await session.initialize()
 
@@ -137,3 +138,13 @@ async def get_initialize_result(transport: ClientTransport) -> InitializeResult:
 
     except Exception as e:
         raise ValueError(f"Failed to initialize transport: {str(e)}") from e
+
+
+def get_internal_mcp_server(transport: FastMCPTransport) -> MCPServer:
+    """
+    Get the internal MCPServer instance from a FastMCPTransport.
+    """
+    if pkg_version.parse(version("fastmcp")) > pkg_version.parse("2.3.5"):
+        return transport.server._mcp_server
+    else:
+        return transport._fastmcp._mcp_server  # type: ignore[attr-defined]
