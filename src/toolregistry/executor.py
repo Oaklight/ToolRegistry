@@ -124,7 +124,7 @@ class Executor:
 
     def execute_tool_calls(
         self,
-        get_tool_fn: Callable[[str], Tool],
+        get_tool_fn: Callable[[str], Optional[Tool]],
         tool_calls: List[ToolCall],
         execution_mode: Optional[Literal["process", "thread"]] = None,
     ) -> Dict[str, str]:
