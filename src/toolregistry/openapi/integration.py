@@ -4,8 +4,7 @@ from typing import Any, Dict, List, Optional, Union
 from ..tool import Tool
 from ..tool_registry import ToolRegistry
 from ..tool_wrapper import BaseToolWrapper
-from ..utils import normalize_tool_name
-from .utils import HttpxClientConfig
+from ..utils import HttpxClientConfig, normalize_tool_name
 
 
 class OpenAPIToolWrapper(BaseToolWrapper):
