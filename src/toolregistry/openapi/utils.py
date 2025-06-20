@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Literal, Optional, Tuple, overload
 from urllib.parse import urlparse
 
 import httpx
@@ -31,6 +31,12 @@ class HttpxClientConfig:
         self.timeout = timeout
         self.auth = auth
         self.extra_options = extra_options
+
+    @overload
+    def to_client(self, use_async: Literal[False]) -> httpx.Client: ...
+
+    @overload
+    def to_client(self, use_async: Literal[True]) -> httpx.AsyncClient: ...
 
     def to_client(self, use_async: bool = False):
         """
