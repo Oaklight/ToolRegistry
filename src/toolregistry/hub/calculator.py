@@ -332,12 +332,17 @@ class Calculator:
         if target is None:
             raise ValueError(f"Function '{fn_name}' cannot be resolved.")
 
-        # Get docstring and function signature
-        docstring = inspect.getdoc(target)
-        docstring = docstring.strip() if docstring else ""
-        signature = inspect.signature(target) if callable(target) else None
-
-        return f"function: {fn_name}{signature}\n{textwrap.indent(docstring, ' ' * 4)}"
+        # If the attribute is not callable (i.e., constant), skip signature retrieval
+        if callable(target):
+            docstring = inspect.getdoc(target) or ""
+            docstring = docstring.strip()
+            signature = inspect.signature(target)
+            return (
+                f"function: {fn_name}{signature}\n{textwrap.indent(docstring, ' ' * 4)}"
+            )
+        else:
+            docstring = f"Constant value: {target!r}"
+            return f"constant: {fn_name}\n{textwrap.indent(docstring, ' ' * 4)}"
 
     @staticmethod
     def evaluate(expression: str) -> Union[float, int, bool]:
