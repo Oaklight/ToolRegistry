@@ -5,7 +5,13 @@
 
 installation
 basics
-function_calling
+```
+
+```{toctree}
+:caption: Integration with LLMs
+
+providers/openai_chat
+providers/openai_response
 ```
 
 ```{toctree}
