@@ -121,7 +121,7 @@ response = client.chat.completions.create(
 )
 ```
 
-## Extract the Tool Calls from Response
+## Extract Tool Calls
 
 If the model (LLM) decides to use a tool, it will return `tool_calls` as part of the response message:
 
@@ -129,6 +129,8 @@ If the model (LLM) decides to use a tool, it will return `tool_calls` as part of
 if response.choices[0].message.tool_calls:
     tool_calls = response.choices[0].message.tool_calls
 ```
+
+Example function call output:
 
 ```python
 [ChatCompletionMessageToolCall(id='call_egkg4evbb19d8012bex83v8a', function=Function(arguments='{"a":15,"b":3}', name='subtract'), type='function', index=0)]
