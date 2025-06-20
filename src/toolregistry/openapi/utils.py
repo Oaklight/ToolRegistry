@@ -153,7 +153,8 @@ async def load_openapi_spec_async(uri: str) -> Dict[str, Any]:
             results = await loop.run_in_executor(None, determine_urls, uri)
             uri = results["schema_url"] if results["found"] else uri
 
-            async with httpx.AsyncClient() as client:
+            # timeout for network requests (e.g., 10 seconds)
+            async with httpx.AsyncClient(timeout=10) as client:
                 response = await client.get(uri)
                 response.raise_for_status()
                 openapi_spec_content = response.content
@@ -164,7 +165,10 @@ async def load_openapi_spec_async(uri: str) -> Dict[str, Any]:
             None, lambda: jsonref.replace_refs(yaml.safe_load(openapi_spec_content))
         )
 
-        return openapi_spec_dict
+        # Ensure return type matches Dict[str, Any]
+        if not isinstance(openapi_spec_dict, dict):
+            raise ValueError("OpenAPI spec must be a dictionary")
+        return dict(openapi_spec_dict)  # Explicit type conversion
 
     except yaml.YAMLError as e:
         raise ValueError(f"Failed to parse OpenAPI content: {e}")
