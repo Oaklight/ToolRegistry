@@ -13,7 +13,6 @@ from .types import (
     API_FORMATS,
     ChatCompletionMessageToolCall,
     ResponseFunctionToolCall,
-    ToolCall,
     convert_tool_calls,
     recover_assistant_message,
     recover_tool_message,
@@ -141,10 +140,10 @@ class ToolRegistry:
         Returns:
             Dict[str, str]: Dictionary mapping tool call IDs to their results.
         """
-        tool_calls = convert_tool_calls(tool_calls)
+        generic_tool_calls = convert_tool_calls(tool_calls)
 
         return self._executor.execute_tool_calls(
-            self.get_tool, tool_calls, execution_mode
+            self.get_tool, generic_tool_calls, execution_mode
         )
 
     def recover_tool_call_assistant_message(
@@ -167,10 +166,12 @@ class ToolRegistry:
             List[Dict[str, Any]]: List of message dictionaries in conversation format.
         """
         messages = []
-        tool_calls: List[ToolCall] = convert_tool_calls(tool_calls)
+        generic_tool_calls = convert_tool_calls(tool_calls)
 
         # extend assistant message(s) of tool calls
-        messages.extend(recover_assistant_message(tool_calls, api_format=api_format))
+        messages.extend(
+            recover_assistant_message(generic_tool_calls, api_format=api_format)
+        )
         # extend messages with tool responses
         messages.extend(recover_tool_message(tool_responses, api_format=api_format))
         return messages
