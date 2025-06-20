@@ -247,6 +247,7 @@ class OpenAPIIntegration:
         Returns:
             None
         """
+        loop = None
         try:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -256,4 +257,5 @@ class OpenAPIIntegration:
                 )
             )
         finally:
-            loop.close()
+            if loop is not None:
+                loop.close()
