@@ -5,7 +5,7 @@ from typing import Dict, Generator, List, Optional, Set
 from urllib.parse import unquote  # to decode the url
 
 import httpx
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 from loguru import logger
 
 from .filter import filter_search_results
@@ -178,12 +178,12 @@ class WebSearchGoogle(WebSearchGeneral):
                 break
 
             # Skip non-Tag elements
-            if not hasattr(result, "find"):
+            if not isinstance(result, Tag):
                 continue
 
             link_tag = result.find("a", href=True)
             # Skip non-Tag elements
-            if not link_tag or not hasattr(link_tag, "find"):
+            if not link_tag or not isinstance(link_tag, Tag):
                 continue
 
             title_tag = link_tag.find("span", class_="CVA68e")
@@ -193,7 +193,11 @@ class WebSearchGoogle(WebSearchGeneral):
                 continue
 
             try:
-                link = unquote(link_tag["href"].split("&")[0].replace("/url?q=", ""))
+                # Type-safe attribute access
+                href_attr = link_tag.get("href")
+                if not href_attr:
+                    continue
+                link = unquote(str(href_attr).split("&")[0].replace("/url?q=", ""))
                 if link in fetched_links:
                     continue
 
