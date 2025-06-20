@@ -4,10 +4,10 @@ import string
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Literal, Optional, Set, Type, Union
 
-import httpx
 from pydantic import AnyUrl
 
 from .executor import Executor
+from .openapi import HttpxClientConfig
 from .tool import Tool
 from .types import (
     API_FORMATS,
@@ -474,14 +474,14 @@ class ToolRegistry:
 
     def register_from_openapi(
         self,
-        client: httpx.AsyncClient,
+        client: HttpxClientConfig,
         openapi_spec: Dict[str, Any],
         with_namespace: Union[bool, str] = False,
     ):
         """Registers tools from OpenAPI specification synchronously.
 
         Args:
-            client (httpx.AsyncClient): The HTTP client instance.
+            client (HttpxClientConfig): The httpx client config instance.
             openapi_spec (Dict[str, Any]): Parsed OpenAPI specification dictionary.
             with_namespace (Union[bool, str]): Specifies namespace usage:
                 - `False`: No namespace is applied.
@@ -498,14 +498,14 @@ class ToolRegistry:
 
     async def register_from_openapi_async(
         self,
-        client: httpx.AsyncClient,
+        client: HttpxClientConfig,
         openapi_spec: Dict[str, Any],
         with_namespace: Union[bool, str] = False,
     ):
         """Registers tools from OpenAPI specification asynchronously.
 
         Args:
-            client (httpx.AsyncClient): The HTTP client instance.
+            client (HttpxClientConfig): The httpx client config instance.
             openapi_spec (Dict[str, Any]): Parsed OpenAPI specification dictionary.
             with_namespace (Union[bool, str]): Specifies namespace usage:
                 - `False`: No namespace is applied.
