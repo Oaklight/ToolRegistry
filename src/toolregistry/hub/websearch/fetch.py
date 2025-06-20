@@ -15,41 +15,59 @@ class Fetch:
     """
 
     @staticmethod
-    def fetch_content(url: str, timeout: Optional[float] = None) -> str:
+    def fetch_content(
+        url: str,
+        timeout: float = TIMEOUT_DEFAULT,
+        proxy: Optional[str] = None,
+    ) -> str:
         """
         Fetch and extract content from a given URL.
 
         Args:
             url (str): The URL to fetch content from.
-            timeout (float, optional): Request timeout in seconds. Defaults to None.
+            timeout (float, optional): Request timeout in seconds. Defaults to TIMEOUT_DEFAULT.
+            proxy (str, optional): Proxy to use for the request. Defaults to None.
 
         Returns:
             str: Extracted content from the URL, or a message indicating failure if extraction fails.
         """
         try:
-            content = _extract(url, timeout=timeout)
+            content = _extract(url, timeout=timeout, proxy=proxy)
             return content
         except Exception as e:
             logger.error(f"Failed to fetch content from {url}: {e}")
             return "Unable to fetch content"
 
 
-def _extract(url: str, timeout: Optional[float] = None) -> str:
+def _extract(
+    url: str,
+    timeout: float = TIMEOUT_DEFAULT,
+    proxy: Optional[str] = None,
+) -> str:
     """
     Extract content from a given URL using available methods.
 
     Args:
         url (str): The URL to extract content from.
         timeout (float, optional): Request timeout in seconds. Defaults to TIMEOUT_DEFAULT (10). Usually not needed.
+        proxy (str, optional): Proxy to use for the request. Defaults to None.
 
     Returns:
         str: Extracted content from the URL, or empty string if extraction fails.
     """
     # First try BeautifulSoup method
-    content = _get_content_with_bs4(url, timeout=timeout or TIMEOUT_DEFAULT)
+    content = _get_content_with_bs4(
+        url,
+        timeout=timeout,
+        proxy=proxy,
+    )
     if not content:
         # Fallback to Jina Reader if BeautifulSoup fails
-        content = _get_content_with_jina_reader(url, timeout=timeout or TIMEOUT_DEFAULT)
+        content = _get_content_with_jina_reader(
+            url,
+            timeout=timeout,
+            proxy=proxy,
+        )
 
     formatted_content = _format_text(content) if content else "Unable to fetch content"
     return formatted_content
@@ -58,7 +76,8 @@ def _extract(url: str, timeout: Optional[float] = None) -> str:
 def _get_content_with_jina_reader(
     url: str,
     return_format: Literal["markdown", "text", "html"] = "text",
-    timeout: Optional[float] = None,
+    timeout: float = TIMEOUT_DEFAULT,
+    proxy: Optional[str] = None,
 ) -> str:
     """
     Fetch parsed content from Jina AI for a given URL.
@@ -66,7 +85,8 @@ def _get_content_with_jina_reader(
     Args:
         url (str): The URL to fetch content from.
         return_format (Literal["markdown", "text", "html"], optional): The format of the returned content. Defaults to "text".
-        timeout (Optional[float], optional): Timeout for the HTTP request. Defaults to TIMEOUT_DEFAULT.
+        timeout (float, optional): Timeout for the HTTP request. Defaults to TIMEOUT_DEFAULT.
+        proxy (str, optional): Proxy to use for the HTTP request. Defaults to None.
 
     Returns:
         str: Parsed content from Jina AI.
@@ -81,7 +101,8 @@ def _get_content_with_jina_reader(
         response = httpx.get(
             jina_reader_url + url,
             headers=headers,
-            timeout=timeout or TIMEOUT_DEFAULT,
+            timeout=timeout,
+            proxy=proxy,
         )
         response.raise_for_status()
         return response.text
@@ -95,14 +116,16 @@ def _get_content_with_jina_reader(
 
 def _get_content_with_bs4(
     url: str,
-    timeout: Optional[float] = None,
+    timeout: float = TIMEOUT_DEFAULT,
+    proxy: Optional[str] = None,
 ) -> str:
     """
     Utilizes BeautifulSoup to fetch and parse the content of a webpage.
 
     Args:
         url (str): The URL of the webpage.
-        timeout (Optional[float]): Timeout for the HTTP request. Defaults to TIMEOUT_DEFAULT.
+        timeout (float, Optional): Timeout for the HTTP request. Defaults to TIMEOUT_DEFAULT.
+        proxy (str, Optional): Proxy to use for the HTTP request. Defaults to None.
 
     Returns:
         str: Parsed text content of the webpage.
@@ -111,8 +134,9 @@ def _get_content_with_bs4(
         response = httpx.get(
             url,
             headers=HEADERS_DEFAULT,
-            timeout=timeout or TIMEOUT_DEFAULT,
+            timeout=timeout,
             follow_redirects=True,
+            proxy=proxy,
         )
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "html.parser")

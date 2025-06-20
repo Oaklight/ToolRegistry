@@ -1,5 +1,6 @@
 import time
 from concurrent.futures import ProcessPoolExecutor
+from functools import partial
 from time import sleep
 from typing import Dict, Generator, List, Optional, Set
 from urllib.parse import unquote  # to decode the url
@@ -99,7 +100,11 @@ class WebSearchGoogle(WebSearchGeneral):
             with ProcessPoolExecutor() as executor:
                 enriched_results = list(
                     executor.map(
-                        self._fetch_webpage_content,
+                        partial(
+                            self._fetch_webpage_content,
+                            timeout=timeout or TIMEOUT_DEFAULT,
+                            proxy=self.proxy,
+                        ),
                         filtered_results,
                     )
                 )
@@ -131,6 +136,7 @@ class WebSearchGoogle(WebSearchGeneral):
             proxy=proxy,
             headers=HEADERS_LYNX,
             timeout=timeout,
+            follow_redirects=True,
         ) as client:
             start = start_num
             while fetched_results < num_results:

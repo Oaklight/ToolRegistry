@@ -4,6 +4,7 @@ from typing import Optional
 from loguru import logger
 
 from .fetch import Fetch
+from .headers import TIMEOUT_DEFAULT
 
 _UNABLE_TO_FETCH_CONTENT = "Unable to fetch content"
 _UNABLE_TO_FETCH_TITLE = "Unable to fetch title"
@@ -39,11 +40,17 @@ class WebSearchGeneral(ABC):
         pass
 
     @staticmethod
-    def _fetch_webpage_content(entry: _WebSearchEntryGeneral) -> dict:
+    def _fetch_webpage_content(
+        entry: _WebSearchEntryGeneral,
+        timeout: Optional[float] = None,
+        proxy: Optional[str] = None,
+    ) -> dict:
         """Retrieve complete webpage content from search result entry.
 
         Args:
             entry (_WebSearchEntryGeneral): The search result entry.
+            timeout (float, optional): Request timeout in seconds. Defaults to None.
+            proxy (str, optional): Proxy to use for the request. Defaults to None.
 
         Returns:
             Dict[str, str]: A dictionary containing the title, URL, content, and excerpt of the webpage.
@@ -53,7 +60,11 @@ class WebSearchGeneral(ABC):
             raise ValueError("Result missing URL")
 
         try:
-            content = Fetch.fetch_content(url)
+            content = Fetch.fetch_content(
+                url,
+                timeout=timeout or TIMEOUT_DEFAULT,
+                proxy=proxy,
+            )
         except Exception as e:
             content = _UNABLE_TO_FETCH_CONTENT
             logger.debug(f"Error retrieving webpage content: {e}")

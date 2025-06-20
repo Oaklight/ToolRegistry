@@ -1,5 +1,6 @@
 import time
 from concurrent.futures import ProcessPoolExecutor
+from functools import partial
 from time import sleep
 from typing import Dict, Generator, List, Optional, Set
 
@@ -97,7 +98,11 @@ class WebSearchBing(WebSearchGeneral):
             with ProcessPoolExecutor() as executor:
                 enriched_results = list(
                     executor.map(
-                        self._fetch_webpage_content,
+                        partial(
+                            self._fetch_webpage_content,
+                            timeout=timeout or TIMEOUT_DEFAULT,
+                            proxy=self.proxy,
+                        ),
                         filtered_results,
                     )
                 )
@@ -128,7 +133,8 @@ class WebSearchBing(WebSearchGeneral):
         with httpx.Client(
             proxy=proxy,
             headers=HEADERS_LYNX,
-            timeout=timeout,
+            timeout=timeout or TIMEOUT_DEFAULT,
+            follow_redirects=True,
         ) as client:
             offset = start_num
             while fetched_results < num_results:
