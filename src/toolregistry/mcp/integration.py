@@ -93,9 +93,10 @@ class MCPToolWrapper(BaseToolWrapper):
             async with Client(self.transport) as client:
                 validated_params = {}
                 kwargs = self._process_args(*args, **kwargs)
-                for param_name in self.params:
-                    if param_name in kwargs:
-                        validated_params[param_name] = kwargs[param_name]
+                if self.params:
+                    for param_name in self.params:
+                        if param_name in kwargs:
+                            validated_params[param_name] = kwargs[param_name]
 
                 result = await client.call_tool_mcp(self.name, validated_params)
                 return self._post_process_result(result)
