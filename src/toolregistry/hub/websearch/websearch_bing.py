@@ -3,6 +3,8 @@ from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 from time import sleep
 from typing import Dict, Generator, List, Optional, Set
+from urllib.parse import parse_qs, unquote, urlparse
+import base64
 
 import httpx
 from bs4 import BeautifulSoup
@@ -40,6 +42,61 @@ class WebSearchBing(WebSearchGeneral):
         >>> for result in results:
         ...     print(result["title"])
     """
+
+    @staticmethod
+    def _extract_real_url(bing_url: str) -> str:
+        """Extract the real URL from Bing's redirect URL.
+
+        Args:
+            bing_url: The Bing redirect URL
+
+        Returns:
+            The actual destination URL, or the original URL if extraction fails
+        """
+        try:
+            # Parse the URL
+            parsed = urlparse(bing_url)
+
+            # Check if it's a Bing redirect URL
+            if "bing.com" not in parsed.netloc or "/ck/a" not in parsed.path:
+                return bing_url
+
+            # Extract query parameters
+            query_params = parse_qs(parsed.query)
+
+            # Look for the 'u' parameter which contains the base64 encoded URL
+            if "u" in query_params:
+                encoded_url = query_params["u"][0]
+                try:
+                    # The URL is base64 encoded with some prefix, try to decode
+                    if encoded_url.startswith("a1"):
+                        # Remove the 'a1' prefix and decode
+                        encoded_part = encoded_url[2:]
+                        # Add padding if needed for base64 decoding
+                        padding = 4 - (len(encoded_part) % 4)
+                        if padding != 4:
+                            encoded_part += "=" * padding
+                        decoded_bytes = base64.b64decode(encoded_part)
+                        decoded_url = decoded_bytes.decode("utf-8")
+                        return decoded_url
+                except Exception as e:
+                    logger.debug(f"Failed to decode base64 URL: {e}")
+                    pass
+
+            # If base64 decoding fails, try URL unquoting
+            if "u" in query_params:
+                try:
+                    return unquote(query_params["u"][0])
+                except Exception as e:
+                    logger.debug(f"Failed to unquote URL: {e}")
+                    pass
+
+            # If all else fails, return the original URL
+            return bing_url
+
+        except Exception as e:
+            logger.debug(f"Error extracting real URL from {bing_url}: {e}")
+            return bing_url
 
     def __init__(
         self,
@@ -199,7 +256,10 @@ class WebSearchBing(WebSearchGeneral):
                 continue
 
             try:
-                link = link_tag["href"]
+                raw_link = link_tag["href"]
+                # Extract the real URL from Bing's redirect URL
+                link = WebSearchBing._extract_real_url(raw_link)
+
                 if link in fetched_links:
                     continue
 
