@@ -7,7 +7,6 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Set, Type, Unio
 from pydantic import AnyUrl
 
 from .executor import Executor
-from .openapi import HttpxClientConfig
 from .tool import Tool
 from .types import (
     API_FORMATS,
@@ -17,7 +16,7 @@ from .types import (
     recover_assistant_message,
     recover_tool_message,
 )
-from .utils import normalize_tool_name
+from .utils import HttpxClientConfig, normalize_tool_name
 
 try:
     from fastmcp import FastMCP  # type: ignore
