@@ -1,13 +1,13 @@
+import base64
 import time
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 from time import sleep
 from typing import Dict, Generator, List, Optional, Set
 from urllib.parse import parse_qs, unquote, urlparse
-import base64
 
 import httpx
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 from loguru import logger
 
 from .filter import filter_search_results
@@ -239,24 +239,38 @@ class WebSearchBing(WebSearchGeneral):
                 break
 
             # Skip non-Tag elements
-            if not hasattr(result, "find"):
+            if not isinstance(result, Tag):
                 continue
 
             link_tag = result.find("a", href=True)
             # Skip non-Tag elements
-            if not link_tag or not hasattr(link_tag, "find"):
+            if not link_tag or not isinstance(link_tag, Tag):
                 continue
 
             h2_tag = result.find("h2")
-            link_tag = h2_tag.find("a") if h2_tag else None
+            if not isinstance(h2_tag, Tag):
+                continue
+
+            link_tag = h2_tag.find("a")
+            if not isinstance(link_tag, Tag):
+                continue
+
             caption = result.find("div", class_="b_caption")
-            description_tag = caption.find("p") if caption else None
+            if not isinstance(caption, Tag):
+                continue
+
+            description_tag = caption.find("p")
+            if not isinstance(description_tag, Tag):
+                continue
 
             if not (link_tag and h2_tag and description_tag):
                 continue
 
             try:
-                raw_link = link_tag["href"]
+                raw_link = link_tag.get("href")
+                if not raw_link or not isinstance(raw_link, str):
+                    continue
+
                 # Extract the real URL from Bing's redirect URL
                 link = WebSearchBing._extract_real_url(raw_link)
 
@@ -264,8 +278,8 @@ class WebSearchBing(WebSearchGeneral):
                     continue
 
                 fetched_links.add(link)
-                title = h2_tag.text if h2_tag else ""
-                description = description_tag.text if description_tag else ""
+                title = h2_tag.get_text() if h2_tag else ""
+                description = description_tag.get_text() if description_tag else ""
                 new_results += 1
 
                 yield _WebSearchEntryBing(
