@@ -1,3 +1,4 @@
+from importlib.metadata import version
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -20,6 +21,7 @@ from mcp.client.websocket import websocket_client
 from mcp.server.fastmcp import FastMCP as FastMCP1Server  # type: ignore
 from mcp.shared.memory import create_connected_server_and_client_session
 from mcp.types import InitializeResult
+from packaging import version as pkg_version
 from pydantic import AnyUrl
 
 
@@ -38,9 +40,6 @@ def infer_transport_overriden(
 
     For FastMCP > 2.3.5, falls back to the default `infer_transport` function.
     """
-    from importlib.metadata import version
-
-    from packaging import version as pkg_version
 
     # Skip override if FastMCP version > 2.3.5
     if pkg_version.parse(version("fastmcp")) > pkg_version.parse("2.3.5"):
