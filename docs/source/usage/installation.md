@@ -33,10 +33,29 @@ pip install toolregistry[mcp,openapi]
 Below is a table summarizing available extra modules:
 
 | Extra Module | Python Requirement | Example Command                     |
-|--------------|--------------------|-------------------------------------|
+| ------------ | ------------------ | ----------------------------------- |
+| hub          | Python >= 3.8      | pip install toolregistry[hub]       |
 | mcp          | Python >= 3.10     | pip install toolregistry[mcp]       |
 | openapi      | Python >= 3.8      | pip install toolregistry[openapi]   |
 | langchain    | Python >= 3.9      | pip install toolregistry[langchain] |
+
+### Hub Tools Installation
+
+**Note**: Starting 0.4.14, the hub tools have been moved to a separate package `toolregistry-hub`. You can install hub tools in two ways:
+
+1. **Standalone installation**:
+
+   ```bash
+   pip install toolregistry-hub
+   ```
+
+2. **Via extras**:
+
+   ```bash
+   pip install toolregistry[hub]
+   ```
+
+Both methods provide the same functionality. The standalone installation allows you to use hub tools independently or with other compatible libraries.
 
 ### Installation from Source
 
@@ -56,3 +75,4 @@ Clone the repository and install the package with desired extras. For instance, 
 git clone https://github.com/Oaklight/ToolRegistry.git
 cd ToolRegistry
 pip install .[mcp,openapi,langchain]
+```
