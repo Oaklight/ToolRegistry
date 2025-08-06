@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from toolregistry import ToolRegistry
-from toolregistry.hub.calculator import Calculator
+from toolregistry.hub import Calculator
 
 # Load environment variables from .env file
 load_dotenv()
