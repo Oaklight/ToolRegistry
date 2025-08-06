@@ -26,6 +26,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+hub = ["toolregistry-hub>=0.1.0"]
 mcp = ["fastmcp>=2.3.0"]
 openapi = [
     "PyYAML>=6.0.2",  # safe load both json and yaml
