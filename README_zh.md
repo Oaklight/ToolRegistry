@@ -42,11 +42,30 @@ pip install toolregistry[mcp,openapi]
 
 以下是可用额外模块的总结表：
 
-| 额外模块       | Python 要求       | 示例命令                            |
-| -------------- | ----------------- | ----------------------------------- |
-| mcp            | Python >= 3.10    | pip install toolregistry[mcp]       |
-| openapi        | Python >= 3.8     | pip install toolregistry[openapi]   |
-| langchain      | Python >= 3.9     | pip install toolregistry[langchain] |
+| 额外模块  | Python 要求    | 示例命令                            |
+| --------- | -------------- | ----------------------------------- |
+| mcp       | Python >= 3.10 | pip install toolregistry[mcp]       |
+| openapi   | Python >= 3.8  | pip install toolregistry[openapi]   |
+| langchain | Python >= 3.9  | pip install toolregistry[langchain] |
+| hub       | Python >= 3.8  | pip install toolregistry[hub]       |
+
+### Hub 工具安装
+
+**注意**：从最新版本开始，hub 工具已移至独立包 `toolregistry-hub`。您可以通过两种方式安装 hub 工具：
+
+1. **独立安装**：
+
+   ```bash
+   pip install toolregistry-hub
+   ```
+
+2. **通过额外模块**：
+
+   ```bash
+   pip install toolregistry[hub]
+   ```
+
+两种方法提供相同的功能。独立安装允许您独立使用 hub 工具或与其他兼容库一起使用。
 
 ## 示例
 
@@ -118,12 +137,12 @@ registry.register_from_mcp(transport)
 tools_json = registry.get_tools_json()
 ```
 
-## OpenAPI集成（更新至0.4.12）
+## OpenAPI 集成（更新至 0.4.12）
 
 `register_from_openapi`方法现在接受两个参数：
 
-- `client_config`：一个`toolregistry.openapi.HttpxClientConfig`对象，用于配置与API交互的HTTP客户端。可以配置请求头、认证、超时等设置，提供比以前版本更大的灵活性。
-- `openapi_spec`：以`Dict[str, Any]`形式表示的OpenAPI规范，使用`load_openapi_spec`或`load_openapi_spec_async`等函数加载。这些函数支持通过文件路径或URL获取OpenAPI规范，或者通过API的基础URL获取，并返回解析后的OpenAPI规范字典。
+- `client_config`：一个`toolregistry.openapi.HttpxClientConfig`对象，用于配置与 API 交互的 HTTP 客户端。可以配置请求头、认证、超时等设置，提供比以前版本更大的灵活性。
+- `openapi_spec`：以`Dict[str, Any]`形式表示的 OpenAPI 规范，使用`load_openapi_spec`或`load_openapi_spec_async`等函数加载。这些函数支持通过文件路径或 URL 获取 OpenAPI 规范，或者通过 API 的基础 URL 获取，并返回解析后的 OpenAPI 规范字典。
 
 示例：
 
@@ -210,8 +229,8 @@ Hub 工具将常用功能封装为类中的方法，以增强功能性和组织�
 - **FileOps**：文件操作如差异生成、补丁、验证、合并和拆分。
 - **Filesystem**：全面的文件系统操作，如目录列表、文件读写、路径规范化和查询文件属性。
 - **UnitConverter**：广泛的单位转换，如温度、长度、重量、体积等。
-- **WebSearch**：网页搜索功能，支持多种引擎，如Bing、Google和SearXNG等。
-- **Fetch**：从URL获取内容。
+- **WebSearch**：网页搜索功能，支持多种引擎，如 Bing、Google 和 SearXNG 等。
+- **Fetch**：从 URL 获取内容。
 
 注册 Hub 工具：
 
