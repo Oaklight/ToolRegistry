@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from pprint import pprint
 
-from toolregistry.hub.file_ops import FileOps
+from toolregistry.hub import FileOps
 
 
 class TestFileOps(unittest.TestCase):

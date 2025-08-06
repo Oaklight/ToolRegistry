@@ -1,5 +1,5 @@
 import unittest
-from toolregistry.hub.unit_converter import UnitConverter
+from toolregistry.hub import UnitConverter
 
 
 class TestUnitConverter(unittest.TestCase):

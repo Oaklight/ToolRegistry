@@ -25,7 +25,7 @@ Returns the extracted main content string. If fetching fails, "Unable to fetch c
 ## Example Usage
 
 ```python
-from toolregistry.hub.websearch.fetch import Fetch
+from toolregistry.hub import Fetch
 
 # Basic usage
 content = Fetch.fetch_content("https://example.com/article/123")

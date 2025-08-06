@@ -3,7 +3,7 @@ import stat
 import tempfile
 import unittest
 from pathlib import Path
-from toolregistry.hub.filesystem import FileSystem
+from toolregistry.hub import FileSystem
 import shutil
 import platform
 
