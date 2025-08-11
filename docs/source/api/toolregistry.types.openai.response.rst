@@ -1,7 +1,7 @@
-toolregistry.hub.websearch.headers module
+toolregistry.types.openai.response module
 =========================================
 
-.. automodule:: toolregistry.hub.websearch.headers
+.. automodule:: toolregistry.types.openai.response
    :members:
    :undoc-members:
    :show-inheritance:

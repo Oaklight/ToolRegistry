@@ -17,6 +17,7 @@ Subpackages
    toolregistry.mcp
    toolregistry.native
    toolregistry.openapi
+   toolregistry.types
 
 Submodules
 ----------
@@ -29,5 +30,4 @@ Submodules
    toolregistry.tool
    toolregistry.tool_registry
    toolregistry.tool_wrapper
-   toolregistry.types
    toolregistry.utils
