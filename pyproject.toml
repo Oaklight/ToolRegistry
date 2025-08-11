@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "toolregistry"
-version = "0.4.14-alpha"
+version = "0.4.14-alpha1"
 authors = [{ name = "Oaklight", email = "oaklight@gmx.com" }]
 description = "ToolRegistry: a library for easier function calling and tool use in LLMs"
 readme = "README.md"
@@ -26,13 +26,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-hub = ["toolregistry-hub>=0.1.0"]
+hub = ["toolregistry-hub>=0.4.14"] # hub module split start from 0.4.14
 mcp = ["fastmcp>=2.3.0"]
 openapi = [
     "PyYAML>=6.0.2",  # safe load both json and yaml
     "jsonref>=1.1.0", # deref $ref in openapi spec
 ]
 langchain = ["langchain-core>=0.3,<0.4", "langchain-community>=0.3,<0.4"]
+
+# dev dependencies
 dev = [
     "python-dotenv>=1.0.1",
     "openai>=1.79.0",
@@ -41,6 +43,13 @@ dev = [
     "build>=1.2.2.post1",
     "twine>=6.1.0",
     "deprecated>=1.2.18",
+]
+test = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-mock>=3.10.0",
+    "coverage>=7.0.0",
 ]
 
 [project.urls]
