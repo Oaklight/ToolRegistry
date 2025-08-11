@@ -1,7 +1,7 @@
-toolregistry.hub.file\_ops module
+toolregistry.types.gemini package
 =================================
 
-.. automodule:: toolregistry.hub.file_ops
+.. automodule:: toolregistry.types.gemini
    :members:
    :undoc-members:
    :show-inheritance:

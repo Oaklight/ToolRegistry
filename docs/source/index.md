@@ -66,6 +66,7 @@ As of version 0.4.12, the previously deprecated methods `ToolRegistry.register_s
 :hidden:
 
 usage/index
+hub/index
 examples/index
 api/index
 ```
@@ -81,6 +82,13 @@ If you use ToolRegistry in your research or project, please consider cite it as:
   year={2025},
   url={https://github.com/Oaklight/ToolRegistry},
   note={A Python library for unified tool registration, execution, and management across multiple protocols in OpenAI-compatible LLM applications}
+}
+
+@article{ding2025toolregistry,
+  title={ToolRegistry: A Protocol-Agnostic Tool Management Library for Function-Calling LLMs},
+  author={Ding, Peng},
+  journal={arXiv preprint arXiv:2507.10593},
+  year={2025}
 }
 ```
 
