@@ -10,8 +10,7 @@ from .executor import Executor
 from .tool import Tool
 from .types import (
     API_FORMATS,
-    ChatCompletionMessageToolCall,
-    ResponseFunctionToolCall,
+    AnyToolCall,
     convert_tool_calls,
     recover_assistant_message,
     recover_tool_message,
@@ -122,18 +121,13 @@ class ToolRegistry:
 
     def execute_tool_calls(
         self,
-        tool_calls: List[
-            Union[
-                ChatCompletionMessageToolCall,
-                ResponseFunctionToolCall,
-            ]
-        ],
+        tool_calls: List[AnyToolCall],
         execution_mode: Optional[Literal["process", "thread"]] = None,
     ) -> Dict[str, str]:
         """Execute tool calls with concurrency using dill for serialization.
 
         Args:
-            tool_calls: List of tool calls to be executed.
+            tool_calls: List of tool calls to be executed in any supported format.
             execution_mode: Execution mode to use; defaults to the Executor's current mode.
 
         Returns:
@@ -147,7 +141,7 @@ class ToolRegistry:
 
     def recover_tool_call_assistant_message(
         self,
-        tool_calls: List[ChatCompletionMessageToolCall],
+        tool_calls: List[AnyToolCall],
         tool_responses: Dict[str, str],
         api_format: API_FORMATS = "openai-chatcompletion",
     ) -> List[Dict[str, Any]]:
@@ -158,8 +152,9 @@ class ToolRegistry:
             - Tool execution responses
 
         Args:
-            tool_calls (List[ChatCompletionMessageToolCall]): List of tool call objects.
+            tool_calls (List[AnyToolCall]): List of tool call objects in various formats.
             tool_responses (Dict[str, str]): Dictionary of tool call IDs to results.
+            api_format (API_FORMATS): The desired API format for the output.
 
         Returns:
             List[Dict[str, Any]]: List of message dictionaries in conversation format.

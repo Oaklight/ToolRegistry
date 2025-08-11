@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, field_serializer
+from pydantic import BaseModel, ValidationError, field_serializer
 
 # =============== OpenAI ===============
 # We have ChatCompletion and Response APIs
@@ -145,20 +145,88 @@ class ToolCall(BaseModel):
 
     @classmethod
     def from_tool_call(cls, tool_call: Any) -> "ToolCall":
-        if resemble_type(tool_call, ChatCompletionMessageToolCall):
-            return cls(
-                id=tool_call.id,
-                name=tool_call.function.name,
-                arguments=tool_call.function.arguments,
+        """Convert various tool call formats to ToolCall using Pydantic validation.
+
+        This method attempts to validate the input against known tool call formats
+        using Pydantic models, making it more robust than string-based type checking.
+
+        Args:
+            tool_call: Tool call object in various formats
+
+        Returns:
+            ToolCall: Normalized tool call object
+
+        Raises:
+            TypeError: If the tool call format is not supported
+        """
+        print(f"tool_call: {tool_call}")
+        print(f"tool_call type: {type(tool_call)}")
+
+        # Try to validate as ChatCompletionMessageToolCall
+        try:
+            # Convert to dict if it's a Pydantic model or has model_dump
+            if hasattr(tool_call, "model_dump"):
+                tool_call_dict = tool_call.model_dump()
+            elif hasattr(tool_call, "dict"):
+                tool_call_dict = tool_call.dict()
+            else:
+                tool_call_dict = tool_call
+
+            validated_chat_call = ChatCompletionMessageToolCall.model_validate(
+                tool_call_dict
             )
-        elif resemble_type(tool_call, ResponseFunctionToolCall):
             return cls(
-                id=tool_call.call_id,
-                name=tool_call.name,
-                arguments=tool_call.arguments,
+                id=validated_chat_call.id,
+                name=validated_chat_call.function.name,
+                arguments=validated_chat_call.function.arguments,
             )
-        else:
-            raise TypeError("Unsupported type for conversion")
+        except (ValidationError, AttributeError, TypeError):
+            pass
+
+        # Try to validate as ResponseFunctionToolCall
+        try:
+            # Convert to dict if it's a Pydantic model or has model_dump
+            if hasattr(tool_call, "model_dump"):
+                tool_call_dict = tool_call.model_dump()
+            elif hasattr(tool_call, "dict"):
+                tool_call_dict = tool_call.dict()
+            else:
+                tool_call_dict = tool_call
+
+            validated_response_call = ResponseFunctionToolCall.model_validate(
+                tool_call_dict
+            )
+            return cls(
+                id=validated_response_call.call_id,
+                name=validated_response_call.name,
+                arguments=validated_response_call.arguments,
+            )
+        except (ValidationError, AttributeError, TypeError):
+            pass
+
+        # If neither validation worked, try direct attribute access as fallback
+        try:
+            # Check for ChatCompletion format (has function attribute)
+            if hasattr(tool_call, "function") and hasattr(tool_call, "id"):
+                return cls(
+                    id=tool_call.id,
+                    name=tool_call.function.name,
+                    arguments=tool_call.function.arguments,
+                )
+            # Check for Response format (has call_id attribute)
+            elif hasattr(tool_call, "call_id") and hasattr(tool_call, "name"):
+                return cls(
+                    id=tool_call.call_id,
+                    name=tool_call.name,
+                    arguments=tool_call.arguments,
+                )
+        except AttributeError:
+            pass
+
+        raise TypeError(
+            f"Unsupported tool call format. Expected ChatCompletionMessageToolCall "
+            f"or ResponseFunctionToolCall, got {type(tool_call)}"
+        )
 
 
 class ToolCallResult(BaseModel):
@@ -190,28 +258,19 @@ API_FORMATS = Literal[
 ]
 
 
-def resemble_type(obj: object, cls: type) -> bool:
-    """Check if the object's class matches the given class type.
-
-    Args:
-        obj (object): The object to check.
-        cls (type): The class type to compare against.
-
-    Returns:
-        bool: True if the object's class name matches the given class type name, False otherwise.
-    """
-    class_name = obj.__class__.__name__
-
-    if class_name == cls.__name__:
-        return True
-    return False
+# Type alias for any tool call format - more robust than specific types
+AnyToolCall = Union[ChatCompletionMessageToolCall, ResponseFunctionToolCall, Any]
 
 
-def convert_tool_calls(tool_calls: List[Any]) -> List[ToolCall]:
+# Note: resemble_type function has been removed as it was brittle.
+# ToolCall.from_tool_call now uses Pydantic validation for robust type checking.
+
+
+def convert_tool_calls(tool_calls: List[AnyToolCall]) -> List[ToolCall]:
     """Convert a list of tool calls into a list of ToolCall objects.
 
     Args:
-        tool_calls (List[Any]): A list of tool call objects to convert.
+        tool_calls (List[AnyToolCall]): A list of tool call objects to convert.
 
     Returns:
         List[ToolCall]: A list of converted ToolCall objects.
