@@ -2,6 +2,7 @@
 
 ```{note}
 New in version: 0.4.2
+Split from the main package in version: 0.4.14
 ```
 
 ```{important}
