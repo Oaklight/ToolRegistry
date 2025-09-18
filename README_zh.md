@@ -28,8 +28,8 @@
 - 工具执行与结果处理
 - 支持同步和异步工具
 - 支持 Python 原生函数和类方法作为工具
-- 支持多种 [MCP](https://toolregistry.readthedocs.io/mcp.html) 传输方式: STDIO, streamable http, sse, websocket, FastMCP 实例等
-- 支持 [OpenAPI](https://toolregistry.readthedocs.io/openapi.html) 工具
+- 支持多种 [MCP](https://toolregistry.readthedocs.io/en/stable/usage/integrations/mcp.html) 传输方式: STDIO, streamable http, sse, websocket, FastMCP 实例等
+- 支持 [OpenAPI]https://toolregistry.readthedocs.io/en/stable/usage/integrations/openapi.html) 工具
 
 ## 安装
 
@@ -115,7 +115,7 @@ add_result = add_func(4, 5)
 print(add_result) # 9
 ```
 
-更多使用示例，请参考 [文档 - 使用](https://toolregistry.readthedocs.io/usage.html)
+更多使用示例，请参考 [文档 - 使用](https://toolregistry.readthedocs.io/en/stable/usage/basics.html)
 
 ## MCP 集成
 

@@ -28,8 +28,8 @@ Full documentation is available at [https://toolregistry.readthedocs.io](https:/
 - Tool execution and result handling
 - Support for both synchronous and asynchronous tools
 - Support native Python functions and class methods as tools
-- Support multiple [MCP](https://toolregistry.readthedocs.io/mcp.html) transport methods: STDIO, streamable HTTP, SSE, WebSocket, FastMCP instance, etc.
-- Support [OpenAPI](https://toolregistry.readthedocs.io/openapi.html) tools
+- Support multiple [MCP](https://toolregistry.readthedocs.io/en/stable/usage/integrations/mcp.html) transport methods: STDIO, streamable HTTP, SSE, WebSocket, FastMCP instance, etc.
+- Support [OpenAPI]https://toolregistry.readthedocs.io/en/stable/usage/integrations/openapi.html) tools
 
 ## Installation
 
@@ -115,7 +115,7 @@ add_result = add_func(4, 5)
 print(add_result) # 9
 ```
 
-For more usage examples, please refer to [Documentation - Usage](https://toolregistry.readthedocs.io/usage.html)
+For more usage examples, please refer to [Documentation - Usage](https://toolregistry.readthedocs.io/en/stable/usage/basics.html)
 
 ## MCP Integration
 
