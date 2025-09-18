@@ -8,13 +8,18 @@
 
 A Python library for managing and executing tools in a structured way.
 
-## 📦 Related Package: toolregistry-hub
+## Full Documentation
 
-**Important Notice**: As of version 0.4.14, the hub tools have been spun off into a separate package [`toolregistry-hub`](https://pypi.org/project/toolregistry-hub/). This standalone package provides a comprehensive collection of ready-to-use tools for LLM function calling and can be used independently or alongside ToolRegistry.
+Full documentation is available at [https://toolregistry.readthedocs.io](https://toolregistry.readthedocs.io)
+
+## 📦 Related Package: [toolregistry-hub](https://github.com/Oaklight/toolregistry-hub/)
+
+> **Important Notice**: As of version 0.4.14, the hub tools have been spun off into a separate package [`toolregistry-hub`](https://pypi.org/project/toolregistry-hub/). This standalone package provides a collection of ready-to-use tools for LLM function calling and can be used independently or alongside ToolRegistry. This spinoff enables separate development, distribution, and versioning of the hub tools, making it easier to maintain and update them without affecting the core ToolRegistry functionality.
 
 - **Standalone Package**: [`pip install toolregistry-hub`](https://pypi.org/project/toolregistry-hub/)
 - **With ToolRegistry**: `pip install toolregistry[hub]`
-- **Repository**: [toolregistry-hub on PyPI](https://pypi.org/project/toolregistry-hub/)
+- **PyPI**: [toolregistry-hub on PyPI](https://pypi.org/project/toolregistry-hub/)
+- **GitHub**: [toolregistry-hub on GitHub](https://github.com/Oaklight/toolregistry-hub/)
 
 ## Features
 
@@ -25,10 +30,6 @@ A Python library for managing and executing tools in a structured way.
 - Support native Python functions and class methods as tools
 - Support multiple [MCP](https://toolregistry.readthedocs.io/mcp.html) transport methods: STDIO, streamable HTTP, SSE, WebSocket, FastMCP instance, etc.
 - Support [OpenAPI](https://toolregistry.readthedocs.io/openapi.html) tools
-
-## Full Documentation
-
-Full documentation is available at [https://toolregistry.readthedocs.io](https://toolregistry.readthedocs.io)
 
 ## Installation
 
