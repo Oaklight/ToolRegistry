@@ -23,12 +23,12 @@ A Python library for managing and executing tools in a structured way.
 - Tool execution and result handling
 - Support for both synchronous and asynchronous tools
 - Support native Python functions and class methods as tools
-- Support multiple [MCP](https://toolregistry.lab.oaklight.cn/mcp.html) transport methods: STDIO, streamable HTTP, SSE, WebSocket, FastMCP instance, etc.
-- Support [OpenAPI](https://toolregistry.lab.oaklight.cn/openapi.html) tools
+- Support multiple [MCP](https://toolregistry.readthedocs.io/mcp.html) transport methods: STDIO, streamable HTTP, SSE, WebSocket, FastMCP instance, etc.
+- Support [OpenAPI](https://toolregistry.readthedocs.io/openapi.html) tools
 
 ## Full Documentation
 
-Full documentation is available at [https://toolregistry.lab.oaklight.cn](https://toolregistry.lab.oaklight.cn)
+Full documentation is available at [https://toolregistry.readthedocs.io](https://toolregistry.readthedocs.io)
 
 ## Installation
 
@@ -114,7 +114,7 @@ add_result = add_func(4, 5)
 print(add_result) # 9
 ```
 
-For more usage examples, please refer to [Documentation - Usage](https://toolregistry.lab.oaklight.cn/usage.html)
+For more usage examples, please refer to [Documentation - Usage](https://toolregistry.readthedocs.io/usage.html)
 
 ## MCP Integration
 

@@ -53,7 +53,7 @@ test = [
 ]
 
 [project.urls]
-Documentation = "https://toolregistry.lab.oaklight.cn"
+Documentation = "https://toolregistry.readthedocs.io"
 Repository = "https://github.com/Oaklight/ToolRegistry"
 Issues = "https://github.com/Oaklight/ToolRegistry/issues"
 

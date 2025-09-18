@@ -28,7 +28,7 @@
 
 ## 完整文档
 
-完整文档可访问 [https://toolregistry.lab.oaklight.cn](https://toolregistry.lab.oaklight.cn)
+完整文档可访问 [https://toolregistry.readthedocs.io](https://toolregistry.readthedocs.io)
 
 ## 安装
 
