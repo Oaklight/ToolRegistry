@@ -1,8 +1,20 @@
 # ToolRegistry
 
+[![PyPI version](https://badge.fury.io/py/toolregistry.svg)](https://badge.fury.io/py/toolregistry)
+[![GitHub version](https://badge.fury.io/gh/oaklight%2Ftoolregistry.svg)](https://badge.fury.io/gh/oaklight%2Ftoolregistry)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 [English Version](README_en.md) | [中文版](README_zh.md)
 
 一个用于以结构化方式管理和执行工具的 Python 库。
+
+## 📦 相关包：toolregistry-hub
+
+**重要通知**：从版本 0.4.14 开始，hub 工具已分离为独立包 [`toolregistry-hub`](https://pypi.org/project/toolregistry-hub/)。这个独立包提供了全面的即用型工具集合，专为 LLM 函数调用设计，可以独立使用或与 ToolRegistry 一起使用。
+
+- **独立包**：[`pip install toolregistry-hub`](https://pypi.org/project/toolregistry-hub/)
+- **与 ToolRegistry 一起**：`pip install toolregistry[hub]`
+- **仓库**：[toolregistry-hub on PyPI](https://pypi.org/project/toolregistry-hub/)
 
 ## 特性
 
@@ -11,16 +23,12 @@
 - 工具执行与结果处理
 - 支持同步和异步工具
 - 支持 Python 原生函数和类方法作为工具
-- 支持多种 [MCP](https://toolregistry.lab.oaklight.cn/mcp.html) 传输方式: STDIO, streamable http, sse, websocket, FastMCP 实例等
-- 支持 [OpenAPI](https://toolregistry.lab.oaklight.cn/openapi.html) 工具
+- 支持多种 [MCP](https://toolregistry.readthedocs.io/mcp.html) 传输方式: STDIO, streamable http, sse, websocket, FastMCP 实例等
+- 支持 [OpenAPI](https://toolregistry.readthedocs.io/openapi.html) 工具
 
 ## 完整文档
 
 完整文档可访问 [https://toolregistry.lab.oaklight.cn](https://toolregistry.lab.oaklight.cn)
-
-## API 弃用（自 0.4.12 起）
-
-从版本 0.4.12 开始，之前已被弃用的方法 `ToolRegistry.register_static_tools`、`ToolRegistry.register_mcp_tools` 和 `ToolRegistry.register_openapi_tools` 已被**移除**。用户必须更新其实现，改为使用新方法：`ToolRegistry.register_from_class`、`ToolRegistry.register_from_mcp` 和 `ToolRegistry.register_from_openapi`。请确保您的代码库与此更新兼容，以确保功能不受影响。
 
 ## 安装
 
@@ -106,7 +114,7 @@ add_result = add_func(4, 5)
 print(add_result) # 9
 ```
 
-更多使用示例，请参考 [文档 - 使用](https://toolregistry.lab.oaklight.cn/usage.html)
+更多使用示例，请参考 [文档 - 使用](https://toolregistry.readthedocs.io/usage.html)
 
 ## MCP 集成
 
@@ -137,7 +145,7 @@ registry.register_from_mcp(transport)
 tools_json = registry.get_tools_json()
 ```
 
-## OpenAPI 集成（更新至 0.4.12）
+## OpenAPI 集成
 
 `register_from_openapi`方法现在接受两个参数：
 
@@ -226,8 +234,10 @@ Hub 工具将常用功能封装为类中的方法，以增强功能性和组织�
 可用的 Hub 工具示例包括：
 
 - **Calculator**：基本算术、科学运算、统计函数、金融计算等。
+- **DateTime**：全面的日期时间工具，支持时区功能，包括当前时间获取和时区转换。
 - **FileOps**：文件操作如差异生成、补丁、验证、合并和拆分。
 - **Filesystem**：全面的文件系统操作，如目录列表、文件读写、路径规范化和查询文件属性。
+- **ThinkTool**：简单的推理和头脑风暴工具，用于结构化思维过程。
 - **UnitConverter**：广泛的单位转换，如温度、长度、重量、体积等。
 - **WebSearch**：网页搜索功能，支持多种引擎，如 Bing、Google 和 SearXNG 等。
 - **Fetch**：从 URL 获取内容。

@@ -1,8 +1,20 @@
 # ToolRegistry
 
+[![PyPI version](https://badge.fury.io/py/toolregistry.svg)](https://badge.fury.io/py/toolregistry)
+[![GitHub version](https://badge.fury.io/gh/oaklight%2Ftoolregistry.svg)](https://badge.fury.io/gh/oaklight%2Ftoolregistry)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 [English Version](README_en.md) | [中文版](README_zh.md)
 
 A Python library for managing and executing tools in a structured way.
+
+## 📦 Related Package: toolregistry-hub
+
+**Important Notice**: As of version 0.4.14, the hub tools have been spun off into a separate package [`toolregistry-hub`](https://pypi.org/project/toolregistry-hub/). This standalone package provides a comprehensive collection of ready-to-use tools for LLM function calling and can be used independently or alongside ToolRegistry.
+
+- **Standalone Package**: [`pip install toolregistry-hub`](https://pypi.org/project/toolregistry-hub/)
+- **With ToolRegistry**: `pip install toolregistry[hub]`
+- **Repository**: [toolregistry-hub on PyPI](https://pypi.org/project/toolregistry-hub/)
 
 ## Features
 
@@ -17,10 +29,6 @@ A Python library for managing and executing tools in a structured way.
 ## Full Documentation
 
 Full documentation is available at [https://toolregistry.lab.oaklight.cn](https://toolregistry.lab.oaklight.cn)
-
-## API Deprecation (starting 0.4.12)
-
-As of version 0.4.12, the previously deprecated methods `ToolRegistry.register_static_tools`, `ToolRegistry.register_mcp_tools`, and `ToolRegistry.register_openapi_tools` have been **REMOVED**. Users must update their implementations to use the new methods: `ToolRegistry.register_from_class`, `ToolRegistry.register_from_mcp`, and `ToolRegistry.register_from_openapi`. Please ensure your codebase is compatible with this update for uninterrupted functionality.
 
 ## Installation
 
@@ -137,7 +145,7 @@ registry.register_from_mcp(transport)
 tools_json = registry.get_tools_json()
 ```
 
-## OpenAPI Integration (updated as of 0.4.12)
+## OpenAPI Integration
 
 The `register_from_openapi` method now accepts two parameters:
 
@@ -224,8 +232,10 @@ print(registry["instance_example.greet"]("Alice"))  # Hello, Alice! I'm Bob.
 Hub tools encapsulate commonly used functionalities as methods in classes. Examples of available hub tools include:
 
 - **Calculator**: Basic arithmetic, scientific operations, statistical functions, financial calculations, and more.
+- **DateTime**: Comprehensive datetime utilities with timezone support, including current time retrieval and timezone conversions.
 - **FileOps**: File manipulation like diff generation, patching, verification, merging, and splitting.
 - **Filesystem**: Comprehensive file system operations such as directory listing, file read/write, path normalization, and querying file attributes.
+- **ThinkTool**: Simple reasoning and brainstorming utility for structured thought processes.
 - **UnitConverter**: Extensive unit conversions such as temperature, length, weight, volume, etc.
 - **WebSearch**: Web search functionality supporting multiple engines like Bing, Google and SearXNG, etc.
 - **Fetch**: Fetching content from URL.
