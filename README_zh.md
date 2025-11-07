@@ -273,6 +273,13 @@ print(registry.get_available_tools())
   url={https://github.com/Oaklight/ToolRegistry},
   note={A Python library for unified tool registration, execution, and management across multiple protocols in OpenAI-compatible LLM applications}
 }
+
+@article{ding2025toolregistry,
+  title={ToolRegistry: A Protocol-Agnostic Tool Management Library for Function-Calling LLMs},
+  author={Ding, Peng},
+  journal={arXiv preprint arXiv:2507.10593},
+  year={2025}
+}
 ```
 
 ## 许可证
