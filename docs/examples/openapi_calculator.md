@@ -109,16 +109,13 @@ python openapi_calculator.py
 
 ## Step 2: Register and Use the OpenAPI Tool
 
-```{note}
-### Updated Registration Method (As of 0.4.12)
-
-Previously, `register_from_openapi` requires `spec_url` and optional `base_url`. It was designed to be simple. Yet in practice, we found the need for customization in HTTP requests, for example many OpenAPI services requires authentication headers or custom timeouts. Thus we made the following changes:
-
-The `register_from_openapi` method new requires two parameters:
-
-- `client_config`: Configures the HTTP client (headers, auth, timeout, etc.) using a `toolregistry.openapi.HttpxClientConfig` object, allowing greater flexibility.
-- `openapi_spec`: The OpenAPI specification loaded as `Dict[str, Any]` using functions like `load_openapi_spec` or `load_openapi_spec_async` from a file path or URL to the service or specification.
-```
+!!! note "API changes"
+    Previously, `register_from_openapi` requires `spec_url` and optional `base_url`. It was designed to be simple. Yet in practice, we found the need for customization in HTTP requests, for example many OpenAPI services requires authentication headers or custom timeouts. Thus we made the following changes:
+  
+    The `register_from_openapi` method new requires two parameters:
+  
+    - `client_config`: Configures the HTTP client (headers, auth, timeout, etc.) using a `toolregistry.openapi.HttpxClientConfig` object, allowing greater flexibility.
+    - `openapi_spec`: The OpenAPI specification loaded as `Dict[str, Any]` using functions like `load_openapi_spec` or `load_openapi_spec_async` from a file path or URL to the service or specification.
 
 We implement using both Cicada `MultiModalModel` and OpenAI client to showcase different ways to integrate with the tool registry.
 
@@ -181,7 +178,7 @@ with open(input_file) as f:
     input_content = f.read()
 
 instruction = f"""
-I have a few test results from multiple runs. Please use the available tools to compute the averages of the metrics for each category. 
+I have a few test results from multiple runs. Please use the available tools to compute the averages of the metrics for each category.
 The input is as {input_content}
 """
 
@@ -260,7 +257,7 @@ messages = [
     {
         "role": "user",
         "content": inspect.cleandoc(f"""
-    I have a few test results from multiple runs. Please use the available tools to compute the averages of the metrics for each category. 
+    I have a few test results from multiple runs. Please use the available tools to compute the averages of the metrics for each category.
     The input is as {input_content}"""),
     }
 ]

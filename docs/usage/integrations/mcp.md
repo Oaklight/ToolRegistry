@@ -1,8 +1,7 @@
 # MCP Tool Usage Guide
 
-```{note}
-New in version: 0.3.0
-```
+???+ note "Changelog"
+    New in version: 0.3.0
 
 ## Introduction
 
@@ -26,11 +25,10 @@ The MCP integration supports flexible transport options:
   
 Supported inputs include URLs (`http://`, `https://`, `ws://`), script paths, client transport instances, or FastMCP objects. We will demonstrate in [registration example](#registration-synchronous) below.
 
-```{note}
-Starting with [`MCP 2025-03-26`](https://modelcontextprotocol.io/specification/2025-03-26/changelog) and [`fastmcp 2.3.0`](https://gofastmcp.com/clients/transports#streamable-http), `http+sse` transport has been replaced by `streamable http`. Since **`toolregistry 0.4.7`**, this transport is supported with fallback for legacy `http+sse`. 
+!!! note "MCP Transport Update"
+    Starting with [`MCP 2025-03-26`](https://modelcontextprotocol.io/specification/2025-03-26/changelog) and [`fastmcp 2.3.0`](https://gofastmcp.com/clients/transports#streamable-http), `http+sse` transport has been replaced by `streamable http`. Since **`toolregistry 0.4.7`**, this transport is supported with fallback for legacy `http+sse`.
 
-It's recommended to update your MCP servers to use `streamable http` for optimal performance, as future versions may phase out `http+sse`.
-```
+    It's recommended to update your MCP servers to use `streamable http` for optimal performance, as future versions may phase out `http+sse`.
 
 ## Usage
 
@@ -70,13 +68,11 @@ registry.register_from_mcp(transport)
 print(registry)  # Outputs registered tools
 ```
 
-```{tip}
-`ToolRegistry.register_from_mcp` supports URLs or paths, which are sufficient for most scenarios. For advanced needs, like custom headers, use a transport instance (e.g., `StreamableHttpTransport`) with specific configurations.
-```
+!!! tip
+    `ToolRegistry.register_from_mcp` supports URLs or paths, which are sufficient for most scenarios. For advanced needs, like custom headers, use a transport instance (e.g., `StreamableHttpTransport`) with specific configurations.
 
-```{tip}
-Emerging MCP hub services, commercial or self-hosted, simplify discovering and centralizing MCP servers. They’re ideal for avoiding stdio servers, reducing environment clutter, or enabling MCP host sharing.
-```
+!!! tip
+    Emerging MCP hub services, commercial or self-hosted, simplify discovering and centralizing MCP servers. They’re ideal for avoiding stdio servers, reducing environment clutter, or enabling MCP host sharing.
 
 ### Calling MCP Tools (synchronous)
 

@@ -1,8 +1,7 @@
 # LangChain Tool Usage Guide
 
-```{note}
-New in version: 0.4.9
-```
+???+ note "Changelog"
+    New in version: 0.4.9
 
 LangChain provides various pre-built tool wrappers, but these tools are tightly coupled with its framework. This makes them inconvenient for users who prefer to use the OpenAI client or other frameworks that natively support function calling. To address this, we provide an integration module for LangChain tools.
 

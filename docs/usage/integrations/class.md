@@ -2,7 +2,8 @@
 
 Hub tools are registered to ToolRegistry using the `register_from_class` method. This allows developers to extend the functionality of ToolRegistry by creating custom tool classes with reusable methods.
 
-> **Note:** Previously, the method `register_static_tools` and the concept of `StaticMethodIntegration` were used for registering static methods from classes. These have now been replaced by `register_from_class`. Similarly, `register_static_tools_async` has also been replaced. Both old methods are planned to be deprecated soon, so please migrate to the new interfaces as soon as possible. For backward compatibility, `register_static_tools` remains as an alias to `register_from_class`.
+???+ note "API changes"
+    Previously (before 0.4.12), the method `register_static_tools` and the concept of `StaticMethodIntegration` were used for registering static methods from classes. These have now been replaced by `register_from_class`. Similarly, `register_static_tools_async` has also been replaced. Both old methods are planned to be deprecated soon, so please migrate to the new interfaces as soon as possible. For backward compatibility, `register_static_tools` remains as an alias to `register_from_class`.
 
 ## Registering Custom Class Methods
 

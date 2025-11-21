@@ -57,8 +57,12 @@ Here are brief introductions and links to each section:
 - [**API References**](api/index.md)
   Comprehensive API documentation for all classes and methods in ToolRegistry.
 
-!!! note
-    As of version 0.4.12, the previously deprecated methods `ToolRegistry.register_static_tools`, `ToolRegistry.register_mcp_tools`, and `ToolRegistry.register_openapi_tools` have been **REMOVED**. Users must update their implementations to use the new methods: `ToolRegistry.register_from_class`, `ToolRegistry.register_from_mcp`, and `ToolRegistry.register_from_openapi`. Please ensure your codebase is compatible with this update for uninterrupted functionality.
+???+ note "API changes"
+    Since version 0.4.12, the previously deprecated methods `ToolRegistry.register_static_tools`, `ToolRegistry.register_mcp_tools`, and `ToolRegistry.register_openapi_tools` have been **REMOVED**.
+
+    Users must update their implementations to use the new methods: `ToolRegistry.register_from_class`, `ToolRegistry.register_from_mcp`, and `ToolRegistry.register_from_openapi`.
+    
+    Please ensure your codebase is compatible with this update for uninterrupted functionality.
 
 ## Citation
 

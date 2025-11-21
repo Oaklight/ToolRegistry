@@ -1,8 +1,7 @@
 # Namespace and ToolRegistry Manipulation
 
-```{note}
-New in version: 0.4.1
-```
+???+ note "Changelog"
+    New in version: 0.4.1
 
 ## Namespaces in Tool Registries
 
@@ -17,7 +16,9 @@ Starting from GPT-4.1 release (April 14, 2025 release), OpenAI requires function
 ### Key Features
 
 - **Standardization**: Tool names are normalized using the `normalize_tool_name` function, converting them to snake_case and removing special characters, repeating strings and whitespace.
-- **Merge Behavior**: By default, the original registry name is prefixed to all tools during merging. When `force_namespace` is enabled, it forces all namespaces to be replaced with the initiating registry's name. Note: Even if only one namespace exists, it will still be retained.
+- **Merge Behavior**: By default, the original registry name is prefixed to all tools during merging. When `force_namespace` is enabled, it forces all namespaces to be replaced with the initiating registry's name.
+!!! note
+    Even if only one namespace exists, it will still be retained.
 - **Spinoff Behavior**: Tools with specific prefixes can be extracted into new registries. By default, the prefix is removed from the extracted tools unless `retain_namespace` is set to `True`. The `reduce_namespace` method is used to remove prefixes when applicable.
 
 ### Normalization Example

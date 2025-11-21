@@ -1,19 +1,16 @@
 # Hub Tools Usage Guide
 
-```{note}
-New in version: 0.4.2
-Split from the main package in version: 0.4.14
-```
+???+ note "Changelog"
+    New in version: 0.4.2
 
-```{important}
-**Hub Tools Package Update**: starting 0.4.14, hub tools have been moved to a separate package `toolregistry-hub`. You can install it via:
+!!! note "Standalone Package"
+    **Hub Tools Package Update**: starting 0.4.14, hub tools have been moved to a separate package `toolregistry-hub`. You can install it via:
 
-- `pip install toolregistry-hub` (standalone installation)
-- `pip install toolregistry[hub]` (as an extra dependency)
+    - `pip install toolregistry-hub` (standalone installation)
+    - `pip install toolregistry[hub]` (as an extra dependency)
 
-Both methods provide the same functionality. The standalone installation allows you to use hub tools independently or with other compatible libraries.
-```
-
+    Both methods provide the same functionality. The standalone installation allows you to use hub tools independently or with other compatible libraries.
+    
 ## Introduction
 
 Hub encapsulates commonly used tools as methods of a class, including both static methods and instance methods, serving as ready-to-use tool groups. This design offers several advantages:

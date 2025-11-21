@@ -1,9 +1,8 @@
 # OpenAPI Tool Usage Guide
 
-```{note}
-API updates in version: 0.4.12
-New in version: 0.4.0
-```
+???+ note "Changelog"
+    - API updates in version: 0.4.12
+    - New in version: 0.4.0
 
 ## Introduction
 

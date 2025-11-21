@@ -1,8 +1,7 @@
 # Concurrency Modes: Thread Mode and Process Mode
 
-```{note}
-New in version: 0.4.5
-```
+???+ note "Changelog"
+    New in version: 0.4.5
 
 ## Overview
 
