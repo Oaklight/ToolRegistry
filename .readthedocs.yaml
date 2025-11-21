@@ -18,9 +18,3 @@ mkdocs:
 python:
   install:
     - requirements: requirements.txt
-    - method: pip
-      path: toolregistry
-      extra_requirements:
-        - mcp
-        - openapi
-        - langchain
