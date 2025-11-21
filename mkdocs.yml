@@ -1,0 +1,115 @@
+site_name: ToolRegistry
+site_description: 面向 OpenAI 兼容 LLM 应用的协议无关工具管理库
+site_author: Peng Ding
+site_url: https://toolregistry.readthedocs.io/zh/
+
+repo_name: Oaklight/ToolRegistry
+repo_url: https://github.com/Oaklight/ToolRegistry
+edit_uri: edit/master/docs/
+
+theme:
+  name: material
+  language: zh
+  palette:
+    - scheme: default
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: 切换到深色模式
+    - scheme: slate
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: 切换到浅色模式
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.action.edit
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            show_root_toc_entry: false
+            merge_init_into_class: true
+            separate_signature: true
+            show_signature_annotations: true
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+nav:
+  - 首页: index.md
+  - 使用指南:
+      - 安装: usage/installation.md
+      - 基础用法: usage/basics.md
+      - 函数调用: usage/function_calling.md
+      - 并发模式: usage/concurrency_modes.md
+      - 最佳实践: usage/best_practices.md
+      - 命名空间: usage/namespace.md
+      - 集成:
+          - 基于类的工具: usage/integrations/class.md
+          - Hub 工具: usage/integrations/hub.md
+          - MCP 工具: usage/integrations/mcp.md
+          - OpenAPI 工具: usage/integrations/openapi.md
+          - LangChain 工具: usage/integrations/langchain.md
+      - 提供者:
+          - OpenAI Chat: usage/providers/openai_chat.md
+          - OpenAI Response: usage/providers/openai_response.md
+  - Hub 工具: https://toolregistry-hub.readthedocs.io/
+  - 示例:
+      - 概览: examples/index.md
+      - 连续工具调用: examples/consecutive_tool_calls.md
+      - Hub 计算器: examples/hub_calculator.md
+      - Hub 文件编辑: examples/hub_file_edit.md
+      - Hub 网络搜索: examples/hub_websearch.md
+      - LangChain ArXiv: examples/langchain_arxiv.md
+      - MCP 计算器: examples/mcp_calculator.md
+      - MCP 多样化传输: examples/mcp_diverse_transport.md
+      - OpenAPI 计算器: examples/openapi_calculator.md
+  - API 参考:
+      - 概览: api/index.md
+      - 核心类:
+          - 概览: api/core.md
+          - ToolRegistry: api/core/toolregistry.md
+          - Tool: api/core/tool.md
+          - Executor: api/core/executor.md
+      - 集成:
+          - 概览: api/integrations.md
+          - OpenAPI: api/integrations/openapi.md
+          - MCP: api/integrations/mcp.md
+          - LangChain: api/integrations/langchain.md
+          - Native: api/integrations/native.md
+      - 工具包装器:
+          - 概览: api/wrappers.md
+          - BaseToolWrapper: api/wrappers/basetoolwrapper.md
+          - MCP ToolWrapper: api/wrappers/mcp.md
+          - OpenAPI ToolWrapper: api/wrappers/openapi.md
+          - LangChain ToolWrapper: api/wrappers/langchain.md
+      - 辅助类: api/helpers.md
+      - 类型: api/types.md
