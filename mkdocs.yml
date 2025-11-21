@@ -112,6 +112,3 @@ nav:
           - LangChain ToolWrapper: api/wrappers/langchain.md
       - Helper Classes: api/helpers.md
       - Types: api/types.md
-
-watch:
-  - src/toolregistry
