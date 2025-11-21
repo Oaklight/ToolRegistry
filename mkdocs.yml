@@ -1,0 +1,117 @@
+site_name: ToolRegistry
+site_description: A Protocol-Agnostic Tool Management Library for OpenAI-Compatible LLM Applications
+site_author: Peng Ding
+site_url: https://toolregistry.readthedocs.io/
+
+repo_name: Oaklight/ToolRegistry
+repo_url: https://github.com/Oaklight/ToolRegistry
+edit_uri: edit/master/docs/
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.action.edit
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            show_root_toc_entry: false
+            merge_init_into_class: true
+            separate_signature: true
+            show_signature_annotations: true
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Usage:
+      - Installation: usage/installation.md
+      - Basic Usage: usage/basics.md
+      - Function Calling: usage/function_calling.md
+      - Concurrency Modes: usage/concurrency_modes.md
+      - Best Practices: usage/best_practices.md
+      - Namespace: usage/namespace.md
+      - Integrations:
+          - Class-based Tools: usage/integrations/class.md
+          - Hub Tools: usage/integrations/hub.md
+          - MCP Tools: usage/integrations/mcp.md
+          - OpenAPI Tools: usage/integrations/openapi.md
+          - LangChain Tools: usage/integrations/langchain.md
+      - Providers:
+          - OpenAI Chat: usage/providers/openai_chat.md
+          - OpenAI Response: usage/providers/openai_response.md
+  - Hub Tools: https://toolregistry-hub.readthedocs.io/
+  - Examples:
+      - Overview: examples/index.md
+      - Consecutive Tool Calls: examples/consecutive_tool_calls.md
+      - Hub Calculator: examples/hub_calculator.md
+      - Hub File Edit: examples/hub_file_edit.md
+      - Hub Web Search: examples/hub_websearch.md
+      - LangChain ArXiv: examples/langchain_arxiv.md
+      - MCP Calculator: examples/mcp_calculator.md
+      - MCP Diverse Transport: examples/mcp_diverse_transport.md
+      - OpenAPI Calculator: examples/openapi_calculator.md
+  - API Reference:
+      - Overview: api/index.md
+      - Core Classes:
+          - Overview: api/core.md
+          - ToolRegistry: api/core/toolregistry.md
+          - Tool: api/core/tool.md
+          - Executor: api/core/executor.md
+      - Integrations:
+          - Overview: api/integrations.md
+          - OpenAPI: api/integrations/openapi.md
+          - MCP: api/integrations/mcp.md
+          - LangChain: api/integrations/langchain.md
+          - Native: api/integrations/native.md
+      - Tool Wrappers:
+          - Overview: api/wrappers.md
+          - BaseToolWrapper: api/wrappers/basetoolwrapper.md
+          - MCP ToolWrapper: api/wrappers/mcp.md
+          - OpenAPI ToolWrapper: api/wrappers/openapi.md
+          - LangChain ToolWrapper: api/wrappers/langchain.md
+      - Helper Classes: api/helpers.md
+      - Types: api/types.md
+
+watch:
+  - src/toolregistry
