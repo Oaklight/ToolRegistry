@@ -10,6 +10,7 @@ from loguru import logger
 from .tool import Tool
 from .types import ToolCall
 
+
 def make_sync_wrapper(async_func):
     def wrapper(*args, **kwargs):
         try:
@@ -19,6 +20,7 @@ def make_sync_wrapper(async_func):
             return asyncio.run(async_func(*args, **kwargs))
 
     return wrapper
+
 
 class Executor:
     """Handles execution of tool calls using thread/process pools."""
