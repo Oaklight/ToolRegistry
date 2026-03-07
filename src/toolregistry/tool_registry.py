@@ -580,7 +580,7 @@ class ToolRegistry:
         self,
         cls: Union[Type, object],
         with_namespace: Union[bool, str] = False,
-        traverse_mro: bool = False,
+        traverse_mro: bool = True,
     ):
         """Register all static methods from a class or instance as tools.
 
@@ -592,10 +592,11 @@ class ToolRegistry:
                 - If a string is provided, it is used as the namespace.
                 Defaults to False.
             traverse_mro (bool): Whether to traverse the MRO (Method Resolution
-                Order) to include inherited methods. When False (default), only
-                methods defined directly on the class are registered. When True,
+                Order) to include inherited methods. When True (default),
                 methods from parent classes are also included (excluding
-                ``object``), with subclass methods taking priority.
+                ``object``), with subclass methods taking priority over parent
+                class methods. When False, only methods defined directly on the
+                class are registered.
 
         Example:
             >>> from toolregistry.hub import Calculator
@@ -615,7 +616,7 @@ class ToolRegistry:
         self,
         cls: Union[Type, object],
         with_namespace: Union[bool, str] = False,
-        traverse_mro: bool = False,
+        traverse_mro: bool = True,
     ):
         """Async implementation to register all static methods from a class or instance as tools.
 
@@ -627,10 +628,11 @@ class ToolRegistry:
                 - If a string is provided, it is used as the namespace.
                 Defaults to False.
             traverse_mro (bool): Whether to traverse the MRO (Method Resolution
-                Order) to include inherited methods. When False (default), only
-                methods defined directly on the class are registered. When True,
+                Order) to include inherited methods. When True (default),
                 methods from parent classes are also included (excluding
-                ``object``), with subclass methods taking priority.
+                ``object``), with subclass methods taking priority over parent
+                class methods. When False, only methods defined directly on the
+                class are registered.
 
         Example:
             >>> from toolregistry.hub import Calculator

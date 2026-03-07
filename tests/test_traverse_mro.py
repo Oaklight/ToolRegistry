@@ -86,15 +86,62 @@ class OverrideInstance(BaseInstance):
 
 
 # ===========================================================================
-# 1. Default behavior (traverse_mro=False) – static methods
+# 1. Default behavior (traverse_mro=True) – static methods
 # ===========================================================================
 
 
 class TestStaticMethodsDefaultBehavior:
+    """Verify that traverse_mro=True (default) includes inherited static methods."""
+
+    def test_child_registers_inherited_methods_by_default(self):
+        """ChildTools should register child_method, base_method, and shared_method by default."""
+        registry = ToolRegistry(name="test")
+        registry.register_from_class(ChildTools)
+        tools = registry.list_tools()
+        assert "child_method" in tools
+        assert "base_method" in tools
+        assert "shared_method" in tools
+
+    def test_base_registers_own_methods(self):
+        """BaseTools should register base_method and shared_method."""
+        registry = ToolRegistry(name="test")
+        registry.register_from_class(BaseTools)
+        tools = registry.list_tools()
+        assert "base_method" in tools
+        assert "shared_method" in tools
+
+    def test_override_registers_inherited_and_own_methods_by_default(self):
+        """OverrideTools should register shared_method, override_only, and base_method by default."""
+        registry = ToolRegistry(name="test")
+        registry.register_from_class(OverrideTools)
+        tools = registry.list_tools()
+        assert "shared_method" in tools
+        assert "override_only" in tools
+        assert "base_method" in tools
+
+    def test_default_parameter_is_true(self):
+        """Calling without traverse_mro should behave the same as traverse_mro=True."""
+        registry_default = ToolRegistry(name="test1")
+        registry_default.register_from_class(ChildTools)
+
+        registry_explicit = ToolRegistry(name="test2")
+        registry_explicit.register_from_class(ChildTools, traverse_mro=True)
+
+        assert sorted(registry_default.list_tools()) == sorted(
+            registry_explicit.list_tools()
+        )
+
+
+# ===========================================================================
+# 1b. Explicit traverse_mro=False – static methods
+# ===========================================================================
+
+
+class TestStaticMethodsExplicitNoMRO:
     """Verify that traverse_mro=False only registers directly defined static methods."""
 
     def test_child_only_registers_own_methods(self):
-        """ChildTools should only register child_method, not base_method or shared_method."""
+        """ChildTools with traverse_mro=False should only register child_method."""
         registry = ToolRegistry(name="test")
         registry.register_from_class(ChildTools, traverse_mro=False)
         tools = registry.list_tools()
@@ -103,7 +150,7 @@ class TestStaticMethodsDefaultBehavior:
         assert "shared_method" not in tools
 
     def test_base_registers_own_methods(self):
-        """BaseTools should register base_method and shared_method."""
+        """BaseTools with traverse_mro=False should register base_method and shared_method."""
         registry = ToolRegistry(name="test")
         registry.register_from_class(BaseTools, traverse_mro=False)
         tools = registry.list_tools()
@@ -111,20 +158,12 @@ class TestStaticMethodsDefaultBehavior:
         assert "shared_method" in tools
 
     def test_override_registers_own_methods(self):
-        """OverrideTools should register shared_method and override_only, not base_method."""
+        """OverrideTools with traverse_mro=False should register shared_method and override_only, not base_method."""
         registry = ToolRegistry(name="test")
         registry.register_from_class(OverrideTools, traverse_mro=False)
         tools = registry.list_tools()
         assert "shared_method" in tools
         assert "override_only" in tools
-        assert "base_method" not in tools
-
-    def test_default_parameter_is_false(self):
-        """Calling without traverse_mro should behave the same as traverse_mro=False."""
-        registry = ToolRegistry(name="test")
-        registry.register_from_class(ChildTools)
-        tools = registry.list_tools()
-        assert "child_method" in tools
         assert "base_method" not in tools
 
 
