@@ -13,6 +13,32 @@
 
 **此更改在版本 0.4.5 中实施。** 遇到问题的用户应尽快升级。虽然破折号是默认的，但点仍然可用作需要与其他提供者兼容的高级用户的可选分隔符。
 
+### 工具级命名空间字段
+
+每个 `Tool` 实例通过两个字段携带结构化的命名空间信息：
+
+- **`namespace`**：存储原始命名空间字符串（规范化后）。用于确定分组归属，无需解析 `name` 字段。
+- **`method_name`**：存储命名空间前缀添加之前的原始方法/函数名称。保留此字段以便在不产生歧义的情况下恢复基础名称。
+
+**`qualified_name`** 属性返回完全限定的工具名称：如果同时设置了 `namespace` 和 `method_name`，则返回 `{namespace}-{method_name}`；否则回退到 `name` 字段。
+
+```python
+from toolregistry import ToolRegistry
+
+registry = ToolRegistry()
+
+def multiply(a: float, b: float) -> float:
+    """Multiply two numbers."""
+    return a * b
+
+registry.register(multiply, namespace="math_ops")
+tool = registry["math_ops-multiply"]
+
+print(tool.namespace)       # 'math_ops'
+print(tool.method_name)     # 'multiply'
+print(tool.qualified_name)  # 'math_ops-multiply'
+```
+
 ### 关键特性
 
 - **标准化**：工具名称使用 `normalize_tool_name` 函数进行规范化，将它们转换为 snake_case 并删除特殊字符、重复字符串和空白。

@@ -31,6 +31,7 @@ The Native integration enables direct registration of Python class methods as to
 - **Automatic Method Discovery**: Scans classes for public callable methods
 - **Smart Instantiation**: Handles both static and instance method registration
 - **Namespace Support**: Automatic namespace generation from class names
+- **MRO Traversal**: Optional `traverse_mro` parameter to include inherited methods from parent classes via Method Resolution Order traversal. When `False` (default), only methods defined directly on the class are registered. When `True`, methods inherited from all parent classes (excluding `object`) are also included.
 - **Error Handling**: Clear error messages for problematic class structures
 - **Async Support**: Full compatibility with async/await patterns
 - **Reflection-Based**: Uses Python's introspection capabilities for method discovery
@@ -74,6 +75,25 @@ class MixedClass:
 ```
 
 Automatically detected and handled appropriately.
+
+#### Inherited Method Registration
+
+When `traverse_mro=True` is passed to `ClassToolIntegration`, methods inherited from parent classes are also registered:
+
+```python
+class BaseTools:
+    @staticmethod
+    def base_method(x: int) -> int:
+        return x * 2
+
+class DerivedTools(BaseTools):
+    @staticmethod
+    def derived_method(x: int) -> int:
+        return x * 3
+
+# With traverse_mro=True, both base_method and derived_method are registered
+# With traverse_mro=False (default), only derived_method is registered
+```
 
 ## API Reference
 

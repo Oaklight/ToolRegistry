@@ -30,7 +30,7 @@ The ToolRegistry follows a registry pattern with the following key responsibilit
 ### Registration Methods
 
 - **Native Registration**: `register()` for direct function/instance registration
-- **Class Integration**: `register_from_class()` for Python class method registration
+- **Class Integration**: `register_from_class()` for Python class method registration. Supports `traverse_mro` parameter to include inherited methods from parent classes via MRO (Method Resolution Order) traversal.
 - **OpenAPI Integration**: Integration with OpenAPI specifications
 - **MCP Integration**: Support for Model Context Protocol servers
 - **LangChain Integration**: Compatibility with LangChain tools
@@ -86,6 +86,35 @@ class Calculator:
 
 # Register all methods from the class
 registry.register_from_class(Calculator)
+```
+
+### Class Integration with MRO Traversal
+
+```python
+from toolregistry import ToolRegistry
+
+class BaseCalculator:
+    @staticmethod
+    def add(a: int, b: int) -> int:
+        return a + b
+
+class AdvancedCalculator(BaseCalculator):
+    @staticmethod
+    def multiply(a: int, b: int) -> int:
+        return a * b
+
+registry = ToolRegistry()
+
+# Without traverse_mro: only methods defined directly on AdvancedCalculator
+registry.register_from_class(AdvancedCalculator)
+print(registry.get_available_tools())
+# Output: ['advanced_calculator-multiply']
+
+# With traverse_mro: includes inherited methods from BaseCalculator
+registry2 = ToolRegistry()
+registry2.register_from_class(AdvancedCalculator, traverse_mro=True)
+print(registry2.get_available_tools())
+# Output: ['advanced_calculator-add', 'advanced_calculator-multiply']
 ```
 
 ### Namespace Organization
