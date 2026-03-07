@@ -6,33 +6,30 @@ MCP protocol supports a variety of transports for communication. Below are examp
 from pathlib import Path
 from pprint import pprint
 
-from fastmcp import FastMCP
-from fastmcp.client.transports import StreamableHttpTransport
-
-from toolregistry.tool_registry import ToolRegistry
+from toolregistry import ToolRegistry
 
 registry = ToolRegistry()
 
-transport = "https://mcphub.example.com/mcp"  # mcp streamable http
-transport = "http://localhost:8000/sse/test_group"  # mcp http+sse
-transport = (
-    "examples/mcp_related/mcp_servers/math_server.py"  # Path to mcp server script
-)
+# Streamable HTTP transport
+transport = "https://mcphub.example.com/mcp"
+
+# SSE transport (legacy, path ends with /sse)
+transport = "http://localhost:8000/sse/test_group"
+
+# WebSocket transport
+transport = "ws://localhost:8000/mcp"
+
+# Stdio transport via script path
+transport = "examples/mcp_related/mcp_servers/math_server.py"
+
+# Stdio transport via dict config
 transport = {
-    "mcpServers": {
-        "make_mcp": {
-            "command": f"{Path.home()}/mambaforge/envs/toolregistry_dev/bin/python",
-            "args": [
-                f"{Path.home()}/projects/toolregistry/examples/mcp_related/mcp_servers/math_server.py"
-            ],
-            "env": {},
-        }
-    }
-}  # Example mcp configuration dict
-transport = FastMCP(name="MyFastMCP")  # naive FastMCP instance
-transport = StreamableHttpTransport(
-    url="https://mcphub.example.com/mcp", headers={"Authorization": "Bearer token"}
-)  # Transport instance, useful if you have custom headers
+    "command": "python",
+    "args": [
+        "examples/mcp_related/mcp_servers/math_server.py"
+    ],
+    "env": {},
+}
 
 registry.register_from_mcp(transport)
 print("Registered Tools:")

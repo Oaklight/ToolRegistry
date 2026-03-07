@@ -44,11 +44,10 @@ The MCP integration enables seamless communication with Model Context Protocol s
 
 The integration supports multiple transport mechanisms:
 
-- HTTP/HTTPS endpoints
+- HTTP/HTTPS endpoints (streamable HTTP, SSE)
 - WebSocket connections
 - Local file paths (Python scripts, JavaScript files)
-- Existing ClientTransport instances
-- FastMCP server instances
+- Dict-based stdio configurations
 
 ## API Reference
 

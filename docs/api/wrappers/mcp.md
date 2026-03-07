@@ -11,7 +11,7 @@ Wrapper class providing both async and sync versions of MCP (Model Context Proto
 - **MCP Protocol Integration**: Full support for Model Context Protocol specification
 - **Multi-Transport Support**: Handles different transport types (HTTP, WebSocket, file-based)
 - **Content Type Handling**: Support for text, image, and embedded resource content
-- **Transport Abstraction**: Transparent management of ClientTransport instances
+- **Transport Abstraction**: Transparent management of MCP transport connections
 - **Error Resilience**: Comprehensive error handling with detailed logging
 - **Async/Sync Compatibility**: Both asynchronous and synchronous execution modes
 
@@ -21,7 +21,7 @@ The MCPToolWrapper extends `BaseToolWrapper` with MCP-specific functionality:
 
 ### Core Components
 
-1. **Transport Management**: Handles ClientTransport lifecycle and communication
+1. **Transport Management**: Handles MCP transport lifecycle and communication
 2. **Content Processing**: Processes various MCP content types (text, image, embedded)
 3. **Protocol Handling**: Manages MCP tool discovery and execution
 4. **Error Handling**: Preserves MCP errors with enhanced context
@@ -56,15 +56,11 @@ merge_init_into_class: true
 ### Basic MCP Tool Wrapper
 
 ```python
-from fastmcp.client import ClientTransport
 from toolregistry.mcp.integration import MCPToolWrapper
-
-# Create MCP transport
-transport = ClientTransport("ws://localhost:8000")
 
 # Create wrapper for specific MCP tool
 wrapper = MCPToolWrapper(
-    transport=transport,
+    transport="ws://localhost:8000",
     name="mcp_calculator",
     params=["a", "b", "operation"]
 )
@@ -154,14 +150,12 @@ await mcp_integration.register_mcp_tools_async("ws://localhost:8000")
 ### Transport Configuration
 
 ```python
-from fastmcp.client import ClientTransport
+from toolregistry.mcp.integration import MCPToolWrapper
 
-# Different transport types
-ws_transport = ClientTransport("ws://localhost:8000")
-http_transport = ClientTransport("http://localhost:8000")
-file_transport = ClientTransport("./mcp_server.py")
-
-wrapper = MCPToolWrapper(file_transport, "local_tool", params=["input"])
+# Different transport types (pass URL strings or file paths directly)
+wrapper_ws = MCPToolWrapper("ws://localhost:8000", "remote_tool", params=["input"])
+wrapper_http = MCPToolWrapper("http://localhost:8000/mcp", "remote_tool", params=["input"])
+wrapper_file = MCPToolWrapper("./mcp_server.py", "local_tool", params=["input"])
 ```
 
 ## Error Handling
@@ -180,8 +174,8 @@ All errors are logged with full stack traces for debugging while preserving the 
 Supports multiple MCP transport mechanisms:
 
 - **WebSocket**: Real-time bidirectional communication
-- **HTTP**: REST-based communication
-- **File-based**: Local script execution
-- **Custom**: User-defined transport implementations
+- **HTTP**: Streamable HTTP and SSE-based communication
+- **File-based**: Local script execution (`.py`, `.js`)
+- **Dict config**: Stdio-based transport via command configuration
 
 This makes MCPToolWrapper a robust adapter for integrating MCP servers into the ToolRegistry ecosystem.

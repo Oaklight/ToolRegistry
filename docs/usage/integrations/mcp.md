@@ -17,16 +17,17 @@ The MCP integration supports flexible transport options:
   - `WebSocket` (e.g., `ws://localhost:8000/mcp`)
 - **Stdio Transport**:
   - Script file paths (e.g., `.py`, `.js`)
-  - Config-based setup
-- **FastMCP Transport**:
-  - Pythonic instances of
-    - FastMCP 2.x servers
-    - FastMCP 1.x servers from the `mcp.server.fastmcp` package
-  
-Supported inputs include URLs (`http://`, `https://`, `ws://`), script paths, client transport instances, or FastMCP objects. We will demonstrate in [registration example](#registration-synchronous) below.
+  - Config-based setup (dict with `command`, `args`, `env`)
+
+Supported inputs include URL strings (`http://`, `https://`, `ws://`, `wss://`), script paths (`.py`, `.js`), or dict configurations. We will demonstrate in [registration example](#registration-synchronous) below.
+
+!!! note "MCP Client Decoupling"
+    Since **`toolregistry 0.5.0`**, the MCP integration uses the official [`mcp`](https://pypi.org/project/mcp/) SDK (`mcp>=1.0.0,<2.0.0`) instead of `fastmcp`. This results in a lighter dependency footprint. The `transport` parameter now accepts `Union[str, Dict[str, Any], Path]` — `ClientTransport` and `FastMCP` instances are no longer accepted.
+
+    The public API (`register_from_mcp` / `register_from_mcp_async`) remains unchanged.
 
 !!! note "MCP Transport Update"
-    Starting with [`MCP 2025-03-26`](https://modelcontextprotocol.io/specification/2025-03-26/changelog) and [`fastmcp 2.3.0`](https://gofastmcp.com/clients/transports#streamable-http), `http+sse` transport has been replaced by `streamable http`. Since **`toolregistry 0.4.7`**, this transport is supported with fallback for legacy `http+sse`.
+    Starting with [`MCP 2025-03-26`](https://modelcontextprotocol.io/specification/2025-03-26/changelog), `http+sse` transport has been replaced by `streamable http`. Since **`toolregistry 0.4.7`**, this transport is supported with fallback for legacy `http+sse`.
 
     It's recommended to update your MCP servers to use `streamable http` for optimal performance, as future versions may phase out `http+sse`.
 
@@ -37,9 +38,7 @@ Supported inputs include URLs (`http://`, `https://`, `ws://`), script paths, cl
 To register MCP tools synchronously, use the `register_from_mcp` method with various transport options:
 
 ```python
-
 from pathlib import Path
-from fastmcp.client.transports import FastMCP, StreamableHttpTransport
 from toolregistry import ToolRegistry
 
 registry = ToolRegistry()
@@ -47,20 +46,13 @@ registry = ToolRegistry()
 # Example transports for registration:
 transport = "https://mcphub.url/mcp"  # mcp streamable http
 transport = "http://localhost:8000/sse/test_group"  # mcp http+sse
+transport = "ws://localhost:8000/mcp"  # websocket
 transport = "examples/mcp_related/mcp_servers/math_server.py"  # Path to mcp server script
 transport = {
-    "mcpServers": {
-        "make_mcp": {
-            "command": f"{Path.home()}/mambaforge/envs/toolregistry_dev/bin/python",
-            "args": [
-                f"{Path.home()}/projects/toolregistry/examples/mcp_related/mcp_servers/math_server.py"
-            ],
-            "env": {},
-        }
-    }
-} # Example mcp configuration dict
-transport = FastMCP(name="MyFastMCP")  # naive FastMCP instance
-transport = StreamableHttpTransport(url="https://mcphub.example.com/mcp", headers={"Authorization": "Bearer token"})  # Transport instance, useful if you have custom headers
+    "command": "python",
+    "args": ["examples/mcp_related/mcp_servers/math_server.py"],
+    "env": {},
+}  # Stdio config dict
 
 # Register tools synchronously
 registry.register_from_mcp(transport)
@@ -69,7 +61,7 @@ print(registry)  # Outputs registered tools
 ```
 
 !!! tip
-    `ToolRegistry.register_from_mcp` supports URLs or paths, which are sufficient for most scenarios. For advanced needs, like custom headers, use a transport instance (e.g., `StreamableHttpTransport`) with specific configurations.
+    `ToolRegistry.register_from_mcp` supports URL strings, script paths, and dict configurations, which are sufficient for most scenarios.
 
 !!! tip
     Emerging MCP hub services, commercial or self-hosted, simplify discovering and centralizing MCP servers. They’re ideal for avoiding stdio servers, reducing environment clutter, or enabling MCP host sharing.
@@ -109,11 +101,9 @@ For asynchronous environments, use the `register_from_mcp_async` method:
 ```python
 import asyncio
 from toolregistry import ToolRegistry
-from fastmcp.client.transports import FastMCP
 
 registry = ToolRegistry()
 transport = "http://localhost:8000/mcp"  # Example transport URL
-fastmcp_server = FastMCP(name="MyFastMCP")  # FastMCP instance
 
 async def async_register():
     await registry.register_from_mcp_async(transport)
