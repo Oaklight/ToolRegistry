@@ -77,7 +77,7 @@ These examples highlight how to manage varying needs for class-based registratio
 
 ### Registering Inherited Methods with `traverse_mro`
 
-By default, `register_from_class()` only registers methods defined directly on the given class. If you want to also include methods inherited from parent classes, use the `traverse_mro=True` parameter:
+By default, `register_from_class()` traverses the MRO (Method Resolution Order) and registers both directly defined and inherited methods. This means inherited public methods from parent classes are automatically included.
 
 ```python
 from toolregistry import ToolRegistry
@@ -101,19 +101,19 @@ class ScientificCalculator(BaseCalculator):
 
 registry = ToolRegistry()
 
-# Without traverse_mro (default): only 'power' is registered
+# Default behavior (traverse_mro=True): inherited methods are included
 registry.register_from_class(ScientificCalculator, with_namespace=True)
 print(registry.get_available_tools())
-# Output: ['scientific_calculator-power']
-
-# With traverse_mro=True: inherited methods 'add' and 'subtract' are also registered
-registry2 = ToolRegistry()
-registry2.register_from_class(ScientificCalculator, with_namespace=True, traverse_mro=True)
-print(registry2.get_available_tools())
 # Output: ['scientific_calculator-add', 'scientific_calculator-subtract', 'scientific_calculator-power']
+
+# With traverse_mro=False: only methods defined directly on the class are registered
+registry2 = ToolRegistry()
+registry2.register_from_class(ScientificCalculator, with_namespace=True, traverse_mro=False)
+print(registry2.get_available_tools())
+# Output: ['scientific_calculator-power']
 ```
 
-This is useful when you have a class hierarchy and want to expose all available methods (including inherited ones) as tools.
+If you want to restrict registration to only methods defined directly on the class (excluding inherited ones), explicitly pass `traverse_mro=False`.
 
 ## `with_namespace` Option
 
@@ -149,3 +149,4 @@ registry.register_from_class(FileOps)
 # Get available tools list
 print(registry.get_available_tools())
 # Output: ['calculator-list_allowed_fns', 'calculator-help', 'calculator-evaluate', 'read_file', 'write_file', ...]
+```

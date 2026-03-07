@@ -31,7 +31,7 @@ The Native integration enables direct registration of Python class methods as to
 - **Automatic Method Discovery**: Scans classes for public callable methods
 - **Smart Instantiation**: Handles both static and instance method registration
 - **Namespace Support**: Automatic namespace generation from class names
-- **MRO Traversal**: Optional `traverse_mro` parameter to include inherited methods from parent classes via Method Resolution Order traversal. When `False` (default), only methods defined directly on the class are registered. When `True`, methods inherited from all parent classes (excluding `object`) are also included.
+- **MRO Traversal**: The `traverse_mro` parameter controls whether inherited methods from parent classes are included via Method Resolution Order traversal. When `True` (default), methods inherited from all parent classes (excluding `object`) are also included, with subclass methods taking priority. When `False`, only methods defined directly on the class are registered.
 - **Error Handling**: Clear error messages for problematic class structures
 - **Async Support**: Full compatibility with async/await patterns
 - **Reflection-Based**: Uses Python's introspection capabilities for method discovery
@@ -78,7 +78,7 @@ Automatically detected and handled appropriately.
 
 #### Inherited Method Registration
 
-When `traverse_mro=True` is passed to `ClassToolIntegration`, methods inherited from parent classes are also registered:
+By default (`traverse_mro=True`), methods inherited from parent classes are also registered:
 
 ```python
 class BaseTools:
@@ -91,8 +91,8 @@ class DerivedTools(BaseTools):
     def derived_method(x: int) -> int:
         return x * 3
 
-# With traverse_mro=True, both base_method and derived_method are registered
-# With traverse_mro=False (default), only derived_method is registered
+# Default behavior (traverse_mro=True): both base_method and derived_method are registered
+# With traverse_mro=False: only derived_method is registered
 ```
 
 ## API Reference
