@@ -101,6 +101,7 @@ nav:
       - MCP 计算器: examples/mcp_calculator.md
       - MCP 多样化传输: examples/mcp_diverse_transport.md
       - OpenAPI 计算器: examples/openapi_calculator.md
+  - 更新日志: changelog.md
   - API 参考:
       - 概览: api/index.md
       - 核心类:
