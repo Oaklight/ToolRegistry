@@ -63,6 +63,44 @@ class Tool(BaseModel):
     parameter validation.
     """
 
+    namespace: Optional[str] = Field(
+        default=None, description="Namespace the tool belongs to"
+    )
+    """The namespace this tool belongs to.
+
+    Used to group tools logically and avoid name collisions.
+    When set, the tool's ``name`` is typically prefixed as
+    ``{namespace}-{method_name}``.  This field stores the
+    *original* namespace string (after normalization) so that
+    downstream code can reliably determine group membership
+    without parsing the ``name`` field.
+    """
+
+    method_name: Optional[str] = Field(
+        default=None, description="Original method name of the tool"
+    )
+    """The original method/function name before namespace prefixing.
+
+    Preserved so that the base name can be recovered without
+    ambiguity even when the ``name`` field contains a namespace
+    prefix joined by ``-`` (which ``normalize_tool_name`` would
+    otherwise convert to ``_``).
+    """
+
+    @property
+    def qualified_name(self) -> str:
+        """Return the fully-qualified tool name.
+
+        If a ``namespace`` is set, returns ``{namespace}-{method_name}``.
+        Otherwise falls back to the ``name`` field.
+
+        Returns:
+            str: The qualified name of the tool.
+        """
+        if self.namespace and self.method_name:
+            return f"{self.namespace}-{self.method_name}"
+        return self.name
+
     @classmethod
     def from_function(
         cls,
@@ -70,6 +108,7 @@ class Tool(BaseModel):
         name: Optional[str] = None,
         description: Optional[str] = None,
         namespace: Optional[str] = None,
+        method_name: Optional[str] = None,
     ) -> "Tool":
         """Factory method to create Tool from callable.
 
@@ -82,6 +121,8 @@ class Tool(BaseModel):
             func (Callable[..., Any]): Function to convert to tool.
             name (Optional[str]): Override tool name (defaults to function name).
             description (Optional[str]): Override description (defaults to docstring).
+            namespace (Optional[str]): Namespace the tool belongs to.
+            method_name (Optional[str]): Original method name of the tool.
 
         Returns:
             Tool: Configured Tool instance.
@@ -95,6 +136,10 @@ class Tool(BaseModel):
             raise ValueError("You must provide a name for lambda functions")
 
         func_name = normalize_tool_name(func_name)
+
+        # Determine the method_name: use provided value, or fall back to
+        # the normalized function name (before namespace prefixing).
+        resolved_method_name = method_name or func_name
 
         func_doc = description or func.__doc__ or ""
         is_async = inspect.iscoroutinefunction(func)
@@ -114,6 +159,7 @@ class Tool(BaseModel):
             callable=func,
             is_async=is_async,
             parameters_model=parameters_model if parameters_model is not None else None,
+            method_name=resolved_method_name,
         )
 
         if namespace:
@@ -265,6 +311,18 @@ class Tool(BaseModel):
             return
 
         namespace = normalize_tool_name(namespace)
+
+        # Ensure method_name is populated before updating the name.
+        # If method_name was never set, derive it from the current name
+        # (stripping any existing namespace prefix).
+        if not self.method_name:
+            if sep in self.name:
+                self.method_name = self.name.split(sep, 1)[1]
+            else:
+                self.method_name = self.name
+
+        self.namespace = namespace
+
         if sep in self.name:
             if force:
                 # Replace existing namespace with the new one if force is True
