@@ -4,8 +4,6 @@ import string
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Literal, Optional, Set, Type, Union
 
-from pydantic import AnyUrl
-
 from .executor import Executor
 from .tool import Tool
 from .types import (
@@ -16,13 +14,6 @@ from .types import (
     recover_tool_message,
 )
 from .utils import HttpxClientConfig, normalize_tool_name
-
-try:
-    from fastmcp import FastMCP  # type: ignore
-    from fastmcp.client.transports import ClientTransport  # type: ignore
-    from mcp.server.fastmcp import FastMCP as FastMCP1Server  # type: ignore
-except ImportError:
-    pass
 
 try:
     from langchain_core.tools import BaseTool as LCBaseTool  # type: ignore
@@ -452,15 +443,7 @@ class ToolRegistry:
 
     def register_from_mcp(
         self,
-        transport: Union[
-            "ClientTransport",
-            "FastMCP",
-            "FastMCP1Server",
-            AnyUrl,
-            Path,
-            Dict[str, Any],
-            str,
-        ],
+        transport: Union[str, Dict[str, Any], Path],
         with_namespace: Union[bool, str] = False,
     ):
         """Register all tools from an MCP server (synchronous entry point).
@@ -468,17 +451,17 @@ class ToolRegistry:
         Requires the [mcp] extra to be installed.
 
         Args:
-            transport (ClientTransport | FastMCP | FastMCP1Server | AnyUrl | Path | Dict[str, Any] | str): Can be:
+            transport (Union[str, Dict[str, Any], Path]): Can be:
                 - URL string (http(s)://, ws(s)://)
                 - Path to script file (.py, .js)
-                - Existing ClientTransport instance
-                - FastMCP instance
+                - Dict with "command", "args", "env" keys for stdio transport
+            with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
+                - If `False`, no namespace is used.
+                - If `True`, the namespace is derived from the server info name.
+                - If a string is provided, it is used as the namespace.
+                Defaults to False.
 
         Examples:
-            >>> # In-memory server
-            >>> server = FastMCP(name="TestServer")
-            >>> registry.register_from_mcp(server)
-
             >>> # SSE server URL
             >>> registry.register_from_mcp("http://localhost:8000/sse")
 
@@ -487,11 +470,6 @@ class ToolRegistry:
 
             >>> # Path to Python server script
             >>> registry.register_from_mcp("my_mcp_server.py")
-            with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
-                - If `False`, no namespace is used.
-                - If `True`, the namespace is derived from the OpenAPI info.title.
-                - If a string is provided, it is used as the namespace.
-                Defaults to False.
 
         Raises:
             ImportError: If [mcp] extra is not installed
@@ -502,15 +480,7 @@ class ToolRegistry:
 
     async def register_from_mcp_async(
         self,
-        transport: Union[
-            "ClientTransport",
-            "FastMCP",
-            "FastMCP1Server",
-            AnyUrl,
-            Path,
-            Dict[str, Any],
-            str,
-        ],
+        transport: Union[str, Dict[str, Any], Path],
         with_namespace: Union[bool, str] = False,
     ):
         """Async implementation to register all tools from an MCP server.
@@ -518,17 +488,17 @@ class ToolRegistry:
         Requires the [mcp] extra to be installed.
 
         Args:
-            transport (ClientTransport | FastMCP | FastMCP1Server | AnyUrl | Path | Dict[str, Any] | str): Can be:
+            transport (Union[str, Dict[str, Any], Path]): Can be:
                 - URL string (http(s)://, ws(s)://)
                 - Path to script file (.py, .js)
-                - Existing ClientTransport instance
-                - FastMCP instance
+                - Dict with "command", "args", "env" keys for stdio transport
+            with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
+                - If `False`, no namespace is used.
+                - If `True`, the namespace is derived from the server info name.
+                - If a string is provided, it is used as the namespace.
+                Defaults to False.
 
         Examples:
-            >>> # In-memory server
-            >>> server = FastMCP(name="TestServer")
-            >>> await registry.register_from_mcp_async(server)
-
             >>> # SSE server URL
             >>> await registry.register_from_mcp_async("http://localhost:8000/sse")
 
@@ -537,12 +507,6 @@ class ToolRegistry:
 
             >>> # Path to Python server script
             >>> await registry.register_from_mcp_async("my_mcp_server.py")
-
-            with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
-                - If `False`, no namespace is used.
-                - If `True`, the namespace is derived from the OpenAPI info.title.
-                - If a string is provided, it is used as the namespace.
-                Defaults to False.
 
         Raises:
             ImportError: If [mcp] extra is not installed

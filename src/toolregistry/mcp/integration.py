@@ -2,48 +2,43 @@ import asyncio
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from fastmcp.client import Client, ClientTransport  # type: ignore
-from fastmcp.server import FastMCP as FastMCPServer  # type: ignore
 from loguru import logger
-from mcp.server.fastmcp import FastMCP as FastMCP1Server  # type: ignore
 from mcp.types import (
     BlobResourceContents,
     EmbeddedResource,
     ImageContent,
     Implementation,
-    InitializeResult,
     TextContent,
     TextResourceContents,
 )
 from mcp.types import Tool as ToolSpec
-from pydantic import AnyUrl
 
 from ..tool import Tool
 from ..tool_registry import ToolRegistry
 from ..tool_wrapper import BaseToolWrapper
 from ..utils import normalize_tool_name
-from .utils import get_initialize_result, infer_transport_overriden
+from .client import MCPClient
 
 
 class MCPToolWrapper(BaseToolWrapper):
     """Wrapper class providing both async and sync versions of MCP tool calls.
 
     Attributes:
-        transport (ClientTransport): fastmcp.client.ClientTransport instance for communication.
+        transport (Union[str, dict, Path]): MCP server source for communication.
         name (str): Name of the tool/operation.
         params (Optional[List[str]]): List of parameter names.
     """
 
     def __init__(
         self,
-        transport: ClientTransport,
+        transport: Union[str, dict, Path],
         name: str,
         params: Optional[List[str]],
     ) -> None:
         """Initialize MCP tool wrapper.
 
         Args:
-            transport (ClientTransport): fastmcp.client.ClientTransport instance for communication.
+            transport (Union[str, dict, Path]): MCP server source for communication.
             name (str): Name of the tool/operation.
             params (Optional[List[str]]): List of parameter names.
         """
@@ -90,7 +85,7 @@ class MCPToolWrapper(BaseToolWrapper):
             if not self.transport or not self.name:
                 raise ValueError("Client and name must be set before calling")
 
-            async with Client(self.transport) as client:
+            async with MCPClient(self.transport) as client:
                 validated_params = {}
                 kwargs = self._process_args(*args, **kwargs)
                 if self.params:
@@ -98,10 +93,10 @@ class MCPToolWrapper(BaseToolWrapper):
                         if param_name in kwargs:
                             validated_params[param_name] = kwargs[param_name]
 
-                result = await client.call_tool_mcp(self.name, validated_params)
+                result = await client.call_tool(self.name, validated_params)
                 return self._post_process_result(result)
 
-        except Exception as e:
+        except Exception:
             # record full exception stack
             import traceback
 
@@ -125,7 +120,10 @@ class MCPToolWrapper(BaseToolWrapper):
         if isinstance(result, list):
             contents = result
         else:
-            if result.isError or not result.content:
+            is_error = getattr(result, "is_error", None) or getattr(
+                result, "isError", False
+            )
+            if is_error or not result.content:
                 return result
             contents = result.content
 
@@ -184,14 +182,14 @@ class MCPTool(Tool):
     def from_tool_json(
         cls,
         tool_spec: ToolSpec,
-        transport: ClientTransport,
+        transport: Union[str, dict, Path],
         namespace: Optional[str] = None,
     ) -> "MCPTool":
         """Create an MCPTool instance from a JSON representation.
 
         Args:
             tool_spec (ToolSpec): The JSON representation of the tool.
-            transport (ClientTransport): fastmcp.client.ClientTransport instance for communication.
+            transport (Union[str, dict, Path]): MCP server source for communication.
             namespace (Optional[str]): An optional namespace to prefix the tool name.
                 If provided, the tool name will be formatted as "{namespace}.{name}".
 
@@ -200,7 +198,9 @@ class MCPTool(Tool):
         """
         name = tool_spec.name
         description = tool_spec.description or ""
-        input_schema = tool_spec.inputSchema
+        input_schema = getattr(tool_spec, "input_schema", None) or getattr(
+            tool_spec, "inputSchema", {}
+        )
 
         wrapper = MCPToolWrapper(
             transport=transport,
@@ -236,48 +236,27 @@ class MCPIntegration:
 
     async def register_mcp_tools_async(
         self,
-        transport: ClientTransport
-        | FastMCPServer
-        | FastMCP1Server
-        | AnyUrl
-        | Path
-        | dict[str, Any]
-        | str,
+        transport: Union[str, Dict[str, Any], Path],
         with_namespace: Union[bool, str] = False,
     ) -> None:
         """Async implementation to register all tools from an MCP server.
 
         Args:
-            transport (ClientTransport | FastMCPServer | FastMCP1Server | AnyUrl | Path | dict[str, Any] | str): Can be:
+            transport (Union[str, Dict[str, Any], Path]): Can be:
                 - URL string (http(s)://, ws(s)://)
                 - Path to script file (.py, .js)
-                - Existing ClientTransport instance
-                - FastMCPServer | FastMCP1Server instance
+                - Dict with "command", "args", "env" keys for stdio transport
             with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
                 - If `False`, no namespace is used.
-                - If `True`, the namespace is derived from the OpenAPI info.title.
+                - If `True`, the namespace is derived from the server info name.
                 - If a string is provided, it is used as the namespace.
                 Defaults to False.
 
         Raises:
             RuntimeError: If connection to server fails.
         """
-        transport = (
-            transport
-            if isinstance(transport, ClientTransport)
-            else infer_transport_overriden(transport)
-        )
-
-        async with Client(transport) as client:
-            init_result: InitializeResult
-            if hasattr(client, "initialize_result"):  # since fastmcp 2.3.5
-                init_result = client.initialize_result
-            else:
-                init_result = await get_initialize_result(transport)
-
-            server_info: Optional[Implementation] = getattr(
-                init_result, "serverInfo", None
-            )
+        async with MCPClient(transport) as client:
+            server_info: Optional[Implementation] = client.server_info
 
             if isinstance(with_namespace, str):
                 namespace = with_namespace
@@ -288,7 +267,6 @@ class MCPIntegration:
 
             # Get available tools from server
             tools_response: List[ToolSpec] = await client.list_tools()
-            # print(f"Found {len(tools_response)} tools on server")
 
             # Register each tool with a wrapper function
             for tool_spec in tools_response:
@@ -300,30 +278,22 @@ class MCPIntegration:
 
                 # Register the tool wrapper function
                 self.registry.register(mcp_sse_tool, namespace=namespace)
-                # print(f"Registered tool: {tool.name}")
 
     def register_mcp_tools(
         self,
-        transport: ClientTransport
-        | FastMCPServer
-        | FastMCP1Server
-        | AnyUrl
-        | Path
-        | dict[str, Any]
-        | str,
+        transport: Union[str, Dict[str, Any], Path],
         with_namespace: Union[bool, str] = False,
     ) -> None:
         """Register all tools from an MCP server (synchronous entry point).
 
         Args:
-            transport (ClientTransport | FastMCPServer | FastMCP1Server | AnyUrl | Path | dict[str, Any] | str):
+            transport (Union[str, Dict[str, Any], Path]): Can be:
                 - URL string (http(s)://, ws(s)://)
                 - Path to script file (.py, .js)
-                - Existing ClientTransport instance
-                - FastMCP instance
+                - Dict with "command", "args", "env" keys for stdio transport
             with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
                 - If `False`, no namespace is used.
-                - If `True`, the namespace is derived from the OpenAPI info.title.
+                - If `True`, the namespace is derived from the server info name.
                 - If a string is provided, it is used as the namespace.
                 Defaults to False.
         """
