@@ -176,8 +176,9 @@ class ToolRegistry:
         """
         Update the internal set of sub-registries based on the registered tools.
 
-        This method identifies sub-registry prefixes by examining tool names
-        and updates the private `_sub_registries` set accordingly.
+        This method identifies sub-registry prefixes by examining the ``namespace``
+        field of each tool first.  If a tool does not have a ``namespace`` set, it
+        falls back to parsing the tool name for a dot-separated prefix.
 
         Side Effects:
             Modifies the `_sub_registries` attribute with the latest prefixes.
@@ -185,11 +186,13 @@ class ToolRegistry:
         Returns:
             None
         """
-        self._sub_registries = {
-            tool_name.split(".", 1)[0]
-            for tool_name in self._tools.keys()
-            if "." in tool_name
-        }
+        prefixes: Set[str] = set()
+        for tool in self._tools.values():
+            if tool.namespace:
+                prefixes.add(tool.namespace)
+            elif "." in tool.name:
+                prefixes.add(tool.name.split(".", 1)[0])
+        self._sub_registries = prefixes
 
     def _prefix_tools_namespace(self, force: bool = False) -> None:
         """Add the registry name as a prefix to the names of tools in the registry.
@@ -345,6 +348,7 @@ class ToolRegistry:
         description: Optional[str] = None,
         name: Optional[str] = None,
         namespace: Optional[str] = None,
+        method_name: Optional[str] = None,
     ):
         """Register a tool, either as a function, Tool instance, or static method.
 
@@ -353,6 +357,7 @@ class ToolRegistry:
             description (Optional[str]): Description for function tools. If not provided, the function's docstring will be used.
             name (Optional[str]): Custom name for the tool. If not provided, defaults to function name for functions or tool.name for Tool instances.
             namespace (Optional[str]): Namespace for the tool. For static methods, defaults to class name if not provided.
+            method_name (Optional[str]): Original method name of the tool.
         """
         if namespace:
             self._sub_registries.add(normalize_tool_name(namespace))
@@ -362,7 +367,11 @@ class ToolRegistry:
             self._tools[tool_or_func.name] = tool_or_func
         else:
             tool = Tool.from_function(
-                tool_or_func, description=description, name=name, namespace=namespace
+                tool_or_func,
+                description=description,
+                name=name,
+                namespace=namespace,
+                method_name=method_name,
             )
             self._tools[tool.name] = tool
 
@@ -568,7 +577,10 @@ class ToolRegistry:
         )
 
     def register_from_class(
-        self, cls: Union[Type, object], with_namespace: Union[bool, str] = False
+        self,
+        cls: Union[Type, object],
+        with_namespace: Union[bool, str] = False,
+        traverse_mro: bool = False,
     ):
         """Register all static methods from a class or instance as tools.
 
@@ -576,9 +588,14 @@ class ToolRegistry:
             cls (Union[Type, object]): The class or instance containing static methods to register.
             with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
                 - If `False`, no namespace is used.
-                - If `True`, the namespace is derived from the OpenAPI info.title.
+                - If `True`, the namespace is derived from the class name.
                 - If a string is provided, it is used as the namespace.
                 Defaults to False.
+            traverse_mro (bool): Whether to traverse the MRO (Method Resolution
+                Order) to include inherited methods. When False (default), only
+                methods defined directly on the class are registered. When True,
+                methods from parent classes are also included (excluding
+                ``object``), with subclass methods taking priority.
 
         Example:
             >>> from toolregistry.hub import Calculator
@@ -591,11 +608,14 @@ class ToolRegistry:
         """
         from .native import ClassToolIntegration
 
-        hub = ClassToolIntegration(self)
+        hub = ClassToolIntegration(self, traverse_mro=traverse_mro)
         return hub.register_class_methods(cls, with_namespace)
 
     async def register_from_class_async(
-        self, cls: Union[Type, object], with_namespace: Union[bool, str] = False
+        self,
+        cls: Union[Type, object],
+        with_namespace: Union[bool, str] = False,
+        traverse_mro: bool = False,
     ):
         """Async implementation to register all static methods from a class or instance as tools.
 
@@ -603,9 +623,14 @@ class ToolRegistry:
             cls (Union[Type, object]): The class or instance containing static methods to register.
             with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
                 - If `False`, no namespace is used.
-                - If `True`, the namespace is derived from the OpenAPI info.title.
+                - If `True`, the namespace is derived from the class name.
                 - If a string is provided, it is used as the namespace.
                 Defaults to False.
+            traverse_mro (bool): Whether to traverse the MRO (Method Resolution
+                Order) to include inherited methods. When False (default), only
+                methods defined directly on the class are registered. When True,
+                methods from parent classes are also included (excluding
+                ``object``), with subclass methods taking priority.
 
         Example:
             >>> from toolregistry.hub import Calculator
@@ -614,7 +639,7 @@ class ToolRegistry:
         """
         from .native import ClassToolIntegration
 
-        hub = ClassToolIntegration(self)
+        hub = ClassToolIntegration(self, traverse_mro=traverse_mro)
         return await hub.register_class_methods_async(cls, with_namespace)
 
     # ============== Presentation ==============

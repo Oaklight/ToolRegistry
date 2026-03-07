@@ -14,6 +14,7 @@ Example:
 """
 
 import asyncio
+import inspect
 from typing import Optional, Type, Union
 
 from ..tool_registry import ToolRegistry
@@ -21,13 +22,19 @@ from .utils import _determine_namespace, _is_all_static_methods
 
 
 class ClassToolIntegration:
-    def __init__(self, registry: ToolRegistry) -> None:
+    def __init__(self, registry: ToolRegistry, traverse_mro: bool = False) -> None:
         """Initialize with a ToolRegistry instance.
 
         Args:
             registry (ToolRegistry): The tool registry to register methods with.
+            traverse_mro (bool): Whether to traverse the MRO (Method Resolution Order)
+                to include inherited methods. When False (default), only methods
+                defined directly on the class are registered. When True, methods
+                from parent classes are also included (excluding ``object``),
+                with subclass methods taking priority over parent class methods.
         """
         self.registry = registry
+        self.traverse_mro = traverse_mro
 
     def register_class_methods(
         self,
@@ -91,39 +98,116 @@ class ClassToolIntegration:
             None, self.register_class_methods, cls_or_instance, with_namespace
         )
 
-    def _register_static_methods(self, cls: Type, namespace: Optional[str]) -> None:
+    def _collect_static_methods_from_mro(self, cls: Type) -> dict:
+        """Collect static methods by traversing the MRO, with subclass priority.
+
+        Iterates through ``inspect.getmro(cls)`` in reverse order (from the
+        most base class to the most derived) so that subclass methods
+        naturally override parent class methods.  Methods from ``object``
+        are excluded.
+
+        Args:
+            cls (Type): The class whose MRO will be traversed.
+
+        Returns:
+            dict: A mapping of method name to ``staticmethod`` descriptor,
+                with subclass versions taking priority.
         """
-        Registers all static methods of a class into the provided registry.
+        collected: dict = {}
+        for klass in reversed(inspect.getmro(cls)):
+            if klass is object:
+                continue
+            for name, member in klass.__dict__.items():
+                if not name.startswith("_") and isinstance(member, staticmethod):
+                    collected[name] = member
+        return collected
+
+    def _register_static_methods(self, cls: Type, namespace: Optional[str]) -> None:
+        """Register all static methods of a class into the provided registry.
+
+        When ``self.traverse_mro`` is False (default), only methods defined
+        directly on *cls* are registered.  When True, methods inherited from
+        parent classes (excluding ``object``) are also included, with
+        subclass methods taking priority over parent class methods.
 
         Args:
             cls (Type): The class whose static methods will be registered.
-            registry (ToolRegistry): The registry object to register the methods into.
-                                It is expected to have a `register` method.
-            namespace (Optional[str]): The namespace under which the static methods will be registered.
+            namespace (Optional[str]): The namespace under which the static
+                methods will be registered.
         """
-        for name, member in cls.__dict__.items():
-            if not name.startswith("_") and isinstance(member, staticmethod):
-                self.registry.register(member.__func__, namespace=namespace)
+        if self.traverse_mro:
+            methods = self._collect_static_methods_from_mro(cls)
+        else:
+            methods = {
+                name: member
+                for name, member in cls.__dict__.items()
+                if not name.startswith("_") and isinstance(member, staticmethod)
+            }
+
+        for name, member in methods.items():
+            self.registry.register(
+                member.__func__, namespace=namespace, method_name=name
+            )
+
+    def _collect_instance_methods_from_mro(self, instance: object) -> dict:
+        """Collect instance methods by traversing the MRO, with subclass priority.
+
+        Iterates through ``inspect.getmro(type(instance))`` in reverse order
+        so that subclass methods naturally override parent class methods.
+        Methods from ``object`` are excluded, as are private methods and
+        classmethods.
+
+        Args:
+            instance (object): The instance whose class MRO will be traversed.
+
+        Returns:
+            dict: A mapping of method name to the bound method, with subclass
+                versions taking priority.
+        """
+        collected: dict = {}
+        for klass in reversed(inspect.getmro(type(instance))):
+            if klass is object:
+                continue
+            for name, member in klass.__dict__.items():
+                if name.startswith("_"):
+                    continue
+                if isinstance(member, classmethod):
+                    continue
+                # Check if it's callable on the instance
+                attr = getattr(instance, name, None)
+                if attr is not None and callable(attr):
+                    collected[name] = attr
+        return collected
 
     def _register_instance_methods(
         self, instance: object, namespace: Optional[str]
     ) -> None:
-        """
-        Registers all instance methods (excluding private methods and classmethods) of an object into the registry.
+        """Register all instance methods (excluding private and classmethods) of an object.
+
+        When ``self.traverse_mro`` is False (default), only methods visible
+        via ``dir(instance)`` that are defined on the instance's own class
+        are registered.  When True, methods inherited from parent classes
+        (excluding ``object``) are also included, with subclass methods
+        taking priority.
 
         Args:
-            instance (object): The object whose instance methods will be registered.
-            registry (ToolRegistry): The registry object to register the methods into.
-                                It is expected to have a `register` method.
-            namespace (Optional[str]): The namespace under which the instance methods will be registered.
+            instance (object): The object whose instance methods will be
+                registered.
+            namespace (Optional[str]): The namespace under which the instance
+                methods will be registered.
         """
-        for name in dir(instance):
-            if name.startswith("_"):
-                continue
-            # Exclude classmethods
-            member = type(instance).__dict__.get(name, None)
-            if isinstance(member, classmethod):
-                continue
-            attr = getattr(instance, name)
-            if callable(attr):
-                self.registry.register(attr, namespace=namespace)
+        if self.traverse_mro:
+            methods = self._collect_instance_methods_from_mro(instance)
+            for name, attr in methods.items():
+                self.registry.register(attr, namespace=namespace, method_name=name)
+        else:
+            for name in dir(instance):
+                if name.startswith("_"):
+                    continue
+                # Exclude classmethods
+                member = type(instance).__dict__.get(name, None)
+                if isinstance(member, classmethod):
+                    continue
+                attr = getattr(instance, name)
+                if callable(attr):
+                    self.registry.register(attr, namespace=namespace, method_name=name)
