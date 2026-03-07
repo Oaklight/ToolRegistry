@@ -22,16 +22,17 @@ from .utils import _determine_namespace, _is_all_static_methods
 
 
 class ClassToolIntegration:
-    def __init__(self, registry: ToolRegistry, traverse_mro: bool = False) -> None:
+    def __init__(self, registry: ToolRegistry, traverse_mro: bool = True) -> None:
         """Initialize with a ToolRegistry instance.
 
         Args:
             registry (ToolRegistry): The tool registry to register methods with.
             traverse_mro (bool): Whether to traverse the MRO (Method Resolution Order)
-                to include inherited methods. When False (default), only methods
-                defined directly on the class are registered. When True, methods
-                from parent classes are also included (excluding ``object``),
-                with subclass methods taking priority over parent class methods.
+                to include inherited methods. When True (default), methods from
+                parent classes are also included (excluding ``object``), with
+                subclass methods taking priority over parent class methods.
+                When False, only methods defined directly on the class are
+                registered.
         """
         self.registry = registry
         self.traverse_mro = traverse_mro
@@ -125,10 +126,10 @@ class ClassToolIntegration:
     def _register_static_methods(self, cls: Type, namespace: Optional[str]) -> None:
         """Register all static methods of a class into the provided registry.
 
-        When ``self.traverse_mro`` is False (default), only methods defined
-        directly on *cls* are registered.  When True, methods inherited from
+        When ``self.traverse_mro`` is True (default), methods inherited from
         parent classes (excluding ``object``) are also included, with
         subclass methods taking priority over parent class methods.
+        When False, only methods defined directly on *cls* are registered.
 
         Args:
             cls (Type): The class whose static methods will be registered.
@@ -184,11 +185,11 @@ class ClassToolIntegration:
     ) -> None:
         """Register all instance methods (excluding private and classmethods) of an object.
 
-        When ``self.traverse_mro`` is False (default), only methods visible
+        When ``self.traverse_mro`` is True (default), methods inherited from
+        parent classes (excluding ``object``) are also included, with
+        subclass methods taking priority.  When False, only methods visible
         via ``dir(instance)`` that are defined on the instance's own class
-        are registered.  When True, methods inherited from parent classes
-        (excluding ``object``) are also included, with subclass methods
-        taking priority.
+        are registered.
 
         Args:
             instance (object): The object whose instance methods will be
