@@ -86,11 +86,11 @@ merge_init_into_class: true
 
 ## Module Utilities
 
-### MCP Utils
+### MCPClient
 
-Utility functions for MCP processing and transport management.
+Minimal MCP client adapter over the official `mcp` SDK. Supports stdio, SSE, streamable-http, and websocket transports.
 
-::: toolregistry.mcp.utils
+::: toolregistry.mcp.client.MCPClient
 options:
 show_source: false
 show_root_heading: true
