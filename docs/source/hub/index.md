@@ -14,11 +14,7 @@ To install the standalone `toolregistry-hub` package, use the following command:
 pip install toolregistry-hub
 ```
 
-For integration with the main `toolregistry` package, you can install it as an optional dependency:
-
-```bash
-pip install toolregistry[hub]
-```
+For integration with the main `toolregistry` package, the `from toolregistry.hub import ...` import path is also supported when `toolregistry-hub` is installed.
 
 ```{toctree}
 :maxdepth: 2

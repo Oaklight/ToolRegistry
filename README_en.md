@@ -17,8 +17,7 @@ Full documentation is available at [https://toolregistry.readthedocs.io](https:/
 
 > **Important Notice**: As of version 0.4.14, the hub tools have been spun off into a separate package [`toolregistry-hub`](https://pypi.org/project/toolregistry-hub/). This standalone package provides a collection of ready-to-use tools for LLM function calling and can be used independently or alongside ToolRegistry. This spinoff enables separate development, distribution, and versioning of the hub tools, making it easier to maintain and update them without affecting the core ToolRegistry functionality.
 
-- **Standalone Package**: [`pip install toolregistry-hub`](https://pypi.org/project/toolregistry-hub/)
-- **With ToolRegistry**: `pip install toolregistry[hub]`
+- **Install**: [`pip install toolregistry-hub`](https://pypi.org/project/toolregistry-hub/)
 - **PyPI**: [toolregistry-hub on PyPI](https://pypi.org/project/toolregistry-hub/)
 - **GitHub**: [toolregistry-hub on GitHub](https://github.com/Oaklight/toolregistry-hub/)
 
@@ -57,25 +56,16 @@ Below is a table summarizing available extra modules:
 | mcp          | Python >= 3.10     | pip install toolregistry[mcp]       |
 | openapi      | Python >= 3.8      | pip install toolregistry[openapi]   |
 | langchain    | Python >= 3.9      | pip install toolregistry[langchain] |
-| hub          | Python >= 3.8      | pip install toolregistry[hub]       |
 
 ### Hub Tools Installation
 
-**Note**: As of recent versions, the hub tools have been moved to a separate package `toolregistry-hub`. You can install hub tools in two ways:
+The hub tools are available as a separate package `toolregistry-hub`:
 
-1. **Standalone installation**:
+```bash
+pip install toolregistry-hub
+```
 
-   ```bash
-   pip install toolregistry-hub
-   ```
-
-2. **Via extras**:
-
-   ```bash
-   pip install toolregistry[hub]
-   ```
-
-Both methods provide the same functionality. The standalone installation allows you to use hub tools independently or with other compatible libraries.
+This allows you to use hub tools independently or alongside ToolRegistry.
 
 ## Examples
 
