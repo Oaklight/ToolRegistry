@@ -26,5 +26,4 @@ except ImportError:
     raise ImportError(
         "The toolregistry_hub package is not installed. "
         "Please install it with: `pip install toolregistry-hub`"
-        "or `pip install toolregistry[hub]`"
     )

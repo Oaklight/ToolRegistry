@@ -8,10 +8,9 @@ Split from the main package in version: 0.4.14
 ```{important}
 **Hub Tools Package Update**: starting 0.4.14, hub tools have been moved to a separate package `toolregistry-hub`. You can install it via:
 
-- `pip install toolregistry-hub` (standalone installation)
-- `pip install toolregistry[hub]` (as an extra dependency)
+- `pip install toolregistry-hub`
 
-Both methods provide the same functionality. The standalone installation allows you to use hub tools independently or with other compatible libraries.
+This allows you to use hub tools independently or alongside ToolRegistry.
 ```
 
 ## Introduction

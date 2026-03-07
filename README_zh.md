@@ -17,8 +17,7 @@
 
 > **重要通知**：从版本 0.4.14 开始，hub 工具已分离为独立包 [`toolregistry-hub`](https://pypi.org/project/toolregistry-hub/)。这个独立包提供了一个即用型工具集合，专为 LLM 函数调用设计，可以独立使用或与 ToolRegistry 一起使用。这种分离使得 hub 工具能够独立开发、分发和版本控制，更容易维护和更新，而不会影响核心 ToolRegistry 功能。
 
-- **独立包**：[`pip install toolregistry-hub`](https://pypi.org/project/toolregistry-hub/)
-- **与 ToolRegistry 一起**：`pip install toolregistry[hub]`
+- **安装**：[`pip install toolregistry-hub`](https://pypi.org/project/toolregistry-hub/)
 - **PyPI**: [toolregistry-hub on PyPI](https://pypi.org/project/toolregistry-hub/)
 - **GitHub**: [toolregistry-hub on GitHub](https://github.com/Oaklight/toolregistry-hub/)
 
@@ -57,25 +56,16 @@ pip install toolregistry[mcp,openapi]
 | mcp       | Python >= 3.10 | pip install toolregistry[mcp]       |
 | openapi   | Python >= 3.8  | pip install toolregistry[openapi]   |
 | langchain | Python >= 3.9  | pip install toolregistry[langchain] |
-| hub       | Python >= 3.8  | pip install toolregistry[hub]       |
 
 ### Hub 工具安装
 
-**注意**：从最新版本开始，hub 工具已移至独立包 `toolregistry-hub`。您可以通过两种方式安装 hub 工具：
+Hub 工具作为独立包 `toolregistry-hub` 提供：
 
-1. **独立安装**：
+```bash
+pip install toolregistry-hub
+```
 
-   ```bash
-   pip install toolregistry-hub
-   ```
-
-2. **通过额外模块**：
-
-   ```bash
-   pip install toolregistry[hub]
-   ```
-
-两种方法提供相同的功能。独立安装允许您独立使用 hub 工具或与其他兼容库一起使用。
+这允许您独立使用 hub 工具或与 ToolRegistry 一起使用。
 
 ## 示例
 
