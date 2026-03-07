@@ -12,7 +12,7 @@ Helper classes provide essential supporting functionality for parameter validati
 
 Parameter validation and schema definitions for tool parameter processing.
 
-- **Overview**: [Parameter Models](helpers/parameter_models.md)
+- **Overview**: [Parameter Models](modules.md)
 - **Purpose**: Schema validation and parameter type checking
 - **Key Features**: JSON Schema validation, type checking, required field validation
 - **Usage**: Input validation for tool parameters
@@ -21,7 +21,7 @@ Parameter validation and schema definitions for tool parameter processing.
 
 Utility functions and helper classes for common operations.
 
-- **Overview**: [Utilities](helpers/utils.md)
+- **Overview**: [Utilities](modules.md)
 - **Purpose**: Common utility functions and helper classes
 - **Key Features**: Tool name normalization, HTTP client configuration, general utilities
 - **Usage**: Shared functionality across different components
