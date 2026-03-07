@@ -75,6 +75,46 @@ registry.register_from_class(BaseCalculator)  # Basic registration for methods o
 
 These examples highlight how to manage varying needs for class-based registrations, allowing users to adapt `ToolRegistry` for diverse scenarios.
 
+### Registering Inherited Methods with `traverse_mro`
+
+By default, `register_from_class()` only registers methods defined directly on the given class. If you want to also include methods inherited from parent classes, use the `traverse_mro=True` parameter:
+
+```python
+from toolregistry import ToolRegistry
+
+class BaseCalculator:
+    @staticmethod
+    def add(a: int, b: int) -> int:
+        """Add two numbers."""
+        return a + b
+
+    @staticmethod
+    def subtract(a: int, b: int) -> int:
+        """Subtract two numbers."""
+        return a - b
+
+class ScientificCalculator(BaseCalculator):
+    @staticmethod
+    def power(base: float, exp: float) -> float:
+        """Raise base to the power of exp."""
+        return base ** exp
+
+registry = ToolRegistry()
+
+# Without traverse_mro (default): only 'power' is registered
+registry.register_from_class(ScientificCalculator, with_namespace=True)
+print(registry.get_available_tools())
+# Output: ['scientific_calculator-power']
+
+# With traverse_mro=True: inherited methods 'add' and 'subtract' are also registered
+registry2 = ToolRegistry()
+registry2.register_from_class(ScientificCalculator, with_namespace=True, traverse_mro=True)
+print(registry2.get_available_tools())
+# Output: ['scientific_calculator-add', 'scientific_calculator-subtract', 'scientific_calculator-power']
+```
+
+This is useful when you have a class hierarchy and want to expose all available methods (including inherited ones) as tools.
+
 ## `with_namespace` Option
 
 Using `with_namespace=True` parameter adds the class name as a namespace prefix to tool names:

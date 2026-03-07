@@ -25,7 +25,12 @@ The Tool class follows a data-transfer-object pattern with the following key com
 3. **parameters**: JSON schema defining expected parameters
 4. **callable**: The actual executable function or wrapper
 5. **is_async**: Flag indicating asynchronous execution capability
-6. **namespace**: Optional namespace for organization
+6. **namespace**: Optional namespace for organization (stores the original namespace string after normalization)
+7. **method_name**: Optional original method/function name before namespace prefixing (preserved for unambiguous base name recovery)
+
+### Computed Properties
+
+- **qualified_name**: Returns the fully-qualified tool name. If both `namespace` and `method_name` are set, returns `{namespace}-{method_name}`; otherwise falls back to the `name` field.
 
 ### Design Philosophy
 
@@ -76,9 +81,9 @@ area_tool = Tool(
 ```python
 from toolregistry import Tool
 
-# Create a tool with namespace
+# Create a tool with namespace and method_name fields
 math_tool = Tool(
-    name="multiply",
+    name="math_ops-multiply",
     description="Multiply two numbers",
     parameters={
         "type": "object",
@@ -89,12 +94,53 @@ math_tool = Tool(
         "required": ["a", "b"]
     },
     callable=lambda a, b: a * b,
-    is_async=False
+    is_async=False,
+    namespace="math_ops",
+    method_name="multiply",
 )
+
+# Access the qualified name
+print(math_tool.qualified_name)  # Output: "math_ops-multiply"
+print(math_tool.namespace)       # Output: "math_ops"
+print(math_tool.method_name)     # Output: "multiply"
+```
+
+### Tool from Function with Namespace
+
+```python
+from toolregistry import Tool
+
+def multiply(a: float, b: float) -> float:
+    """Multiply two numbers."""
+    return a * b
+
+# Create a tool with namespace using from_function()
+tool = Tool.from_function(multiply, namespace="math_ops")
+print(tool.name)            # Output: "math_ops-multiply"
+print(tool.namespace)       # Output: "math_ops"
+print(tool.method_name)     # Output: "multiply"
+print(tool.qualified_name)  # Output: "math_ops-multiply"
+
+# You can also provide a custom method_name
+tool2 = Tool.from_function(multiply, namespace="math_ops", method_name="mul")
+print(tool2.name)            # Output: "math_ops-mul"
+print(tool2.method_name)     # Output: "mul"
+```
+
+### Updating Namespace
+
+```python
+from toolregistry import Tool
+
+# Create a tool without namespace
+math_tool = Tool.from_function(lambda a, b: a * b, name="multiply")
 
 # Update with namespace
 math_tool.update_namespace("math_operations")
-print(math_tool.name)  # Output: "math_operations.multiply"
+print(math_tool.name)           # Output: "math_operations-multiply"
+print(math_tool.namespace)      # Output: "math_operations"
+print(math_tool.method_name)    # Output: "multiply"
+print(math_tool.qualified_name) # Output: "math_operations-multiply"
 ```
 
 ### Async Tool

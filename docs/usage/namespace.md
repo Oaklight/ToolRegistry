@@ -13,6 +13,32 @@ Starting from GPT-4.1 release (April 14, 2025 release), OpenAI requires function
 
 **This change was implemented in version 0.4.5.** Users experiencing issues should upgrade as soon as possible. While dashes are the default, dots remain available as an optional separator for advanced users who need compatibility with other providers.
 
+### Tool-Level Namespace Fields
+
+Each `Tool` instance carries structured namespace information through two fields:
+
+- **`namespace`**: Stores the original namespace string (after normalization). Used to determine group membership without parsing the `name` field.
+- **`method_name`**: Stores the original method/function name before namespace prefixing. Preserved so that the base name can be recovered unambiguously.
+
+The **`qualified_name`** property returns the fully-qualified tool name: if both `namespace` and `method_name` are set, it returns `{namespace}-{method_name}`; otherwise it falls back to the `name` field.
+
+```python
+from toolregistry import ToolRegistry
+
+registry = ToolRegistry()
+
+def multiply(a: float, b: float) -> float:
+    """Multiply two numbers."""
+    return a * b
+
+registry.register(multiply, namespace="math_ops")
+tool = registry["math_ops-multiply"]
+
+print(tool.namespace)       # 'math_ops'
+print(tool.method_name)     # 'multiply'
+print(tool.qualified_name)  # 'math_ops-multiply'
+```
+
 ### Key Features
 
 - **Standardization**: Tool names are normalized using the `normalize_tool_name` function, converting them to snake_case and removing special characters, repeating strings and whitespace.
