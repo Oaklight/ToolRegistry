@@ -131,8 +131,6 @@ executor.set_execution_mode("process")  # or "thread"
 
 For supporting functionality like parameter validation and utilities, see:
 
-- [**Helper Classes**](../helpers.md): Parameter validation and utility functions
-- [Parameter Models](../helpers/parameter_models.md): Schema validation
-- [Utilities](../helpers/utils.md): Common utility functions
+- [**Helper Classes**](helpers.md): Parameter validation and utility functions
 
 The core classes provide the foundation that enables the rich integration ecosystem and efficient execution capabilities of the ToolRegistry library, ensuring consistent behavior and high-performance tool execution across all tool types and execution contexts.
