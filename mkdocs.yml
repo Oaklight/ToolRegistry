@@ -100,6 +100,7 @@ nav:
       - MCP Calculator: examples/mcp_calculator.md
       - MCP Diverse Transport: examples/mcp_diverse_transport.md
       - OpenAPI Calculator: examples/openapi_calculator.md
+  - Changelog: changelog.md
   - API Reference:
       - Overview: api/index.md
       - Core Classes:
