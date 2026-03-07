@@ -67,6 +67,7 @@ class ToolRegistry:
         self.name = name
         self._tools: Dict[str, Tool] = {}
         self._sub_registries: Set[str] = set()
+        self._disabled: Dict[str, str] = {}
         self._executor = Executor()
 
     def __contains__(self, name: str) -> bool:
@@ -126,6 +127,9 @@ class ToolRegistry:
     ) -> Dict[str, str]:
         """Execute tool calls with concurrency using dill for serialization.
 
+        Disabled tools are rejected with an error message instead of being
+        executed.
+
         Args:
             tool_calls: List of tool calls to be executed in any supported format.
             execution_mode: Execution mode to use; defaults to the Executor's current mode.
@@ -135,9 +139,27 @@ class ToolRegistry:
         """
         generic_tool_calls = convert_tool_calls(tool_calls)
 
-        return self._executor.execute_tool_calls(
-            self.get_tool, generic_tool_calls, execution_mode
-        )
+        # Separate enabled and disabled tool calls
+        enabled_calls = []
+        tool_responses: Dict[str, str] = {}
+
+        for tc in generic_tool_calls:
+            if not self.is_enabled(tc.name):
+                reason = self.get_disable_reason(tc.name) or "Tool is disabled"
+                tool_responses[tc.id] = (
+                    f"Error: Tool '{tc.name}' is disabled. Reason: {reason}"
+                )
+            else:
+                enabled_calls.append(tc)
+
+        # Execute only enabled tool calls
+        if enabled_calls:
+            executed_responses = self._executor.execute_tool_calls(
+                self.get_tool, enabled_calls, execution_mode
+            )
+            tool_responses.update(executed_responses)
+
+        return tool_responses
 
     def recover_tool_call_assistant_message(
         self,
@@ -340,6 +362,59 @@ class ToolRegistry:
             self.reduce_namespace()
 
         return new_registry
+
+    # ============== Enable/Disable ==============
+
+    def disable(self, name: str, reason: str = "") -> None:
+        """Disable a tool or namespace. Uses raw name (not normalized).
+
+        Args:
+            name: The tool name or namespace to disable.
+            reason: Optional reason for disabling.
+        """
+        self._disabled[name] = reason
+
+    def enable(self, name: str) -> None:
+        """Re-enable a tool or namespace.
+
+        Args:
+            name: The tool name or namespace to re-enable.
+        """
+        self._disabled.pop(name, None)
+
+    def is_enabled(self, tool_name: str) -> bool:
+        """Check if a tool is enabled (not disabled at method or group level).
+
+        Args:
+            tool_name: The tool name to check.
+
+        Returns:
+            True if the tool is enabled, False otherwise.
+        """
+        if tool_name in self._disabled:
+            return False
+        tool = self._tools.get(tool_name)
+        if tool and tool.namespace and tool.namespace in self._disabled:
+            return False
+        return True
+
+    def get_disable_reason(self, tool_name: str) -> Optional[str]:
+        """Get the reason a tool is disabled, or None if enabled.
+
+        Method-level disable takes priority over group-level.
+
+        Args:
+            tool_name: The tool name to check.
+
+        Returns:
+            The disable reason string, or None if the tool is enabled.
+        """
+        if tool_name in self._disabled:
+            return self._disabled[tool_name]
+        tool = self._tools.get(tool_name)
+        if tool and tool.namespace:
+            return self._disabled.get(tool.namespace)
+        return None
 
     # ============== Registration Methods ==============
     def register(
@@ -646,15 +721,22 @@ class ToolRegistry:
 
     # ============== Presentation ==============
     def list_tools(self) -> List[str]:
-        """List all registered tools.
+        """List enabled tools only.
 
         Returns:
-            List[str]: A list of tool names.
+            List[str]: A list of enabled tool names.
         """
-
-        return list(self._tools.keys())
+        return [n for n in self._tools if self.is_enabled(n)]
 
     get_available_tools = list_tools  # Alias for backward compatibility
+
+    def list_all_tools(self) -> List[str]:
+        """List all tools including disabled (for admin panel).
+
+        Returns:
+            List[str]: A list of all tool names.
+        """
+        return list(self._tools.keys())
 
     def get_tools_json(
         self,
@@ -662,7 +744,9 @@ class ToolRegistry:
         *,
         api_format: API_FORMATS = "openai",
     ) -> List[Dict[str, Any]]:
-        """Get the JSON representation of all registered tools, following JSON Schema.
+        """Get the JSON representation of registered tools, following JSON Schema.
+
+        When no specific tool_name is given, only enabled tools are returned.
 
         Args:
             tool_name (Optional[str]): Optional name of specific tool to get schema for.
@@ -677,7 +761,8 @@ class ToolRegistry:
             target_tool = self.get_tool(tool_name)
             tools = [target_tool] if target_tool else []
         else:
-            tools = list(self._tools.values())
+            # Only return enabled tools
+            tools = [t for t in self._tools.values() if self.is_enabled(t.name)]
 
         return [tool.get_json_schema(api_format) for tool in tools]
 
