@@ -40,6 +40,7 @@ This page documents all notable changes to the ToolRegistry project since the fi
 ### Maintenance
 
 - Pin MCP SDK to `<2.0.0` to avoid v2 breaking changes while support for the official MCP SDK v2 is being developed
+- Remove unused `beautifulsoup4` dependency
 
 ## [0.4.14] - 2025-08-11
 
@@ -100,7 +101,7 @@ This page documents all notable changes to the ToolRegistry project since the fi
 
 - Update type checker from mypy to pyright
 - Update dependency versions
-- Update mcp dependency version range
+- Update mcp dependency version range (Closes #36)
 
 ### Documentation Improvements
 
@@ -146,7 +147,7 @@ This page documents all notable changes to the ToolRegistry project since the fi
 	- Add accept header to mobile user agent
 	- Add real URL extraction from Bing redirects
 
-- **Search Result Filtering**
+- **Search Result Filtering** (Closes #29)
 	- Improve search result filtering and blocklist caching mechanism
 
 ### Bug Fixes
@@ -172,6 +173,10 @@ This page documents all notable changes to the ToolRegistry project since the fi
 
 - **ToolSpec Refactor**
 	- Streamline tool creation with `ToolSpec`
+
+### Bug Fixes
+
+- Fix MCP tool name normalization raising error during execution (Closes #25)
 
 ### Refactoring
 
