@@ -22,7 +22,6 @@ dependencies = [
     "dill>=0.4.0",
     "httpx>=0.28.1",
     "fake-useragent>=2.0.0",  # 2.0.0 is the max version compatible with Python 3.8
-    "beautifulsoup4>=4.13.4",
 ]
 
 [project.optional-dependencies]
