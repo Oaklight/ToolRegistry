@@ -40,6 +40,7 @@ author: Oaklight
 ### 维护
 
 - 将 MCP SDK 固定到 `<2.0.0` 以避免 v2 破坏性变更，同时等待官方 MCP SDK v2 支持的开发完成
+- 移除未使用的 `beautifulsoup4` 依赖
 
 ## [0.4.14] - 2025-08-11
 
@@ -100,7 +101,7 @@ author: Oaklight
 
 - 将类型检查器从 mypy 更新为 pyright
 - 更新依赖版本
-- 更新 mcp 依赖版本范围
+- 更新 mcp 依赖版本范围（Closes #36）
 
 ### 文档改进
 
@@ -146,7 +147,7 @@ author: Oaklight
 	- 为移动端用户代理添加 accept 请求头
 	- 添加从 Bing 重定向中提取真实 URL
 
-- **搜索结果过滤**
+- **搜索结果过滤**（Closes #29）
 	- 改进搜索结果过滤和屏蔽列表缓存机制
 
 ### 修复
@@ -172,6 +173,10 @@ author: Oaklight
 
 - **ToolSpec 重构**
 	- 使用 `ToolSpec` 简化工具创建流程
+
+### 修复
+
+- 修复 MCP 工具名称规范化导致执行报错的问题（Closes #25）
 
 ### 重构
 
