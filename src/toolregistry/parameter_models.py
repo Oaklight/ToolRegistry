@@ -132,9 +132,9 @@ def _generate_parameters_model(func: Callable) -> Optional[Type[ArgModelBase]]:
                 )
 
         return create_model(
-            f"{func.__name__}Parameters",
+            f"{getattr(func, '__name__', 'unknown')}Parameters",
             **dynamic_model_creation_dict,
             __base__=ArgModelBase,
         )
-    except Exception as e:
+    except Exception:
         return None

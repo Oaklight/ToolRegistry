@@ -37,7 +37,7 @@ dev = [
     "python-dotenv>=1.0.1",
     "openai>=1.79.0",
     "fastapi>=0.115.12",
-    "pyright>=1.1.402",
+    "ty>=0.0.21",
     "build>=1.2.2.post1",
     "twine>=6.1.0",
     "deprecated>=1.2.18",
@@ -58,6 +58,12 @@ Issues = "https://github.com/Oaklight/ToolRegistry/issues"
 # Note: Standard TOML does not support imports from other TOML files
 # When installing with mcp extras (toolregistry[mcp]), Python >= 3.10 is required
 # The mcp package dependencies should be listed in this file
+[tool.ty.environment]
+python-version = "3.10"
+
+[tool.ty.src]
+include = ["src", "tests"]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 

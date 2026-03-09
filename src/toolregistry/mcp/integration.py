@@ -300,7 +300,7 @@ class MCPIntegration:
         loop = asyncio.new_event_loop()
         try:
             loop.run_until_complete(
-                self.register_mcp_tools_async(transport, with_namespace)  # type: ignore[arg-type]
+                self.register_mcp_tools_async(transport, with_namespace)
             )
         finally:
             loop.close()

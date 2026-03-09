@@ -130,7 +130,7 @@ class Tool(BaseModel):
         Raises:
             ValueError: For unnamed lambda functions.
         """
-        func_name = name or func.__name__
+        func_name = name or getattr(func, "__name__", "<unknown>")
 
         if func_name == "<lambda>":
             raise ValueError("You must provide a name for lambda functions")

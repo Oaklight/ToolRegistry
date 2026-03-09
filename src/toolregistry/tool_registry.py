@@ -16,7 +16,7 @@ from .types import (
 from .utils import HttpxClientConfig, normalize_tool_name
 
 try:
-    from langchain_core.tools import BaseTool as LCBaseTool  # type: ignore
+    from langchain_core.tools import BaseTool as LCBaseTool
 except ImportError:
     pass
 

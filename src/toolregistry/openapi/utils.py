@@ -3,8 +3,8 @@ from typing import Any, Dict, Optional
 from urllib.parse import urlparse
 
 import httpx
-import jsonref  # type: ignore
-import yaml  # type: ignore
+import jsonref
+import yaml
 
 
 def extract_base_url_from_specs(openapi_spec: Dict[str, Any]) -> Optional[str]:

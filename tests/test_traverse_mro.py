@@ -269,8 +269,8 @@ class TestStaticMethodsMROWithNamespace:
 
         # Should have 3 methods: child_method, base_method, shared_method
         method_names = {
-            registry.get_tool(t).method_name
-            for t in tools  # type: ignore[union-attr]
+            registry.get_tool(t).method_name  # ty: ignore[unresolved-attribute]
+            for t in tools
         }
         assert method_names == {"child_method", "base_method", "shared_method"}
 
