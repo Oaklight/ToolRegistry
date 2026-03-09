@@ -1,7 +1,7 @@
 import asyncio
-from typing import Any, List, Optional, Union
+from typing import Any, Optional, Union
 
-from langchain_core.tools import BaseTool as LCBaseTool  # type: ignore
+from langchain_core.tools import BaseTool as LCBaseTool
 from loguru import logger
 
 from ..tool import Tool
@@ -47,7 +47,7 @@ class LangChainToolWrapper(BaseToolWrapper):
         """
         try:
             return self.tool._run(*args, **kwargs)
-        except Exception as e:
+        except Exception:
             import traceback
 
             logger.error(
@@ -70,7 +70,7 @@ class LangChainToolWrapper(BaseToolWrapper):
         """
         try:
             return await self.tool._arun(*args, **kwargs)
-        except Exception as e:
+        except Exception:
             import traceback
 
             logger.error(

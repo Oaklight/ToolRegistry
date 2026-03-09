@@ -116,7 +116,7 @@ class TestStdioTransport:
         }
         async with MCPClient(config) as client:
             result = await client.call_tool("add", {"a": 5, "b": 3})
-            text = result.content[0].text
+            text = result.content[0].text  # ty: ignore[unresolved-attribute]
             assert json.loads(text) == {"result": 8}
 
     @pytest.mark.asyncio
@@ -127,7 +127,7 @@ class TestStdioTransport:
         }
         async with MCPClient(config) as client:
             result = await client.call_tool("echo", {"message": "ping"})
-            assert result.content[0].text == "ping"
+            assert result.content[0].text == "ping"  # ty: ignore[unresolved-attribute]
 
     @pytest.mark.asyncio
     async def test_call_tool_greet_default(self):
@@ -137,7 +137,7 @@ class TestStdioTransport:
         }
         async with MCPClient(config) as client:
             result = await client.call_tool("greet", {})
-            assert result.content[0].text == "Hello, World!"
+            assert result.content[0].text == "Hello, World!"  # ty: ignore[unresolved-attribute]
 
     @pytest.mark.asyncio
     async def test_call_tool_greet_custom(self):
@@ -147,7 +147,7 @@ class TestStdioTransport:
         }
         async with MCPClient(config) as client:
             result = await client.call_tool("greet", {"name": "Alice"})
-            assert result.content[0].text == "Hello, Alice!"
+            assert result.content[0].text == "Hello, Alice!"  # ty: ignore[unresolved-attribute]
 
     @pytest.mark.asyncio
     async def test_session_property(self):
@@ -217,7 +217,7 @@ class TestStreamableHttpTransport:
         await _wait_for_port(port)
         async with MCPClient(f"http://127.0.0.1:{port}/mcp") as client:
             result = await client.call_tool("add", {"a": 10, "b": 20})
-            text = result.content[0].text
+            text = result.content[0].text  # ty: ignore[unresolved-attribute]
             assert json.loads(text) == {"result": 30}
 
     @pytest.mark.asyncio
@@ -226,7 +226,7 @@ class TestStreamableHttpTransport:
         await _wait_for_port(port)
         async with MCPClient(f"http://127.0.0.1:{port}/mcp") as client:
             result = await client.call_tool("echo", {"message": "http-test"})
-            assert result.content[0].text == "http-test"
+            assert result.content[0].text == "http-test"  # ty: ignore[unresolved-attribute]
 
     @pytest.mark.asyncio
     async def test_headers_passed(self, http_server):
@@ -290,7 +290,7 @@ class TestSseTransport:
         await _wait_for_port(port)
         async with MCPClient(f"http://127.0.0.1:{port}/sse") as client:
             result = await client.call_tool("add", {"a": 100, "b": 200})
-            text = result.content[0].text
+            text = result.content[0].text  # ty: ignore[unresolved-attribute]
             assert json.loads(text) == {"result": 300}
 
     @pytest.mark.asyncio
@@ -299,7 +299,7 @@ class TestSseTransport:
         await _wait_for_port(port)
         async with MCPClient(f"http://127.0.0.1:{port}/sse") as client:
             result = await client.call_tool("greet", {"name": "SSE"})
-            assert result.content[0].text == "Hello, SSE!"
+            assert result.content[0].text == "Hello, SSE!"  # ty: ignore[unresolved-attribute]
 
     @pytest.mark.asyncio
     async def test_headers_passed(self, sse_server):
