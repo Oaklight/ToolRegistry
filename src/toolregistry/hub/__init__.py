@@ -16,6 +16,7 @@ try:
     __all__ = _hub.__all__
 
     # Dynamically re-export only the items in __all__
+    _name: str = ""
     for _name in __all__:
         globals()[_name] = getattr(_hub, _name)
 
