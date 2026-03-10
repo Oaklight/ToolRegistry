@@ -10,11 +10,11 @@ author: Oaklight
 
 This page documents all notable changes to the ToolRegistry project since the first release.
 
-## [Unreleased] - master
+## [0.5.0] - 2026-03-10
 
 ### Refactoring
 
-- **MCP Client Decoupled from fastmcp** (Closes #64)
+- **MCP Client Decoupled from fastmcp** ([#64](../../issues/64), [#65](../../pull/65))
 	- Create `MCPClient` adapter in `mcp/client.py` using the official `mcp` SDK
 	- Remove all `fastmcp` imports from `integration.py`, `utils.py`, and `tool_registry.py`
 	- Change `[mcp]` extra dependency from `fastmcp` to `mcp>=1.0.0`
@@ -23,7 +23,7 @@ This page documents all notable changes to the ToolRegistry project since the fi
 	- Add `headers` parameter for HTTP authentication
 	- Add 25 new tests covering `MCPClient` functionality
 
-- **Remove `toolregistry[hub]` optional extra** (Closes #50)
+- **Remove `toolregistry[hub]` optional extra** ([#50](../../issues/50), [#56](../../pull/56))
 	- Remove `hub = ['toolregistry-hub>=0.4.14']` from optional dependencies in `pyproject.toml`
 	- Users should now install hub tools directly via `pip install toolregistry-hub`
 	- The `from toolregistry.hub import ...` shim still works when both packages are installed
@@ -31,11 +31,24 @@ This page documents all notable changes to the ToolRegistry project since the fi
 
 ### New Features
 
-- **Enable/Disable with Reason Tracking**
-	- Add two-level enable/disable with reason tracking
-- **Namespace & MRO Support**
-	- Add `namespace`/`method_name` fields and `traverse_mro` support (Issues #51, #52)
-	- Change `traverse_mro` default to `True`
+- **Enable/Disable with Reason Tracking** ([#53](../../issues/53), [#58](../../pull/58))
+	- Add method-level and namespace-level disable with reason tracking
+	- New methods: `disable(name, reason)`, `enable(name)`, `is_enabled(tool_name)`, `get_disable_reason(tool_name)`
+	- `list_tools()` now only returns enabled tools
+	- Add `list_all_tools()` for admin panel use (returns all tools including disabled)
+	- `get_tools_json()` filters disabled tools when no specific tool_name given
+	- `execute_tool_calls()` returns error message for disabled tools instead of executing
+	- Add 28 new tests
+
+- **Namespace & MRO Support** ([#51](../../issues/51), [#52](../../issues/52), [#57](../../pull/57))
+	- Add `namespace`, `method_name` fields and `qualified_name` property to `Tool` model
+	- `_update_sub_registries()` now uses `namespace` field for grouping, eliminating `-`/`_` ambiguity
+	- Add `traverse_mro` parameter to `register_from_class()` and `register_from_class_async()`
+	- Change `traverse_mro` default to `True` — child class methods take priority over parent class methods
+
+### ⚠️ Breaking Changes
+
+- `register_from_class()` now defaults to `traverse_mro=True`, meaning inherited public static and instance methods are registered automatically. Pass `traverse_mro=False` explicitly to get the previous behavior
 
 ### Maintenance
 
