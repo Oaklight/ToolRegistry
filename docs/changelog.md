@@ -10,11 +10,11 @@ author: Oaklight
 
 本页面记录了 ToolRegistry 项目自首个发布版本以来的所有重要变更。
 
-## [未发布] - master
+## [0.5.0] - 2026-03-10
 
 ### 重构
 
-- **MCP 客户端从 fastmcp 解耦**（Closes #64）
+- **MCP 客户端从 fastmcp 解耦**（[#64](../../issues/64)、[#65](../../pull/65)）
 	- 使用官方 `mcp` SDK 在 `mcp/client.py` 中创建 `MCPClient` 适配器
 	- 从 `integration.py`、`utils.py` 和 `tool_registry.py` 中移除所有 `fastmcp` 导入
 	- 将 `[mcp]` 额外依赖从 `fastmcp` 改为 `mcp>=1.0.0`
@@ -23,7 +23,7 @@ author: Oaklight
 	- 添加 `headers` 参数用于 HTTP 认证
 	- 添加 25 个覆盖 `MCPClient` 功能的新测试
 
-- **移除 `toolregistry[hub]` 可选附加包**（Closes #50）
+- **移除 `toolregistry[hub]` 可选附加包**（[#50](../../issues/50)、[#56](../../pull/56)）
 	- 从 `pyproject.toml` 的可选依赖中移除 `hub = ['toolregistry-hub>=0.4.14']`
 	- 用户现在应直接通过 `pip install toolregistry-hub` 安装 hub 工具
 	- 两个包同时安装时 `from toolregistry.hub import ...` 的兼容路径仍可正常使用
@@ -31,11 +31,24 @@ author: Oaklight
 
 ### 新功能
 
-- **启用/禁用原因追踪**
-	- 添加两级启用/禁用与原因追踪功能
-- **命名空间与 MRO 支持**
-	- 添加 `namespace`/`method_name` 字段和 `traverse_mro` 支持（Issues #51, #52）
-	- 将 `traverse_mro` 默认值改为 `True`
+- **启用/禁用原因追踪**（[#53](../../issues/53)、[#58](../../pull/58)）
+	- 添加方法级和命名空间级的禁用，支持原因追踪
+	- 新增 `disable(name, reason)`、`enable(name)`、`is_enabled(tool_name)`、`get_disable_reason(tool_name)` 方法
+	- `list_tools()` 现在仅返回已启用的工具
+	- 新增 `list_all_tools()` 用于管理面板（返回包括已禁用在内的所有工具）
+	- `get_tools_json()` 在未指定工具名时自动过滤已禁用工具
+	- `execute_tool_calls()` 对已禁用工具返回错误信息而非执行
+	- 添加 28 个新测试
+
+- **命名空间与 MRO 支持**（[#51](../../issues/51)、[#52](../../issues/52)、[#57](../../pull/57)）
+	- 为 `Tool` 模型添加 `namespace`、`method_name` 字段和 `qualified_name` 属性
+	- `_update_sub_registries()` 改用 `namespace` 字段分组，消除 `-`/`_` 歧义
+	- 为 `register_from_class()` 和 `register_from_class_async()` 添加 `traverse_mro` 参数
+	- 将 `traverse_mro` 默认值改为 `True`，子类方法优先于父类方法
+
+### ⚠️ 破坏性变更
+
+- `register_from_class()` 现在默认 `traverse_mro=True`，继承的公共静态方法和实例方法将自动注册。如需保持旧行为，请显式传入 `traverse_mro=False`
 
 ### 维护
 

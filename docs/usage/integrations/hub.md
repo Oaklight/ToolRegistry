@@ -1,59 +1,59 @@
-# Hub Tools Usage Guide
+# Hub 工具使用指南
 
-???+ note "Changelog"
-    New in version: 0.4.2
+???+ note "更新日志"
+    新增于版本：0.4.2
 
-!!! note "Standalone Package"
-    **Hub Tools Package Update**: starting 0.4.14, hub tools have been moved to a separate package `toolregistry-hub`. You can install it via:
+!!! note "独立包"
+    **Hub 工具包更新**：从 0.4.14 版本开始，hub 工具已迁移至独立包 `toolregistry-hub`。您可以通过以下方式安装：
 
     - `pip install toolregistry-hub`
 
-    This allows you to use hub tools independently or alongside ToolRegistry.
+    这使您可以独立使用 hub 工具，也可以与 ToolRegistry 配合使用。
 
-## Introduction
+## 简介
 
-Hub encapsulates commonly used tools as methods of a class, including both static methods and instance methods, serving as ready-to-use tool groups. This design offers several advantages:
+Hub 将常用工具封装为类的方法，包括静态方法和实例方法，作为即用型工具组。这种设计具有以下优势：
 
-1. **Organization**: Related tool methods are grouped in the same class for easier management and maintenance.
-2. **Reusability**: Pre-built tools can be imported and used directly without reimplementation.
-3. **Consistency**: All tools follow the same interface specification.
-4. **Extensibility**: New tool classes or methods can be easily added.
-5. **Safety and Exception Handling**: Encapsulated tools provide better control over security and handle exceptions more effectively compared to allowing models to directly execute commands.
+1. **组织性**：相关的工具方法被分组在同一个类中，便于管理和维护。
+2. **可复用性**：预构建的工具可以直接导入使用，无需重新实现。
+3. **一致性**：所有工具遵循相同的接口规范。
+4. **可扩展性**：可以轻松添加新的工具类或方法。
+5. **安全性和异常处理**：封装的工具提供了更好的安全控制和异常处理能力，优于让模型直接执行命令。
 
-Hub tools can be registered using the `register_from_class` method. Refer to [**Registering Class-Based Python Tools**](../class.md) for detailed instructions.
+Hub 工具可以使用 `register_from_class` 方法进行注册。详细说明请参阅 [**注册基于类的 Python 工具**](../class.md)。
 
-## Example of Using Predefined Tools
+## 使用预定义工具的示例
 
-Hub also provides predefined classes with ready-to-use methods. These tools can be easily registered and used without additional setup.
+Hub 还提供了带有即用方法的预定义类。这些工具可以轻松注册和使用，无需额外设置。
 
 ```python
 from toolregistry import ToolRegistry
 from toolregistry.hub import BaseCalculator, Calculator, FileOps
 
-# Create tool registry
+# 创建工具注册表
 registry = ToolRegistry()
 
-# Register Calculator tools (with namespace)
+# 注册 Calculator 工具（带命名空间）
 registry.register_from_class(Calculator, with_namespace=True)
 
-# Register FileOps tools (without namespace)
+# 注册 FileOps 工具（不带命名空间）
 registry.register_from_class(FileOps)
 
-# Get available tools list
+# 获取可用工具列表
 print(registry.get_available_tools())
-# Output: ['calculator-list_allowed_fns', 'calculator-help', 'calculator-evaluate', 'read_file', 'write_file', ...]
+# 输出: ['calculator-list_allowed_fns', 'calculator-help', 'calculator-evaluate', 'read_file', 'write_file', ...]
 ```
 
-Using the `with_namespace=True` parameter during registration adds the class name as a namespace prefix to tool names, ensuring better organization and avoiding naming conflicts. For example:
+在注册时使用 `with_namespace=True` 参数会将类名作为命名空间前缀添加到工具名称中，确保更好的组织性并避免命名冲突。例如：
 
 ```python
 registry.register_from_class(BaseCalculator, with_namespace=True)
 ```
 
-This will register tools with names like `base_calculator-add`, `base_calculator-subtract`, etc.
+这将注册名称为 `base_calculator-add`、`base_calculator-subtract` 等的工具。
 
-Advantages of using `with_namespace`:
+使用 `with_namespace` 的优势：
 
-1. Avoids naming conflicts between methods with the same names in different classes.
-2. More clearly identifies tool sources.
-3. Maintains naming consistency.
+1. 避免不同类中同名方法之间的命名冲突。
+2. 更清晰地标识工具来源。
+3. 保持命名一致性。
