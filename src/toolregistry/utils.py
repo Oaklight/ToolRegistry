@@ -1,5 +1,5 @@
 import re
-from typing import Dict, Literal, Optional, Tuple, overload
+from typing import Literal, overload
 
 import httpx
 
@@ -8,9 +8,9 @@ class HttpxClientConfig:
     def __init__(
         self,
         base_url: str,
-        headers: Optional[Dict[str, str]] = None,
+        headers: dict[str, str] | None = None,
         timeout: float = 10.0,
-        auth: Optional[Tuple[str, str]] = None,
+        auth: tuple[str, str] | None = None,
         **extra_options,
     ):
         """

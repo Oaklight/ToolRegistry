@@ -1,6 +1,6 @@
 import asyncio
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class BaseToolWrapper(ABC):
@@ -12,7 +12,7 @@ class BaseToolWrapper(ABC):
         params (Optional[List[str]]): List of parameter names, default is None.
     """
 
-    def __init__(self, name: str, params: Optional[List[str]] = None) -> None:
+    def __init__(self, name: str, params: list[str] | None = None) -> None:
         """Initializes the base tool wrapper.
 
         Args:
@@ -22,7 +22,7 @@ class BaseToolWrapper(ABC):
         self.name = name
         self.params = params
 
-    def _process_args(self, *args: Any, **kwargs: Any) -> Dict[str, Any]:
+    def _process_args(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
         """Processes positional and keyword arguments.
 
         Args:

@@ -7,7 +7,7 @@ client-side operations.
 
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 from urllib.parse import urlparse
 
 import httpx
@@ -31,8 +31,8 @@ class MCPClient:
 
     def __init__(
         self,
-        source: Union[str, dict, Path],
-        headers: Optional[Dict[str, str]] = None,
+        source: str | dict | Path,
+        headers: dict[str, str] | None = None,
     ) -> None:
         """Initialize MCPClient.
 
@@ -48,7 +48,7 @@ class MCPClient:
         """
         self._source = source
         self._headers = headers
-        self._session: Optional[ClientSession] = None
+        self._session: ClientSession | None = None
         self._cm = None  # transport context manager
         self._session_cm = None  # session context manager
 
@@ -100,7 +100,7 @@ class MCPClient:
             if self._cm is not None:
                 await self._cm.__aexit__(*exc)
 
-    async def list_tools(self) -> List[ToolSpec]:
+    async def list_tools(self) -> list[ToolSpec]:
         """List available tools from the MCP server.
 
         Returns:
@@ -112,7 +112,7 @@ class MCPClient:
         result = await self._session.list_tools()
         return result.tools
 
-    async def call_tool(self, name: str, arguments: Dict[str, Any]) -> CallToolResult:
+    async def call_tool(self, name: str, arguments: dict[str, Any]) -> CallToolResult:
         """Call a tool on the MCP server.
 
         Args:
@@ -128,7 +128,7 @@ class MCPClient:
         return await self._session.call_tool(name, arguments)
 
     @property
-    def session(self) -> Optional[ClientSession]:
+    def session(self) -> ClientSession | None:
         """Access the underlying ClientSession.
 
         Returns:
@@ -163,7 +163,7 @@ class MCPClient:
         return getattr(self._session, "initialize_result", None)
 
 
-def _to_stdio_params(src: Union[str, dict, Path]) -> StdioServerParameters:
+def _to_stdio_params(src: str | dict | Path) -> StdioServerParameters:
     """Convert a source specification to StdioServerParameters.
 
     Args:

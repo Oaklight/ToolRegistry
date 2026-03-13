@@ -1,4 +1,4 @@
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -28,10 +28,10 @@ class ResponseFunctionToolCall(BaseModel):
     type: Literal["function_call"] = "function_call"
     """The type of the function tool call. Always `function_call`."""
 
-    id: Optional[str] = None
+    id: str | None = None
     """The unique ID of the function tool call."""
 
-    status: Optional[Literal["in_progress", "completed", "incomplete"]] = None
+    status: Literal["in_progress", "completed", "incomplete"] | None = None
     """The status of the item.
 
     One of `in_progress`, `completed`, or `incomplete`. Populated when items are

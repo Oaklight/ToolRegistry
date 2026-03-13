@@ -1,5 +1,6 @@
 import inspect
-from typing import Any, Callable, Dict, Optional, Tuple, Type, get_type_hints
+from typing import Any, get_type_hints
+from collections.abc import Callable
 
 from pydantic import BaseModel, ConfigDict, Field, create_model
 from pydantic.fields import FieldInfo
@@ -22,7 +23,7 @@ class ArgModelBase(BaseModel):
         - Configures Pydantic model behavior
     """
 
-    def model_dump_one_level(self) -> Dict[str, Any]:
+    def model_dump_one_level(self) -> dict[str, Any]:
         """Dump model fields one level deep, keeping sub-models as-is.
 
         Returns:
@@ -35,7 +36,7 @@ class ArgModelBase(BaseModel):
     )
 
 
-def _get_typed_annotation(annotation: Any, globalns: Dict[str, Any]) -> Any:
+def _get_typed_annotation(annotation: Any, globalns: dict[str, Any]) -> Any:
     """Evaluate type annotation, handling forward references.
 
     Uses Python's public get_type_hints function rather than relying on a pydantic internal function.
@@ -71,7 +72,7 @@ def _get_typed_annotation(annotation: Any, globalns: Dict[str, Any]) -> Any:
 
 def _create_field(
     param: inspect.Parameter, annotation_type: Any
-) -> Tuple[Any, FieldInfo]:
+) -> tuple[Any, FieldInfo]:
     """Create a Pydantic field for a function parameter.
 
     Handles both annotated and unannotated parameters, with and without defaults.
@@ -95,10 +96,10 @@ def _create_field(
             field_info = Field(default=default, title=param.name)
         else:
             field_info = Field(default=default)
-        return (Optional[annotation_type], field_info)
+        return (annotation_type | None, field_info)
 
 
-def _generate_parameters_model(func: Callable) -> Optional[Type[ArgModelBase]]:
+def _generate_parameters_model(func: Callable) -> type[ArgModelBase] | None:
     """Generate a Pydantic model from a function's parameters.
 
     Creates a JSON Schema-compliant model that can validate the function's parameters.
@@ -115,7 +116,7 @@ def _generate_parameters_model(func: Callable) -> Optional[Type[ArgModelBase]]:
     try:
         signature = inspect.signature(func)
         globalns = getattr(func, "__globals__", {})
-        dynamic_model_creation_dict: Dict[str, Any] = {}
+        dynamic_model_creation_dict: dict[str, Any] = {}
 
         for param in signature.parameters.values():
             if param.name == "self":

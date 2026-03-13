@@ -2,7 +2,8 @@ import json
 import random
 import string
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Literal, Optional, Set, Type, Union
+from typing import Any, Literal
+from collections.abc import Callable
 
 from .executor import Executor
 from .tool import Tool
@@ -36,7 +37,7 @@ class ToolRegistry:
     """
 
     # ============== dunder methods ==============
-    def __init__(self, name: Optional[str] = None) -> None:
+    def __init__(self, name: str | None = None) -> None:
         """Initialize an empty ToolRegistry.
 
         This method initializes an empty ToolRegistry with a name and internal
@@ -56,9 +57,9 @@ class ToolRegistry:
         if name is None:
             name = f"reg_{''.join(random.sample(string.hexdigits.lower(), 4))}"
         self.name = name
-        self._tools: Dict[str, Tool] = {}
-        self._sub_registries: Set[str] = set()
-        self._disabled: Dict[str, str] = {}
+        self._tools: dict[str, Tool] = {}
+        self._sub_registries: set[str] = set()
+        self._disabled: dict[str, str] = {}
         self._executor = Executor()
 
     def __contains__(self, name: str) -> bool:
@@ -88,7 +89,7 @@ class ToolRegistry:
         """
         return json.dumps(self.get_tools_json(), indent=2)
 
-    def __getitem__(self, key: str) -> Optional[Callable[..., Any]]:
+    def __getitem__(self, key: str) -> Callable[..., Any] | None:
         """Enable key-value access to retrieve callables.
 
         Args:
@@ -113,9 +114,9 @@ class ToolRegistry:
 
     def execute_tool_calls(
         self,
-        tool_calls: List[AnyToolCall],
-        execution_mode: Optional[Literal["process", "thread"]] = None,
-    ) -> Dict[str, str]:
+        tool_calls: list[AnyToolCall],
+        execution_mode: Literal["process", "thread"] | None = None,
+    ) -> dict[str, str]:
         """Execute tool calls with concurrency using dill for serialization.
 
         Disabled tools are rejected with an error message instead of being
@@ -132,7 +133,7 @@ class ToolRegistry:
 
         # Separate enabled and disabled tool calls
         enabled_calls = []
-        tool_responses: Dict[str, str] = {}
+        tool_responses: dict[str, str] = {}
 
         for tc in generic_tool_calls:
             if not self.is_enabled(tc.name):
@@ -154,10 +155,10 @@ class ToolRegistry:
 
     def recover_tool_call_assistant_message(
         self,
-        tool_calls: List[AnyToolCall],
-        tool_responses: Dict[str, str],
+        tool_calls: list[AnyToolCall],
+        tool_responses: dict[str, str],
         api_format: API_FORMATS = "openai-chatcompletion",
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Construct assistant messages from tool call results.
 
         Creates a conversation history with:
@@ -199,7 +200,7 @@ class ToolRegistry:
         Returns:
             None
         """
-        prefixes: Set[str] = set()
+        prefixes: set[str] = set()
         for tool in self._tools.values():
             if tool.namespace:
                 prefixes.add(tool.namespace)
@@ -230,7 +231,7 @@ class ToolRegistry:
         Raises:
             None
         """
-        new_tools: Dict[str, Tool] = {}
+        new_tools: dict[str, Tool] = {}
         for tool in self._tools.values():
             tool.update_namespace(self.name, force=force)
             new_tools[tool.name] = tool
@@ -389,7 +390,7 @@ class ToolRegistry:
             return False
         return True
 
-    def get_disable_reason(self, tool_name: str) -> Optional[str]:
+    def get_disable_reason(self, tool_name: str) -> str | None:
         """Get the reason a tool is disabled, or None if enabled.
 
         Method-level disable takes priority over group-level.
@@ -410,11 +411,11 @@ class ToolRegistry:
     # ============== Registration Methods ==============
     def register(
         self,
-        tool_or_func: Union[Callable, Tool],
-        description: Optional[str] = None,
-        name: Optional[str] = None,
-        namespace: Optional[str] = None,
-        method_name: Optional[str] = None,
+        tool_or_func: Callable | Tool,
+        description: str | None = None,
+        name: str | None = None,
+        namespace: str | None = None,
+        method_name: str | None = None,
     ):
         """Register a tool, either as a function, Tool instance, or static method.
 
@@ -443,8 +444,8 @@ class ToolRegistry:
 
     def register_from_mcp(
         self,
-        transport: Union[str, Dict[str, Any], Path],
-        with_namespace: Union[bool, str] = False,
+        transport: str | dict[str, Any] | Path,
+        with_namespace: bool | str = False,
     ):
         """Register all tools from an MCP server (synchronous entry point).
 
@@ -480,8 +481,8 @@ class ToolRegistry:
 
     async def register_from_mcp_async(
         self,
-        transport: Union[str, Dict[str, Any], Path],
-        with_namespace: Union[bool, str] = False,
+        transport: str | dict[str, Any] | Path,
+        with_namespace: bool | str = False,
     ):
         """Async implementation to register all tools from an MCP server.
 
@@ -518,8 +519,8 @@ class ToolRegistry:
     def register_from_openapi(
         self,
         client: HttpxClientConfig,
-        openapi_spec: Dict[str, Any],
-        with_namespace: Union[bool, str] = False,
+        openapi_spec: dict[str, Any],
+        with_namespace: bool | str = False,
     ):
         """Registers tools from OpenAPI specification synchronously.
 
@@ -542,8 +543,8 @@ class ToolRegistry:
     async def register_from_openapi_async(
         self,
         client: HttpxClientConfig,
-        openapi_spec: Dict[str, Any],
-        with_namespace: Union[bool, str] = False,
+        openapi_spec: dict[str, Any],
+        with_namespace: bool | str = False,
     ):
         """Registers tools from OpenAPI specification asynchronously.
 
@@ -568,7 +569,7 @@ class ToolRegistry:
     def register_from_langchain(
         self,
         langchain_tool: "LCBaseTool",
-        with_namespace: Union[bool, str] = False,
+        with_namespace: bool | str = False,
     ):
         """Register a LangChain tool in the registry.
 
@@ -592,7 +593,7 @@ class ToolRegistry:
     async def register_from_langchain_async(
         self,
         langchain_tool: "LCBaseTool",
-        with_namespace: Union[bool, str] = False,
+        with_namespace: bool | str = False,
     ):
         """Async implementation to register a LangChain tool in the registry.
 
@@ -617,8 +618,8 @@ class ToolRegistry:
 
     def register_from_class(
         self,
-        cls: Union[Type, object],
-        with_namespace: Union[bool, str] = False,
+        cls: type | object,
+        with_namespace: bool | str = False,
         traverse_mro: bool = True,
     ):
         """Register all static methods from a class or instance as tools.
@@ -653,8 +654,8 @@ class ToolRegistry:
 
     async def register_from_class_async(
         self,
-        cls: Union[Type, object],
-        with_namespace: Union[bool, str] = False,
+        cls: type | object,
+        with_namespace: bool | str = False,
         traverse_mro: bool = True,
     ):
         """Async implementation to register all static methods from a class or instance as tools.
@@ -684,7 +685,7 @@ class ToolRegistry:
         return await hub.register_class_methods_async(cls, with_namespace)
 
     # ============== Presentation ==============
-    def list_tools(self) -> List[str]:
+    def list_tools(self) -> list[str]:
         """List enabled tools only.
 
         Returns:
@@ -694,7 +695,7 @@ class ToolRegistry:
 
     get_available_tools = list_tools  # Alias for backward compatibility
 
-    def list_all_tools(self) -> List[str]:
+    def list_all_tools(self) -> list[str]:
         """List all tools including disabled (for admin panel).
 
         Returns:
@@ -704,10 +705,10 @@ class ToolRegistry:
 
     def get_tools_json(
         self,
-        tool_name: Optional[str] = None,
+        tool_name: str | None = None,
         *,
         api_format: API_FORMATS = "openai",
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Get the JSON representation of registered tools, following JSON Schema.
 
         When no specific tool_name is given, only enabled tools are returned.
@@ -730,7 +731,7 @@ class ToolRegistry:
 
         return [tool.get_json_schema(api_format) for tool in tools]
 
-    def get_tool(self, tool_name: str) -> Optional[Tool]:
+    def get_tool(self, tool_name: str) -> Tool | None:
         """Get a tool by its name.
 
         Args:
@@ -742,7 +743,7 @@ class ToolRegistry:
         tool = self._tools.get(tool_name)
         return tool
 
-    def get_callable(self, tool_name: str) -> Optional[Callable[..., Any]]:
+    def get_callable(self, tool_name: str) -> Callable[..., Any] | None:
         """Get a callable function by its name.
 
         Args:

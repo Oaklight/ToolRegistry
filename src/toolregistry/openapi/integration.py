@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from ..tool import Tool
 from ..tool_registry import ToolRegistry
@@ -24,7 +24,7 @@ class OpenAPIToolWrapper(BaseToolWrapper):
         name: str,
         method: str,
         path: str,
-        params: Optional[List[str]],
+        params: list[str] | None,
     ) -> None:
         super().__init__(name=name, params=params)
         self.client_config = client_config
@@ -97,8 +97,8 @@ class OpenAPITool(Tool):
         client_config: HttpxClientConfig,
         path: str,
         method: str,
-        spec: Dict[str, Any],
-        namespace: Optional[str] = None,
+        spec: dict[str, Any],
+        namespace: str | None = None,
     ) -> "OpenAPITool":
         """Create an OpenAPITool instance from an OpenAPI specification.
 
@@ -117,12 +117,12 @@ class OpenAPITool(Tool):
 
         description = spec.get("description", spec.get("summary", ""))
 
-        parameters: Dict[str, Any] = {
+        parameters: dict[str, Any] = {
             "type": "object",
             "properties": {},
             "required": [],
         }
-        param_names: List[str] = []
+        param_names: list[str] = []
 
         for param in spec.get("parameters", []):
             param_schema = param.get("schema", {})
@@ -183,8 +183,8 @@ class OpenAPIIntegration:
     async def register_openapi_tools_async(
         self,
         client_config: HttpxClientConfig,
-        openapi_spec: Dict[str, Any],
-        with_namespace: Union[bool, str] = False,
+        openapi_spec: dict[str, Any],
+        with_namespace: bool | str = False,
     ) -> None:
         """Asynchronously register all tools defined in an OpenAPI specification.
 
@@ -229,8 +229,8 @@ class OpenAPIIntegration:
     def register_openapi_tools(
         self,
         client_config: HttpxClientConfig,
-        openapi_spec: Dict[str, Any],
-        with_namespace: Union[bool, str] = False,
+        openapi_spec: dict[str, Any],
+        with_namespace: bool | str = False,
     ) -> None:
         """Synchronously register all tools defined in an OpenAPI specification.
 

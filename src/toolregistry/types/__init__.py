@@ -2,7 +2,7 @@
 
 # Import all types from submodules to maintain backward compatibility
 # Type alias for backward compatibility
-from typing import Any, Union
+from typing import Any
 
 from .common import (
     API_FORMATS,
@@ -27,12 +27,12 @@ from .openai import (
 )
 
 # Type alias for any tool call format - more robust than specific types
-AnyToolCall = Union[
-    ChatCompletionMessageFunctionToolCall,
-    ChatCompletionMessageCustomToolCall,
-    ResponseFunctionToolCall,
-    Any,
-]
+AnyToolCall = (
+    ChatCompletionMessageFunctionToolCall
+    | ChatCompletionMessageCustomToolCall
+    | ResponseFunctionToolCall
+    | Any
+)
 
 __all__ = [
     # Common types and functions

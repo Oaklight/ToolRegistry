@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ValidationError, field_serializer
 
@@ -174,7 +174,7 @@ API_FORMATS = Literal[
 ]
 
 
-def convert_tool_calls(tool_calls: List[Any]) -> List[ToolCall]:
+def convert_tool_calls(tool_calls: list[Any]) -> list[ToolCall]:
     """Convert a list of tool calls into a list of ToolCall objects.
 
     Args:
@@ -187,10 +187,10 @@ def convert_tool_calls(tool_calls: List[Any]) -> List[ToolCall]:
 
 
 def recover_assistant_message(
-    tool_calls: List[ToolCall],
+    tool_calls: list[ToolCall],
     *,
     api_format: API_FORMATS = "openai",
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Recover the assistant message from tool calls in various API formats.
 
     This function can handle mixed tool call types (function and custom) and will
@@ -272,10 +272,10 @@ def recover_assistant_message(
 
 
 def recover_tool_message(
-    tool_responses: Dict[str, str],
+    tool_responses: dict[str, str],
     *,
     api_format: API_FORMATS = "openai",
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Recover the tool message from tool responses in various API formats.
 
     Args:

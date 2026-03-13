@@ -1,5 +1,6 @@
 import inspect
-from typing import Any, Callable, Dict, Literal, Optional
+from typing import Any, Literal
+from collections.abc import Callable
 
 from pydantic import BaseModel, Field
 
@@ -32,7 +33,7 @@ class Tool(BaseModel):
     and any important usage considerations.
     """
 
-    parameters: Dict[str, Any] = Field(description="JSON schema for tool parameters")
+    parameters: dict[str, Any] = Field(description="JSON schema for tool parameters")
     """Parameter schema defining the tool's expected inputs.
     
     Follows JSON Schema format. Automatically generated from
@@ -53,7 +54,7 @@ class Tool(BaseModel):
     from_function(). Defaults to False for synchronous tools.
     """
 
-    parameters_model: Optional[Any] = Field(
+    parameters_model: Any | None = Field(
         default=None, description="Pydantic Model for tool parameters"
     )
     """Pydantic model used for parameter validation.
@@ -63,7 +64,7 @@ class Tool(BaseModel):
     parameter validation.
     """
 
-    namespace: Optional[str] = Field(
+    namespace: str | None = Field(
         default=None, description="Namespace the tool belongs to"
     )
     """The namespace this tool belongs to.
@@ -76,7 +77,7 @@ class Tool(BaseModel):
     without parsing the ``name`` field.
     """
 
-    method_name: Optional[str] = Field(
+    method_name: str | None = Field(
         default=None, description="Original method name of the tool"
     )
     """The original method/function name before namespace prefixing.
@@ -105,10 +106,10 @@ class Tool(BaseModel):
     def from_function(
         cls,
         func: Callable[..., Any],
-        name: Optional[str] = None,
-        description: Optional[str] = None,
-        namespace: Optional[str] = None,
-        method_name: Optional[str] = None,
+        name: str | None = None,
+        description: str | None = None,
+        namespace: str | None = None,
+        method_name: str | None = None,
     ) -> "Tool":
         """Factory method to create Tool from callable.
 
@@ -170,7 +171,7 @@ class Tool(BaseModel):
     def get_json_schema(
         self,
         api_format: API_FORMATS = "openai",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Generate JSON Schema representation of tool based on API mode.
 
         Args:
@@ -207,7 +208,7 @@ class Tool(BaseModel):
 
     describe = get_json_schema
 
-    def _validate_parameters(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
+    def _validate_parameters(self, parameters: dict[str, Any]) -> dict[str, Any]:
         """Validate parameters against tool schema.
 
         Uses Pydantic model if available, otherwise performs basic validation.
@@ -225,7 +226,7 @@ class Tool(BaseModel):
             validated_params = model.model_dump_one_level()
         return validated_params
 
-    def run(self, parameters: Dict[str, Any]) -> Any:
+    def run(self, parameters: dict[str, Any]) -> Any:
         """Execute tool synchronously.
 
         Args:
@@ -243,7 +244,7 @@ class Tool(BaseModel):
         except Exception as e:
             return f"Error executing {self.name}: {str(e)}"
 
-    async def arun(self, parameters: Dict[str, Any]) -> Any:
+    async def arun(self, parameters: dict[str, Any]) -> Any:
         """Execute tool asynchronously.
 
         Args:
@@ -272,7 +273,7 @@ class Tool(BaseModel):
 
     def update_namespace(
         self,
-        namespace: Optional[str],
+        namespace: str | None,
         force: bool = False,
         sep: Literal["-", "."] = "-",
     ) -> None:

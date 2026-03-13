@@ -1,6 +1,7 @@
 import asyncio
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any
+from collections.abc import Callable
 
 from loguru import logger
 from mcp.types import (
@@ -31,9 +32,9 @@ class MCPToolWrapper(BaseToolWrapper):
 
     def __init__(
         self,
-        transport: Union[str, dict, Path],
+        transport: str | dict | Path,
         name: str,
-        params: Optional[List[str]],
+        params: list[str] | None,
     ) -> None:
         """Initialize MCP tool wrapper.
 
@@ -148,7 +149,7 @@ class MCPToolWrapper(BaseToolWrapper):
                 }
             return content
 
-        handlers: Dict[Any, Callable] = {
+        handlers: dict[Any, Callable] = {
             TextContent: process_text,
             ImageContent: process_image,
             EmbeddedResource: process_embedded,
@@ -182,8 +183,8 @@ class MCPTool(Tool):
     def from_tool_json(
         cls,
         tool_spec: ToolSpec,
-        transport: Union[str, dict, Path],
-        namespace: Optional[str] = None,
+        transport: str | dict | Path,
+        namespace: str | None = None,
     ) -> "MCPTool":
         """Create an MCPTool instance from a JSON representation.
 
@@ -236,8 +237,8 @@ class MCPIntegration:
 
     async def register_mcp_tools_async(
         self,
-        transport: Union[str, Dict[str, Any], Path],
-        with_namespace: Union[bool, str] = False,
+        transport: str | dict[str, Any] | Path,
+        with_namespace: bool | str = False,
     ) -> None:
         """Async implementation to register all tools from an MCP server.
 
@@ -256,7 +257,7 @@ class MCPIntegration:
             RuntimeError: If connection to server fails.
         """
         async with MCPClient(transport) as client:
-            server_info: Optional[Implementation] = client.server_info
+            server_info: Implementation | None = client.server_info
 
             if isinstance(with_namespace, str):
                 namespace = with_namespace
@@ -266,7 +267,7 @@ class MCPIntegration:
                 namespace = None
 
             # Get available tools from server
-            tools_response: List[ToolSpec] = await client.list_tools()
+            tools_response: list[ToolSpec] = await client.list_tools()
 
             # Register each tool with a wrapper function
             for tool_spec in tools_response:
@@ -281,8 +282,8 @@ class MCPIntegration:
 
     def register_mcp_tools(
         self,
-        transport: Union[str, Dict[str, Any], Path],
-        with_namespace: Union[bool, str] = False,
+        transport: str | dict[str, Any] | Path,
+        with_namespace: bool | str = False,
     ) -> None:
         """Register all tools from an MCP server (synchronous entry point).
 

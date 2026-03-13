@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Dict, Optional
+from typing import Any
 from urllib.parse import urlparse
 
 import httpx
@@ -7,7 +7,7 @@ import jsonref
 import yaml
 
 
-def extract_base_url_from_specs(openapi_spec: Dict[str, Any]) -> Optional[str]:
+def extract_base_url_from_specs(openapi_spec: dict[str, Any]) -> str | None:
     """
     Extract and validate the base URL from the 'servers' field of the OpenAPI specification.
 
@@ -31,7 +31,7 @@ def extract_base_url_from_specs(openapi_spec: Dict[str, Any]) -> Optional[str]:
     return None
 
 
-def determine_urls(url: str) -> Dict[str, Any]:
+def determine_urls(url: str) -> dict[str, Any]:
     """
     Determine whether the given URL or its common endpoints contain an OpenAPI schema.
 
@@ -77,7 +77,7 @@ def determine_urls(url: str) -> Dict[str, Any]:
     return {"found": False, "base_api_url": base_url}
 
 
-async def load_openapi_spec_async(uri: str) -> Dict[str, Any]:
+async def load_openapi_spec_async(uri: str) -> dict[str, Any]:
     """Async version of load_openapi_spec using httpx.AsyncClient.
 
     Args:
@@ -133,7 +133,7 @@ async def load_openapi_spec_async(uri: str) -> Dict[str, Any]:
         raise ValueError(f"Unexpected error: {e}")
 
 
-def load_openapi_spec(uri: str) -> Dict[str, Any]:
+def load_openapi_spec(uri: str) -> dict[str, Any]:
     """Sync version that calls the async implementation.
 
     Args:

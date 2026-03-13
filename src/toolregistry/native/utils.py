@@ -1,7 +1,4 @@
-from typing import List, Optional, Type, Union
-
-
-def _is_all_static_methods(cls: Type) -> bool:
+def _is_all_static_methods(cls: type) -> bool:
     """
     Determines if all the methods of a given class are static methods.
 
@@ -17,9 +14,7 @@ def _is_all_static_methods(cls: Type) -> bool:
     return True
 
 
-def _determine_namespace(
-    cls_or_inst: Union[Type, object], with_ns: Union[str, bool]
-) -> Optional[str]:
+def _determine_namespace(cls_or_inst: type | object, with_ns: str | bool) -> str | None:
     """
     Determines the namespace to use based on the class or instance and the `with_ns` parameter.
 
@@ -44,10 +39,10 @@ def _determine_namespace(
 
 
 def get_all_static_methods(
-    cls_or_instance: Union[Type, object],
-    skip_list: Optional[List[str]] = None,
-    include_list: Optional[List[str]] = None,
-) -> List[str]:
+    cls_or_instance: type | object,
+    skip_list: list[str] | None = None,
+    include_list: list[str] | None = None,
+) -> list[str]:
     """Returns a list of all valid public static methods of a class or its instance.
 
     Args:

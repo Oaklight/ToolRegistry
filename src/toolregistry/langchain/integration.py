@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Optional, Union
+from typing import Any
 
 from langchain_core.tools import BaseTool as LCBaseTool
 from loguru import logger
@@ -86,7 +86,7 @@ class LangChainTool(Tool):
     def from_langchain_tool(
         cls,
         tool: LCBaseTool,
-        namespace: Optional[str] = None,
+        namespace: str | None = None,
     ) -> "LangChainTool":
         """Create a LangChainTool instance from a LangChain LCBaseTool.
 
@@ -131,7 +131,7 @@ class LangChainIntegration:
     async def register_langchain_tools_async(
         self,
         tool: LCBaseTool,
-        with_namespace: Union[bool, str] = False,
+        with_namespace: bool | str = False,
     ) -> None:
         """Async implementation to register LangChain tool using asyncio.
 
@@ -154,7 +154,7 @@ class LangChainIntegration:
     def register_langchain_tools(
         self,
         tool: LCBaseTool,
-        with_namespace: Union[bool, str] = False,
+        with_namespace: bool | str = False,
     ) -> None:
         """Register LangChain tool (synchronous entry point).
 

@@ -2,7 +2,8 @@ import asyncio
 import atexit
 import json
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, Literal
+from collections.abc import Callable
 
 import dill
 from loguru import logger
@@ -42,11 +43,11 @@ class Executor:
 
     @staticmethod
     def _process_tool_call_helper(
-        serialized_func: Optional[bytes],
+        serialized_func: bytes | None,
         tool_call_id: str,
         function_name: str,
-        function_args: Dict[str, Any],
-    ) -> Tuple[str, str]:
+        function_args: dict[str, Any],
+    ) -> tuple[str, str]:
         """Helper function to execute a single tool call.
 
         Args:
@@ -80,9 +81,9 @@ class Executor:
 
     @staticmethod
     def _execute_tool_calls_parallel(
-        executor_pool: Union[ProcessPoolExecutor, ThreadPoolExecutor],
-        tasks_to_submit: List[Tuple[Optional[bytes], str, str, Dict[str, Any]]],
-    ) -> Dict[str, str]:
+        executor_pool: ProcessPoolExecutor | ThreadPoolExecutor,
+        tasks_to_submit: list[tuple[bytes | None, str, str, dict[str, Any]]],
+    ) -> dict[str, str]:
         """Execute tool calls in parallel using an executor pool.
 
         Args:
@@ -126,10 +127,10 @@ class Executor:
 
     def execute_tool_calls(
         self,
-        get_tool_fn: Callable[[str], Optional[Tool]],
-        tool_calls: List[ToolCall],
-        execution_mode: Optional[Literal["process", "thread"]] = None,
-    ) -> Dict[str, str]:
+        get_tool_fn: Callable[[str], Tool | None],
+        tool_calls: list[ToolCall],
+        execution_mode: Literal["process", "thread"] | None = None,
+    ) -> dict[str, str]:
         """Execute tool calls with concurrency using dill for serialization.
 
         Args:

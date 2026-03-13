@@ -15,7 +15,6 @@ Example:
 
 import asyncio
 import inspect
-from typing import Optional, Type, Union
 
 from ..tool_registry import ToolRegistry
 from .utils import _determine_namespace, _is_all_static_methods
@@ -39,8 +38,8 @@ class ClassToolIntegration:
 
     def register_class_methods(
         self,
-        cls_or_instance: Union[Type, object],
-        with_namespace: Union[bool, str] = False,
+        cls_or_instance: type | object,
+        with_namespace: bool | str = False,
     ) -> None:
         """Register all methods from a class or instance as tools.
 
@@ -79,8 +78,8 @@ class ClassToolIntegration:
 
     async def register_class_methods_async(
         self,
-        cls_or_instance: Union[Type, object],
-        with_namespace: Union[bool, str] = False,
+        cls_or_instance: type | object,
+        with_namespace: bool | str = False,
     ) -> None:
         """Async implementation to register tools from a class.
 
@@ -99,7 +98,7 @@ class ClassToolIntegration:
             None, self.register_class_methods, cls_or_instance, with_namespace
         )
 
-    def _collect_static_methods_from_mro(self, cls: Type) -> dict:
+    def _collect_static_methods_from_mro(self, cls: type) -> dict:
         """Collect static methods by traversing the MRO, with subclass priority.
 
         Iterates through ``inspect.getmro(cls)`` in reverse order (from the
@@ -123,7 +122,7 @@ class ClassToolIntegration:
                     collected[name] = member
         return collected
 
-    def _register_static_methods(self, cls: Type, namespace: Optional[str]) -> None:
+    def _register_static_methods(self, cls: type, namespace: str | None) -> None:
         """Register all static methods of a class into the provided registry.
 
         When ``self.traverse_mro`` is True (default), methods inherited from
@@ -181,7 +180,7 @@ class ClassToolIntegration:
         return collected
 
     def _register_instance_methods(
-        self, instance: object, namespace: Optional[str]
+        self, instance: object, namespace: str | None
     ) -> None:
         """Register all instance methods (excluding private and classmethods) of an object.
 
