@@ -8,11 +8,15 @@ version = "0.5.0"
 authors = [{ name = "Oaklight", email = "oaklight@gmx.com" }]
 description = "ToolRegistry: a library for easier function calling and tool use in LLMs"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 license = "MIT"
 classifiers = [
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
@@ -21,7 +25,6 @@ dependencies = [
     "loguru>=0.7.3",
     "dill>=0.4.0",
     "httpx>=0.28.1",
-    "fake-useragent>=2.0.0",  # 2.0.0 is the max version compatible with Python 3.8
 ]
 
 [project.optional-dependencies]
@@ -55,9 +58,6 @@ Documentation = "https://toolregistry.readthedocs.io"
 Repository = "https://github.com/Oaklight/ToolRegistry"
 Issues = "https://github.com/Oaklight/ToolRegistry/issues"
 
-# Note: Standard TOML does not support imports from other TOML files
-# When installing with mcp extras (toolregistry[mcp]), Python >= 3.10 is required
-# The mcp package dependencies should be listed in this file
 [tool.ty.environment]
 python-version = "3.10"
 

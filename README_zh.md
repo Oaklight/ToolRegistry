@@ -35,7 +35,7 @@
 
 ### 基本安装
 
-安装核心包（需要 **Python >= 3.8**）：
+安装核心包（需要 **Python >= 3.10**）：
 
 ```bash
 pip install toolregistry
@@ -51,11 +51,11 @@ pip install toolregistry[mcp,openapi]
 
 以下是可用额外模块的总结表：
 
-| 额外模块  | Python 要求    | 示例命令                            |
-| --------- | -------------- | ----------------------------------- |
-| mcp       | Python >= 3.10 | pip install toolregistry[mcp]       |
-| openapi   | Python >= 3.8  | pip install toolregistry[openapi]   |
-| langchain | Python >= 3.9  | pip install toolregistry[langchain] |
+| 额外模块  | 示例命令                            |
+| --------- | ----------------------------------- |
+| mcp       | pip install toolregistry[mcp]       |
+| openapi   | pip install toolregistry[openapi]   |
+| langchain | pip install toolregistry[langchain] |
 
 ### Hub 工具安装
 

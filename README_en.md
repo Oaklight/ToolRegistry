@@ -35,7 +35,7 @@ Full documentation is available at [https://toolregistry.readthedocs.io](https:/
 
 ### Basic Installation
 
-Install the core package (requires **Python >= 3.8**):
+Install the core package (requires **Python >= 3.10**):
 
 ```bash
 pip install toolregistry
@@ -51,11 +51,11 @@ pip install toolregistry[mcp,openapi]
 
 Below is a table summarizing available extra modules:
 
-| Extra Module | Python Requirement | Example Command                     |
-| ------------ | ------------------ | ----------------------------------- |
-| mcp          | Python >= 3.10     | pip install toolregistry[mcp]       |
-| openapi      | Python >= 3.8      | pip install toolregistry[openapi]   |
-| langchain    | Python >= 3.9      | pip install toolregistry[langchain] |
+| Extra Module | Example Command                     |
+| ------------ | ----------------------------------- |
+| mcp          | pip install toolregistry[mcp]       |
+| openapi      | pip install toolregistry[openapi]   |
+| langchain    | pip install toolregistry[langchain] |
 
 ### Hub Tools Installation
 
