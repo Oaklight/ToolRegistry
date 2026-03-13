@@ -9,7 +9,7 @@ The LangChain integration module enables the ToolRegistry to support LangChain-b
 
 ## Usage Guide
 
-To integrate LangChain, ensure you have installed the [langchain] dependency extension (`pip install toolregistry[langchain]`). LangChain support requires *Python version >= 3.9*. Follow these steps to register and use tools:
+To integrate LangChain, ensure you have installed the [langchain] dependency extension (`pip install toolregistry[langchain]`). Follow these steps to register and use tools:
 
 1. **Setup LangChain Tool Instances**
 

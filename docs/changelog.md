@@ -10,6 +10,21 @@ author: Oaklight
 
 This page documents all notable changes to the ToolRegistry project since the first release.
 
+## [0.5.1] - 2026-03-13
+
+### ⚠️ Breaking Changes
+
+- **Upgrade Minimum Python Version to 3.10** ([#74](../../issues/74))
+	- Update `requires-python` from `>=3.8` to `>=3.10`
+	- Python 3.8 and 3.9 are no longer supported
+	- This aligns with Python 3.9 EOL and MCP SDK requirements
+
+### Maintenance
+
+- Remove `fake-useragent` dependency (no longer used after toolregistry-hub split)
+- Remove legacy `./docs` directory (migrated to `docs_en`/`docs_zh` worktrees)
+- Add Python 3.10/3.11/3.12/3.13 classifiers to pyproject.toml
+
 ## [0.5.0] - 2026-03-10
 
 ### Refactoring

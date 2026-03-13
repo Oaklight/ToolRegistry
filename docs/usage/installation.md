@@ -69,7 +69,7 @@ print(toolregistry.__version__)
 
 ## Requirements
 
-- Python 3.8 or higher
+- Python 3.10 or higher
 - Operating System: Windows, macOS, or Linux
 
 ## Troubleshooting
