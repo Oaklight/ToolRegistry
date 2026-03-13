@@ -2,14 +2,14 @@
 #
 
 # You can set these variables from the command line.
-SPHINXOPTS    ?=
-SPHINXBUILD   ?= mkdocs
+MKDOCS_OPTS   ?=
+MKDOCS        ?= mkdocs
 SOURCEDIR     = docs
 BUILDDIR      = site
 
 # Put it first so that "make" without argument is like "make help".
 help:
-	@$(SPHINXBUILD) -M help "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
+	@$(MKDOCS) -M help "$(SOURCEDIR)" "$(BUILDDIR)" $(MKDOCS_OPTS) $(O)
 
 .PHONY: help Makefile
 
@@ -21,7 +21,7 @@ clean:
 # Build HTML documentation
 html: clean
 	@echo "Building HTML documentation..."
-	@$(SPHINXBUILD) -M html "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
+	@$(MKDOCS) -M html "$(SOURCEDIR)" "$(BUILDDIR)" $(MKDOCS_OPTS) $(O)
 
 # Build and serve documentation locally
 serve: html
@@ -38,7 +38,7 @@ live:
 	@echo "Starting live documentation server..."
 	@mkdocs serve --dev-addr localhost:8000
 
-# Catch-all target: route all unknown targets to Sphinx using the new
-# "make mode" option.  $(O) is meant as a shortcut for $(SPHINXOPTS).
+# Catch-all target: route all unknown targets to MkDocs using the new
+# "make mode" option.  $(O) is meant as a shortcut for $(MKDOCS_OPTS).
 %: Makefile
-	@$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
+	@$(MKDOCS) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(MKDOCS_OPTS) $(O)
