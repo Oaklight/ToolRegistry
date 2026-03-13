@@ -173,3 +173,7 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 docs/source/paper_draft/
+
+# Documentation worktrees
+docs_en/
+docs_zh/
