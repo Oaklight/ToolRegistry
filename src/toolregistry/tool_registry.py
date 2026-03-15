@@ -814,6 +814,47 @@ class ToolRegistry:
         """
         return list(self._tools.keys())
 
+    def get_tools_status(self) -> list[dict[str, Any]]:
+        """Get status information for all registered tools.
+
+        Returns a list of dictionaries containing status information for each tool,
+        including whether it's enabled/disabled and the reason if disabled.
+
+        Returns:
+            list[dict[str, Any]]: List of tool status dictionaries, each containing:
+                - name (str): Tool name (with namespace prefix if applicable)
+                - enabled (bool): Whether the tool is currently enabled
+                - reason (str | None): Reason for disabling, if disabled
+                - namespace (str | None): Namespace the tool belongs to, if any
+
+        Example:
+            >>> registry = ToolRegistry()
+            >>> registry.register(my_tool)
+            >>> registry.disable("my_tool", reason="Under maintenance")
+            >>> registry.get_tools_status()
+            [
+                {
+                    "name": "my_tool",
+                    "enabled": False,
+                    "reason": "Under maintenance",
+                    "namespace": None
+                }
+            ]
+        """
+        status_list: list[dict[str, Any]] = []
+        for tool_name, tool in self._tools.items():
+            enabled = self.is_enabled(tool_name)
+            reason = self.get_disable_reason(tool_name) if not enabled else None
+            status_list.append(
+                {
+                    "name": tool_name,
+                    "enabled": enabled,
+                    "reason": reason,
+                    "namespace": tool.namespace,
+                }
+            )
+        return status_list
+
     def get_tools_json(
         self,
         tool_name: str | None = None,

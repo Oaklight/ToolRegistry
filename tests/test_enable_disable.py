@@ -382,3 +382,129 @@ class TestEdgeCases:
         registry = ToolRegistry(name="test")
         # Should not raise even if name was never disabled
         registry.enable("never_disabled")
+
+
+# ===========================================================================
+# 8. get_tools_status
+# ===========================================================================
+
+
+class TestGetToolsStatus:
+    """Verify get_tools_status returns correct status information for all tools."""
+
+    def test_empty_registry_returns_empty_list(self):
+        """Test that an empty registry returns an empty list."""
+        registry = ToolRegistry(name="test")
+        status = registry.get_tools_status()
+        assert status == []
+
+    def test_single_enabled_tool(self):
+        """Test status of a single enabled tool."""
+        registry = ToolRegistry(name="test")
+        registry.register(add)
+
+        status = registry.get_tools_status()
+        assert len(status) == 1
+        assert status[0]["name"] == "add"
+        assert status[0]["enabled"] is True
+        assert status[0]["reason"] is None
+        assert status[0]["namespace"] is None
+
+    def test_single_disabled_tool_with_reason(self):
+        """Test status of a single disabled tool with a reason."""
+        registry = ToolRegistry(name="test")
+        registry.register(add)
+        registry.disable("add", reason="Under maintenance")
+
+        status = registry.get_tools_status()
+        assert len(status) == 1
+        assert status[0]["name"] == "add"
+        assert status[0]["enabled"] is False
+        assert status[0]["reason"] == "Under maintenance"
+        assert status[0]["namespace"] is None
+
+    def test_mixed_enabled_disabled_tools(self):
+        """Test status with a mix of enabled and disabled tools."""
+        registry = ToolRegistry(name="test")
+        registry.register(add)
+        registry.register(subtract)
+        registry.register(multiply)
+
+        registry.disable("subtract", reason="Deprecated")
+
+        status = registry.get_tools_status()
+        assert len(status) == 3
+
+        # Convert to dict for easier lookup
+        status_dict = {s["name"]: s for s in status}
+
+        assert status_dict["add"]["enabled"] is True
+        assert status_dict["add"]["reason"] is None
+
+        assert status_dict["subtract"]["enabled"] is False
+        assert status_dict["subtract"]["reason"] == "Deprecated"
+
+        assert status_dict["multiply"]["enabled"] is True
+        assert status_dict["multiply"]["reason"] is None
+
+    def test_namespace_tools_status(self):
+        """Test status of tools registered with a namespace."""
+        registry = ToolRegistry(name="test")
+        registry.register_from_class(MathTools, with_namespace=True)
+
+        status = registry.get_tools_status()
+        assert len(status) == 3
+
+        for tool_status in status:
+            assert tool_status["enabled"] is True
+            assert tool_status["reason"] is None
+            assert tool_status["namespace"] == "math_tools"
+            # Tool names use "-" as separator (e.g., "math_tools-square")
+            assert tool_status["name"].startswith("math_tools-")
+
+    def test_namespace_disabled_tools_status(self):
+        """Test status when namespace is disabled."""
+        registry = ToolRegistry(name="test")
+        registry.register_from_class(MathTools, with_namespace=True)
+        registry.disable("math_tools", reason="Namespace disabled")
+
+        status = registry.get_tools_status()
+        assert len(status) == 3
+
+        for tool_status in status:
+            assert tool_status["enabled"] is False
+            assert tool_status["reason"] == "Namespace disabled"
+            assert tool_status["namespace"] == "math_tools"
+
+    def test_method_level_override_in_status(self):
+        """Test that method-level disable reason appears in status."""
+        registry = ToolRegistry(name="test")
+        registry.register_from_class(MathTools, with_namespace=True)
+
+        # Disable namespace
+        registry.disable("math_tools", reason="Namespace disabled")
+
+        # Override one specific tool (using "-" separator)
+        registry.disable("math_tools-square", reason="Method disabled")
+
+        status = registry.get_tools_status()
+        status_dict = {s["name"]: s for s in status}
+
+        # Method-level reason takes priority
+        assert status_dict["math_tools-square"]["reason"] == "Method disabled"
+
+        # Other tools get namespace reason
+        assert status_dict["math_tools-double"]["reason"] == "Namespace disabled"
+        assert status_dict["math_tools-negate"]["reason"] == "Namespace disabled"
+
+    def test_disabled_tool_without_reason(self):
+        """Test status of a disabled tool without a reason."""
+        registry = ToolRegistry(name="test")
+        registry.register(add)
+        registry.disable("add")
+
+        status = registry.get_tools_status()
+        assert len(status) == 1
+        assert status[0]["enabled"] is False
+        # Empty string reason is still returned
+        assert status[0]["reason"] == ""
