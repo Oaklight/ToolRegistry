@@ -160,6 +160,40 @@ registry.enable("add")  # 触发：[enable] add
 registry.remove_on_change(my_callback)
 ```
 
+### 可观测性 API
+
+```python
+from toolregistry import ToolRegistry
+
+registry = ToolRegistry()
+
+def add(a: int, b: int) -> int:
+    return a + b
+
+def subtract(a: int, b: int) -> int:
+    return a - b
+
+registry.register(add)
+registry.register(subtract)
+
+# 禁用一个工具并提供原因
+registry.disable("subtract", reason="维护中")
+
+# 获取所有工具的状态
+status = registry.get_tools_status()
+print(status)
+# 输出：
+# [
+#     {"name": "add", "enabled": True, "reason": None, "namespace": None},
+#     {"name": "subtract", "enabled": False, "reason": "维护中", "namespace": None}
+# ]
+
+# 筛选出已禁用的工具
+disabled_tools = [s for s in status if not s["enabled"]]
+print(disabled_tools)
+# 输出：[{"name": "subtract", "enabled": False, "reason": "维护中", "namespace": None}]
+```
+
 ## 集成点
 
 ToolRegistry 提供以下集成点：
