@@ -94,6 +94,7 @@ nav:
           - OpenAI Chat: usage/providers/openai_chat.md
           - OpenAI Response: usage/providers/openai_response.md
   - Hub Tools: https://toolregistry-hub.readthedocs.io/
+  - Server: https://toolregistry-server.readthedocs.io/
   - Examples:
       - Overview: examples/index.md
       - Consecutive Tool Calls: examples/consecutive_tool_calls.md
@@ -104,6 +105,7 @@ nav:
       - MCP Calculator: examples/mcp_calculator.md
       - MCP Diverse Transport: examples/mcp_diverse_transport.md
       - OpenAPI Calculator: examples/openapi_calculator.md
+  - Ecosystem: ecosystem.md
   - Changelog: changelog.md
   - API Reference:
       - Overview: api/index.md

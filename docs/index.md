@@ -27,6 +27,16 @@ pip install toolregistry
 
 [Detailed setup instructions →](usage/installation.md)
 
+## Ecosystem
+
+ToolRegistry is part of a three-package ecosystem. See the [Ecosystem](ecosystem.md) page for details.
+
+| Package | Role |
+|---------|------|
+| **toolregistry** | Core tool management library |
+| [toolregistry-server](https://toolregistry-server.readthedocs.io/) | OpenAPI & MCP server adapters |
+| [toolregistry-hub](https://toolregistry-hub.readthedocs.io/) | Ready-to-use utility tools |
+
 ## Documentation Contents
 
 Here are brief introductions and links to each section:
