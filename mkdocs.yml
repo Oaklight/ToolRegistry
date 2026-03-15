@@ -79,6 +79,13 @@ extra:
       link: https://github.com/Oaklight/ToolRegistry
     - icon: fontawesome/brands/python
       link: https://pypi.org/project/toolregistry/
+  alternate:
+    - name: English
+      link: /en/
+      lang: en
+    - name: 中文
+      link: /zh/
+      lang: zh
 
 nav:
   - 首页: index.md
