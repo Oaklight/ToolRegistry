@@ -10,7 +10,7 @@ author: Oaklight
 
 本页面记录了 ToolRegistry 项目自首个发布版本以来的所有重要变更。
 
-## [0.5.1] - 2026-03-13
+## Unreleased
 
 ### ⚠️ 破坏性变更
 
