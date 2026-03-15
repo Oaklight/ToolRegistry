@@ -1,48 +1,49 @@
 # ToolRegistry
 
-The central registry class that manages tool registration, execution, and metadata across the ToolRegistry ecosystem.
+管理工具注册、执行和元数据的中央注册表类。
 
-## Overview
+## 概述
 
-`ToolRegistry` serves as the core orchestrator for tool management in the ToolRegistry library. It provides a unified interface for registering, discovering, and executing tools from various sources including native Python functions, OpenAPI specifications, MCP servers, LangChain tools, and more.
+`ToolRegistry` 是 ToolRegistry 库中工具管理的核心协调器。它提供了一个统一的接口，用于注册、发现和执行来自各种来源的工具，包括原生 Python 函数、OpenAPI 规范、MCP 服务器、LangChain 工具等。
 
-## Key Features
+## 核心特性
 
-- **Unified Tool Management**: Central registry for all types of tools
-- **Async/Sync Support**: Full compatibility with both synchronous and asynchronous execution
-- **Namespace Organization**: Support for organizing tools under namespaces
-- **Multi-Source Integration**: Seamless integration with various tool sources
-- **Metadata Preservation**: Maintains tool descriptions, parameters, and execution metadata
-- **Flexible Execution**: Multiple execution modes and concurrency options
+- **统一工具管理**：所有类型工具的中央注册表
+- **异步/同步支持**：完全兼容同步和异步执行
+- **命名空间组织**：支持在命名空间下组织工具
+- **多源集成**：与各种工具源无缝集成
+- **元数据保留**：维护工具描述、参数和执行元数据
+- **灵活执行**：多种执行模式和并发选项
+- **变更回调**：通过 `on_change()` / `remove_on_change()` 订阅工具状态变更
 
-## Architecture
+## 架构
 
-The ToolRegistry follows a registry pattern with the following key responsibilities:
+ToolRegistry 遵循注册表模式，具有以下核心职责：
 
-### Core Responsibilities
+### 核心职责
 
-1. **Tool Registration**: Accept and register tools from various sources
-2. **Tool Discovery**: Provide mechanisms to discover available tools
-3. **Tool Execution**: Execute tools with proper parameter validation and error handling
-4. **Metadata Management**: Maintain and provide access to tool metadata
-5. **Namespace Support**: Organize tools under logical namespaces
+1. **工具注册**：接受并注册来自各种来源的工具
+2. **工具发现**：提供发现可用工具的机制
+3. **工具执行**：使用适当的参数验证和错误处理执行工具
+4. **元数据管理**：维护并提供对工具元数据的访问
+5. **命名空间支持**：在逻辑命名空间下组织工具
 
-### Registration Methods
+### 注册方法
 
-- **Native Registration**: `register()` for direct function/instance registration
-- **Class Integration**: `register_from_class()` for Python class method registration. By default, traverses the MRO (Method Resolution Order) to include inherited methods from parent classes. Pass `traverse_mro=False` to register only directly defined methods.
-- **OpenAPI Integration**: Integration with OpenAPI specifications
-- **MCP Integration**: Support for Model Context Protocol servers
-- **LangChain Integration**: Compatibility with LangChain tools
+- **原生注册**：`register()` 用于直接函数/实例注册
+- **类集成**：`register_from_class()` 用于 Python 类方法注册。默认情况下，遍历 MRO（方法解析顺序）以包含从父类继承的方法。传递 `traverse_mro=False` 仅注册直接定义的方法。
+- **OpenAPI 集成**：与 OpenAPI 规范集成
+- **MCP 集成**：支持模型上下文协议服务器
+- **LangChain 集成**：与 LangChain 工具兼容
 
-### Execution Models
+### 执行模型
 
-- **Synchronous Execution**: Direct tool execution for non-async tools
-- **Asynchronous Execution**: Async/await support for async tools
-- **Concurrent Execution**: Support for parallel tool execution
-- **Error Handling**: Comprehensive error handling and logging
+- **同步执行**：非异步工具的直接执行
+- **异步执行**：异步工具的 async/await 支持
+- **并发执行**：支持并行工具执行
+- **错误处理**：全面的错误处理和日志记录
 
-## API Reference
+## API 参考
 
 ::: toolregistry.ToolRegistry
 options:
@@ -53,23 +54,23 @@ merge_init_into_class: true
 separate_signature: true
 show_signature_annotations: true
 
-## Usage Examples
+## 使用示例
 
-### Basic Tool Registration
+### 基本工具注册
 
 ```python
 from toolregistry import ToolRegistry
 
 registry = ToolRegistry()
 
-# Register a simple function
+# 注册一个简单函数
 def add_numbers(a: int, b: int) -> int:
     return a + b
 
 registry.register(add_numbers)
 ```
 
-### Class Integration
+### 类集成
 
 ```python
 from toolregistry import ToolRegistry
@@ -84,11 +85,11 @@ class Calculator:
     def divide(self, a: int, b: int) -> float:
         return a / b
 
-# Register all methods from the class
+# 注册类中的所有方法
 registry.register_from_class(Calculator)
 ```
 
-### Class Integration with MRO Traversal
+### 带 MRO 遍历的类集成
 
 ```python
 from toolregistry import ToolRegistry
@@ -105,39 +106,71 @@ class AdvancedCalculator(BaseCalculator):
 
 registry = ToolRegistry()
 
-# Default behavior (traverse_mro=True): includes inherited methods from BaseCalculator
+# 默认行为（traverse_mro=True）：包含从 BaseCalculator 继承的方法
 registry.register_from_class(AdvancedCalculator)
 print(registry.get_available_tools())
-# Output: ['advanced_calculator-add', 'advanced_calculator-multiply']
+# 输出：['advanced_calculator-add', 'advanced_calculator-multiply']
 
-# With traverse_mro=False: only methods defined directly on AdvancedCalculator
+# 使用 traverse_mro=False：仅注册直接定义在 AdvancedCalculator 上的方法
 registry2 = ToolRegistry()
 registry2.register_from_class(AdvancedCalculator, traverse_mro=False)
 print(registry2.get_available_tools())
-# Output: ['advanced_calculator-multiply']
+# 输出：['advanced_calculator-multiply']
 ```
 
-### Namespace Organization
+### 命名空间组织
 
 ```python
 from toolregistry import ToolRegistry
 
 registry = ToolRegistry()
 
-# Register with custom namespace
+# 使用自定义命名空间注册
 registry.register(my_function, namespace="math_utils")
 
-# Access tools with namespace
+# 使用命名空间访问工具
 available_tools = registry.get_available_tools(namespace="math_utils")
 ```
 
-## Integration Points
+### 变更回调
 
-The ToolRegistry provides integration points for:
+```python
+from toolregistry import ToolRegistry, ChangeEvent, ChangeEventType
 
-- **OpenAPI Services**: Automatic REST API tool generation
-- **MCP Servers**: Model Context Protocol tool discovery
-- **LangChain Tools**: LangChain ecosystem integration
-- **Native Python**: Direct class and function registration
+registry = ToolRegistry()
 
-This makes it a central hub for managing tools from diverse sources within LLM applications.
+def my_callback(event: ChangeEvent) -> None:
+    """处理工具注册表变更。"""
+    print(f"[{event.event_type.value}] {event.tool_name}")
+    if event.reason:
+        print(f"  原因：{event.reason}")
+
+# 注册回调
+registry.on_change(my_callback)
+
+# 变更将触发回调
+def add(a: int, b: int) -> int:
+    return a + b
+
+registry.register(add)  # 触发：[register] add
+registry.disable("add", reason="维护中")  # 触发：[disable] add
+registry.enable("add")  # 触发：[enable] add
+
+# 不再需要时移除回调
+registry.remove_on_change(my_callback)
+```
+
+## 集成点
+
+ToolRegistry 提供以下集成点：
+
+- **OpenAPI 服务**：自动 REST API 工具生成
+- **MCP 服务器**：模型上下文协议工具发现
+- **LangChain 工具**：LangChain 生态系统集成
+- **原生 Python**：直接类和函数注册
+
+这使其成为在 LLM 应用程序中管理来自不同来源工具的中央枢纽。
+
+## 另请参阅
+
+- [事件](../events.md) - `ChangeEvent`、`ChangeEventType` 和 `ChangeCallback` 的详细文档
