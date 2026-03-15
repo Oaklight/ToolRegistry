@@ -25,6 +25,19 @@ author: Oaklight
 - 移除旧版 `./docs` 目录（已迁移至 `docs_en`/`docs_zh` worktrees）
 - 在 pyproject.toml 中添加 Python 3.10/3.11/3.12/3.13 classifiers
 
+### 新特性
+
+- **回调机制**（[#68](../../issues/68)）
+	- 新增 `on_change()` 和 `remove_on_change()` 方法，用于监控注册表变更
+	- 支持工具注册、移除、启用/禁用事件的回调
+
+### 重构
+
+- **现代化类型注解**，适配 Python 3.10+
+	- 将 `Union[X, Y]` 替换为 `X | Y` 语法
+	- 将 `Optional[X]` 替换为 `X | None`
+	- 将 `List`、`Dict`、`Tuple` 替换为小写 `list`、`dict`、`tuple`
+
 ## [0.5.0] - 2026-03-10
 
 ### 重构
