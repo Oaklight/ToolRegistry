@@ -27,6 +27,16 @@ pip install toolregistry
 
 [详细安装说明 →](usage/installation.md)
 
+## 生态系统
+
+ToolRegistry 是三包生态系统的一部分。详情请参阅[生态系统](ecosystem.md)页面。
+
+| 包名 | 角色 |
+|------|------|
+| **toolregistry** | 核心工具管理库 |
+| [toolregistry-server](https://toolregistry-server.readthedocs.io/zh/) | OpenAPI 和 MCP 服务器适配器 |
+| [toolregistry-hub](https://toolregistry-hub.readthedocs.io/zh/) | 即用型实用工具 |
+
 ## 文档内容
 
 以下是各个部分的简要介绍和链接：
