@@ -2,48 +2,43 @@ site_name: ToolRegistry
 site_description: 面向 OpenAI 兼容 LLM 应用的协议无关工具管理库
 site_author: Peng Ding
 site_url: https://toolregistry.readthedocs.io/zh/
-
 repo_name: Oaklight/ToolRegistry
 repo_url: https://github.com/Oaklight/ToolRegistry
-edit_uri: edit/master/docs/
+copyright: Copyright &copy; 2024 Peng Ding
 
 theme:
   name: material
   language: zh
   palette:
-    - scheme: default
-      primary: blue
-      accent: blue
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: 切换到浅色模式
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
       toggle:
         icon: material/brightness-7
         name: 切换到深色模式
-    - scheme: slate
-      primary: blue
-      accent: blue
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
       toggle:
         icon: material/brightness-4
-        name: 切换到浅色模式
+        name: 跟随系统偏好
   features:
     - navigation.tabs
     - navigation.sections
     - navigation.expand
     - navigation.top
+    - navigation.indexes
     - search.highlight
     - search.share
+    - search.suggest
     - content.code.copy
     - content.action.edit
 
-extra:
-  alternate:
-    - name: English
-      link: /en/
-      lang: en
-    - name: 中文
-      link: /zh-cn/
-      lang: zh
-
 plugins:
-  - search
+  - search:
+      separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
   - mkdocstrings:
       handlers:
         python:
@@ -67,6 +62,8 @@ markdown_extensions:
           format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.highlight:
       anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
   - pymdownx.inlinehilite
   - pymdownx.snippets
   - pymdownx.tabbed:
@@ -76,11 +73,18 @@ markdown_extensions:
   - toc:
       permalink: true
 
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/Oaklight/ToolRegistry
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/toolregistry/
+
 nav:
   - 首页: index.md
   - 使用指南:
       - 安装: usage/installation.md
-      - 基础用法: usage/basics.md
+      - 基本用法: usage/basics.md
       - 函数调用: usage/function_calling.md
       - 并发模式: usage/concurrency_modes.md
       - 最佳实践: usage/best_practices.md
@@ -91,11 +95,9 @@ nav:
           - MCP 工具: usage/integrations/mcp.md
           - OpenAPI 工具: usage/integrations/openapi.md
           - LangChain 工具: usage/integrations/langchain.md
-      - 提供者:
+      - 供应商:
           - OpenAI Chat: usage/providers/openai_chat.md
           - OpenAI Response: usage/providers/openai_response.md
-  - Hub 工具: https://toolregistry-hub.readthedocs.io/
-  - Server: https://toolregistry-server.readthedocs.io/
   - 示例:
       - 概览: examples/index.md
       - 连续工具调用: examples/consecutive_tool_calls.md
@@ -104,10 +106,8 @@ nav:
       - Hub 网络搜索: examples/hub_websearch.md
       - LangChain ArXiv: examples/langchain_arxiv.md
       - MCP 计算器: examples/mcp_calculator.md
-      - MCP 多样化传输: examples/mcp_diverse_transport.md
+      - MCP 多样传输: examples/mcp_diverse_transport.md
       - OpenAPI 计算器: examples/openapi_calculator.md
-  - 生态系统: ecosystem.md
-  - 更新日志: changelog.md
   - API 参考:
       - 概览: api/index.md
       - 核心类:
@@ -115,7 +115,7 @@ nav:
           - ToolRegistry: api/core/toolregistry.md
           - Tool: api/core/tool.md
           - Executor: api/core/executor.md
-          - 事件: api/events.md
+          - Events: api/events.md
       - 集成:
           - 概览: api/integrations.md
           - OpenAPI: api/integrations/openapi.md
@@ -130,3 +130,7 @@ nav:
           - LangChain ToolWrapper: api/wrappers/langchain.md
       - 辅助类: api/helpers.md
       - 类型: api/types.md
+  - 生态系统: ecosystem.md
+  - 更新日志: changelog.md
+  - Hub 工具: https://toolregistry-hub.readthedocs.io/
+  - Server: https://toolregistry-server.readthedocs.io/
