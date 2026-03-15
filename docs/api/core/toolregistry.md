@@ -14,6 +14,7 @@ The central registry class that manages tool registration, execution, and metada
 - **Multi-Source Integration**: Seamless integration with various tool sources
 - **Metadata Preservation**: Maintains tool descriptions, parameters, and execution metadata
 - **Flexible Execution**: Multiple execution modes and concurrency options
+- **Change Callbacks**: Subscribe to tool state changes via `on_change()` / `remove_on_change()`
 
 ## Architecture
 
@@ -131,6 +132,34 @@ registry.register(my_function, namespace="math_utils")
 available_tools = registry.get_available_tools(namespace="math_utils")
 ```
 
+### Change Callbacks
+
+```python
+from toolregistry import ToolRegistry, ChangeEvent, ChangeEventType
+
+registry = ToolRegistry()
+
+def my_callback(event: ChangeEvent) -> None:
+    """Handle tool registry changes."""
+    print(f"[{event.event_type.value}] {event.tool_name}")
+    if event.reason:
+        print(f"  Reason: {event.reason}")
+
+# Register the callback
+registry.on_change(my_callback)
+
+# Changes will trigger the callback
+def add(a: int, b: int) -> int:
+    return a + b
+
+registry.register(add)  # Triggers: [register] add
+registry.disable("add", reason="Maintenance")  # Triggers: [disable] add
+registry.enable("add")  # Triggers: [enable] add
+
+# Remove callback when no longer needed
+registry.remove_on_change(my_callback)
+```
+
 ## Integration Points
 
 The ToolRegistry provides integration points for:
@@ -141,3 +170,7 @@ The ToolRegistry provides integration points for:
 - **Native Python**: Direct class and function registration
 
 This makes it a central hub for managing tools from diverse sources within LLM applications.
+
+## See Also
+
+- [Events](../events.md) - Detailed documentation on `ChangeEvent`, `ChangeEventType`, and `ChangeCallback`
