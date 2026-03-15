@@ -1,11 +1,35 @@
-# Makefile for cicada pip package
+# Makefile for toolregistry package
 
 # Variables
-PACKAGE_NAME := cicada
+PACKAGE_NAME := toolregistry
 DIST_DIR := dist
 
 # Default target
-all: build push clean
+all: lint test build
+
+# ──────────────────────────────────────────────
+# Linting & Type Checking
+# ──────────────────────────────────────────────
+
+# Run ty type checker
+lint:
+	@echo "Running ty check..."
+	ty check
+	@echo "Type check complete."
+
+# ──────────────────────────────────────────────
+# Testing
+# ──────────────────────────────────────────────
+
+# Run tests
+test:
+	@echo "Running tests..."
+	pytest tests/ -v --tb=short
+	@echo "Tests completed."
+
+# ──────────────────────────────────────────────
+# Package targets
+# ──────────────────────────────────────────────
 
 # Build the package
 build: clean
@@ -28,9 +52,17 @@ clean:
 # Help target
 help:
 	@echo "Available targets:"
+	@echo ""
+	@echo "Development:"
+	@echo "  lint    - Run ty type checker"
+	@echo "  test    - Run tests with pytest"
+	@echo ""
+	@echo "Package targets:"
 	@echo "  build   - Build the pip package"
 	@echo "  push    - Push the package to PyPI"
 	@echo "  clean   - Clean up build and distribution files"
-	@echo "  help    - Show this help message"
+	@echo ""
+	@echo "Composite targets:"
+	@echo "  all     - Run lint, test, and build (default)"
 
-.PHONY: all build push clean help
+.PHONY: all lint test build push clean help
