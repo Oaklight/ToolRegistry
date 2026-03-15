@@ -10,7 +10,7 @@ author: Oaklight
 
 This page documents all notable changes to the ToolRegistry project since the first release.
 
-## [0.5.1] - 2026-03-13
+## Unreleased
 
 ### ⚠️ Breaking Changes
 
