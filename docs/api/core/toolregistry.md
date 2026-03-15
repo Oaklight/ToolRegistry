@@ -160,6 +160,40 @@ registry.enable("add")  # Triggers: [enable] add
 registry.remove_on_change(my_callback)
 ```
 
+### Observability API
+
+```python
+from toolregistry import ToolRegistry
+
+registry = ToolRegistry()
+
+def add(a: int, b: int) -> int:
+    return a + b
+
+def subtract(a: int, b: int) -> int:
+    return a - b
+
+registry.register(add)
+registry.register(subtract)
+
+# Disable a tool with a reason
+registry.disable("subtract", reason="Under maintenance")
+
+# Get status of all tools
+status = registry.get_tools_status()
+print(status)
+# Output:
+# [
+#     {"name": "add", "enabled": True, "reason": None, "namespace": None},
+#     {"name": "subtract", "enabled": False, "reason": "Under maintenance", "namespace": None}
+# ]
+
+# Filter to find disabled tools
+disabled_tools = [s for s in status if not s["enabled"]]
+print(disabled_tools)
+# Output: [{"name": "subtract", "enabled": False, "reason": "Under maintenance", "namespace": None}]
+```
+
 ## Integration Points
 
 The ToolRegistry provides integration points for:
