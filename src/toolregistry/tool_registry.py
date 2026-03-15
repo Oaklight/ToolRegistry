@@ -1,10 +1,13 @@
 import json
+import logging
 import random
 import string
+import threading
 from pathlib import Path
 from typing import Any, Literal
 from collections.abc import Callable
 
+from .events import ChangeCallback, ChangeEvent, ChangeEventType
 from .executor import Executor
 from .tool import Tool
 from .types import (
@@ -15,6 +18,8 @@ from .types import (
     recover_tool_message,
 )
 from .utils import HttpxClientConfig, normalize_tool_name
+
+logger = logging.getLogger(__name__)
 
 try:
     from langchain_core.tools import BaseTool as LCBaseTool
@@ -61,6 +66,8 @@ class ToolRegistry:
         self._sub_registries: set[str] = set()
         self._disabled: dict[str, str] = {}
         self._executor = Executor()
+        self._change_callbacks: list[ChangeCallback] = []
+        self._callback_lock = threading.Lock()
 
     def __contains__(self, name: str) -> bool:
         """Check if a tool with the given name is registered.
@@ -365,6 +372,13 @@ class ToolRegistry:
             reason: Optional reason for disabling.
         """
         self._disabled[name] = reason
+        self._emit_change(
+            ChangeEvent(
+                event_type=ChangeEventType.DISABLE,
+                tool_name=name,
+                reason=reason or None,
+            )
+        )
 
     def enable(self, name: str) -> None:
         """Re-enable a tool or namespace.
@@ -373,6 +387,12 @@ class ToolRegistry:
             name: The tool name or namespace to re-enable.
         """
         self._disabled.pop(name, None)
+        self._emit_change(
+            ChangeEvent(
+                event_type=ChangeEventType.ENABLE,
+                tool_name=name,
+            )
+        )
 
     def is_enabled(self, tool_name: str) -> bool:
         """Check if a tool is enabled (not disabled at method or group level).
@@ -408,6 +428,80 @@ class ToolRegistry:
             return self._disabled.get(tool.namespace)
         return None
 
+    # ============== Change Callbacks ==============
+
+    def on_change(self, callback: ChangeCallback) -> None:
+        """Register a callback to be notified of tool state changes.
+
+        The callback will be invoked synchronously whenever a tool is
+        registered, unregistered, enabled, or disabled.
+
+        Args:
+            callback: Function that accepts a ChangeEvent parameter.
+                     Must not raise exceptions that should propagate.
+
+        Note:
+            - Callbacks are invoked in registration order.
+            - The same callback can be registered multiple times.
+            - Callbacks should be lightweight; heavy processing should
+              be offloaded to a separate thread/task.
+
+        Example:
+            ```python
+            def my_handler(event: ChangeEvent) -> None:
+                print(f"{event.event_type}: {event.tool_name}")
+            registry.on_change(my_handler)
+            ```
+        """
+        with self._callback_lock:
+            self._change_callbacks.append(callback)
+
+    def remove_on_change(self, callback: ChangeCallback) -> bool:
+        """Remove a previously registered callback.
+
+        Args:
+            callback: The exact callback function to remove.
+
+        Returns:
+            True if the callback was found and removed, False otherwise.
+
+        Note:
+            If the same callback was registered multiple times,
+            only the first occurrence is removed.
+
+        Example:
+            ```python
+            registry.remove_on_change(my_handler)  # True
+            ```
+        """
+        with self._callback_lock:
+            try:
+                self._change_callbacks.remove(callback)
+                return True
+            except ValueError:
+                return False
+
+    def _emit_change(self, event: ChangeEvent) -> None:
+        """Notify all registered callbacks of a change event.
+
+        Callbacks are invoked synchronously in registration order.
+        Exceptions in callbacks are logged but do not propagate.
+
+        Args:
+            event: The change event to emit.
+        """
+        # Copy callback list to allow modification during iteration
+        with self._callback_lock:
+            callbacks = self._change_callbacks.copy()
+
+        for callback in callbacks:
+            try:
+                callback(event)
+            except Exception as e:
+                # Log but don't propagate - one bad callback shouldn't
+                # break the entire notification chain
+                logger.warning(f"Change callback {callback!r} raised exception: {e}")
+
     # ============== Registration Methods ==============
     def register(
         self,
@@ -432,6 +526,7 @@ class ToolRegistry:
         if isinstance(tool_or_func, Tool):
             tool_or_func.update_namespace(namespace, force=True)
             self._tools[tool_or_func.name] = tool_or_func
+            registered_name = tool_or_func.name
         else:
             tool = Tool.from_function(
                 tool_or_func,
@@ -441,6 +536,14 @@ class ToolRegistry:
                 method_name=method_name,
             )
             self._tools[tool.name] = tool
+            registered_name = tool.name
+
+        self._emit_change(
+            ChangeEvent(
+                event_type=ChangeEventType.REGISTER,
+                tool_name=registered_name,
+            )
+        )
 
     def register_from_mcp(
         self,
@@ -463,14 +566,16 @@ class ToolRegistry:
                 Defaults to False.
 
         Examples:
-            >>> # SSE server URL
-            >>> registry.register_from_mcp("http://localhost:8000/sse")
+            ```python
+            # SSE server URL
+            registry.register_from_mcp("http://localhost:8000/sse")
 
-            >>> # WebSocket server URL
-            >>> registry.register_from_mcp("ws://localhost:9000")
+            # WebSocket server URL
+            registry.register_from_mcp("ws://localhost:9000")
 
-            >>> # Path to Python server script
-            >>> registry.register_from_mcp("my_mcp_server.py")
+            # Path to Python server script
+            registry.register_from_mcp("my_mcp_server.py")
+            ```
 
         Raises:
             ImportError: If [mcp] extra is not installed
@@ -500,14 +605,16 @@ class ToolRegistry:
                 Defaults to False.
 
         Examples:
-            >>> # SSE server URL
-            >>> await registry.register_from_mcp_async("http://localhost:8000/sse")
+            ```python
+            # SSE server URL
+            await registry.register_from_mcp_async("http://localhost:8000/sse")
 
-            >>> # WebSocket server URL
-            >>> await registry.register_from_mcp_async("ws://localhost:9000")
+            # WebSocket server URL
+            await registry.register_from_mcp_async("ws://localhost:9000")
 
-            >>> # Path to Python server script
-            >>> await registry.register_from_mcp_async("my_mcp_server.py")
+            # Path to Python server script
+            await registry.register_from_mcp_async("my_mcp_server.py")
+            ```
 
         Raises:
             ImportError: If [mcp] extra is not installed
@@ -639,9 +746,11 @@ class ToolRegistry:
                 class are registered.
 
         Example:
-            >>> from toolregistry.hub import Calculator
-            >>> registry = ToolRegistry()
-            >>> registry.register_from_class(Calculator)
+            ```python
+            from toolregistry.hub import Calculator
+            registry = ToolRegistry()
+            registry.register_from_class(Calculator)
+            ```
 
         Note:
             This method is now a convenience wrapper around the register() method's
@@ -675,9 +784,11 @@ class ToolRegistry:
                 class are registered.
 
         Example:
-            >>> from toolregistry.hub import Calculator
-            >>> registry = ToolRegistry()
-            >>> registry.register_from_class(Calculator)
+            ```python
+            from toolregistry.hub import Calculator
+            registry = ToolRegistry()
+            registry.register_from_class(Calculator)
+            ```
         """
         from .native import ClassToolIntegration
 
