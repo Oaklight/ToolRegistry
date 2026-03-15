@@ -1,17 +1,20 @@
-# MkDocs Documentation Build Script for ToolRegistry
+# Zensical Documentation Build Script for ToolRegistry
 #
 
 # You can set these variables from the command line.
-MKDOCS_OPTS   ?=
-MKDOCS        ?= mkdocs
+ZENSICAL      ?= zensical
 SOURCEDIR     = docs
 BUILDDIR      = site
 
 # Put it first so that "make" without argument is like "make help".
 help:
-	@$(MKDOCS) -M help "$(SOURCEDIR)" "$(BUILDDIR)" $(MKDOCS_OPTS) $(O)
+	@echo "Available targets:"
+	@echo "  clean  - Remove build artifacts"
+	@echo "  html   - Build HTML documentation"
+	@echo "  serve  - Build and locally serve documentation"
+	@echo "  live   - Live reload server for development"
 
-.PHONY: help Makefile
+.PHONY: help clean html serve live
 
 # Clean build directory
 clean:
@@ -21,24 +24,14 @@ clean:
 # Build HTML documentation
 html: clean
 	@echo "Building HTML documentation..."
-	@$(MKDOCS) -M html "$(SOURCEDIR)" "$(BUILDDIR)" $(MKDOCS_OPTS) $(O)
+	@$(ZENSICAL) build
 
 # Build and serve documentation locally
 serve: html
 	@echo "Serving documentation at http://localhost:8000"
 	@cd $(BUILDDIR) && python -m http.server 8000
 
-# Deploy to GitHub Pages
-deploy: html
-	@echo "Deploying to GitHub Pages..."
-	@mkdocs gh-deploy --force
-
 # Live reload documentation during development
 live:
 	@echo "Starting live documentation server..."
-	@mkdocs serve --dev-addr localhost:8000
-
-# Catch-all target: route all unknown targets to MkDocs using the new
-# "make mode" option.  $(O) is meant as a shortcut for $(MKDOCS_OPTS).
-%: Makefile
-	@$(MKDOCS) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(MKDOCS_OPTS) $(O)
+	@$(ZENSICAL) serve
