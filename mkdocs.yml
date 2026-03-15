@@ -2,47 +2,43 @@ site_name: ToolRegistry
 site_description: A Protocol-Agnostic Tool Management Library for OpenAI-Compatible LLM Applications
 site_author: Peng Ding
 site_url: https://toolregistry.readthedocs.io/
-
 repo_name: Oaklight/ToolRegistry
 repo_url: https://github.com/Oaklight/ToolRegistry
-edit_uri: edit/master/docs/
+copyright: Copyright &copy; 2024 Peng Ding
 
 theme:
   name: material
+  language: en
   palette:
-    - scheme: default
-      primary: blue
-      accent: blue
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
-    - scheme: slate
-      primary: blue
-      accent: blue
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
       toggle:
         icon: material/brightness-4
-        name: Switch to light mode
+        name: Switch to system preference
   features:
     - navigation.tabs
     - navigation.sections
     - navigation.expand
     - navigation.top
+    - navigation.indexes
     - search.highlight
     - search.share
+    - search.suggest
     - content.code.copy
     - content.action.edit
 
-extra:
-  alternate:
-    - name: English
-      link: /en/
-      lang: en
-    - name: 中文
-      link: /zh-cn/
-      lang: zh
-
 plugins:
-  - search
+  - search:
+      separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
   - mkdocstrings:
       handlers:
         python:
@@ -66,6 +62,8 @@ markdown_extensions:
           format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.highlight:
       anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
   - pymdownx.inlinehilite
   - pymdownx.snippets
   - pymdownx.tabbed:
@@ -74,6 +72,13 @@ markdown_extensions:
   - md_in_html
   - toc:
       permalink: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/Oaklight/ToolRegistry
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/toolregistry/
 
 nav:
   - Home: index.md
@@ -93,8 +98,6 @@ nav:
       - Providers:
           - OpenAI Chat: usage/providers/openai_chat.md
           - OpenAI Response: usage/providers/openai_response.md
-  - Hub Tools: https://toolregistry-hub.readthedocs.io/
-  - Server: https://toolregistry-server.readthedocs.io/
   - Examples:
       - Overview: examples/index.md
       - Consecutive Tool Calls: examples/consecutive_tool_calls.md
@@ -105,8 +108,6 @@ nav:
       - MCP Calculator: examples/mcp_calculator.md
       - MCP Diverse Transport: examples/mcp_diverse_transport.md
       - OpenAPI Calculator: examples/openapi_calculator.md
-  - Ecosystem: ecosystem.md
-  - Changelog: changelog.md
   - API Reference:
       - Overview: api/index.md
       - Core Classes:
@@ -129,3 +130,7 @@ nav:
           - LangChain ToolWrapper: api/wrappers/langchain.md
       - Helper Classes: api/helpers.md
       - Types: api/types.md
+  - Ecosystem: ecosystem.md
+  - Changelog: changelog.md
+  - Hub Tools: https://toolregistry-hub.readthedocs.io/
+  - Server: https://toolregistry-server.readthedocs.io/
