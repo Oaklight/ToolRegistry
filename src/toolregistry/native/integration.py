@@ -6,11 +6,12 @@ directly. If there are instance methods or other non-static attributes, the clas
 will be instantiated and its callable public methods will be registered.
 
 Example:
-    >>> from toolregistry import ToolRegistry
-    >>> registry = ToolRegistry()
-    >>> registry.register_from_class(MyClass)
-    >>> registry.get_available_tools()
-    ['MyClass.method1', 'MyClass.method2', ...]
+    ```python
+    from toolregistry import ToolRegistry
+    registry = ToolRegistry()
+    registry.register_from_class(MyClass)
+    registry.get_available_tools()  # ['MyClass.method1', 'MyClass.method2', ...]
+    ```
 """
 
 import asyncio

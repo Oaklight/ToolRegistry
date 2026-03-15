@@ -55,19 +55,21 @@ def get_all_static_methods(
         List[str]: A list of names of all valid public static methods in the class.
 
     Example:
-        >>> class Example:
-        ...     @staticmethod
-        ...     def static_method_one():
-        ...         pass
-        ...
-        ...     @staticmethod
-        ...     def static_method_two():
-        ...         pass
-        ...
-        >>> get_all_static_methods(Example, skip_list=["static_method_two"])
-        ['static_method_one']
-        >>> get_all_static_methods(Example, include_list=["static_method_two", "static_method_three"])
-        ['static_method_two']
+        ```python
+        class Example:
+            @staticmethod
+            def static_method_one():
+                pass
+
+            @staticmethod
+            def static_method_two():
+                pass
+
+        get_all_static_methods(Example, skip_list=["static_method_two"])
+        # ['static_method_one']
+        get_all_static_methods(Example, include_list=["static_method_two", "static_method_three"])
+        # ['static_method_two']
+        ```
     """
     cls = (
         cls_or_instance

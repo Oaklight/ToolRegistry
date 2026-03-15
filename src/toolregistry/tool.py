@@ -293,20 +293,19 @@ class Tool(BaseModel):
             None: This method modifies the `tool.name` attribute in place and does not return a value.
 
         Example:
-            >>> tool = Tool(name="example_tool")
-            >>> tool.update_namespace("new_namespace")
-            >>> tool.name
-            'new_namespace-example_tool'
+            ```python
+            tool = Tool(name="example_tool")
+            tool.update_namespace("new_namespace")
+            tool.name  # 'new_namespace-example_tool'
 
-            >>> tool = Tool(name="old_namespace.example_tool")
-            >>> tool.update_namespace("new_namespace", force=False)
-            >>> tool.name
-            'old_namespace-example_tool'
+            tool = Tool(name="old_namespace.example_tool")
+            tool.update_namespace("new_namespace", force=False)
+            tool.name  # 'old_namespace-example_tool'
 
-            >>> tool = Tool(name="old_namespace.example_tool")
-            >>> tool.update_namespace("new_namespace", force=True, sep=".")
-            >>> tool.name
-            'new_namespace.example_tool'
+            tool = Tool(name="old_namespace.example_tool")
+            tool.update_namespace("new_namespace", force=True, sep=".")
+            tool.name  # 'new_namespace.example_tool'
+            ```
         """
         if not namespace:
             return
