@@ -25,6 +25,19 @@ This page documents all notable changes to the ToolRegistry project since the fi
 - Remove legacy `./docs` directory (migrated to `docs_en`/`docs_zh` worktrees)
 - Add Python 3.10/3.11/3.12/3.13 classifiers to pyproject.toml
 
+### New Features
+
+- **Callback Mechanism** ([#68](../../issues/68))
+	- Added `on_change()` and `remove_on_change()` methods for monitoring registry changes
+	- Supports callbacks for tool registration, removal, enable/disable events
+
+### Refactoring
+
+- **Modernize Type Annotations for Python 3.10+**
+	- Replaced `Union[X, Y]` with `X | Y` syntax
+	- Replaced `Optional[X]` with `X | None`
+	- Replaced `List`, `Dict`, `Tuple` with lowercase `list`, `dict`, `tuple`
+
 ## [0.5.0] - 2026-03-10
 
 ### Refactoring
