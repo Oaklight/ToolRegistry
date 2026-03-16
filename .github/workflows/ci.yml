@@ -31,7 +31,7 @@ jobs:
         run: ruff format --check
 
       - name: Type check with ty
-        run: ty check
+        run: ty check src/
 
       - name: Run tests
         run: python -m pytest tests/ -v
