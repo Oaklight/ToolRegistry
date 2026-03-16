@@ -1,7 +1,7 @@
 site_name: ToolRegistry
 site_description: 面向 OpenAI 兼容 LLM 应用的协议无关工具管理库
 site_author: Peng Ding
-site_url: https://toolregistry.readthedocs.io/zh/
+site_url: https://toolregistry.readthedocs.io/zh-cn/
 repo_name: Oaklight/ToolRegistry
 repo_url: https://github.com/Oaklight/ToolRegistry
 copyright: Copyright &copy; 2024 Peng Ding
@@ -84,7 +84,7 @@ extra:
       link: /en/
       lang: en
     - name: 中文
-      link: /zh/
+      link: /zh-cn/
       lang: zh
 
 nav:
