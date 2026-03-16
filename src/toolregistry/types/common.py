@@ -41,9 +41,6 @@ class ToolCall(BaseModel):
         )
         from .openai.response import ResponseFunctionToolCall
 
-        print(f"tool_call: {tool_call}")
-        print(f"tool_call type: {type(tool_call)}")
-
         # Try to validate as ChatCompletionMessageFunctionToolCall
         try:
             # Convert to dict if it's a Pydantic model or has model_dump

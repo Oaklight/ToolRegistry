@@ -80,3 +80,4 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "toolregistry" = ["py.typed"]
+"toolregistry.admin" = ["*.html"]

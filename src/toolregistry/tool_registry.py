@@ -3,8 +3,9 @@ import logging
 import random
 import string
 import threading
+import time
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 from collections.abc import Callable
 
 from .events import ChangeCallback, ChangeEvent, ChangeEventType
@@ -18,6 +19,9 @@ from .types import (
     recover_tool_message,
 )
 from .utils import HttpxClientConfig, normalize_tool_name
+
+if TYPE_CHECKING:
+    from .admin import AdminInfo, AdminServer, ExecutionLog
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +72,8 @@ class ToolRegistry:
         self._executor = Executor()
         self._change_callbacks: list[ChangeCallback] = []
         self._callback_lock = threading.Lock()
+        self._execution_log: ExecutionLog | None = None
+        self._admin_server: AdminServer | None = None
 
     def __contains__(self, name: str) -> bool:
         """Check if a tool with the given name is registered.
@@ -127,7 +133,7 @@ class ToolRegistry:
         """Execute tool calls with concurrency using dill for serialization.
 
         Disabled tools are rejected with an error message instead of being
-        executed.
+        executed. If logging is enabled, execution details are recorded.
 
         Args:
             tool_calls: List of tool calls to be executed in any supported format.
@@ -136,11 +142,16 @@ class ToolRegistry:
         Returns:
             Dict[str, str]: Dictionary mapping tool call IDs to their results.
         """
+        from .admin import ExecutionLogEntry, ExecutionStatus
+
         generic_tool_calls = convert_tool_calls(tool_calls)
 
         # Separate enabled and disabled tool calls
         enabled_calls = []
         tool_responses: dict[str, str] = {}
+        # Track timing for each tool call
+        call_start_times: dict[str, float] = {}
+        call_arguments: dict[str, dict] = {}
 
         for tc in generic_tool_calls:
             if not self.is_enabled(tc.name):
@@ -148,8 +159,27 @@ class ToolRegistry:
                 tool_responses[tc.id] = (
                     f"Error: Tool '{tc.name}' is disabled. Reason: {reason}"
                 )
+                # Log disabled tool call
+                if self._execution_log is not None:
+                    try:
+                        args = json.loads(tc.arguments)
+                    except (json.JSONDecodeError, TypeError):
+                        args = {}
+                    entry = ExecutionLogEntry.create(
+                        tool_name=tc.name,
+                        status=ExecutionStatus.DISABLED,
+                        duration_ms=0.0,
+                        arguments=args,
+                        error=f"Tool is disabled. Reason: {reason}",
+                    )
+                    self._execution_log.add(entry)
             else:
                 enabled_calls.append(tc)
+                call_start_times[tc.id] = time.perf_counter()
+                try:
+                    call_arguments[tc.id] = json.loads(tc.arguments)
+                except (json.JSONDecodeError, TypeError):
+                    call_arguments[tc.id] = {}
 
         # Execute only enabled tool calls
         if enabled_calls:
@@ -157,6 +187,28 @@ class ToolRegistry:
                 self.get_tool, enabled_calls, execution_mode
             )
             tool_responses.update(executed_responses)
+
+            # Log executed tool calls
+            if self._execution_log is not None:
+                end_time = time.perf_counter()
+                for tc in enabled_calls:
+                    start_time = call_start_times.get(tc.id, end_time)
+                    duration_ms = (end_time - start_time) * 1000
+                    response = executed_responses.get(tc.id, "")
+                    response_str = str(response)
+                    is_error = response_str.startswith("Error")
+
+                    entry = ExecutionLogEntry.create(
+                        tool_name=tc.name,
+                        status=ExecutionStatus.ERROR
+                        if is_error
+                        else ExecutionStatus.SUCCESS,
+                        duration_ms=duration_ms,
+                        arguments=call_arguments.get(tc.id, {}),
+                        result=None if is_error else response_str,
+                        error=response_str if is_error else None,
+                    )
+                    self._execution_log.add(entry)
 
         return tool_responses
 
@@ -906,6 +958,149 @@ class ToolRegistry:
         """
         tool = self.get_tool(tool_name)
         return tool.callable if tool else None
+
+    # ============== Execution Logging ==============
+
+    def enable_logging(self, max_entries: int = 1000) -> "ExecutionLog":
+        """Enable execution logging with a ring buffer.
+
+        Creates an ExecutionLog instance that records tool execution details
+        including timing, arguments, results, and errors.
+
+        Args:
+            max_entries: Maximum number of log entries to retain.
+                When this limit is exceeded, oldest entries are removed.
+                Defaults to 1000.
+
+        Returns:
+            The ExecutionLog instance for querying logged executions.
+
+        Example:
+            ```python
+            registry = ToolRegistry()
+            log = registry.enable_logging(max_entries=500)
+            # ... execute tools ...
+            stats = log.get_stats()
+            ```
+        """
+        from .admin import ExecutionLog
+
+        self._execution_log = ExecutionLog(max_entries=max_entries)
+        return self._execution_log
+
+    def disable_logging(self) -> None:
+        """Disable execution logging.
+
+        Clears the execution log and stops recording new executions.
+        Any existing log entries are discarded.
+
+        Example:
+            ```python
+            registry.disable_logging()
+            ```
+        """
+        self._execution_log = None
+
+    def get_execution_log(self) -> "ExecutionLog | None":
+        """Get the current execution log instance.
+
+        Returns:
+            The ExecutionLog instance if logging is enabled, None otherwise.
+
+        Example:
+            ```python
+            log = registry.get_execution_log()
+            if log:
+                entries = log.get_entries(limit=10)
+            ```
+        """
+        return self._execution_log
+
+    # ============== Admin Panel ==============
+
+    def enable_admin(
+        self,
+        host: str = "127.0.0.1",
+        port: int = 8081,
+        serve_ui: bool = True,
+        remote: bool = False,
+        auth_token: str | None = None,
+    ) -> "AdminInfo":
+        """Enable the admin panel.
+
+        Starts an HTTP server that provides a REST API and optional web UI
+        for managing the registry.
+
+        Args:
+            host: The host address to bind to. Defaults to "127.0.0.1".
+            port: The port number to listen on. Defaults to 8081.
+            serve_ui: Whether to serve the admin UI at root path. Defaults to True.
+            remote: Whether to allow remote connections. If True, binds to "0.0.0.0"
+                and auto-generates an auth token if none provided. Defaults to False.
+            auth_token: Optional authentication token. If None and remote is True,
+                a random token is generated.
+
+        Returns:
+            AdminInfo containing server details including URL and token.
+
+        Raises:
+            RuntimeError: If the admin panel is already running.
+
+        Example:
+            ```python
+            registry = ToolRegistry()
+            info = registry.enable_admin(port=8081)
+            print(f"Admin panel at: {info.url}")
+            if info.token:
+                print(f"Token: {info.token}")
+            ```
+        """
+        if self._admin_server is not None and self._admin_server.is_running():
+            raise RuntimeError("Admin panel is already running")
+
+        from .admin import AdminServer
+
+        self._admin_server = AdminServer(
+            registry=self,
+            host=host,
+            port=port,
+            serve_ui=serve_ui,
+            remote=remote,
+            auth_token=auth_token,
+        )
+        return self._admin_server.start()
+
+    def disable_admin(self) -> None:
+        """Disable the admin panel.
+
+        Stops the admin HTTP server if it is running.
+        This method is safe to call even if the admin panel is not running.
+
+        Example:
+            ```python
+            registry.disable_admin()
+            ```
+        """
+        if self._admin_server is not None:
+            self._admin_server.stop()
+            self._admin_server = None
+
+    def get_admin_info(self) -> "AdminInfo | None":
+        """Get admin panel info if running.
+
+        Returns:
+            AdminInfo if the admin panel is running, None otherwise.
+
+        Example:
+            ```python
+            info = registry.get_admin_info()
+            if info:
+                print(f"Admin panel running at: {info.url}")
+            ```
+        """
+        if self._admin_server is None:
+            return None
+        return self._admin_server.get_info()
 
 
 def _import_openapi_integration():

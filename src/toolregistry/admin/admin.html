@@ -1,0 +1,1981 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ToolRegistry Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* ============== CSS Variables ============== */
+        :root {
+            --bg-primary: #FAF9F7;
+            --bg-secondary: #FFFFFF;
+            --text-primary: #1B1B18;
+            --text-secondary: #81807C;
+            --accent: #C2922E;
+            --accent-hover: #A67C1E;
+            --accent-light: rgba(194, 146, 46, 0.08);
+            --border: #E8E5E0;
+            --success: #3D8B5F;
+            --error: #C44141;
+            --warning: #C2922E;
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
+            --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.08);
+            --radius-sm: 6px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --transition: all 0.2s ease;
+        }
+
+        /* ============== Reset & Base ============== */
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* ============== Layout ============== */
+        .app {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 0 32px;
+            height: 56px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.9375rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            letter-spacing: -0.01em;
+        }
+
+        .logo-icon {
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent);
+        }
+
+        .logo-icon svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+        }
+
+        .status-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--success);
+        }
+
+        .status-dot.disconnected {
+            background: var(--error);
+        }
+
+        .btn-refresh {
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: var(--transition);
+        }
+
+        .btn-refresh:hover {
+            border-color: var(--text-secondary);
+            color: var(--text-primary);
+        }
+
+        .btn-refresh svg {
+            width: 15px;
+            height: 15px;
+        }
+
+        .main {
+            flex: 1;
+            padding: 32px;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* ============== Grid Layout ============== */
+        .grid {
+            display: grid;
+            gap: 24px;
+        }
+
+        @media (min-width: 1024px) {
+            .grid {
+                grid-template-columns: 1fr 1fr;
+            }
+            .grid-full {
+                grid-column: 1 / -1;
+            }
+        }
+
+        @media (min-width: 1280px) {
+            .grid {
+                grid-template-columns: 1fr 1fr 1fr;
+            }
+        }
+
+        /* ============== Cards ============== */
+        .card {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border);
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 18px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .card-title {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            letter-spacing: -0.01em;
+        }
+
+        .card-body {
+            padding: 24px;
+        }
+
+        .card-body.no-padding {
+            padding: 0;
+        }
+
+        /* ============== Buttons ============== */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 7px 14px;
+            font-size: 0.8125rem;
+            font-weight: 500;
+            font-family: inherit;
+            border: none;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: var(--transition);
+            white-space: nowrap;
+            letter-spacing: -0.005em;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: var(--accent-hover);
+        }
+
+        .btn-secondary {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: var(--border);
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-success:hover:not(:disabled) {
+            background: #337A50;
+        }
+
+        .btn-danger {
+            background: transparent;
+            color: var(--error);
+            border: 1px solid var(--border);
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background: rgba(196, 65, 65, 0.06);
+            border-color: var(--error);
+        }
+
+        .btn-sm {
+            padding: 5px 10px;
+            font-size: 0.75rem;
+        }
+
+        .btn-icon {
+            padding: 8px;
+            width: 36px;
+            height: 36px;
+        }
+
+        /* ============== Toggle Switch ============== */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 22px;
+            cursor: pointer;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: #D4D2CE;
+            border-radius: 22px;
+            transition: background 0.25s ease;
+        }
+
+        .toggle-slider::before {
+            content: "";
+            position: absolute;
+            left: 2px;
+            top: 2px;
+            width: 18px;
+            height: 18px;
+            background: #fff;
+            border-radius: 50%;
+            transition: transform 0.25s ease;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+        }
+
+        .toggle-switch input:checked + .toggle-slider {
+            background: var(--accent);
+        }
+
+        .toggle-switch input:checked + .toggle-slider::before {
+            transform: translateX(18px);
+        }
+
+        /* Namespace-level toggle: teal color to distinguish from method toggles */
+        .toggle-switch.toggle-ns input:checked + .toggle-slider {
+            background: #2B8A7E;
+        }
+
+        /* ============== Tables ============== */
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 10px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            background: var(--bg-primary);
+            font-weight: 500;
+            font-size: 0.6875rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background: rgba(250, 249, 247, 0.5);
+        }
+
+        /* Tools table column widths */
+        .tools-table .col-chevron { width: 40px; }
+        .tools-table .col-name { width: auto; }
+        .tools-table .col-enabled { width: 80px; }
+        .tools-table .col-reason { width: 200px; max-width: 200px; }
+
+        .col-reason-text {
+            font-size: 0.75rem;
+            font-style: italic;
+            color: var(--text-secondary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            display: block;
+            max-width: 180px;
+        }
+
+        /* ============== Namespace Group Rows ============== */
+        .ns-row {
+            cursor: pointer;
+            background: rgba(250, 249, 247, 0.6);
+        }
+
+        .ns-row:hover td {
+            background: rgba(232, 229, 224, 0.3);
+        }
+
+        .ns-row td {
+            font-weight: 500;
+        }
+
+        .ns-row .ns-chevron {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s ease;
+            color: var(--text-secondary);
+            width: 16px;
+            height: 16px;
+        }
+
+        .ns-row .ns-chevron svg {
+            width: 12px;
+            height: 12px;
+        }
+
+        .ns-row.expanded .ns-chevron {
+            transform: rotate(90deg);
+        }
+
+        .ns-child-row {
+            display: none;
+        }
+
+        .ns-child-row.visible {
+            display: table-row;
+        }
+
+        .ns-child-row td:nth-child(2) {
+            padding-left: 36px;
+            position: relative;
+        }
+
+        .ns-child-row td:nth-child(2)::before {
+            content: "";
+            position: absolute;
+            left: 24px;
+            top: 0;
+            bottom: 0;
+            width: 1px;
+            background: var(--border);
+        }
+
+        /* ============== Badges ============== */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 8px;
+            font-size: 0.6875rem;
+            font-weight: 500;
+            border-radius: 9999px;
+        }
+
+        .badge-success {
+            background: rgba(61, 139, 95, 0.1);
+            color: var(--success);
+        }
+
+        .badge-error {
+            background: rgba(196, 65, 65, 0.1);
+            color: var(--error);
+        }
+
+        .badge-warning {
+            background: rgba(194, 146, 46, 0.1);
+            color: var(--accent);
+        }
+
+        .badge-neutral {
+            background: var(--bg-primary);
+            color: var(--text-secondary);
+        }
+
+        /* ============== Forms ============== */
+        .input {
+            width: 100%;
+            padding: 8px 12px;
+            font-size: 0.8125rem;
+            font-family: inherit;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            transition: var(--transition);
+        }
+
+        .input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(194, 146, 46, 0.08);
+        }
+
+        .input::placeholder {
+            color: var(--text-secondary);
+        }
+
+        .select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2381807C' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            padding-right: 32px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 0.8125rem;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        /* ============== Search & Filters ============== */
+        .search-bar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .search-input {
+            flex: 1;
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .search-input input {
+            padding-left: 36px;
+        }
+
+        .search-input .search-icon {
+            position: absolute;
+            left: 11px;
+            top: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            pointer-events: none;
+            z-index: 1;
+            color: var(--text-secondary);
+        }
+
+        .search-input .search-icon svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .filter-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        /* ============== Stats Grid ============== */
+        .stats-grid {
+            display: flex;
+            gap: 0;
+        }
+
+        .stat-card {
+            flex: 1;
+            padding: 20px 24px;
+            text-align: center;
+            position: relative;
+        }
+
+        .stat-card + .stat-card::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 20%;
+            bottom: 20%;
+            width: 1px;
+            background: var(--border);
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1.2;
+            letter-spacing: -0.02em;
+        }
+
+        .stat-label {
+            font-size: 0.6875rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            font-weight: 500;
+        }
+
+        /* ============== Modal ============== */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(27, 27, 24, 0.4);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: var(--transition);
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+            border: 1px solid var(--border);
+            width: 90%;
+            max-width: 440px;
+            max-height: 90vh;
+            overflow: auto;
+            transform: scale(0.97) translateY(8px);
+            transition: var(--transition);
+        }
+
+        .modal-overlay.active .modal {
+            transform: scale(1) translateY(0);
+        }
+
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-title {
+            font-size: 0.9375rem;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.25rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+            line-height: 1;
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: var(--radius-sm);
+            transition: var(--transition);
+        }
+
+        .modal-close:hover {
+            color: var(--text-primary);
+            background: var(--bg-primary);
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        /* ============== Toast ============== */
+        .toast-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 1100;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .toast {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--border);
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 280px;
+            max-width: 380px;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .toast.hiding {
+            animation: slideOut 0.3s ease forwards;
+        }
+
+        @keyframes slideOut {
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+
+        .toast-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .toast.success .toast-dot {
+            background: var(--success);
+        }
+
+        .toast.error .toast-dot {
+            background: var(--error);
+        }
+
+        .toast.warning .toast-dot {
+            background: var(--warning);
+        }
+
+        .toast-content {
+            flex: 1;
+        }
+
+        .toast-message {
+            font-size: 0.8125rem;
+            color: var(--text-primary);
+        }
+
+        /* ============== Log Entry Details ============== */
+        .log-details {
+            display: none;
+            padding: 16px;
+            background: var(--bg-primary);
+            border-top: 1px solid var(--border);
+        }
+
+        .log-details.active {
+            display: block;
+        }
+
+        .log-details pre {
+            background: #1B1B18;
+            color: #E8E5E0;
+            padding: 12px;
+            border-radius: var(--radius-sm);
+            font-size: 0.75rem;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+            font-family: 'SF Mono', 'Fira Code', 'Fira Mono', 'Roboto Mono', monospace;
+        }
+
+        .log-row {
+            cursor: pointer;
+        }
+
+        .log-row:hover td {
+            background: rgba(250, 249, 247, 0.5);
+        }
+
+        .expand-icon {
+            transition: transform 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+        }
+
+        .expand-icon svg {
+            width: 12px;
+            height: 12px;
+        }
+
+        .log-row.expanded .expand-icon {
+            transform: rotate(90deg);
+        }
+
+        /* ============== Empty State ============== */
+        .empty-state {
+            text-align: center;
+            padding: 48px 24px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state-icon {
+            font-size: 1rem;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state-text {
+            font-size: 0.8125rem;
+        }
+
+        /* ============== Loading ============== */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 48px;
+            color: var(--text-secondary);
+            font-size: 0.8125rem;
+        }
+
+        .spinner {
+            width: 18px;
+            height: 18px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* ============== Tabs ============== */
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 32px;
+            gap: 0;
+        }
+
+        .tab {
+            padding: 10px 18px;
+            font-size: 0.8125rem;
+            font-weight: 500;
+            font-family: inherit;
+            color: var(--text-secondary);
+            background: none;
+            border: none;
+            cursor: pointer;
+            position: relative;
+            transition: var(--transition);
+            letter-spacing: -0.005em;
+        }
+
+        .tab:hover {
+            color: var(--text-primary);
+        }
+
+        .tab.active {
+            color: var(--text-primary);
+        }
+
+        .tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--text-primary);
+            border-radius: 2px 2px 0 0;
+        }
+
+        /* ============== Responsive ============== */
+        @media (max-width: 768px) {
+            .header {
+                padding: 0 16px;
+            }
+
+            .header-content {
+                flex-wrap: wrap;
+            }
+
+            .main {
+                padding: 20px 16px;
+            }
+
+            .card-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .search-bar {
+                flex-direction: column;
+            }
+
+            .filter-group {
+                width: 100%;
+            }
+
+            .filter-group .select {
+                flex: 1;
+            }
+
+            th, td {
+                padding: 8px 12px;
+                font-size: 0.75rem;
+            }
+
+            .btn {
+                padding: 6px 12px;
+                font-size: 0.75rem;
+            }
+
+            .stats-grid {
+                flex-wrap: wrap;
+            }
+
+            .stat-card {
+                min-width: 50%;
+            }
+        }
+
+        /* ============== Utility Classes ============== */
+        .text-muted {
+            color: var(--text-secondary);
+        }
+
+        .text-success {
+            color: var(--success);
+        }
+
+        .text-error {
+            color: var(--error);
+        }
+
+        .text-sm {
+            font-size: 0.75rem;
+        }
+
+        .mt-2 {
+            margin-top: 8px;
+        }
+
+        .mt-4 {
+            margin-top: 16px;
+        }
+
+        .mb-2 {
+            margin-bottom: 8px;
+        }
+
+        .mb-4 {
+            margin-bottom: 16px;
+        }
+
+        .flex {
+            display: flex;
+        }
+
+        .items-center {
+            align-items: center;
+        }
+
+        .justify-between {
+            justify-content: space-between;
+        }
+
+        .gap-2 {
+            gap: 8px;
+        }
+
+        .gap-4 {
+            gap: 16px;
+        }
+
+        .truncate {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 200px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <div class="logo-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                    </div>
+                    <span>ToolRegistry Admin</span>
+                </div>
+                <div class="header-actions">
+                    <div class="status-indicator">
+                        <span class="status-dot" id="status-dot"></span>
+                        <span id="status-text">Connected</span>
+                    </div>
+                    <button class="btn-refresh" onclick="refreshAll()" title="Refresh">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="23 4 23 10 17 10"></polyline>
+                            <polyline points="1 20 1 14 7 14"></polyline>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main">
+            <!-- Tabs -->
+            <div class="tabs">
+                <button class="tab active" data-tab="tools" onclick="switchTab('tools')">Tools</button>
+                <button class="tab" data-tab="namespaces" onclick="switchTab('namespaces')">Namespaces</button>
+                <button class="tab" data-tab="logs" onclick="switchTab('logs')">Logs</button>
+                <button class="tab" data-tab="state" onclick="switchTab('state')">State</button>
+            </div>
+
+            <!-- Tools Tab -->
+            <div id="tab-tools" class="tab-content">
+                <div class="grid">
+                    <!-- Stats Card -->
+                    <div class="card grid-full">
+                        <div class="card-header">
+                            <h2 class="card-title">Overview</h2>
+                        </div>
+                        <div class="card-body" style="padding: 0;">
+                            <div class="stats-grid" id="stats-grid">
+                                <div class="loading"><div class="spinner"></div>Loading...</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tools Card -->
+                    <div class="card grid-full">
+                        <div class="card-header">
+                            <h2 class="card-title">Tools</h2>
+                            <div class="flex gap-2">
+                                <button class="btn btn-secondary btn-sm" id="toggle-expand-btn" onclick="toggleAllGroups()" title="Expand all" style="width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center;">
+                                    <svg id="toggle-expand-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3l4 4 4-4"/><path d="M4 9l4 4 4-4"/></svg>
+                                </button>
+                                <button class="btn btn-secondary btn-sm" onclick="refreshTools()">Refresh</button>
+                            </div>
+                        </div>
+                        <div class="card-body no-padding">
+                            <div class="search-bar" style="padding: 16px 16px 0;">
+                                <div class="search-input" style="flex: 1;">
+                                    <span class="search-icon">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <circle cx="11" cy="11" r="8"></circle>
+                                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                        </svg>
+                                    </span>
+                                    <input type="text" class="input" id="tool-search" placeholder="Search tools..." oninput="filterTools()">
+                                </div>
+                                <div class="filter-group">
+                                    <select class="input select" id="namespace-filter" onchange="filterTools()">
+                                        <option value="">All Namespaces</option>
+                                    </select>
+                                    <select class="input select" id="status-filter" onchange="filterTools()">
+                                        <option value="">All Status</option>
+                                        <option value="enabled">Enabled</option>
+                                        <option value="disabled">Disabled</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="table-container">
+                                <table class="tools-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="col-chevron"></th>
+                                            <th class="col-name">Name</th>
+                                            <th class="col-enabled">Enabled</th>
+                                            <th class="col-reason">Reason</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tools-body">
+                                        <tr><td colspan="4" class="loading"><div class="spinner"></div>Loading...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Namespaces Tab -->
+            <div id="tab-namespaces" class="tab-content" style="display: none;">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Namespaces</h2>
+                        <button class="btn btn-secondary btn-sm" onclick="refreshNamespaces()">Refresh</button>
+                    </div>
+                    <div class="card-body no-padding">
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Namespace</th>
+                                        <th>Total Tools</th>
+                                        <th>Enabled</th>
+                                        <th>Disabled</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="namespaces-body">
+                                    <tr><td colspan="5" class="loading"><div class="spinner"></div>Loading...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Logs Tab -->
+            <div id="tab-logs" class="tab-content" style="display: none;">
+                <div class="grid">
+                    <!-- Log Stats -->
+                    <div class="card grid-full">
+                        <div class="card-header">
+                            <h2 class="card-title">Execution Statistics</h2>
+                        </div>
+                        <div class="card-body" style="padding: 0;">
+                            <div class="stats-grid" id="log-stats-grid">
+                                <div class="loading"><div class="spinner"></div>Loading...</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Logs Table -->
+                    <div class="card grid-full">
+                        <div class="card-header">
+                            <h2 class="card-title">Execution Logs</h2>
+                            <div class="flex gap-2">
+                                <button class="btn btn-secondary btn-sm" onclick="refreshLogs()">Refresh</button>
+                                <button class="btn btn-danger btn-sm" onclick="confirmClearLogs()">Clear Logs</button>
+                            </div>
+                        </div>
+                        <div class="card-body no-padding">
+                            <div class="search-bar" style="padding: 16px 16px 0;">
+                                <div class="filter-group" style="flex: 1;">
+                                    <input type="text" class="input" id="log-tool-filter" placeholder="Filter by tool..." style="flex: 1;">
+                                    <select class="input select" id="log-status-filter">
+                                        <option value="">All Status</option>
+                                        <option value="success">Success</option>
+                                        <option value="error">Error</option>
+                                        <option value="disabled">Rejected</option>
+                                    </select>
+                                    <select class="input select" id="log-limit">
+                                        <option value="50">Last 50</option>
+                                        <option value="100" selected>Last 100</option>
+                                        <option value="500">Last 500</option>
+                                    </select>
+                                    <button class="btn btn-primary btn-sm" onclick="refreshLogs()">Apply</button>
+                                </div>
+                            </div>
+                            <div class="table-container">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 36px;"></th>
+                                            <th>Timestamp</th>
+                                            <th>Tool</th>
+                                            <th>Status</th>
+                                            <th>Duration</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="logs-body">
+                                        <tr><td colspan="5" class="loading"><div class="spinner"></div>Loading...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- State Tab -->
+            <div id="tab-state" class="tab-content" style="display: none;">
+                <div class="grid">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">Export State</h2>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted mb-4" style="font-size: 0.8125rem;">Download the current state of disabled tools and namespaces as a JSON file.</p>
+                            <button class="btn btn-primary" onclick="exportState()">
+                                Download State
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">Import State</h2>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted mb-4" style="font-size: 0.8125rem;">Upload a previously exported state file to restore disabled tools and namespaces.</p>
+                            <input type="file" id="import-file" accept=".json" style="display: none;" onchange="handleImportFile(event)">
+                            <button class="btn btn-secondary" onclick="document.getElementById('import-file').click()">
+                                Upload State
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modal-title">Modal Title</h3>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                Modal content
+            </div>
+            <div class="modal-footer" id="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" id="modal-confirm">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script>
+        // ============== Configuration ==============
+        const API_BASE = window.location.origin;
+        let AUTH_TOKEN = localStorage.getItem('admin_token') || '';
+        let autoRefreshInterval = null;
+        let allTools = [];
+
+        // SVG icon helper
+        const SVG_CHEVRON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>';
+
+        // ============== API Client ==============
+        class AdminAPI {
+            constructor(baseUrl, token) {
+                this.baseUrl = baseUrl;
+                this.token = token;
+            }
+
+            getHeaders() {
+                const headers = { 'Content-Type': 'application/json' };
+                if (this.token) {
+                    headers['Authorization'] = 'Bearer ' + this.token;
+                }
+                return headers;
+            }
+
+            async request(path, options = {}) {
+                options.headers = { ...this.getHeaders(), ...options.headers };
+                try {
+                    const response = await fetch(this.baseUrl + path, options);
+                    if (response.status === 401) {
+                        const token = prompt('Enter admin token:');
+                        if (token) {
+                            localStorage.setItem('admin_token', token);
+                            this.token = token;
+                            AUTH_TOKEN = token;
+                            return this.request(path, options);
+                        }
+                        throw new Error('Unauthorized');
+                    }
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.message || 'Request failed');
+                    }
+                    return data;
+                } catch (error) {
+                    if (error.name === 'TypeError') {
+                        updateConnectionStatus(false);
+                        throw new Error('Connection failed');
+                    }
+                    throw error;
+                }
+            }
+
+            async getTools() {
+                return this.request('/api/tools');
+            }
+
+            async getTool(name) {
+                return this.request('/api/tools/' + encodeURIComponent(name));
+            }
+
+            async enableTool(name) {
+                return this.request('/api/tools/' + encodeURIComponent(name) + '/enable', { method: 'POST' });
+            }
+
+            async disableTool(name, reason = '') {
+                return this.request('/api/tools/' + encodeURIComponent(name) + '/disable', {
+                    method: 'POST',
+                    body: JSON.stringify({ reason })
+                });
+            }
+
+            async getNamespaces() {
+                return this.request('/api/namespaces');
+            }
+
+            async enableNamespace(ns) {
+                return this.request('/api/namespaces/' + encodeURIComponent(ns) + '/enable', { method: 'POST' });
+            }
+
+            async disableNamespace(ns, reason = '') {
+                return this.request('/api/namespaces/' + encodeURIComponent(ns) + '/disable', {
+                    method: 'POST',
+                    body: JSON.stringify({ reason })
+                });
+            }
+
+            async getLogs(params = {}) {
+                const query = new URLSearchParams();
+                if (params.limit) query.set('limit', params.limit);
+                if (params.tool_name) query.set('tool_name', params.tool_name);
+                if (params.status) query.set('status', params.status);
+                const queryStr = query.toString();
+                return this.request('/api/logs' + (queryStr ? '?' + queryStr : ''));
+            }
+
+            async getLogStats() {
+                return this.request('/api/logs/stats');
+            }
+
+            async clearLogs() {
+                return this.request('/api/logs', { method: 'DELETE' });
+            }
+
+            async exportState() {
+                return this.request('/api/state');
+            }
+
+            async importState(state) {
+                return this.request('/api/state', {
+                    method: 'POST',
+                    body: JSON.stringify(state)
+                });
+            }
+        }
+
+        const api = new AdminAPI(API_BASE, AUTH_TOKEN);
+
+        // ============== UI Helpers ==============
+        function updateConnectionStatus(connected) {
+            const dot = document.getElementById('status-dot');
+            const text = document.getElementById('status-text');
+            if (connected) {
+                dot.classList.remove('disconnected');
+                text.textContent = 'Connected';
+            } else {
+                dot.classList.add('disconnected');
+                text.textContent = 'Disconnected';
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast ' + type;
+
+            toast.innerHTML = `
+                <span class="toast-dot"></span>
+                <div class="toast-content">
+                    <div class="toast-message">${message}</div>
+                </div>
+            `;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.add('hiding');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        let _modalOnCancel = null;
+
+        function showModal(title, content, onConfirm, onCancel) {
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-body').innerHTML = content;
+            document.getElementById('modal-overlay').classList.add('active');
+            _modalOnCancel = onCancel || null;
+
+            const confirmBtn = document.getElementById('modal-confirm');
+            confirmBtn.onclick = () => {
+                _modalOnCancel = null;
+                if (onConfirm) onConfirm();
+                closeModal();
+            };
+        }
+
+        function closeModal(event) {
+            if (event && event.target !== event.currentTarget) return;
+            document.getElementById('modal-overlay').classList.remove('active');
+            if (_modalOnCancel) {
+                _modalOnCancel();
+                _modalOnCancel = null;
+            }
+        }
+
+        function switchTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.tab === tabName);
+            });
+
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.style.display = content.id === 'tab-' + tabName ? 'block' : 'none';
+            });
+
+            // Load data for the tab
+            if (tabName === 'tools') {
+                refreshTools();
+                refreshStats();
+            } else if (tabName === 'namespaces') {
+                refreshNamespaces();
+            } else if (tabName === 'logs') {
+                refreshLogs();
+                refreshLogStats();
+            }
+        }
+
+        // ============== Tools ==============
+        async function refreshTools() {
+            try {
+                const data = await api.getTools();
+                allTools = data.tools || [];
+                updateConnectionStatus(true);
+                renderTools(allTools);
+                updateNamespaceFilter(allTools);
+            } catch (e) {
+                document.getElementById('tools-body').innerHTML =
+                    `<tr><td colspan="4" class="empty-state"><div class="text-error">${e.message}</div></td></tr>`;
+            }
+        }
+
+        function renderTools(tools) {
+            const tbody = document.getElementById('tools-body');
+
+            if (tools.length === 0) {
+                tbody.innerHTML = `
+                    <tr><td colspan="4" class="empty-state">
+                        <div class="empty-state-icon">No tools registered</div>
+                        <div class="empty-state-text">Tools will appear here once registered.</div>
+                    </td></tr>`;
+                return;
+            }
+
+            // Group: standalone tools (no namespace) go under "default", rest by namespace
+            const nsMap = {};
+            tools.forEach(t => {
+                const ns = t.namespace || 'default';
+                if (!nsMap[ns]) nsMap[ns] = [];
+                nsMap[ns].push(t);
+            });
+
+            let html = '';
+
+            // Render all groups (default first, then sorted)
+            const nsKeys = Object.keys(nsMap).sort((a, b) => {
+                if (a === 'default') return -1;
+                if (b === 'default') return 1;
+                return a.localeCompare(b);
+            });
+
+            nsKeys.forEach(ns => {
+                const children = nsMap[ns];
+                const allEnabled = children.every(t => t.enabled);
+                const nsId = 'ns-' + ns.replace(/[^a-zA-Z0-9_]/g, '_');
+                const isDefault = ns === 'default';
+                html += `
+                <tr class="ns-row" onclick="toggleNsGroup('${nsId}')">
+                    <td><span class="ns-chevron">${SVG_CHEVRON}</span></td>
+                    <td>
+                        <span style="font-weight: 500;">${escapeHtml(ns)}</span>
+                        <span class="text-muted" style="margin-left: 8px; font-size: 0.6875rem;">${children.length} tool${children.length > 1 ? 's' : ''}</span>
+                    </td>
+                    <td>
+                        ${isDefault ? '' : `<label class="toggle-switch toggle-ns" title="${allEnabled ? 'Click to disable all' : 'Click to enable all'}" onclick="event.stopPropagation()">
+                            <input type="checkbox" ${allEnabled ? 'checked' : ''}
+                                onchange="toggleNamespace('${escapeHtml(ns)}', this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label>`}
+                    </td>
+                    <td></td>
+                </tr>`;
+
+                children.forEach(tool => {
+                    const shortName = (!isDefault && tool.name.startsWith(ns + '-')) ? tool.name.slice(ns.length + 1) : tool.name;
+                    html += `
+                <tr class="ns-child-row" data-ns-group="${nsId}">
+                    <td></td>
+                    <td><span class="ns-child-name">${escapeHtml(shortName)}</span></td>
+                    <td>
+                        <label class="toggle-switch" title="${tool.enabled ? 'Click to disable' : 'Click to enable'}">
+                            <input type="checkbox" ${tool.enabled ? 'checked' : ''}
+                                onchange="toggleTool('${escapeHtml(tool.name)}', this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </td>
+                    <td><span class="col-reason-text" title="${escapeHtml(tool.reason || '')}">${tool.reason ? escapeHtml(tool.reason) : '<span style="color: var(--border);">&mdash;</span>'}</span></td>
+                </tr>`;
+                });
+            });
+
+            tbody.innerHTML = html;
+            // Expand all groups by default
+            expandAllGroups();
+        }
+
+        function toggleNsGroup(nsId) {
+            const rows = document.querySelectorAll(`[data-ns-group="${nsId}"]`);
+            const parentRow = rows.length > 0 ? rows[0].previousElementSibling : null;
+            // Walk up to find the .ns-row
+            let nsRow = parentRow;
+            while (nsRow && !nsRow.classList.contains('ns-row')) {
+                nsRow = nsRow.previousElementSibling;
+            }
+            if (!nsRow) return;
+
+            const isExpanded = nsRow.classList.toggle('expanded');
+            rows.forEach(row => row.classList.toggle('visible', isExpanded));
+        }
+
+        let _allExpanded = true;
+
+        function expandAllGroups() {
+            document.querySelectorAll('.ns-row').forEach(row => row.classList.add('expanded'));
+            document.querySelectorAll('.ns-child-row').forEach(row => row.classList.add('visible'));
+            _allExpanded = true;
+            updateToggleBtn();
+        }
+
+        function collapseAllGroups() {
+            document.querySelectorAll('.ns-row').forEach(row => row.classList.remove('expanded'));
+            document.querySelectorAll('.ns-child-row').forEach(row => row.classList.remove('visible'));
+            _allExpanded = false;
+            updateToggleBtn();
+        }
+
+        function toggleAllGroups() {
+            if (_allExpanded) { collapseAllGroups(); } else { expandAllGroups(); }
+        }
+
+        function updateToggleBtn() {
+            const btn = document.getElementById('toggle-expand-btn');
+            const icon = document.getElementById('toggle-expand-icon');
+            if (!btn || !icon) return;
+            if (_allExpanded) {
+                btn.title = 'Collapse all';
+                icon.innerHTML = '<path d="M4 7l4-4 4 4"/><path d="M4 13l4-4 4 4"/>';
+            } else {
+                btn.title = 'Expand all';
+                icon.innerHTML = '<path d="M4 3l4 4 4-4"/><path d="M4 9l4 4 4-4"/>';
+            }
+        }
+
+        function filterTools() {
+            const search = document.getElementById('tool-search').value.toLowerCase();
+            const namespace = document.getElementById('namespace-filter').value;
+            const status = document.getElementById('status-filter').value;
+
+            const filtered = allTools.filter(tool => {
+                const matchSearch = tool.name.toLowerCase().includes(search);
+                const matchNamespace = !namespace || (tool.namespace || 'default') === namespace;
+                const matchStatus = !status ||
+                    (status === 'enabled' && tool.enabled) ||
+                    (status === 'disabled' && !tool.enabled);
+                return matchSearch && matchNamespace && matchStatus;
+            });
+
+            renderTools(filtered);
+        }
+
+        function updateNamespaceFilter(tools) {
+            const namespaces = [...new Set(tools.map(t => t.namespace || 'default'))].sort((a, b) => {
+                if (a === 'default') return -1;
+                if (b === 'default') return 1;
+                return a.localeCompare(b);
+            });
+            const select = document.getElementById('namespace-filter');
+            const currentValue = select.value;
+
+            select.innerHTML = '<option value="">All Namespaces</option>' +
+                namespaces.map(ns => `<option value="${escapeHtml(ns)}">${escapeHtml(ns)}</option>`).join('');
+
+            select.value = currentValue;
+        }
+
+        function showDisableToolModal(name) {
+            showModal('Disable Tool', `
+                <div class="form-group">
+                    <label class="form-label">Tool: <strong>${escapeHtml(name)}</strong></label>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Reason (optional)</label>
+                    <input type="text" class="input" id="disable-reason" placeholder="Enter reason for disabling...">
+                </div>
+            `, async () => {
+                const reason = document.getElementById('disable-reason').value;
+                await disableTool(name, reason);
+            }, () => {
+                // On cancel, revert the toggle visually
+                refreshTools();
+            });
+        }
+
+        async function toggleTool(name, checked) {
+            if (checked) {
+                await enableTool(name);
+            } else {
+                showDisableToolModal(name);
+            }
+        }
+
+        async function toggleNamespace(ns, checked) {
+            if (checked) {
+                await enableNamespace(ns);
+            } else {
+                showDisableNamespaceModal(ns);
+            }
+        }
+
+        async function enableTool(name) {
+            try {
+                await api.enableTool(name);
+                showToast(`Tool "${name}" enabled`, 'success');
+                refreshTools();
+                refreshStats();
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        async function disableTool(name, reason) {
+            try {
+                await api.disableTool(name, reason);
+                showToast(`Tool "${name}" disabled`, 'success');
+                refreshTools();
+                refreshStats();
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        // ============== Namespaces ==============
+        async function refreshNamespaces() {
+            try {
+                const data = await api.getNamespaces();
+                renderNamespaces(data.namespaces || []);
+            } catch (e) {
+                document.getElementById('namespaces-body').innerHTML =
+                    `<tr><td colspan="5" class="empty-state"><div class="text-error">${e.message}</div></td></tr>`;
+            }
+        }
+
+        function renderNamespaces(namespaces) {
+            const tbody = document.getElementById('namespaces-body');
+
+            if (namespaces.length === 0) {
+                tbody.innerHTML = `
+                    <tr><td colspan="5" class="empty-state">
+                        <div class="empty-state-icon">No namespaces</div>
+                        <div class="empty-state-text">Namespaces will appear here once tools are registered.</div>
+                    </td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = namespaces.map(ns => `
+                <tr>
+                    <td><span style="font-weight: 500;">${escapeHtml(ns.name)}</span></td>
+                    <td>${ns.tool_count}</td>
+                    <td><span class="text-success">${ns.enabled_count}</span></td>
+                    <td><span class="text-error">${ns.disabled_count}</span></td>
+                    <td>
+                        ${ns.name === 'default' ? '<span class="text-muted" style="font-size: 0.75rem;">&mdash;</span>' : `<div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                            <button class="btn btn-success btn-sm" style="min-width: 90px; text-align: center;" onclick="enableNamespace('${escapeHtml(ns.name)}')">Enable All</button>
+                            <button class="btn btn-danger btn-sm" style="min-width: 90px; text-align: center;" onclick="showDisableNamespaceModal('${escapeHtml(ns.name)}')">Disable All</button>
+                        </div>`}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function showDisableNamespaceModal(name) {
+            showModal('Disable Namespace', `
+                <div class="form-group">
+                    <label class="form-label">Namespace: <strong>${escapeHtml(name)}</strong></label>
+                    <p class="text-muted text-sm mt-2">This will disable all tools in this namespace.</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Reason (optional)</label>
+                    <input type="text" class="input" id="disable-ns-reason" placeholder="Enter reason for disabling...">
+                </div>
+            `, async () => {
+                const reason = document.getElementById('disable-ns-reason').value;
+                await disableNamespace(name, reason);
+            }, () => {
+                refreshTools();
+            });
+        }
+
+        async function enableNamespace(name) {
+            try {
+                await api.enableNamespace(name);
+                showToast(`Namespace "${name}" enabled`, 'success');
+                refreshNamespaces();
+                refreshTools();
+                refreshStats();
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        async function disableNamespace(name, reason) {
+            try {
+                await api.disableNamespace(name, reason);
+                showToast(`Namespace "${name}" disabled`, 'success');
+                refreshNamespaces();
+                refreshTools();
+                refreshStats();
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        // ============== Stats ==============
+        async function refreshStats() {
+            try {
+                const data = await api.getTools();
+                const tools = data.tools || [];
+                const enabled = tools.filter(t => t.enabled).length;
+                const disabled = tools.filter(t => !t.enabled).length;
+                const namespaces = new Set(tools.map(t => t.namespace).filter(Boolean)).size;
+
+                document.getElementById('stats-grid').innerHTML = `
+                    <div class="stat-card">
+                        <div class="stat-value">${tools.length}</div>
+                        <div class="stat-label">Total Tools</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value text-success">${enabled}</div>
+                        <div class="stat-label">Enabled</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value text-error">${disabled}</div>
+                        <div class="stat-label">Disabled</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${namespaces}</div>
+                        <div class="stat-label">Namespaces</div>
+                    </div>
+                `;
+            } catch (e) {
+                document.getElementById('stats-grid').innerHTML =
+                    `<div class="stat-card"><div class="stat-label text-error">${e.message}</div></div>`;
+            }
+        }
+
+        // ============== Logs ==============
+        async function refreshLogs() {
+            try {
+                const params = {
+                    limit: document.getElementById('log-limit').value,
+                    tool_name: document.getElementById('log-tool-filter').value || undefined,
+                    status: document.getElementById('log-status-filter').value || undefined
+                };
+                const data = await api.getLogs(params);
+                renderLogs(data.entries || []);
+            } catch (e) {
+                document.getElementById('logs-body').innerHTML =
+                    `<tr><td colspan="5" class="empty-state"><div class="text-error">${e.message}</div></td></tr>`;
+            }
+        }
+
+        async function refreshLogStats() {
+            try {
+                const data = await api.getLogStats();
+                document.getElementById('log-stats-grid').innerHTML = `
+                    <div class="stat-card">
+                        <div class="stat-value">${data.total_entries || 0}</div>
+                        <div class="stat-label">Total Entries</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value text-success">${data.by_status?.success || 0}</div>
+                        <div class="stat-label">Successful</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value text-error">${data.by_status?.error || 0}</div>
+                        <div class="stat-label">Errors</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" style="color: var(--text-secondary);">${data.by_status?.disabled || 0}</div>
+                        <div class="stat-label">Rejected</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${(data.avg_duration_ms || 0).toFixed(2)}ms</div>
+                        <div class="stat-label">Avg Duration</div>
+                    </div>
+                `;
+            } catch (e) {
+                document.getElementById('log-stats-grid').innerHTML =
+                    `<div class="stat-card"><div class="stat-label text-muted">Logging not enabled</div></div>`;
+            }
+        }
+
+        function renderLogs(entries) {
+            const tbody = document.getElementById('logs-body');
+
+            if (entries.length === 0) {
+                tbody.innerHTML = `
+                    <tr><td colspan="5" class="empty-state">
+                        <div class="empty-state-icon">No entries</div>
+                        <div class="empty-state-text">No log entries found</div>
+                    </td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = entries.map((entry, idx) => {
+                const statusClass = entry.status === 'success' ? 'badge-success' :
+                                   entry.status === 'error' ? 'badge-error' : 'badge-warning';
+                const statusLabel = entry.status === 'disabled' ? 'rejected' : entry.status;
+                const timestamp = new Date(entry.timestamp).toLocaleString();
+                const duration = entry.duration_ms ? entry.duration_ms.toFixed(2) + 'ms' : '-';
+
+                return `
+                    <tr class="log-row" onclick="toggleLogDetails(${idx})">
+                        <td><span class="expand-icon">${SVG_CHEVRON}</span></td>
+                        <td class="text-sm">${timestamp}</td>
+                        <td><span style="font-weight: 500;">${escapeHtml(entry.tool_name)}</span></td>
+                        <td><span class="badge ${statusClass}">${statusLabel}</span></td>
+                        <td class="text-muted">${duration}</td>
+                    </tr>
+                    <tr>
+                        <td colspan="5" style="padding: 0;">
+                            <div class="log-details" id="log-details-${idx}">
+                                <div class="mb-2"><strong>Arguments:</strong></div>
+                                <pre>${escapeHtml(JSON.stringify(entry.args || {}, null, 2))}</pre>
+                                ${entry.result !== undefined ? `
+                                    <div class="mb-2 mt-4"><strong>Result:</strong></div>
+                                    <pre>${escapeHtml(JSON.stringify(entry.result, null, 2))}</pre>
+                                ` : ''}
+                                ${entry.error ? `
+                                    <div class="mb-2 mt-4"><strong>Error:</strong></div>
+                                    <pre class="text-error">${escapeHtml(entry.error)}</pre>
+                                ` : ''}
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function toggleLogDetails(idx) {
+            const details = document.getElementById('log-details-' + idx);
+            const row = details.closest('tr').previousElementSibling;
+
+            details.classList.toggle('active');
+            row.classList.toggle('expanded');
+        }
+
+        function confirmClearLogs() {
+            showModal('Clear Logs', `
+                <p>Are you sure you want to clear all execution logs?</p>
+                <p class="text-muted text-sm mt-2">This action cannot be undone.</p>
+            `, async () => {
+                try {
+                    await api.clearLogs();
+                    showToast('Logs cleared successfully', 'success');
+                    refreshLogs();
+                    refreshLogStats();
+                } catch (e) {
+                    showToast(e.message, 'error');
+                }
+            });
+        }
+
+        // ============== State Management ==============
+        async function exportState() {
+            try {
+                const state = await api.exportState();
+                const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'toolregistry-state-' + new Date().toISOString().slice(0, 10) + '.json';
+                a.click();
+                URL.revokeObjectURL(url);
+                showToast('State exported successfully', 'success');
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        async function handleImportFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            try {
+                const text = await file.text();
+                const state = JSON.parse(text);
+
+                showModal('Import State', `
+                    <p>Are you sure you want to import this state?</p>
+                    <p class="text-muted text-sm mt-2">This will overwrite the current disabled tools/namespaces configuration.</p>
+                    <div class="mt-4">
+                        <strong>Disabled items:</strong> ${Object.keys(state.disabled || {}).length}
+                    </div>
+                `, async () => {
+                    try {
+                        await api.importState(state);
+                        showToast('State imported successfully', 'success');
+                        refreshAll();
+                    } catch (e) {
+                        showToast(e.message, 'error');
+                    }
+                });
+            } catch (e) {
+                showToast('Invalid JSON file', 'error');
+            }
+
+            event.target.value = '';
+        }
+
+        // ============== Utilities ==============
+        function escapeHtml(str) {
+            if (!str) return '';
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function refreshAll() {
+            const activeTab = document.querySelector('.tab.active').dataset.tab;
+            switchTab(activeTab);
+        }
+
+        // ============== Initialization ==============
+        document.addEventListener('DOMContentLoaded', () => {
+            refreshTools();
+            refreshStats();
+        });
+
+        // Handle keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        });
+    </script>
+</body>
+</html>
