@@ -22,7 +22,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev,test,mcp]"
-          pip install ruff ty
+          pip install ruff ty websockets
 
       - name: Lint with ruff
         run: ruff check
