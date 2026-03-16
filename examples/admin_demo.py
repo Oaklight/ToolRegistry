@@ -76,8 +76,17 @@ print()
 # Simulate tool calls in the format used by LLM function calling
 tool_calls = [
     {"id": "call_1", "function": {"name": "add", "arguments": '{"a": 3, "b": 5}'}},
-    {"id": "call_2", "function": {"name": "string_utils-reverse", "arguments": '{"text": "hello"}'}},
-    {"id": "call_3", "function": {"name": "string_utils-char_count", "arguments": '{"text": "hello world"}'}},
+    {
+        "id": "call_2",
+        "function": {"name": "string_utils-reverse", "arguments": '{"text": "hello"}'},
+    },
+    {
+        "id": "call_3",
+        "function": {
+            "name": "string_utils-char_count",
+            "arguments": '{"text": "hello world"}',
+        },
+    },
     {"id": "call_4", "function": {"name": "greet", "arguments": '{"name": "Alice"}'}},
     {"id": "call_5", "function": {"name": "divide", "arguments": '{"a": 10, "b": 0}'}},
 ]
@@ -92,8 +101,17 @@ print()
 
 registry.disable("string_utils-reverse", reason="maintenance")
 tool_calls_2 = [
-    {"id": "call_6", "function": {"name": "string_utils-reverse", "arguments": '{"text": "test"}'}},
-    {"id": "call_7", "function": {"name": "string_utils-char_count", "arguments": '{"text": "test"}'}},
+    {
+        "id": "call_6",
+        "function": {"name": "string_utils-reverse", "arguments": '{"text": "test"}'},
+    },
+    {
+        "id": "call_7",
+        "function": {
+            "name": "string_utils-char_count",
+            "arguments": '{"text": "test"}',
+        },
+    },
 ]
 
 print("[*] Executing with 'string_utils-reverse' disabled (method-level)...")
@@ -106,8 +124,17 @@ print()
 registry.enable("string_utils-reverse")
 registry.disable("string_utils", reason="namespace offline")
 tool_calls_3 = [
-    {"id": "call_8", "function": {"name": "string_utils-reverse", "arguments": '{"text": "test"}'}},
-    {"id": "call_9", "function": {"name": "string_utils-char_count", "arguments": '{"text": "test"}'}},
+    {
+        "id": "call_8",
+        "function": {"name": "string_utils-reverse", "arguments": '{"text": "test"}'},
+    },
+    {
+        "id": "call_9",
+        "function": {
+            "name": "string_utils-char_count",
+            "arguments": '{"text": "test"}',
+        },
+    },
     {"id": "call_10", "function": {"name": "add", "arguments": '{"a": 10, "b": 20}'}},
 ]
 
@@ -125,7 +152,9 @@ registry.enable("string_utils")
 print("[*] Execution log entries:")
 for entry in log.get_entries():
     status_icon = {"success": "+", "error": "!", "disabled": "-"}[entry.status.value]
-    print(f"    [{status_icon}] {entry.tool_name}: {entry.status.value} ({entry.duration_ms:.1f}ms)")
+    print(
+        f"    [{status_icon}] {entry.tool_name}: {entry.status.value} ({entry.duration_ms:.1f}ms)"
+    )
 print()
 
 # ── 6. Show stats ───────────────────────────────────────────────────────
