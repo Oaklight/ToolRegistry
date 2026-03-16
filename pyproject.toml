@@ -72,6 +72,9 @@ python-version = "3.10"
 [tool.ty.src]
 include = ["src", "tests"]
 
+[tool.ty.rules]
+unresolved-import = "ignore"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 
