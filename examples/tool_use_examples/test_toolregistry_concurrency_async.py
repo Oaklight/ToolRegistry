@@ -3,7 +3,7 @@ import json
 import string
 import time
 from pprint import pprint
-from typing import Any, Dict, List
+from typing import Any
 
 from toolregistry import ToolRegistry
 from toolregistry.types import (
@@ -12,7 +12,7 @@ from toolregistry.types import (
 )
 
 
-def generate_tool_calls(n: int, callable_name: str = "add") -> List[Dict[str, Any]]:
+def generate_tool_calls(n: int, callable_name: str = "add") -> list[dict[str, Any]]:
     import random
 
     return [
@@ -71,7 +71,7 @@ async def main():
     pprint(results)
 
     print(f"Executed {N} async tool calls in {elapsed:.4f} seconds")
-    print(f"Throughput: {N/elapsed:.2f} calls/second")
+    print(f"Throughput: {N / elapsed:.2f} calls/second")
 
 
 if __name__ == "__main__":

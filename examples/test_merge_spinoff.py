@@ -94,7 +94,7 @@ class TestMergeAndSpinoff(unittest.TestCase):
     def test_spinoff_with_empty_namespace(self):
         """Test spinoff functionality with an empty namespace."""
         with self.assertRaises(ValueError):
-            sub_registry = self.registry_a.spinoff("nonexistent")
+            self.registry_a.spinoff("nonexistent")
 
     def test_spinoff_with_retain_namespace(self):
         """Test spinoff functionality with retain_namespace parameter."""

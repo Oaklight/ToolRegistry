@@ -75,7 +75,7 @@ async def math_client():
                     print(f"- {uri}: {desc}")
 
     except Exception as e:
-        print(f"\nError details:")
+        print("\nError details:")
         print(f"Type: {type(e).__name__}")
         print(f"Message: {str(e)}")
         if hasattr(e, "__traceback__"):

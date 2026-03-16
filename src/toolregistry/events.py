@@ -6,7 +6,8 @@ enabling subscribers to receive notifications when tool state changes occur.
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, TypeAlias
+from typing import Any, TypeAlias
+from collections.abc import Callable
 
 
 class ChangeEventType(str, Enum):

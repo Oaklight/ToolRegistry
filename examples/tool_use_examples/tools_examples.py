@@ -1,5 +1,4 @@
 # common/tools.py
-import json
 from pprint import pprint
 
 from toolregistry import ToolRegistry

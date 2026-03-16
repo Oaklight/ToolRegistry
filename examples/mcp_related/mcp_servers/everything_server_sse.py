@@ -1,14 +1,9 @@
 import sqlite3
-from typing import List, Set, Union
 import asyncio
-import random
 from mcp.server.fastmcp import FastMCP, Context
-from mcp.server.fastmcp.prompts import Prompt
-from mcp.server.fastmcp.resources import TextResource, BinaryResource
 from pydantic import Field
 from pydantic import BaseModel
 from enum import Enum
-from starlette.applications import Starlette
 
 
 class LoggingLevel(str, Enum):

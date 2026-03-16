@@ -8,7 +8,6 @@ from openai import OpenAI
 from toolregistry import ToolRegistry
 from toolregistry.openapi import (
     HttpxClientConfig,
-    load_openapi_spec,
     load_openapi_spec_async,
 )
 

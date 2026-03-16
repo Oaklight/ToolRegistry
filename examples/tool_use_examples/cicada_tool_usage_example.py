@@ -1,6 +1,5 @@
 import json
 import os
-from pprint import pprint
 
 # pip install cicada-agent
 from cicada.core.model import MultiModalModel

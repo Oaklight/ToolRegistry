@@ -5,8 +5,7 @@ import os
 import random
 import string
 import time
-from pprint import pprint
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from toolregistry import ToolRegistry
 from toolregistry.types import (
@@ -16,8 +15,8 @@ from toolregistry.types import (
 
 
 def analyze_results(
-    results: Dict[str, Any], N: int, elapsed: float
-) -> Tuple[float, float]:
+    results: dict[str, Any], N: int, elapsed: float
+) -> tuple[float, float]:
     """Analyze tool execution results and calculate metrics.
 
     Args:
@@ -55,8 +54,8 @@ N = int(os.getenv("N", 100))
 
 
 def generate_tool_calls(
-    n: int, available_names: List[str], callable_name: Optional[str] = None
-) -> List[Dict[str, Any]]:
+    n: int, available_names: list[str], callable_name: str | None = None
+) -> list[dict[str, Any]]:
     """Generate n simulated tool calls with random operations."""
 
     # Define candidate subnames
