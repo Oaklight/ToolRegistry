@@ -27,6 +27,18 @@ This page documents all notable changes to the ToolRegistry project since the fi
 
 ### New Features
 
+- **Admin Panel** (Phase 7)
+	- Built-in web-based administration interface for ToolRegistry
+	- Execution logging with ring buffer storage
+	- REST API for tool and namespace management (12 endpoints)
+	- Web UI with Anthropic-style minimalist design
+	- Token-based authentication for remote access
+	- State export/import functionality
+	- New methods: `enable_admin()`, `disable_admin()`, `get_admin_info()`
+	- New methods: `enable_logging()`, `disable_logging()`, `get_execution_log()`
+	- New classes: `AdminServer`, `AdminInfo`, `TokenAuth`
+	- New classes: `ExecutionLog`, `ExecutionLogEntry`, `ExecutionStatus`
+
 - **Callback Mechanism** ([#68](../../issues/68))
 	- Added `on_change()` and `remove_on_change()` methods for monitoring registry changes
 	- Supports callbacks for tool registration, removal, enable/disable events
