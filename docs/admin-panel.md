@@ -19,6 +19,17 @@ The Admin Panel is designed with the following principles:
 - Export/import registry state
 - Web UI for visual management
 
+### Screenshots
+
+![Admin Panel - Tools](assets/admin-panel-tools.png)
+*Tools tab: View and manage all registered tools with search, filter, and enable/disable controls.*
+
+![Admin Panel - Logs](assets/admin-panel-logs.png)
+*Logs tab: Monitor execution history with status filtering and performance statistics.*
+
+![Admin Panel - Namespaces](assets/admin-panel-namespaces.png)
+*Namespaces tab: Manage tool groups with namespace-level enable/disable controls.*
+
 ## Quick Start
 
 ### Basic Usage
