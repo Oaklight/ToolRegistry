@@ -5,13 +5,18 @@ on:
     types: [published]
 
 jobs:
-  notify-toolregistry-hub:
+  notify-downstream:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        repo:
+          - Oaklight/toolregistry-hub
+          - Oaklight/toolregistry-server
     steps:
-      - name: Dispatch to toolregistry-hub
+      - name: Dispatch to ${{ matrix.repo }}
         uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.DISPATCH_TOKEN }}
-          repository: Oaklight/toolregistry-hub
+          repository: ${{ matrix.repo }}
           event-type: upstream-release
           client-payload: '{"version": "${{ github.event.release.tag_name }}"}'
