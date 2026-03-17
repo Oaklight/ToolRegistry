@@ -45,6 +45,11 @@ This page documents all notable changes to the ToolRegistry project since the fi
 
 ### Refactoring
 
+- **Replace `dill` with `cloudpickle`** ([#76](../../issues/76))
+	- Swap `dill.dumps`/`dill.loads` with `cloudpickle.dumps`/`pickle.loads` in executor
+	- Deserialization now uses stdlib `pickle`, so future remote executor targets only need Python stdlib
+	- Replace `dill>=0.4.0` dependency with `cloudpickle>=3.0.0` in pyproject.toml
+
 - **Modernize Type Annotations for Python 3.10+**
 	- Replaced `Union[X, Y]` with `X | Y` syntax
 	- Replaced `Optional[X]` with `X | None`
