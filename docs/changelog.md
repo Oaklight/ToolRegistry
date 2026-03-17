@@ -45,6 +45,11 @@ author: Oaklight
 
 ### 重构
 
+- **将 `dill` 替换为 `cloudpickle`**（[#76](../../issues/76)）
+	- 将 executor 中的 `dill.dumps`/`dill.loads` 替换为 `cloudpickle.dumps`/`pickle.loads`
+	- 反序列化改用标准库 `pickle`，未来远程 executor 目标环境仅需 Python 标准库
+	- 将 pyproject.toml 中的 `dill>=0.4.0` 依赖替换为 `cloudpickle>=3.0.0`
+
 - **现代化类型注解**，适配 Python 3.10+
 	- 将 `Union[X, Y]` 替换为 `X | Y` 语法
 	- 将 `Optional[X]` 替换为 `X | None`
