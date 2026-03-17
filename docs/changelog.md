@@ -27,6 +27,18 @@ author: Oaklight
 
 ### 新特性
 
+- **管理面板**（Phase 7）
+	- 内置的 ToolRegistry Web 管理界面
+	- 执行日志，支持环形缓冲区存储
+	- 工具和命名空间管理的 REST API（12 个端点）
+	- Anthropic 风格的极简 Web UI 设计
+	- 基于令牌的认证，支持远程访问
+	- 状态导出/导入功能
+	- 新增方法：`enable_admin()`、`disable_admin()`、`get_admin_info()`
+	- 新增方法：`enable_logging()`、`disable_logging()`、`get_execution_log()`
+	- 新增类：`AdminServer`、`AdminInfo`、`TokenAuth`
+	- 新增类：`ExecutionLog`、`ExecutionLogEntry`、`ExecutionStatus`
+
 - **回调机制**（[#68](../../issues/68)）
 	- 新增 `on_change()` 和 `remove_on_change()` 方法，用于监控注册表变更
 	- 支持工具注册、移除、启用/禁用事件的回调
