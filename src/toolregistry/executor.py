@@ -162,7 +162,9 @@ class Executor:
                     callable_func = make_sync_wrapper(callable_func)
 
                 # Serialize the function using cloudpickle if using process pool
-                serialized_func = cloudpickle.dumps(callable_func) if callable_func else None
+                serialized_func = (
+                    cloudpickle.dumps(callable_func) if callable_func else None
+                )
 
                 tasks_to_submit.append(
                     (serialized_func, tool_call_id, function_name, function_args)
