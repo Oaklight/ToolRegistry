@@ -5,7 +5,9 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from typing import Any, Literal
 from collections.abc import Callable
 
-import dill
+import pickle
+
+import cloudpickle
 from loguru import logger
 
 from .tool import Tool
@@ -51,7 +53,7 @@ class Executor:
         """Helper function to execute a single tool call.
 
         Args:
-            serialized_func: Serialized callable function using dill.
+            serialized_func: Serialized callable function using cloudpickle.
             tool_call_id: Unique ID for the tool call.
             function_name: Name of the function to call.
             function_args: Dictionary of arguments to pass to the function.
@@ -61,8 +63,8 @@ class Executor:
         """
         try:
             if serialized_func:
-                # Deserialize the function using dill
-                callable_func = dill.loads(serialized_func)
+                # Deserialize the function using pickle (cloudpickle-serialized)
+                callable_func = pickle.loads(serialized_func)
                 # Check if callable_func is a coroutine function
                 tool_result = callable_func(**function_args)
                 # Ensure the result is JSON serializable (or handle appropriately)
@@ -131,7 +133,7 @@ class Executor:
         tool_calls: list[ToolCall],
         execution_mode: Literal["process", "thread"] | None = None,
     ) -> dict[str, str]:
-        """Execute tool calls with concurrency using dill for serialization.
+        """Execute tool calls with concurrency using cloudpickle for serialization.
 
         Args:
             get_tool_fn: Function to retrieve a Tool object by name.
@@ -159,8 +161,8 @@ class Executor:
                 if callable_func and asyncio.iscoroutinefunction(callable_func):
                     callable_func = make_sync_wrapper(callable_func)
 
-                # Serialize the function using dill if using process pool
-                serialized_func = dill.dumps(callable_func) if callable_func else None
+                # Serialize the function using cloudpickle if using process pool
+                serialized_func = cloudpickle.dumps(callable_func) if callable_func else None
 
                 tasks_to_submit.append(
                     (serialized_func, tool_call_id, function_name, function_args)

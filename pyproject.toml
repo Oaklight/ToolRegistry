@@ -23,7 +23,7 @@ classifiers = [
 dependencies = [
     "pydantic>=2.7.2,<3.0.0",
     "loguru>=0.7.3",
-    "dill>=0.4.0",
+    "cloudpickle>=3.0.0",
     "httpx>=0.28.1",
 ]
 

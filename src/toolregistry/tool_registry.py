@@ -130,7 +130,7 @@ class ToolRegistry:
         tool_calls: list[AnyToolCall],
         execution_mode: Literal["process", "thread"] | None = None,
     ) -> dict[str, str]:
-        """Execute tool calls with concurrency using dill for serialization.
+        """Execute tool calls with concurrency using cloudpickle for serialization.
 
         Disabled tools are rejected with an error message instead of being
         executed. If logging is enabled, execution details are recorded.
