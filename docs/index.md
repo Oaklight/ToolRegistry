@@ -13,6 +13,15 @@ Welcome to the official documentation for **ToolRegistry**, a Python library des
 
 ToolRegistry is a powerful Python library that simplifies the registration, management, and execution of tools (functions). Whether you're building systems integrated with large language models or need structured tool management, ToolRegistry provides a consistent interface supporting both synchronous and asynchronous tool calls.
 
+### Key Features
+
+- **Protocol-Agnostic**: Works with OpenAI, MCP, OpenAPI, LangChain, and more
+- **Unified Interface**: Consistent API for sync and async tool execution
+- **Enable/Disable Control**: Fine-grained tool availability management with reason tracking
+- **Namespace Support**: Organize tools into logical groups with MRO inheritance
+- **Admin Panel**: Built-in web-based administration interface with execution logging, REST API, and Anthropic-style minimalist UI
+- **Callback Mechanism**: Monitor registry changes with event-driven callbacks
+
 This documentation details how to install, configure, and use the library in real projects. Browse the sections in the left menu to find the information you need.
 
 ## Getting Started

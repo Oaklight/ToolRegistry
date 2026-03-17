@@ -137,6 +137,7 @@ nav:
           - LangChain ToolWrapper: api/wrappers/langchain.md
       - Helper Classes: api/helpers.md
       - Types: api/types.md
+  - Admin Panel: admin-panel.md
   - Ecosystem: ecosystem.md
   - Changelog: changelog.md
   - Hub Tools: https://toolregistry-hub.readthedocs.io/
