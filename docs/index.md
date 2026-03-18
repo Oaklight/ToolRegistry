@@ -26,7 +26,7 @@ This documentation details how to install, configure, and use the library in rea
 
 ## Getting Started
 
-[![PyPI version](https://badge.fury.io/py/toolregistry.svg)](https://badge.fury.io/py/toolregistry)
+[![PyPI version](https://img.shields.io/pypi/v/toolregistry?color=green)](https://pypi.org/project/toolregistry/)
 
 Quickly start using ToolRegistry by installing it with this command:
 
