@@ -121,6 +121,12 @@ def _generate_parameters_model(func: Callable) -> type[ArgModelBase] | None:
         for param in signature.parameters.values():
             if param.name == "self":
                 continue
+            # Skip *args and **kwargs — they are not individual named parameters
+            if param.kind in (
+                inspect.Parameter.VAR_POSITIONAL,
+                inspect.Parameter.VAR_KEYWORD,
+            ):
+                continue
 
             annotation = _get_typed_annotation(param.annotation, globalns)
             if param.annotation is inspect.Parameter.empty:
