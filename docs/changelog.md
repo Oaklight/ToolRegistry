@@ -12,22 +12,24 @@ author: Oaklight
 
 ## Unreleased
 
+## [0.6.1] - 2026-03-22
+
+### 修复
+
+- **修复 `**kwargs` 泄漏到工具 JSON Schema**：`_generate_parameters_model()` 现在会跳过 `VAR_POSITIONAL`（`*args`）和 `VAR_KEYWORD`（`**kwargs`）参数，防止它们作为必填字段出现在生成的 schema 中。修复了使用 `**kwargs` 的工具函数在 MCP 调用时出现校验错误的问题。
+
+### 维护
+
+- 将 `pyproject.toml` 切换为动态版本（从 `toolregistry.__version__` 读取），与 toolregistry-server 和 toolregistry-hub 保持一致。
+
+## [0.6.0] - 2026-03-18
+
 ### ⚠️ 破坏性变更
 
 - **升级最低 Python 版本至 3.10**（[#74](../../issues/74)）
 	- 将 `requires-python` 从 `>=3.8` 更新为 `>=3.10`
 	- 不再支持 Python 3.8 和 3.9
 	- 与 Python 3.9 EOL 和 MCP SDK 要求保持一致
-
-### 维护
-
-- 移除 `fake-useragent` 依赖（toolregistry-hub 分离后不再使用）
-- 移除旧版 `./docs` 目录（已迁移至 `docs_en`/`docs_zh` worktrees）
-- 在 pyproject.toml 中添加 Python 3.10/3.11/3.12/3.13 classifiers
-
-### 修复
-
-- **修复 `**kwargs` 泄漏到工具 JSON Schema**：`_generate_parameters_model()` 现在会跳过 `VAR_POSITIONAL`（`*args`）和 `VAR_KEYWORD`（`**kwargs`）参数，防止它们作为必填字段出现在生成的 schema 中。修复了使用 `**kwargs` 的工具函数在 MCP 调用时出现校验错误的问题。
 
 ### 新特性
 
@@ -47,6 +49,9 @@ author: Oaklight
 	- 新增 `on_change()` 和 `remove_on_change()` 方法，用于监控注册表变更
 	- 支持工具注册、移除、启用/禁用事件的回调
 
+- **可观测性 API**
+	- 新增 `get_tools_status()` 方法，用于运行时检查工具状态
+
 ### 重构
 
 - **将 `dill` 替换为 `cloudpickle`**（[#76](../../issues/76)）
@@ -58,6 +63,12 @@ author: Oaklight
 	- 将 `Union[X, Y]` 替换为 `X | Y` 语法
 	- 将 `Optional[X]` 替换为 `X | None`
 	- 将 `List`、`Dict`、`Tuple` 替换为小写 `list`、`dict`、`tuple`
+
+### 维护
+
+- 移除 `fake-useragent` 依赖（toolregistry-hub 分离后不再使用）
+- 移除旧版 `./docs` 目录（已迁移至 `docs_en`/`docs_zh` worktrees）
+- 在 pyproject.toml 中添加 Python 3.10/3.11/3.12/3.13 classifiers
 
 ## [0.5.0] - 2026-03-10
 
