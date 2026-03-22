@@ -25,6 +25,10 @@ This page documents all notable changes to the ToolRegistry project since the fi
 - Remove legacy `./docs` directory (migrated to `docs_en`/`docs_zh` worktrees)
 - Add Python 3.10/3.11/3.12/3.13 classifiers to pyproject.toml
 
+### Bug Fixes
+
+- **Fix `**kwargs` leaking into tool JSON Schema**: `_generate_parameters_model()` now skips `VAR_POSITIONAL` (`*args`) and `VAR_KEYWORD` (`**kwargs`) parameters, preventing them from appearing as required fields in the generated schema. This fixes MCP tool calls failing with validation errors when tool functions use `**kwargs`.
+
 ### New Features
 
 - **Admin Panel** (Phase 7)
