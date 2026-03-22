@@ -25,6 +25,10 @@ author: Oaklight
 - 移除旧版 `./docs` 目录（已迁移至 `docs_en`/`docs_zh` worktrees）
 - 在 pyproject.toml 中添加 Python 3.10/3.11/3.12/3.13 classifiers
 
+### 修复
+
+- **修复 `**kwargs` 泄漏到工具 JSON Schema**：`_generate_parameters_model()` 现在会跳过 `VAR_POSITIONAL`（`*args`）和 `VAR_KEYWORD`（`**kwargs`）参数，防止它们作为必填字段出现在生成的 schema 中。修复了使用 `**kwargs` 的工具函数在 MCP 调用时出现校验错误的问题。
+
 ### 新特性
 
 - **管理面板**（Phase 7）
