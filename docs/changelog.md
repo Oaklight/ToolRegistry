@@ -12,22 +12,24 @@ This page documents all notable changes to the ToolRegistry project since the fi
 
 ## Unreleased
 
+## [0.6.1] - 2026-03-22
+
+### Bug Fixes
+
+- **Fix `**kwargs` leaking into tool JSON Schema**: `_generate_parameters_model()` now skips `VAR_POSITIONAL` (`*args`) and `VAR_KEYWORD` (`**kwargs`) parameters, preventing them from appearing as required fields in the generated schema. This fixes MCP tool calls failing with validation errors when tool functions use `**kwargs`.
+
+### Maintenance
+
+- Switch `pyproject.toml` to dynamic versioning (read from `toolregistry.__version__`), consistent with toolregistry-server and toolregistry-hub.
+
+## [0.6.0] - 2026-03-18
+
 ### ⚠️ Breaking Changes
 
 - **Upgrade Minimum Python Version to 3.10** ([#74](../../issues/74))
 	- Update `requires-python` from `>=3.8` to `>=3.10`
 	- Python 3.8 and 3.9 are no longer supported
 	- This aligns with Python 3.9 EOL and MCP SDK requirements
-
-### Maintenance
-
-- Remove `fake-useragent` dependency (no longer used after toolregistry-hub split)
-- Remove legacy `./docs` directory (migrated to `docs_en`/`docs_zh` worktrees)
-- Add Python 3.10/3.11/3.12/3.13 classifiers to pyproject.toml
-
-### Bug Fixes
-
-- **Fix `**kwargs` leaking into tool JSON Schema**: `_generate_parameters_model()` now skips `VAR_POSITIONAL` (`*args`) and `VAR_KEYWORD` (`**kwargs`) parameters, preventing them from appearing as required fields in the generated schema. This fixes MCP tool calls failing with validation errors when tool functions use `**kwargs`.
 
 ### New Features
 
@@ -47,6 +49,9 @@ This page documents all notable changes to the ToolRegistry project since the fi
 	- Added `on_change()` and `remove_on_change()` methods for monitoring registry changes
 	- Supports callbacks for tool registration, removal, enable/disable events
 
+- **Observability API**
+	- Added `get_tools_status()` method for inspecting tool states at runtime
+
 ### Refactoring
 
 - **Replace `dill` with `cloudpickle`** ([#76](../../issues/76))
@@ -58,6 +63,12 @@ This page documents all notable changes to the ToolRegistry project since the fi
 	- Replaced `Union[X, Y]` with `X | Y` syntax
 	- Replaced `Optional[X]` with `X | None`
 	- Replaced `List`, `Dict`, `Tuple` with lowercase `list`, `dict`, `tuple`
+
+### Maintenance
+
+- Remove `fake-useragent` dependency (no longer used after toolregistry-hub split)
+- Remove legacy `./docs` directory (migrated to `docs_en`/`docs_zh` worktrees)
+- Add Python 3.10/3.11/3.12/3.13 classifiers to pyproject.toml
 
 ## [0.5.0] - 2026-03-10
 
