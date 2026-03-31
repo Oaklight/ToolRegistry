@@ -102,6 +102,7 @@ nav:
           - MCP Tools: usage/integrations/mcp.md
           - OpenAPI Tools: usage/integrations/openapi.md
           - LangChain Tools: usage/integrations/langchain.md
+      - Permissions: usage/permissions.md
       - Providers:
           - OpenAI Chat: usage/providers/openai_chat.md
           - OpenAI Response: usage/providers/openai_response.md
@@ -123,6 +124,7 @@ nav:
           - Tool: api/core/tool.md
           - Executor: api/core/executor.md
           - Events: api/events.md
+          - Permissions: api/permissions.md
       - Integrations:
           - Overview: api/integrations.md
           - OpenAPI: api/integrations/openapi.md

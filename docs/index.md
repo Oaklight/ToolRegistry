@@ -16,8 +16,11 @@ ToolRegistry is a powerful Python library that simplifies the registration, mana
 ### Key Features
 
 - **Protocol-Agnostic**: Works with OpenAI, MCP, OpenAPI, LangChain, and more
+- **Multi-Provider Schema**: Generate tool schemas for OpenAI, Anthropic, and Gemini via [llm-rosetta](https://pypi.org/project/llm-rosetta/)
 - **Unified Interface**: Consistent API for sync and async tool execution
+- **Permission System**: Rule-based authorization with composable policies, built-in tag matching, and handler protocols for interactive approval
 - **Enable/Disable Control**: Fine-grained tool availability management with reason tracking
+- **Tool Metadata & Tags**: Classify tools with predefined and custom tags for policy-driven control
 - **Namespace Support**: Organize tools into logical groups with MRO inheritance
 - **Admin Panel**: Built-in web-based administration interface with execution logging, REST API, and Anthropic-style minimalist UI
 - **Callback Mechanism**: Monitor registry changes with event-driven callbacks
@@ -70,6 +73,9 @@ Here are brief introductions and links to each section:
   - [**Hub Tools Collection**](https://toolregistry-hub.readthedocs.io/)
 
   - [**LangChain Tool Integration**](usage/integrations/langchain.md)
+
+- [**Permission System**](usage/permissions.md)
+  Control tool execution with composable rules, tag-based policies, and handler protocols.
 
 - [**Concurrency Modes**](usage/concurrency_modes.md)
   Explains thread and process execution modes and their performance characteristics.

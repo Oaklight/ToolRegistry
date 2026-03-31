@@ -12,6 +12,21 @@ This page documents all notable changes to the ToolRegistry project since the fi
 
 ## Unreleased
 
+### New Features
+
+- **Anthropic & Gemini Schema Format Support** ([#55](../../issues/55), [#88](../../pull/88))
+    - Add `"anthropic"` and `"gemini"` as valid `api_format` values for `get_tools_json()` and `get_json_schema()`
+    - All schema conversion is powered by [llm-rosetta](https://pypi.org/project/llm-rosetta/), which also sanitizes JSON Schema keywords unsupported by each provider
+    - Add `llm-rosetta>=0.2.6` as a core dependency
+    - Support parsing Anthropic `tool_use` blocks and Gemini `functionCall` parts in `ToolCall.from_tool_call()`
+    - Add `recover_assistant_message()` and `recover_tool_message()` support for `"anthropic"` and `"gemini"` formats
+
+- **Permission System** ([#79](../../issues/79), [#80](../../issues/80), [#81](../../issues/81), [#82](../../issues/82))
+    - **ToolTag & ToolMetadata** ([#80](../../issues/80), [#84](../../pull/84)): Add `ToolTag` enum (READ_ONLY, DESTRUCTIVE, NETWORK, FILE_SYSTEM, SLOW, PRIVILEGED) and `ToolMetadata` model with execution hints (`is_async`, `is_concurrency_safe`, `timeout`) and classification tags
+    - **Permission Handler Protocol** ([#81](../../issues/81), [#85](../../pull/85)): Add `PermissionHandler` and `AsyncPermissionHandler` runtime-checkable protocols for tool authorization; add `PermissionRequest` and `PermissionResult` types; add `set_permission_handler()`, `get_permission_handler()`, `remove_permission_handler()` methods on ToolRegistry
+    - **Permission Rule Engine** ([#82](../../issues/82), [#86](../../pull/86)): Add `PermissionRule` and `PermissionPolicy` models with first-match-wins evaluation; add `set_permission_policy()`, `get_permission_policy()`, `remove_permission_policy()` methods; add five built-in rules (`ALLOW_READONLY`, `ASK_DESTRUCTIVE`, `DENY_PRIVILEGED`, `ASK_NETWORK`, `ASK_FILE_SYSTEM`); permission checks integrated into `execute_tool_calls()`
+    - Add `PERMISSION_DENIED` and `PERMISSION_ASKED` event types to the callback mechanism
+
 ## [0.6.1] - 2026-03-22
 
 ### Bug Fixes

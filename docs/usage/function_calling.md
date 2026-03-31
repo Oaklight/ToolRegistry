@@ -25,8 +25,7 @@ Recall that we obtained a JSON schema of two math functions using `registry.get_
         "required": ["a", "b"],
         "title": "addParameters",
         "type": "object"
-      },
-      "is_async": false
+      }
     }
   },
   {
@@ -48,8 +47,7 @@ Recall that we obtained a JSON schema of two math functions using `registry.get_
         "required": ["a", "b"],
         "title": "subtractParameters",
         "type": "object"
-      },
-      "is_async": false
+      }
     }
   }
 ]

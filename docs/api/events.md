@@ -25,6 +25,8 @@ An enumeration of all possible change event types that can occur in ToolRegistry
 | `DISABLE` | A tool was disabled |
 | `REFRESH` | A single tool was refreshed (reserved for future use) |
 | `REFRESH_ALL` | All tools were refreshed/reloaded (reserved for future use) |
+| `PERMISSION_DENIED` | A tool call was denied by the permission policy |
+| `PERMISSION_ASKED` | A tool call was escalated to a permission handler |
 
 ### Example
 
@@ -36,6 +38,10 @@ if event.event_type == ChangeEventType.REGISTER:
     print("A new tool was registered!")
 elif event.event_type == ChangeEventType.DISABLE:
     print(f"Tool disabled: {event.reason}")
+elif event.event_type == ChangeEventType.PERMISSION_DENIED:
+    print(f"Tool call denied: {event.tool_name}")
+elif event.event_type == ChangeEventType.PERMISSION_ASKED:
+    print(f"Tool call escalated: {event.tool_name}")
 ```
 
 ## ChangeEvent

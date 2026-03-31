@@ -18,7 +18,18 @@ Fundamental classes and base components:
 
 - [`ToolRegistry`](core.md#toolregistry) - The central registry class
 - [`Tool`](core.md#tool) - Individual tool representation
+- [`ToolMetadata`](core.md#tool) - Behavioral and classification metadata
+- [`ToolTag`](core.md#tool) - Predefined tags for tool characteristics
 - [`BaseToolWrapper`](core.md#basetoolwrapper) - Base wrapper class
+
+## Permissions
+
+Authorization framework for tool execution control:
+
+- [`PermissionPolicy`](permissions.md) - Composable rule-based policies
+- [`PermissionRule`](permissions.md) - Match predicate with result
+- [`PermissionHandler`](permissions.md) - Handler protocol for ASK results
+- [`PermissionResult`](permissions.md) - Three-state decision enum (ALLOW, DENY, ASK)
 
 ## Tool Wrappers
 
