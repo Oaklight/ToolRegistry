@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from collections.abc import Callable
 
 from .events import ChangeCallback, ChangeEvent, ChangeEventType
-from .executor import Executor
+from .executor import ProcessPoolBackend, ThreadBackend
 from .permissions import (
     AsyncPermissionHandler,
     PermissionHandler,
@@ -77,7 +77,9 @@ class ToolRegistry:
         self._tools: dict[str, Tool] = {}
         self._sub_registries: set[str] = set()
         self._disabled: dict[str, str] = {}
-        self._executor = Executor()
+        self._thread_backend = ThreadBackend()
+        self._process_backend = ProcessPoolBackend()
+        self._execution_mode: Literal["process", "thread"] = "process"
         self._change_callbacks: list[ChangeCallback] = []
         self._callback_lock = threading.Lock()
         self._permission_handler: PermissionHandler | AsyncPermissionHandler | None = (
@@ -136,7 +138,9 @@ class ToolRegistry:
         Raises:
             ValueError: If an invalid mode is provided.
         """
-        return self._executor.set_execution_mode(mode)
+        if mode not in {"thread", "process"}:
+            raise ValueError("Invalid mode. Choose 'thread' or 'process'.")
+        self._execution_mode = mode
 
     def execute_tool_calls(
         self,
@@ -220,10 +224,105 @@ class ToolRegistry:
 
         # Execute only enabled tool calls
         if enabled_calls:
-            executed_responses = self._executor.execute_tool_calls(
-                self.get_tool, enabled_calls, execution_mode
+            from .executor import ExecutionHandle
+
+            mode = execution_mode or self._execution_mode
+            backend = (
+                self._thread_backend if mode == "thread" else self._process_backend
             )
-            tool_responses.update(executed_responses)
+
+            # Check if any tool is not concurrency-safe
+            has_unsafe = any(
+                (tool_obj := self.get_tool(tc.name)) is not None
+                and not tool_obj.metadata.is_concurrency_safe
+                for tc in enabled_calls
+            )
+
+            handles: list[tuple[Any, ExecutionHandle]] = []
+
+            for tc in enabled_calls:
+                function_name = tc.name
+                function_args = call_arguments.get(tc.id, {})
+                tool_obj = self.get_tool(function_name)
+                callable_func = tool_obj.callable if tool_obj else None
+
+                if callable_func is None:
+                    tool_responses[tc.id] = (
+                        f"Error: Tool '{function_name}' not found or callable is None"
+                    )
+                    continue
+
+                per_call_timeout = (
+                    tool_obj.metadata.timeout
+                    if tool_obj and tool_obj.metadata
+                    else None
+                )
+
+                try:
+                    handle = backend.submit(
+                        callable_func,
+                        function_args,
+                        execution_id=tc.id,
+                        timeout=per_call_timeout,
+                    )
+                except Exception as e:
+                    # Fallback to thread backend on process serialization error
+                    if mode == "process":
+                        try:
+                            handle = self._thread_backend.submit(
+                                callable_func,
+                                function_args,
+                                execution_id=tc.id,
+                                timeout=per_call_timeout,
+                            )
+                        except Exception as e2:
+                            tool_responses[tc.id] = (
+                                f"Error preparing tool call {function_name}: {e2!s}"
+                            )
+                            continue
+                    else:
+                        tool_responses[tc.id] = (
+                            f"Error preparing tool call {function_name}: {e!s}"
+                        )
+                        continue
+
+                if has_unsafe:
+                    # Sequential execution: wait for result immediately
+                    try:
+                        result = handle.result()
+                        try:
+                            json.dumps(result)
+                        except (TypeError, ValueError):
+                            result = str(result)
+                        tool_responses[tc.id] = (
+                            result if isinstance(result, str) else json.dumps(result)
+                        )
+                    except TimeoutError:
+                        tool_responses[tc.id] = (
+                            f"Error: Tool '{function_name}' timed out"
+                        )
+                    except Exception as e:
+                        tool_responses[tc.id] = (
+                            f"Error executing {function_name}: {e!s}"
+                        )
+                else:
+                    handles.append((tc, handle))
+
+            # Collect results from parallel handles
+            for tc, handle in handles:
+                try:
+                    result = handle.result()
+                    try:
+                        json.dumps(result)
+                    except (TypeError, ValueError):
+                        result = str(result)
+                    tool_responses[tc.id] = (
+                        result if isinstance(result, str) else json.dumps(result)
+                    )
+                except TimeoutError:
+                    tool_responses[tc.id] = f"Error: Tool '{tc.name}' timed out"
+                except Exception as e:
+                    tool_responses[tc.id] = f"Error executing {tc.name}: {e!s}"
 
             # Log executed tool calls
             if self._execution_log is not None:
@@ -231,7 +330,7 @@ class ToolRegistry:
                 for tc in enabled_calls:
                     start_time = call_start_times.get(tc.id, end_time)
                     duration_ms = (end_time - start_time) * 1000
-                    response = executed_responses.get(tc.id, "")
+                    response = tool_responses.get(tc.id, "")
                     response_str = str(response)
                     is_error = response_str.startswith("Error")
 
