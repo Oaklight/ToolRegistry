@@ -1,3 +1,5 @@
+import json
+import uuid
 from typing import Any, Literal
 
 from pydantic import BaseModel, ValidationError, field_serializer
@@ -136,9 +138,37 @@ class ToolCall(BaseModel):
         except AttributeError:
             pass
 
+        # Try Anthropic tool_use block: {"type": "tool_use", "id": ..., "name": ..., "input": ...}
+        if isinstance(tool_call_dict, dict) and tool_call_dict.get("type") in (
+            "tool_use",
+            "server_tool_use",
+        ):
+            return cls(
+                id=tool_call_dict.get("id", ""),
+                name=tool_call_dict.get("name", ""),
+                arguments=json.dumps(tool_call_dict.get("input", {})),
+                type="function",
+            )
+
+        # Try Gemini functionCall part: {"functionCall": {"name": ..., "args": ...}}
+        if isinstance(tool_call_dict, dict) and (
+            "functionCall" in tool_call_dict or "function_call" in tool_call_dict
+        ):
+            fc = tool_call_dict.get("functionCall") or tool_call_dict.get(
+                "function_call"
+            )
+            if fc:
+                return cls(
+                    id=fc.get("id", uuid.uuid4().hex[:24]),
+                    name=fc.get("name", ""),
+                    arguments=json.dumps(fc.get("args", {})),
+                    type="function",
+                )
+
         raise TypeError(
             f"Unsupported tool call format. Expected ChatCompletionMessageFunctionToolCall, "
-            f"ChatCompletionMessageCustomToolCall, or ResponseFunctionToolCall, got {type(tool_call)}"
+            f"ChatCompletionMessageCustomToolCall, ResponseFunctionToolCall, "
+            f"Anthropic tool_use block, or Gemini functionCall part, got {type(tool_call)}"
         )
 
 
@@ -261,9 +291,35 @@ def recover_assistant_message(
         return message
 
     elif api_format == "anthropic":
-        raise NotImplementedError("Anthropic API format is not supported yet.")
+        content = []
+        for tc in tool_calls:
+            if not tc.name or not tc.arguments:
+                continue
+            content.append(
+                {
+                    "type": "tool_use",
+                    "id": tc.id,
+                    "name": tc.name,
+                    "input": json.loads(tc.arguments),
+                }
+            )
+        return [{"role": "assistant", "content": content}]
+
     elif api_format == "gemini":
-        raise NotImplementedError("Gemini API format is not supported yet.")
+        parts = []
+        for tc in tool_calls:
+            if not tc.name or not tc.arguments:
+                continue
+            parts.append(
+                {
+                    "functionCall": {
+                        "name": tc.name,
+                        "args": json.loads(tc.arguments),
+                    }
+                }
+            )
+        return [{"role": "model", "parts": parts}]
+
     else:
         raise ValueError(f"Unsupported API format: {api_format}")
 
@@ -272,43 +328,78 @@ def recover_tool_message(
     tool_responses: dict[str, str],
     *,
     api_format: API_FORMATS = "openai",
+    tool_calls: list[ToolCall] | None = None,
 ) -> list[dict[str, Any]]:
     """Recover the tool message from tool responses in various API formats.
 
     Args:
-        tool_responses (Dict[str, str]): A dictionary of tool responses with call_ids as keys and results as values.
-        api_format (API_FORMATS, optional): The desired API format. Defaults to "openai".
+        tool_responses: A dictionary of tool responses with call_ids as
+            keys and results as values.
+        api_format: The desired API format. Defaults to "openai".
+        tool_calls: Optional list of ToolCall objects for name resolution.
+            Required by Gemini format which needs function names instead
+            of call IDs. Falls back to call_id when unavailable.
 
     Returns:
-        List[Dict[str, Any]]: A list of tool messages in the specified API format.
+        A list of tool messages in the specified API format.
 
     Raises:
-        NotImplementedError: If the API format is "anthropic" or "gemini".
         ValueError: If the API format is unsupported.
     """
-    messages = []
-    for call_id, result in tool_responses.items():
-        if api_format in ["openai", "openai-chatcompletion"]:
-            from .openai.chat_completion import ChatCompetionMessageToolCallResult
+    if api_format in ["openai", "openai-chatcompletion"]:
+        from .openai.chat_completion import ChatCompetionMessageToolCallResult
 
+        messages = []
+        for call_id, result in tool_responses.items():
             tool_message = ChatCompetionMessageToolCallResult(
                 tool_call_id=call_id,
                 content=str(result),
             )
             messages.append(tool_message.model_dump())
-        elif api_format == "openai-response":
-            from .openai.response import ResponseFunctionToolCallResult
+        return messages
 
+    elif api_format == "openai-response":
+        from .openai.response import ResponseFunctionToolCallResult
+
+        messages = []
+        for call_id, result in tool_responses.items():
             tool_message = ResponseFunctionToolCallResult(
                 call_id=call_id,
                 output=str(result),
             )
             messages.append(tool_message.model_dump())
-        elif api_format == "anthropic":
-            raise NotImplementedError("Anthropic API format is not supported yet")
-        elif api_format == "gemini":
-            raise NotImplementedError("Gemini API format is not supported yet")
-        else:
-            raise ValueError(f"Unsupported API format: {api_format}")
+        return messages
 
-    return messages
+    elif api_format == "anthropic":
+        content = []
+        for call_id, result in tool_responses.items():
+            content.append(
+                {
+                    "type": "tool_result",
+                    "tool_use_id": call_id,
+                    "content": str(result),
+                }
+            )
+        return [{"role": "user", "content": content}]
+
+    elif api_format == "gemini":
+        # Build call_id → function_name mapping from tool_calls if available
+        name_map: dict[str, str] = {}
+        if tool_calls:
+            name_map = {tc.id: tc.name for tc in tool_calls}
+
+        parts = []
+        for call_id, result in tool_responses.items():
+            func_name = name_map.get(call_id, call_id)
+            parts.append(
+                {
+                    "functionResponse": {
+                        "name": func_name,
+                        "response": {"output": str(result)},
+                    }
+                }
+            )
+        return [{"role": "user", "parts": parts}]
+
+    else:
+        raise ValueError(f"Unsupported API format: {api_format}")
