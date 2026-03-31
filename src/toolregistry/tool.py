@@ -33,6 +33,10 @@ class ToolMetadata(BaseModel):
         is_async: Whether the tool requires async execution.
         is_concurrency_safe: Whether the tool can be run concurrently.
         timeout: Per-call timeout in seconds. None means no limit.
+        locality: Execution location requirement. ``"local"`` for tools that
+            must run on the user's machine (e.g. file-system, shell),
+            ``"remote"`` for tools best served by a remote server
+            (e.g. web search), ``"any"`` (default) for location-agnostic tools.
         tags: Predefined tags from ToolTag enum.
         custom_tags: User-defined free-form string tags.
         extra: Arbitrary key-value pairs for application-specific use.
@@ -41,6 +45,7 @@ class ToolMetadata(BaseModel):
     is_async: bool = False
     is_concurrency_safe: bool = True
     timeout: float | None = None
+    locality: Literal["local", "remote", "any"] = "any"
 
     tags: set[ToolTag] = Field(default_factory=set)
     custom_tags: set[str] = Field(default_factory=set)
