@@ -25,6 +25,7 @@ dependencies = [
     "loguru>=0.7.3",
     "cloudpickle>=3.0.0",
     "httpx>=0.28.1",
+    "llm-rosetta>=0.2.6",
 ]
 
 [project.optional-dependencies]
