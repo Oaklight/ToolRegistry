@@ -32,6 +32,7 @@ class TestToolMetadata:
         assert m.is_async is False
         assert m.is_concurrency_safe is True
         assert m.timeout is None
+        assert m.locality == "any"
         assert m.tags == set()
         assert m.custom_tags == set()
         assert m.extra == {}
@@ -45,6 +46,17 @@ class TestToolMetadata:
 
     def test_all_tags_empty(self):
         assert ToolMetadata().all_tags == set()
+
+    def test_locality_values(self):
+        for val in ("local", "remote", "any"):
+            m = ToolMetadata(locality=val)
+            assert m.locality == val
+
+    def test_locality_invalid(self):
+        import pytest
+
+        with pytest.raises(Exception):
+            ToolMetadata(locality="cloud")
 
     def test_extra_arbitrary_data(self):
         m = ToolMetadata(extra={"author": "alice", "version": 2})
@@ -90,10 +102,12 @@ class TestToolMetadataIntegration:
             tags={ToolTag.NETWORK, ToolTag.SLOW},
             timeout=30.0,
             custom_tags={"api"},
+            locality="remote",
         )
         tool = Tool.from_function(_sync_func, metadata=meta)
         assert tool.metadata.tags == {ToolTag.NETWORK, ToolTag.SLOW}
         assert tool.metadata.timeout == 30.0
+        assert tool.metadata.locality == "remote"
         assert "api" in tool.metadata.custom_tags
         # is_async should be auto-detected (False), even if metadata said True
         assert tool.is_async is False
