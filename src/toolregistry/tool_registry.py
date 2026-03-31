@@ -13,7 +13,10 @@ from .executor import Executor
 from .permissions import (
     AsyncPermissionHandler,
     PermissionHandler,
+    PermissionPolicy,
+    PermissionRequest,
     PermissionResult,
+    PermissionRule,
 )
 from .tool import Tool
 from .types import (
@@ -81,6 +84,7 @@ class ToolRegistry:
             None
         )
         self._permission_fallback: PermissionResult = PermissionResult.DENY
+        self._permission_policy: PermissionPolicy | None = None
         self._execution_log: ExecutionLog | None = None
         self._admin_server: AdminServer | None = None
 
@@ -183,12 +187,36 @@ class ToolRegistry:
                     )
                     self._execution_log.add(entry)
             else:
-                enabled_calls.append(tc)
-                call_start_times[tc.id] = time.perf_counter()
+                # Parse arguments early for permission check
                 try:
-                    call_arguments[tc.id] = json.loads(tc.arguments)
+                    args = json.loads(tc.arguments)
                 except (json.JSONDecodeError, TypeError):
-                    call_arguments[tc.id] = {}
+                    args = {}
+
+                # Evaluate permission policy
+                tool_obj = self.get_tool(tc.name)
+                if tool_obj is not None:
+                    decision = self._resolve_permission(tool_obj, args)
+                else:
+                    decision = PermissionResult.ALLOW
+
+                if decision == PermissionResult.DENY:
+                    tool_responses[tc.id] = (
+                        f"Error: Tool '{tc.name}' denied by permission policy."
+                    )
+                    if self._execution_log is not None:
+                        entry = ExecutionLogEntry.create(
+                            tool_name=tc.name,
+                            status=ExecutionStatus.ERROR,
+                            duration_ms=0.0,
+                            arguments=args,
+                            error="Denied by permission policy",
+                        )
+                        self._execution_log.add(entry)
+                else:
+                    enabled_calls.append(tc)
+                    call_start_times[tc.id] = time.perf_counter()
+                    call_arguments[tc.id] = args
 
         # Execute only enabled tool calls
         if enabled_calls:
@@ -1008,6 +1036,123 @@ class ToolRegistry:
     def permission_fallback(self) -> PermissionResult:
         """The fallback result used when no handler is available for ASK."""
         return self._permission_fallback
+
+    # ============== Permission Policy ==============
+
+    def set_permission_policy(self, policy: PermissionPolicy) -> None:
+        """Set a permission policy with composable rules.
+
+        The policy is evaluated on every tool call inside
+        ``execute_tool_calls()``.  Rules are checked in order
+        (first match wins).  When a rule returns ``ASK``, the
+        handler is resolved as: policy handler > registry-level
+        handler > fallback.
+
+        Args:
+            policy: The permission policy to apply.
+        """
+        self._permission_policy = policy
+
+    def get_permission_policy(self) -> PermissionPolicy | None:
+        """Return the currently set permission policy, if any."""
+        return self._permission_policy
+
+    def remove_permission_policy(self) -> None:
+        """Remove the permission policy.  No permission checks
+        will be performed on tool calls until a new policy is set."""
+        self._permission_policy = None
+
+    def _resolve_permission(
+        self,
+        tool: Tool,
+        parameters: dict[str, Any],
+    ) -> PermissionResult:
+        """Evaluate the permission policy for a single tool call.
+
+        Returns ``ALLOW`` when no policy is configured.
+
+        Resolution order for ASK results:
+            1. Policy-level handler
+            2. Registry-level handler (``set_permission_handler``)
+            3. Policy fallback / registry fallback
+        """
+        import asyncio
+
+        policy = self._permission_policy
+        if policy is None:
+            return PermissionResult.ALLOW
+
+        outcome = policy.evaluate(tool, parameters)
+
+        # No rule matched — use fallback
+        if isinstance(outcome, PermissionResult):
+            result = outcome
+            rule_name = ""
+            reason = ""
+        else:
+            # A PermissionRule matched
+            rule: PermissionRule = outcome
+            result = rule.result
+            rule_name = rule.name
+            reason = rule.reason
+
+        if result == PermissionResult.ALLOW:
+            return PermissionResult.ALLOW
+
+        if result == PermissionResult.DENY:
+            self._emit_change(
+                ChangeEvent(
+                    event_type=ChangeEventType.PERMISSION_DENIED,
+                    tool_name=tool.name,
+                    reason=reason,
+                    metadata={"rule_name": rule_name, "parameters": parameters},
+                )
+            )
+            return PermissionResult.DENY
+
+        # result == ASK — resolve via handler
+        handler = policy.handler or self._permission_handler
+        request = PermissionRequest(
+            tool_name=tool.name,
+            parameters=parameters,
+            reason=reason,
+            rule_name=rule_name,
+            metadata=tool.metadata,
+        )
+        self._emit_change(
+            ChangeEvent(
+                event_type=ChangeEventType.PERMISSION_ASKED,
+                tool_name=tool.name,
+                reason=reason,
+                metadata={"rule_name": rule_name, "parameters": parameters},
+            )
+        )
+
+        if handler is None:
+            fallback = (
+                policy.fallback
+                if policy.fallback != PermissionResult.ASK
+                else self._permission_fallback
+            )
+            return fallback
+
+        import inspect
+
+        if inspect.iscoroutinefunction(handler.handle):
+            try:
+                asyncio.get_running_loop()
+                import concurrent.futures
+
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    decision = pool.submit(
+                        asyncio.run, handler.handle(request)
+                    ).result()
+            except RuntimeError:
+                decision = asyncio.run(handler.handle(request))
+        else:
+            decision = handler.handle(request)
+
+        return decision
 
     # ============== Execution Logging ==============
 
