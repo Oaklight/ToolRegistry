@@ -8,6 +8,12 @@ from .admin import (
     TokenAuth,
 )
 from .events import ChangeCallback, ChangeEvent, ChangeEventType
+from .executor import (
+    ExecutionContext,
+    ProcessPoolBackend,
+    ProgressReport,
+    ThreadBackend,
+)
 from .permissions import (
     AsyncPermissionHandler,
     PermissionHandler,
@@ -27,6 +33,7 @@ __all__ = [
     "ChangeCallback",
     "ChangeEvent",
     "ChangeEventType",
+    "ExecutionContext",
     "ExecutionLog",
     "ExecutionLogEntry",
     "ExecutionStatus",
@@ -35,6 +42,9 @@ __all__ = [
     "PermissionRequest",
     "PermissionResult",
     "PermissionRule",
+    "ProcessPoolBackend",
+    "ProgressReport",
+    "ThreadBackend",
     "TokenAuth",
     "Tool",
     "ToolMetadata",
