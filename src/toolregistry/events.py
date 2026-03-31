@@ -28,6 +28,8 @@ class ChangeEventType(str, Enum):
     DISABLE = "disable"
     REFRESH = "refresh"
     REFRESH_ALL = "refresh_all"
+    PERMISSION_DENIED = "permission_denied"
+    PERMISSION_ASKED = "permission_asked"
 
 
 @dataclass(frozen=True)
