@@ -11,8 +11,10 @@ from .events import ChangeCallback, ChangeEvent, ChangeEventType
 from .permissions import (
     AsyncPermissionHandler,
     PermissionHandler,
+    PermissionPolicy,
     PermissionRequest,
     PermissionResult,
+    PermissionRule,
 )
 from .tool import Tool, ToolMetadata, ToolTag
 from .tool_registry import ToolRegistry
@@ -29,8 +31,10 @@ __all__ = [
     "ExecutionLogEntry",
     "ExecutionStatus",
     "PermissionHandler",
+    "PermissionPolicy",
     "PermissionRequest",
     "PermissionResult",
+    "PermissionRule",
     "TokenAuth",
     "Tool",
     "ToolMetadata",
