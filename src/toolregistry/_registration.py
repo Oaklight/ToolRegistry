@@ -33,6 +33,8 @@ class RegistrationMixin:
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
+        self._mcp_integrations: list = []
+        self._openapi_integrations: list = []
 
     def register(
         self,
@@ -80,6 +82,7 @@ class RegistrationMixin:
         self,
         transport: str | dict[str, Any] | Path,
         with_namespace: bool | str = False,
+        persistent: bool = True,
     ):
         """Register all tools from an MCP server (synchronous entry point).
 
@@ -95,6 +98,8 @@ class RegistrationMixin:
                 - If `True`, the namespace is derived from the server info name.
                 - If a string is provided, it is used as the namespace.
                 Defaults to False.
+            persistent (bool): If True (default), keep the connection open
+                across tool calls. If False, create a new connection per call.
 
         Examples:
             ```python
@@ -113,12 +118,14 @@ class RegistrationMixin:
         """
         MCPIntegration = _import_mcp_integration()
         mcp = MCPIntegration(cast("ToolRegistry", self))
-        return mcp.register_mcp_tools(transport, with_namespace)
+        mcp.register_mcp_tools(transport, with_namespace, persistent)
+        self._mcp_integrations.append(mcp)
 
     async def register_from_mcp_async(
         self,
         transport: str | dict[str, Any] | Path,
         with_namespace: bool | str = False,
+        persistent: bool = True,
     ):
         """Async implementation to register all tools from an MCP server.
 
@@ -134,6 +141,8 @@ class RegistrationMixin:
                 - If `True`, the namespace is derived from the server info name.
                 - If a string is provided, it is used as the namespace.
                 Defaults to False.
+            persistent (bool): If True (default), keep the connection open
+                across tool calls. If False, create a new connection per call.
 
         Examples:
             ```python
@@ -152,13 +161,15 @@ class RegistrationMixin:
         """
         MCPIntegration = _import_mcp_integration()
         mcp = MCPIntegration(cast("ToolRegistry", self))
-        return await mcp.register_mcp_tools_async(transport, with_namespace)
+        await mcp.register_mcp_tools_async(transport, with_namespace, persistent)
+        self._mcp_integrations.append(mcp)
 
     def register_from_openapi(
         self,
         client: HttpxClientConfig,
         openapi_spec: dict[str, Any],
         with_namespace: bool | str = False,
+        persistent: bool = True,
     ):
         """Registers tools from OpenAPI specification synchronously.
 
@@ -170,19 +181,23 @@ class RegistrationMixin:
                 - `True`: Namespace is derived from OpenAPI info.title.
                 - `str`: Use the provided string as namespace.
                 Defaults to False.
+            persistent (bool): If True (default), reuse a persistent HTTP
+                client for connection pooling.
 
         Returns:
             Any: Result of the OpenAPI tool registration process.
         """
         OpenAPIIntegration = _import_openapi_integration()
         openapi = OpenAPIIntegration(cast("ToolRegistry", self))
-        return openapi.register_openapi_tools(client, openapi_spec, with_namespace)
+        openapi.register_openapi_tools(client, openapi_spec, with_namespace, persistent)
+        self._openapi_integrations.append(openapi)
 
     async def register_from_openapi_async(
         self,
         client: HttpxClientConfig,
         openapi_spec: dict[str, Any],
         with_namespace: bool | str = False,
+        persistent: bool = True,
     ):
         """Registers tools from OpenAPI specification asynchronously.
 
@@ -194,15 +209,18 @@ class RegistrationMixin:
                 - `True`: Namespace is derived from OpenAPI info.title.
                 - `str`: Use the provided string as namespace.
                 Defaults to False.
+            persistent (bool): If True (default), reuse a persistent HTTP
+                client for connection pooling.
 
         Returns:
             Any: Result of the OpenAPI tool registration process.
         """
         OpenAPIIntegration = _import_openapi_integration()
         openapi = OpenAPIIntegration(cast("ToolRegistry", self))
-        return await openapi.register_openapi_tools_async(
-            client, openapi_spec, with_namespace
+        await openapi.register_openapi_tools_async(
+            client, openapi_spec, with_namespace, persistent
         )
+        self._openapi_integrations.append(openapi)
 
     def register_from_langchain(
         self,

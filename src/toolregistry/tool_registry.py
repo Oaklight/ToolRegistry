@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import random
@@ -114,6 +115,40 @@ class ToolRegistry(
             Optional[Callable[..., Any]]: The function to call, or None if not found.
         """
         return self.get_callable(key)
+
+    # ============== Lifecycle ==============
+    async def close_async(self) -> None:
+        """Close all persistent connections (async).
+
+        Closes MCP and OpenAPI integrations that hold persistent
+        connections or HTTP clients.
+        """
+        for integration in self._mcp_integrations:
+            await integration.close()
+        for integration in self._openapi_integrations:
+            await integration.close_async()
+        self._mcp_integrations.clear()
+        self._openapi_integrations.clear()
+
+    def close(self) -> None:
+        """Close all persistent connections (sync)."""
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(self.close_async())
+        finally:
+            loop.close()
+
+    async def __aenter__(self) -> "ToolRegistry":
+        return self
+
+    async def __aexit__(self, *exc) -> None:
+        await self.close_async()
+
+    def __enter__(self) -> "ToolRegistry":
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self.close()
 
     # ============== Execution ==============
     def set_execution_mode(self, mode: Literal["thread", "process"]) -> None:
