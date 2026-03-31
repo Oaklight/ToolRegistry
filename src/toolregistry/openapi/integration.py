@@ -16,6 +16,7 @@ class OpenAPIToolWrapper(BaseToolWrapper):
         method (str): The HTTP method (e.g., "get", "post").
         path (str): The API endpoint path.
         params (Optional[List[str]]): List of parameter names for the API call.
+        persistent (bool): If True, reuse a persistent HTTP client.
     """
 
     def __init__(
@@ -25,11 +26,13 @@ class OpenAPIToolWrapper(BaseToolWrapper):
         method: str,
         path: str,
         params: list[str] | None,
+        persistent: bool = True,
     ) -> None:
         super().__init__(name=name, params=params)
         self.client_config = client_config
         self.method = method.lower()
         self.path = path
+        self._persistent = persistent
 
     def call_sync(self, *args: Any, **kwargs: Any) -> Any:
         """Synchronously call the API using the client configuration.
@@ -50,13 +53,21 @@ class OpenAPIToolWrapper(BaseToolWrapper):
         if not self.name:
             raise ValueError("Tool name must be set before calling")
 
-        with self.client_config.to_client(use_async=False) as client:
-            if self.method == "get":
-                response = client.get(self.path, params=kwargs)
-            else:
-                response = client.request(self.method, self.path, json=kwargs)
-            response.raise_for_status()
-            return response.json()
+        if self._persistent:
+            client = self.client_config.get_persistent_client(use_async=False)
+            return self._do_sync_request(client, kwargs)
+        else:
+            with self.client_config.to_client(use_async=False) as client:
+                return self._do_sync_request(client, kwargs)
+
+    def _do_sync_request(self, client: Any, kwargs: dict[str, Any]) -> Any:
+        """Execute the sync HTTP request."""
+        if self.method == "get":
+            response = client.get(self.path, params=kwargs)
+        else:
+            response = client.request(self.method, self.path, json=kwargs)
+        response.raise_for_status()
+        return response.json()
 
     async def call_async(self, *args: Any, **kwargs: Any) -> Any:
         """Asynchronously call the API using the client configuration.
@@ -77,15 +88,21 @@ class OpenAPIToolWrapper(BaseToolWrapper):
         if not self.name:
             raise ValueError("Tool name must be set before calling")
 
-        async with self.client_config.to_client(use_async=True) as async_client:
-            if self.method == "get":
-                response = await async_client.get(self.path, params=kwargs)
-            else:
-                response = await async_client.request(
-                    self.method, self.path, json=kwargs
-                )
-            response.raise_for_status()
-            return response.json()
+        if self._persistent:
+            client = self.client_config.get_persistent_client(use_async=True)
+            return await self._do_async_request(client, kwargs)
+        else:
+            async with self.client_config.to_client(use_async=True) as client:
+                return await self._do_async_request(client, kwargs)
+
+    async def _do_async_request(self, client: Any, kwargs: dict[str, Any]) -> Any:
+        """Execute the async HTTP request."""
+        if self.method == "get":
+            response = await client.get(self.path, params=kwargs)
+        else:
+            response = await client.request(self.method, self.path, json=kwargs)
+        response.raise_for_status()
+        return response.json()
 
 
 class OpenAPITool(Tool):
@@ -99,6 +116,7 @@ class OpenAPITool(Tool):
         method: str,
         spec: dict[str, Any],
         namespace: str | None = None,
+        persistent: bool = True,
     ) -> "OpenAPITool":
         """Create an OpenAPITool instance from an OpenAPI specification.
 
@@ -154,6 +172,7 @@ class OpenAPITool(Tool):
             method=method,
             path=path,
             params=param_names,
+            persistent=persistent,
         )
 
         tool = cls(
@@ -179,12 +198,14 @@ class OpenAPIIntegration:
 
     def __init__(self, registry: ToolRegistry) -> None:
         self.registry: ToolRegistry = registry
+        self._client_configs: list[HttpxClientConfig] = []
 
     async def register_openapi_tools_async(
         self,
         client_config: HttpxClientConfig,
         openapi_spec: dict[str, Any],
         with_namespace: bool | str = False,
+        persistent: bool = True,
     ) -> None:
         """Asynchronously register all tools defined in an OpenAPI specification.
 
@@ -196,11 +217,15 @@ class OpenAPIIntegration:
                 - If `True`, the namespace is derived from the OpenAPI info.title.
                 - If a string is provided, it is used as the namespace.
                 Defaults to False.
+            persistent (bool): If True (default), reuse a persistent HTTP
+                client for connection pooling.
 
         Returns:
             None
         """
         try:
+            self._client_configs.append(client_config)
+
             namespace = (
                 with_namespace
                 if isinstance(with_namespace, str)
@@ -221,6 +246,7 @@ class OpenAPIIntegration:
                         method=method,
                         spec=spec,
                         namespace=namespace,
+                        persistent=persistent,
                     )
                     self.registry.register(open_api_tool, namespace=namespace)
         except Exception as e:
@@ -231,6 +257,7 @@ class OpenAPIIntegration:
         client_config: HttpxClientConfig,
         openapi_spec: dict[str, Any],
         with_namespace: bool | str = False,
+        persistent: bool = True,
     ) -> None:
         """Synchronously register all tools defined in an OpenAPI specification.
 
@@ -242,6 +269,8 @@ class OpenAPIIntegration:
                 - If `True`, the namespace is derived from the OpenAPI info.title.
                 - If a string is provided, it is used as the namespace.
                 Defaults to False.
+            persistent (bool): If True (default), reuse a persistent HTTP
+                client for connection pooling.
 
         Returns:
             None
@@ -252,9 +281,20 @@ class OpenAPIIntegration:
             asyncio.set_event_loop(loop)
             loop.run_until_complete(
                 self.register_openapi_tools_async(
-                    client_config, openapi_spec, with_namespace
+                    client_config, openapi_spec, with_namespace, persistent
                 )
             )
         finally:
             if loop is not None:
                 loop.close()
+
+    def close(self) -> None:
+        """Close all persistent HTTP clients (sync)."""
+        for config in self._client_configs:
+            config.close()
+
+    async def close_async(self) -> None:
+        """Close all persistent HTTP clients (async)."""
+        for config in self._client_configs:
+            await config.close_async()
+        self._client_configs.clear()

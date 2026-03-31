@@ -28,6 +28,8 @@ class HttpxClientConfig:
         self.timeout = timeout
         self.auth = auth
         self.extra_options = extra_options
+        self._sync_client: httpx.Client | None = None
+        self._async_client: httpx.AsyncClient | None = None
 
     @overload
     def to_client(self, use_async: Literal[False]) -> httpx.Client: ...
@@ -45,6 +47,17 @@ class HttpxClientConfig:
         Returns:
             Union[httpx.Client, httpx.AsyncClient]: An instance of httpx.Client or httpx.AsyncClient.
         """
+        return self._make_client(use_async=use_async)
+
+    def _make_client(self, use_async: bool = False):
+        """Create a new httpx client instance.
+
+        Args:
+            use_async (bool): Whether to create an asynchronous client.
+
+        Returns:
+            Union[httpx.Client, httpx.AsyncClient]: A new client instance.
+        """
         client_class = httpx.AsyncClient if use_async else httpx.Client
         return client_class(
             base_url=self.base_url,
@@ -53,6 +66,56 @@ class HttpxClientConfig:
             auth=self.auth,
             **self.extra_options,
         )
+
+    @overload
+    def get_persistent_client(
+        self, use_async: Literal[False] = False
+    ) -> httpx.Client: ...
+
+    @overload
+    def get_persistent_client(
+        self, use_async: Literal[True] = ...
+    ) -> httpx.AsyncClient: ...
+
+    def get_persistent_client(self, use_async: bool = False):
+        """Get or create a persistent client instance.
+
+        Unlike ``to_client()``, this method reuses the same client across
+        multiple calls, enabling HTTP connection pooling.
+
+        Args:
+            use_async (bool): Whether to return an async client.
+
+        Returns:
+            Union[httpx.Client, httpx.AsyncClient]: A persistent client instance.
+        """
+        if use_async:
+            if self._async_client is None:
+                self._async_client = self._make_client(use_async=True)
+            return self._async_client
+        else:
+            if self._sync_client is None:
+                self._sync_client = self._make_client(use_async=False)
+            return self._sync_client
+
+    def close(self):
+        """Close persistent clients (sync).
+
+        Only closes the sync client. Use ``close_async()`` to properly
+        close the async client.
+        """
+        if self._sync_client:
+            self._sync_client.close()
+            self._sync_client = None
+
+    async def close_async(self):
+        """Close all persistent clients."""
+        if self._async_client:
+            await self._async_client.aclose()
+            self._async_client = None
+        if self._sync_client:
+            self._sync_client.close()
+            self._sync_client = None
 
 
 def normalize_tool_name(name: str) -> str:
