@@ -4,7 +4,7 @@ from typing import Any
 from langchain_core.tools import BaseTool as LCBaseTool
 from loguru import logger
 
-from ..tool import Tool
+from ..tool import Tool, ToolMetadata
 from ..tool_registry import ToolRegistry
 from ..tool_wrapper import BaseToolWrapper
 from ..utils import normalize_tool_name
@@ -109,7 +109,7 @@ class LangChainTool(Tool):
             description=wrapper.tool.description,
             parameters=input_schema,
             callable=wrapper,
-            is_async=False,
+            metadata=ToolMetadata(is_async=False),
         )
 
         if namespace:

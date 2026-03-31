@@ -14,7 +14,7 @@ from mcp.types import (
 )
 from mcp.types import Tool as ToolSpec
 
-from ..tool import Tool
+from ..tool import Tool, ToolMetadata
 from ..tool_registry import ToolRegistry
 from ..tool_wrapper import BaseToolWrapper
 from ..utils import normalize_tool_name
@@ -216,7 +216,7 @@ class MCPTool(Tool):
             description=description,
             parameters=input_schema,
             callable=wrapper,
-            is_async=False,
+            metadata=ToolMetadata(is_async=False),
         )
 
         if namespace:

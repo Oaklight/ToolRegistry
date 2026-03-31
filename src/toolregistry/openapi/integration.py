@@ -1,7 +1,7 @@
 import asyncio
 from typing import Any
 
-from ..tool import Tool
+from ..tool import Tool, ToolMetadata
 from ..tool_registry import ToolRegistry
 from ..tool_wrapper import BaseToolWrapper
 from ..utils import HttpxClientConfig, normalize_tool_name
@@ -161,7 +161,7 @@ class OpenAPITool(Tool):
             description=description,
             parameters=parameters,
             callable=wrapper,
-            is_async=False,
+            metadata=ToolMetadata(is_async=False),
         )
 
         if namespace:

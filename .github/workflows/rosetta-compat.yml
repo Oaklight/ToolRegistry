@@ -1,0 +1,111 @@
+name: Rosetta SDK Compatibility
+
+on:
+  # Weekly check against latest PyPI release
+  schedule:
+    - cron: "23 3 * * 1" # Monday 03:23 UTC
+
+  # Immediate trigger from llm-rosetta release
+  repository_dispatch:
+    types: [upstream-release]
+
+  # Manual trigger for debugging
+  workflow_dispatch:
+    inputs:
+      rosetta_version:
+        description: "llm-rosetta version to test (blank = latest)"
+        required: false
+        default: ""
+
+jobs:
+  compat-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+
+      - name: Install toolregistry with test deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test]"
+
+      - name: Upgrade llm-rosetta to target version
+        id: install-rosetta
+        run: |
+          VERSION="${{ github.event.inputs.rosetta_version }}"
+          if [ -z "$VERSION" ]; then
+            pip install --upgrade llm-rosetta
+          else
+            pip install "llm-rosetta==$VERSION"
+          fi
+          INSTALLED=$(pip show llm-rosetta | grep '^Version:' | awk '{print $2}')
+          echo "version=$INSTALLED" >> "$GITHUB_OUTPUT"
+          echo "Installed llm-rosetta $INSTALLED"
+
+      - name: Run rosetta compatibility tests
+        run: >
+          python -m pytest
+          tests/test_anthropic_gemini_formats.py
+          -v --tb=long
+          --junitxml=rosetta-compat-results.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rosetta-compat-results
+          path: rosetta-compat-results.xml
+
+      - name: Create issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = '${{ steps.install-rosetta.outputs.version }}';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const title = `[CI] llm-rosetta ${version} compatibility failure`;
+            const body = [
+              `## Rosetta SDK Compatibility Failure`,
+              ``,
+              `llm-rosetta **${version}** breaks toolregistry's rosetta integration tests.`,
+              ``,
+              `**Workflow run:** ${runUrl}`,
+              `**Triggered by:** ${context.eventName}`,
+              ``,
+              `### Next Steps`,
+              `- Check the [test results](${runUrl}) for details`,
+              `- Determine if this is a breaking change in llm-rosetta or a test issue`,
+              `- Update \`src/toolregistry/_rosetta.py\` and tests if API changed`,
+              `- Pin \`llm-rosetta\` version in \`pyproject.toml\` if needed`,
+            ].join('\n');
+
+            // Check for existing open issue to avoid duplicates
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'rosetta-compat',
+            });
+
+            if (issues.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ['rosetta-compat', 'P1'],
+              });
+            } else {
+              // Comment on existing issue
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issues[0].number,
+                body: `Still failing with llm-rosetta **${version}**.\n\n${runUrl}`,
+              });
+            }

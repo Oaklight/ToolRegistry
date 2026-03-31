@@ -1138,6 +1138,8 @@ class ToolRegistry:
 
         import inspect
 
+        from typing import cast
+
         if inspect.iscoroutinefunction(handler.handle):
             try:
                 asyncio.get_running_loop()
@@ -1152,7 +1154,7 @@ class ToolRegistry:
         else:
             decision = handler.handle(request)
 
-        return decision
+        return cast(PermissionResult, decision)
 
     # ============== Execution Logging ==============
 
