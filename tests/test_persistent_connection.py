@@ -10,12 +10,9 @@ import socket
 import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
-
 import pytest
 
 from toolregistry import ToolRegistry
-from toolregistry.mcp.client import MCPClient
 from toolregistry.mcp.connection import MCPConnectionManager
 from toolregistry.utils import HttpxClientConfig
 
