@@ -19,32 +19,37 @@ from ..tool_registry import ToolRegistry
 from ..tool_wrapper import BaseToolWrapper
 from ..utils import normalize_tool_name
 from .client import MCPClient
+from .connection import MCPConnectionManager
 
 
 class MCPToolWrapper(BaseToolWrapper):
     """Wrapper class providing both async and sync versions of MCP tool calls.
 
     Attributes:
-        transport (Union[str, dict, Path]): MCP server source for communication.
         name (str): Name of the tool/operation.
         params (Optional[List[str]]): List of parameter names.
     """
 
     def __init__(
         self,
-        transport: str | dict | Path,
+        connection: MCPConnectionManager,
         name: str,
         params: list[str] | None,
     ) -> None:
         """Initialize MCP tool wrapper.
 
         Args:
-            transport (Union[str, dict, Path]): MCP server source for communication.
+            connection: Shared connection manager for the MCP server.
             name (str): Name of the tool/operation.
             params (Optional[List[str]]): List of parameter names.
         """
         super().__init__(name=name, params=params)
-        self.transport = transport
+        self._connection = connection
+
+    @property
+    def transport(self) -> str | dict | Path:
+        """Transport source, for backward compatibility."""
+        return self._connection.transport
 
     def call_sync(self, *args: Any, **kwargs: Any) -> Any:
         """Synchronous implementation of MCP tool call.
@@ -79,32 +84,30 @@ class MCPToolWrapper(BaseToolWrapper):
             Any: Result from tool execution.
 
         Raises:
-            ValueError: If URL or name not set.
+            ValueError: If name not set.
             Exception: If tool execution fails.
         """
         try:
-            if not self.transport or not self.name:
-                raise ValueError("Client and name must be set before calling")
+            if not self.name:
+                raise ValueError("Tool name must be set before calling")
 
-            async with MCPClient(self.transport) as client:
-                validated_params = {}
-                kwargs = self._process_args(*args, **kwargs)
-                if self.params:
-                    for param_name in self.params:
-                        if param_name in kwargs:
-                            validated_params[param_name] = kwargs[param_name]
+            validated_params: dict[str, Any] = {}
+            kwargs = self._process_args(*args, **kwargs)
+            if self.params:
+                for param_name in self.params:
+                    if param_name in kwargs:
+                        validated_params[param_name] = kwargs[param_name]
 
-                result = await client.call_tool(self.name, validated_params)
-                return self._post_process_result(result)
+            result = await self._connection.call_tool(self.name, validated_params)
+            return self._post_process_result(result)
 
         except Exception:
-            # record full exception stack
             import traceback
 
             logger.error(
                 f"Original Exception happens at {self.name}:\n{traceback.format_exc()}"
             )
-            raise  # throw to keep the original behavior
+            raise
 
     def _post_process_result(self, result: Any) -> Any:
         """Post-process the result from an MCP tool call.
@@ -183,14 +186,14 @@ class MCPTool(Tool):
     def from_tool_json(
         cls,
         tool_spec: ToolSpec,
-        transport: str | dict | Path,
+        connection: MCPConnectionManager,
         namespace: str | None = None,
     ) -> "MCPTool":
         """Create an MCPTool instance from a JSON representation.
 
         Args:
             tool_spec (ToolSpec): The JSON representation of the tool.
-            transport (Union[str, dict, Path]): MCP server source for communication.
+            connection: Shared connection manager for the MCP server.
             namespace (Optional[str]): An optional namespace to prefix the tool name.
                 If provided, the tool name will be formatted as "{namespace}.{name}".
 
@@ -204,7 +207,7 @@ class MCPTool(Tool):
         )
 
         wrapper = MCPToolWrapper(
-            transport=transport,
+            connection=connection,
             name=name,
             params=(
                 list(input_schema.get("properties", {}).keys()) if input_schema else []
@@ -234,11 +237,13 @@ class MCPIntegration:
 
     def __init__(self, registry: ToolRegistry):
         self.registry = registry
+        self._connections: list[MCPConnectionManager] = []
 
     async def register_mcp_tools_async(
         self,
         transport: str | dict[str, Any] | Path,
         with_namespace: bool | str = False,
+        persistent: bool = True,
     ) -> None:
         """Async implementation to register all tools from an MCP server.
 
@@ -252,10 +257,19 @@ class MCPIntegration:
                 - If `True`, the namespace is derived from the server info name.
                 - If a string is provided, it is used as the namespace.
                 Defaults to False.
+            persistent (bool): If True (default), keep the connection open
+                across tool calls. If False, create a new connection per call.
 
         Raises:
             RuntimeError: If connection to server fails.
         """
+        connection = MCPConnectionManager(
+            transport=transport,
+            persistent=persistent,
+        )
+        self._connections.append(connection)
+
+        # Use a temporary connection for tool discovery
         async with MCPClient(transport) as client:
             server_info: Implementation | None = client.server_info
 
@@ -269,21 +283,21 @@ class MCPIntegration:
             # Get available tools from server
             tools_response: list[ToolSpec] = await client.list_tools()
 
-            # Register each tool with a wrapper function
+            # Register each tool with the shared connection manager
             for tool_spec in tools_response:
-                mcp_sse_tool = MCPTool.from_tool_json(
+                mcp_tool = MCPTool.from_tool_json(
                     tool_spec=tool_spec,
-                    transport=transport,
+                    connection=connection,
                     namespace=namespace,
                 )
 
-                # Register the tool wrapper function
-                self.registry.register(mcp_sse_tool, namespace=namespace)
+                self.registry.register(mcp_tool, namespace=namespace)
 
     def register_mcp_tools(
         self,
         transport: str | dict[str, Any] | Path,
         with_namespace: bool | str = False,
+        persistent: bool = True,
     ) -> None:
         """Register all tools from an MCP server (synchronous entry point).
 
@@ -297,11 +311,19 @@ class MCPIntegration:
                 - If `True`, the namespace is derived from the server info name.
                 - If a string is provided, it is used as the namespace.
                 Defaults to False.
+            persistent (bool): If True (default), keep the connection open
+                across tool calls. If False, create a new connection per call.
         """
         loop = asyncio.new_event_loop()
         try:
             loop.run_until_complete(
-                self.register_mcp_tools_async(transport, with_namespace)
+                self.register_mcp_tools_async(transport, with_namespace, persistent)
             )
         finally:
             loop.close()
+
+    async def close(self) -> None:
+        """Close all persistent connections."""
+        for connection in self._connections:
+            await connection.close()
+        self._connections.clear()
