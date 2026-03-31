@@ -25,8 +25,7 @@
         "required": ["a", "b"],
         "title": "addParameters",
         "type": "object"
-      },
-      "is_async": false
+      }
     }
   },
   {
@@ -48,8 +47,7 @@
         "required": ["a", "b"],
         "title": "subtractParameters",
         "type": "object"
-      },
-      "is_async": false
+      }
     }
   }
 ]

@@ -12,6 +12,21 @@ author: Oaklight
 
 ## Unreleased
 
+### 新特性
+
+- **Anthropic 与 Gemini 模式格式支持**（[#55](../../issues/55)、[#88](../../pull/88)）
+    - 为 `get_tools_json()` 和 `get_json_schema()` 添加 `"anthropic"` 和 `"gemini"` 作为有效的 `api_format` 值
+    - 所有模式转换由 [llm-rosetta](https://pypi.org/project/llm-rosetta/) 驱动，同时清理各供应商不支持的 JSON Schema 关键字
+    - 添加 `llm-rosetta>=0.2.6` 作为核心依赖
+    - 在 `ToolCall.from_tool_call()` 中支持解析 Anthropic `tool_use` 块和 Gemini `functionCall` 部分
+    - 为 `recover_assistant_message()` 和 `recover_tool_message()` 添加 `"anthropic"` 和 `"gemini"` 格式支持
+
+- **权限系统**（[#79](../../issues/79)、[#80](../../issues/80)、[#81](../../issues/81)、[#82](../../issues/82)）
+    - **ToolTag 与 ToolMetadata**（[#80](../../issues/80)、[#84](../../pull/84)）：添加 `ToolTag` 枚举（READ_ONLY、DESTRUCTIVE、NETWORK、FILE_SYSTEM、SLOW、PRIVILEGED）和 `ToolMetadata` 模型，包含执行提示（`is_async`、`is_concurrency_safe`、`timeout`）和分类标签
+    - **权限处理器协议**（[#81](../../issues/81)、[#85](../../pull/85)）：添加 `PermissionHandler` 和 `AsyncPermissionHandler` 运行时可检查协议用于工具授权；添加 `PermissionRequest` 和 `PermissionResult` 类型；在 ToolRegistry 上添加 `set_permission_handler()`、`get_permission_handler()`、`remove_permission_handler()` 方法
+    - **权限规则引擎**（[#82](../../issues/82)、[#86](../../pull/86)）：添加 `PermissionRule` 和 `PermissionPolicy` 模型，采用首次匹配生效评估；添加 `set_permission_policy()`、`get_permission_policy()`、`remove_permission_policy()` 方法；添加五条内置规则（`ALLOW_READONLY`、`ASK_DESTRUCTIVE`、`DENY_PRIVILEGED`、`ASK_NETWORK`、`ASK_FILE_SYSTEM`）；权限检查集成到 `execute_tool_calls()` 中
+    - 在回调机制中添加 `PERMISSION_DENIED` 和 `PERMISSION_ASKED` 事件类型
+
 ## [0.6.1] - 2026-03-22
 
 ### 修复

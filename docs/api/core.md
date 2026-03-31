@@ -49,11 +49,17 @@ Base class for tool wrappers providing support for synchronous and asynchronous 
 ```
 ToolRegistry (Orchestrator)
     ├── Tool (Abstraction)
+    │   ├── ToolMetadata (Behavioral metadata)
+    │   └── ToolTag (Classification tags)
     ├── Executor (Execution Engine)
     │   └── BaseToolWrapper (Execution Interface)
     │       ├── MCPToolWrapper
     │       ├── OpenAPIToolWrapper
     │       └── LangChainToolWrapper
+    ├── Permission System
+    │   ├── PermissionPolicy (Rule engine)
+    │   ├── PermissionRule (Match + result)
+    │   └── PermissionHandler (ASK protocol)
     └── Integration Modules
         ├── MCP Integration
         ├── OpenAPI Integration

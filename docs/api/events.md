@@ -25,6 +25,8 @@
 | `DISABLE` | 工具已禁用 |
 | `REFRESH` | 单个工具已刷新（预留，暂未使用） |
 | `REFRESH_ALL` | 所有工具已刷新/重新加载（预留，暂未使用） |
+| `PERMISSION_DENIED` | 工具调用被权限策略拒绝 |
+| `PERMISSION_ASKED` | 工具调用被上报给权限处理器 |
 
 ### 示例
 
@@ -36,6 +38,10 @@ if event.event_type == ChangeEventType.REGISTER:
     print("新工具已注册！")
 elif event.event_type == ChangeEventType.DISABLE:
     print(f"工具已禁用：{event.reason}")
+elif event.event_type == ChangeEventType.PERMISSION_DENIED:
+    print(f"工具调用被拒绝：{event.tool_name}")
+elif event.event_type == ChangeEventType.PERMISSION_ASKED:
+    print(f"工具调用被上报：{event.tool_name}")
 ```
 
 ## ChangeEvent

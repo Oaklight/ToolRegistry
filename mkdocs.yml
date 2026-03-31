@@ -102,6 +102,7 @@ nav:
           - MCP 工具: usage/integrations/mcp.md
           - OpenAPI 工具: usage/integrations/openapi.md
           - LangChain 工具: usage/integrations/langchain.md
+      - 权限系统: usage/permissions.md
       - 供应商:
           - OpenAI Chat: usage/providers/openai_chat.md
           - OpenAI Response: usage/providers/openai_response.md
@@ -123,6 +124,7 @@ nav:
           - Tool: api/core/tool.md
           - Executor: api/core/executor.md
           - Events: api/events.md
+          - 权限: api/permissions.md
       - 集成:
           - 概览: api/integrations.md
           - OpenAPI: api/integrations/openapi.md

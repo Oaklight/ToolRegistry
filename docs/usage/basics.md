@@ -84,12 +84,12 @@ tools_json = registry.get_tools_json(api_format="openai-chatcompletion")
 
 从 v0.4.13 开始，我们在 `get_tools_json` 方法中添加了一个新参数 `api_format`，用于指定工具 JSON 的 API 格式。
 
-api_format 可以是以下之一，未来将添加更多：
+api_format 可以是以下之一：
 
 - [x] `openai-chatcompletion` 或 `openai`（默认）
 - [x] `openai-response`（从 v0.4.13 开始）
-- [ ] `anthropic`（开发中）
-- [ ] `gemini`（开发中）
+- [x] `anthropic`（从 v0.6.2 开始，通过 [llm-rosetta](https://pypi.org/project/llm-rosetta/)）
+- [x] `gemini`（从 v0.6.2 开始，通过 [llm-rosetta](https://pypi.org/project/llm-rosetta/)）
 
 例如 `openai-chatcompletion`，您将看到以下内容。同时，您可以看到函数 `add` 和 `subtract` 中参数 `a` 的 `type` 差异，一个是 `number`，另一个是 `integer`。
 

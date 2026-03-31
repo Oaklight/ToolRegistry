@@ -18,7 +18,18 @@ ToolRegistry 库由几个主要组件组成：
 
 - [`ToolRegistry`](core.md#toolregistry) - 中央注册表类
 - [`Tool`](core.md#tool) - 单个工具表示
+- [`ToolMetadata`](core.md#tool) - 行为和分类元数据
+- [`ToolTag`](core.md#tool) - 工具特征的预定义标签
 - [`BaseToolWrapper`](core.md#basetoolwrapper) - 基础包装器类
+
+## 权限
+
+工具执行控制的授权框架：
+
+- [`PermissionPolicy`](permissions.md) - 可组合的基于规则的策略
+- [`PermissionRule`](permissions.md) - 匹配谓词与结果
+- [`PermissionHandler`](permissions.md) - ASK 结果的处理器协议
+- [`PermissionResult`](permissions.md) - 三态决策枚举（ALLOW、DENY、ASK）
 
 ## 工具包装器
 
