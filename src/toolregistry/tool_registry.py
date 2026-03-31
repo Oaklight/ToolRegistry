@@ -10,6 +10,11 @@ from collections.abc import Callable
 
 from .events import ChangeCallback, ChangeEvent, ChangeEventType
 from .executor import Executor
+from .permissions import (
+    AsyncPermissionHandler,
+    PermissionHandler,
+    PermissionResult,
+)
 from .tool import Tool
 from .types import (
     API_FORMATS,
@@ -72,6 +77,10 @@ class ToolRegistry:
         self._executor = Executor()
         self._change_callbacks: list[ChangeCallback] = []
         self._callback_lock = threading.Lock()
+        self._permission_handler: PermissionHandler | AsyncPermissionHandler | None = (
+            None
+        )
+        self._permission_fallback: PermissionResult = PermissionResult.DENY
         self._execution_log: ExecutionLog | None = None
         self._admin_server: AdminServer | None = None
 
@@ -958,6 +967,47 @@ class ToolRegistry:
         """
         tool = self.get_tool(tool_name)
         return tool.callable if tool else None
+
+    # ============== Permission Handler ==============
+
+    def set_permission_handler(
+        self,
+        handler: PermissionHandler | AsyncPermissionHandler,
+        *,
+        fallback: PermissionResult = PermissionResult.DENY,
+    ) -> None:
+        """Register a permission handler for tool authorization.
+
+        The handler is invoked when a permission rule returns
+        ``PermissionResult.ASK``.  If no handler is set and a rule
+        returns ASK, the *fallback* result is used instead.
+
+        Args:
+            handler: A sync or async handler implementing the
+                ``PermissionHandler`` / ``AsyncPermissionHandler``
+                protocol.
+            fallback: Result to use when the handler is absent or when
+                a rule returns ASK but no handler is registered.
+                Defaults to ``PermissionResult.DENY`` (safe by default).
+        """
+        self._permission_handler = handler
+        self._permission_fallback = fallback
+
+    def get_permission_handler(
+        self,
+    ) -> PermissionHandler | AsyncPermissionHandler | None:
+        """Return the currently registered permission handler, if any."""
+        return self._permission_handler
+
+    def remove_permission_handler(self) -> None:
+        """Remove the permission handler and reset fallback to DENY."""
+        self._permission_handler = None
+        self._permission_fallback = PermissionResult.DENY
+
+    @property
+    def permission_fallback(self) -> PermissionResult:
+        """The fallback result used when no handler is available for ASK."""
+        return self._permission_fallback
 
     # ============== Execution Logging ==============
 
