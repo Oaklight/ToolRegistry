@@ -128,6 +128,15 @@ class MCPClient:
         return await self._session.call_tool(name, arguments)
 
     @property
+    def is_connected(self) -> bool:
+        """Whether the client has an active session.
+
+        Returns:
+            True if connected with an active session, False otherwise.
+        """
+        return self._session is not None
+
+    @property
     def session(self) -> ClientSession | None:
         """Access the underlying ClientSession.
 
