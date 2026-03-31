@@ -8,7 +8,7 @@ from .admin import (
     TokenAuth,
 )
 from .events import ChangeCallback, ChangeEvent, ChangeEventType
-from .tool import Tool
+from .tool import Tool, ToolMetadata, ToolTag
 from .tool_registry import ToolRegistry
 
 __all__ = [
@@ -23,7 +23,9 @@ __all__ = [
     "ExecutionStatus",
     "TokenAuth",
     "Tool",
+    "ToolMetadata",
     "ToolRegistry",
+    "ToolTag",
 ]
 
 __version__ = "0.6.1"

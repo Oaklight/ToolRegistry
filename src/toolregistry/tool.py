@@ -1,12 +1,56 @@
 import inspect
+from enum import Enum
 from typing import Any, Literal
 from collections.abc import Callable
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from .parameter_models import _generate_parameters_model
 from .types import API_FORMATS
 from .utils import normalize_tool_name
+
+
+class ToolTag(str, Enum):
+    """Predefined tags for common tool characteristics.
+
+    Inherits from ``str`` so that ``ToolTag.READ_ONLY == "read_only"`` is
+    ``True``, making serialization and comparison with custom string tags
+    seamless.
+    """
+
+    READ_ONLY = "read_only"
+    DESTRUCTIVE = "destructive"
+    NETWORK = "network"
+    FILE_SYSTEM = "file_system"
+    SLOW = "slow"
+    PRIVILEGED = "privileged"
+
+
+class ToolMetadata(BaseModel):
+    """Behavioral and classification metadata for a Tool.
+
+    Attributes:
+        is_async: Whether the tool requires async execution.
+        is_concurrency_safe: Whether the tool can be run concurrently.
+        timeout: Per-call timeout in seconds. None means no limit.
+        tags: Predefined tags from ToolTag enum.
+        custom_tags: User-defined free-form string tags.
+        extra: Arbitrary key-value pairs for application-specific use.
+    """
+
+    is_async: bool = False
+    is_concurrency_safe: bool = True
+    timeout: float | None = None
+
+    tags: set[ToolTag] = Field(default_factory=set)
+    custom_tags: set[str] = Field(default_factory=set)
+
+    extra: dict[str, Any] = Field(default_factory=dict)
+
+    @property
+    def all_tags(self) -> set[str]:
+        """Union of predefined and custom tags (all as str)."""
+        return {t.value for t in self.tags} | self.custom_tags
 
 
 class Tool(BaseModel):
@@ -42,16 +86,16 @@ class Tool(BaseModel):
 
     callable: Callable[..., Any] = Field(exclude=True)
     """The underlying function/method that implements the tool's logic.
-    
+
     This is excluded from serialization to prevent accidental exposure
     of sensitive implementation details.
     """
 
-    is_async: bool = Field(default=False, description="Whether the tool is async")
-    """Flag indicating if the tool requires async execution.
-    
-    Automatically detected from the wrapped function when using
-    from_function(). Defaults to False for synchronous tools.
+    metadata: ToolMetadata = Field(default_factory=ToolMetadata)
+    """Behavioral and classification metadata for this tool.
+
+    Contains execution hints (``is_async``, ``is_concurrency_safe``,
+    ``timeout``) and classification tags (``tags``, ``custom_tags``).
     """
 
     parameters_model: Any | None = Field(
@@ -88,6 +132,26 @@ class Tool(BaseModel):
     otherwise convert to ``_``).
     """
 
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_is_async(cls, data: Any) -> Any:
+        """Accept legacy ``is_async`` constructor kwarg and move it into metadata."""
+        if isinstance(data, dict) and "is_async" in data:
+            is_async = data.pop("is_async")
+            if "metadata" not in data:
+                data["metadata"] = ToolMetadata(is_async=is_async)
+            elif isinstance(data["metadata"], dict):
+                data["metadata"].setdefault("is_async", is_async)
+        return data
+
+    @property
+    def is_async(self) -> bool:
+        """Whether the tool requires async execution.
+
+        Backward-compatible proxy to ``metadata.is_async``.
+        """
+        return self.metadata.is_async
+
     @property
     def qualified_name(self) -> str:
         """Return the fully-qualified tool name.
@@ -110,6 +174,7 @@ class Tool(BaseModel):
         description: str | None = None,
         namespace: str | None = None,
         method_name: str | None = None,
+        metadata: ToolMetadata | None = None,
     ) -> "Tool":
         """Factory method to create Tool from callable.
 
@@ -119,11 +184,13 @@ class Tool(BaseModel):
             - Handles async/sync detection
 
         Args:
-            func (Callable[..., Any]): Function to convert to tool.
-            name (Optional[str]): Override tool name (defaults to function name).
-            description (Optional[str]): Override description (defaults to docstring).
-            namespace (Optional[str]): Namespace the tool belongs to.
-            method_name (Optional[str]): Original method name of the tool.
+            func: Function to convert to tool.
+            name: Override tool name (defaults to function name).
+            description: Override description (defaults to docstring).
+            namespace: Namespace the tool belongs to.
+            method_name: Original method name of the tool.
+            metadata: Optional ToolMetadata; ``is_async`` is always
+                auto-detected and will override the value in *metadata*.
 
         Returns:
             Tool: Configured Tool instance.
@@ -145,6 +212,13 @@ class Tool(BaseModel):
         func_doc = description or func.__doc__ or ""
         is_async = inspect.iscoroutinefunction(func)
 
+        # Build metadata: start from caller-supplied or default, then
+        # force is_async to the auto-detected value.
+        if metadata is None:
+            metadata = ToolMetadata(is_async=is_async)
+        else:
+            metadata = metadata.model_copy(update={"is_async": is_async})
+
         parameters_model = None
         try:
             parameters_model = _generate_parameters_model(func)
@@ -158,7 +232,7 @@ class Tool(BaseModel):
             description=func_doc,
             parameters=parameters_schema,
             callable=func,
-            is_async=is_async,
+            metadata=metadata,
             parameters_model=parameters_model if parameters_model is not None else None,
             method_name=resolved_method_name,
         )
