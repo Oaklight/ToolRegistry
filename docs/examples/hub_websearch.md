@@ -145,7 +145,7 @@ messages = [
 response = client.chat.completions.create(
     model=model_name,
     messages=messages,
-    tools=tool_registry.get_tools_json(),
+    tools=tool_registry.get_schemas(),
     tool_choice="auto",
 )
 
@@ -160,7 +160,7 @@ def handle_tool_calls(response, messages):
         tool_responses = tool_registry.execute_tool_calls(tool_calls)
 
         # Construct assistant messages with results
-        assistant_tool_messages = tool_registry.recover_tool_call_assistant_message(
+        assistant_tool_messages = tool_registry.build_tool_call_messages(
             tool_calls, tool_responses
         )
 
@@ -170,7 +170,7 @@ def handle_tool_calls(response, messages):
         response = client.chat.completions.create(
             model=model_name,
             messages=messages,
-            tools=tool_registry.get_tools_json(),
+            tools=tool_registry.get_schemas(),
             tool_choice="auto",
         )
     return response

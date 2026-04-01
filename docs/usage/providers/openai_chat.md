@@ -27,8 +27,7 @@ def subtract(a: float, b: float) -> float:
 ## 导出工具 Schema
 
 ```python
-schemas = registry.get_tools_json(api_format="openai") # since it was the only format for openai for a long time
-schemas = registry.get_tools_json(api_format="openai-chatcompletion") # to be explicit
+schemas = registry.get_schemas(api_format="openai-chat")
 ```
 
 以上两种写法均会返回符合 OpenAI Chat Completion API 要求的工具 Schema。格式化后的 JSON 输出如下：
@@ -168,9 +167,9 @@ tool_responses = registry.execute_tool_calls(tool_calls)
 
 ```python
 # Construct assistant messages with results
-assistant_tool_messages = registry.recover_tool_call_assistant_message(
-    tool_calls, tool_responses, api_format="openai-chatcompletion" # or "openai"
-) # you can leave out api_format, it defaults to "openai-chatcompletion"
+assistant_tool_messages = registry.build_tool_call_messages(
+    tool_calls, tool_responses, api_format="openai-chat"
+) # you can leave out api_format, it defaults to "openai-chat"
 ```
 
 ```json
@@ -281,7 +280,7 @@ messages = [
 response = client.chat.completions.create(
     model=model_name,
     messages=messages,
-    tools=registry.get_tools_json(api_format="openai-chatcompletion"),
+    tools=registry.get_schemas(api_format="openai-chat"),
     tool_choice="auto",
 )
 
@@ -295,8 +294,8 @@ if response.choices[0].message.tool_calls:
     print(tool_responses)
 
     # Construct assistant messages with results
-    assistant_tool_messages = registry.recover_tool_call_assistant_message(
-        tool_calls, tool_responses, api_format="openai-chatcompletion"
+    assistant_tool_messages = registry.build_tool_call_messages(
+        tool_calls, tool_responses, api_format="openai-chat"
     )
     print(json.dumps(assistant_tool_messages, indent=2))
 

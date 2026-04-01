@@ -63,16 +63,16 @@ registry.set_permission_policy(policy)
 
 ### 多格式 Schema 支持
 
-`get_tools_json()` 现在除了现有的 OpenAI 格式外，还接受 `api_format` 值 `"anthropic"` 和 `"gemini"`。
+`get_schemas()` 现在除了现有的 OpenAI 格式外，还接受 `api_format` 值 `"anthropic"` 和 `"gemini"`。
 
 ```python
 # 新格式
-schemas = registry.get_tools_json(api_format="anthropic")
-schemas = registry.get_tools_json(api_format="gemini")
+schemas = registry.get_schemas(api_format="anthropic")
+schemas = registry.get_schemas(api_format="gemini")
 
 # 现有格式仍然有效
-schemas = registry.get_tools_json()  # 默认：OpenAI chat completion
-schemas = registry.get_tools_json(api_format="openai-response")
+schemas = registry.get_schemas()  # 默认：OpenAI chat completion
+schemas = registry.get_schemas(api_format="openai-response")
 ```
 
 ---

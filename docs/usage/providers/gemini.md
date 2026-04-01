@@ -26,7 +26,7 @@ def subtract(a: float, b: float) -> float:
 ## 导出工具 Schema
 
 ```python
-schemas = registry.get_tools_json(api_format="gemini")
+schemas = registry.get_schemas(api_format="gemini")
 ```
 
 返回 Gemini 函数声明格式的工具定义：
@@ -115,7 +115,7 @@ tool_responses = registry.execute_tool_calls(tool_calls)
 以 Gemini 格式重建对话消息：
 
 ```python
-assistant_tool_messages = registry.recover_tool_call_assistant_message(
+assistant_tool_messages = registry.build_tool_call_messages(
     tool_calls, tool_responses, api_format="gemini"
 )
 ```
@@ -202,7 +202,7 @@ def subtract(a: float, b: float) -> float:
 
 client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
 
-schemas = registry.get_tools_json(api_format="gemini")
+schemas = registry.get_schemas(api_format="gemini")
 tools = [{"function_declarations": schemas}]
 
 response = client.models.generate_content(
@@ -220,7 +220,7 @@ if tool_calls:
     tool_responses = registry.execute_tool_calls(tool_calls)
     print(tool_responses)
 
-    assistant_tool_messages = registry.recover_tool_call_assistant_message(
+    assistant_tool_messages = registry.build_tool_call_messages(
         tool_calls, tool_responses, api_format="gemini"
     )
     print(json.dumps(assistant_tool_messages, indent=2))

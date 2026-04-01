@@ -27,7 +27,7 @@ def subtract(a: float, b: float) -> float:
 ## 导出工具 Schema
 
 ```python
-schemas = registry.get_tools_json(api_format="openai-response") # available since v0.4.13
+schemas = registry.get_schemas(api_format="openai-response") # available since v0.4.13
 ```
 
 格式化后的 JSON Schema 如下：
@@ -174,7 +174,7 @@ tool_responses = registry.execute_tool_calls(tool_calls)
 
 ```python
 # Construct assistant messages with results
-assistant_tool_messages = registry.recover_tool_call_assistant_message(
+assistant_tool_messages = registry.build_tool_call_messages(
     tool_calls, tool_responses, api_format="openai-response"
 )
 ```
@@ -206,7 +206,7 @@ messages.extend(assistant_tool_messages)
 response = client.responses.create(
     model="gpt-4.1-mini",
     input=messages,
-    tools=registry.get_tools_json(api_format="openai-response"),
+    tools=registry.get_schemas(api_format="openai-response"),
     tool_choice="auto",
 )
 
@@ -267,7 +267,7 @@ def subtract(a: float, b: float) -> float:
     return a - b
 
 
-print(json.dumps(registry.get_tools_json(api_format="openai-response"), indent=2))
+print(json.dumps(registry.get_schemas(api_format="openai-response"), indent=2))
 
 # Set up OpenAI client
 client = OpenAI(
@@ -287,7 +287,7 @@ messages = [
 response = client.responses.create(
     model=model_name,
     input=messages,
-    tools=registry.get_tools_json(api_format="openai-response"),
+    tools=registry.get_schemas(api_format="openai-response"),
     tool_choice="auto",
 )
 
@@ -302,7 +302,7 @@ tool_responses = registry.execute_tool_calls(tool_calls)
 print(tool_responses)
 
 # Construct assistant messages with results
-assistant_tool_messages = registry.recover_tool_call_assistant_message(
+assistant_tool_messages = registry.build_tool_call_messages(
     tool_calls, tool_responses, api_format="openai-response"
 )
 print(json.dumps(assistant_tool_messages, indent=2))
@@ -313,7 +313,7 @@ messages.extend(assistant_tool_messages)
 response = client.responses.create(
     model=model_name,
     input=messages,
-    tools=registry.get_tools_json(api_format="openai-response"),
+    tools=registry.get_schemas(api_format="openai-response"),
     tool_choice="auto",
 )
 

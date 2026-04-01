@@ -73,25 +73,25 @@ print(available_tools) # ['add', 'subtract']
 
 ## 工具的 JSON 模式
 
-使用 ToolRegistry 级别的 `get_tools_json` 方法来检索与目标 API 的函数调用接口兼容的 JSON 模式。
+使用 ToolRegistry 级别的 `get_schemas` 方法来检索与目标 API 的函数调用接口兼容的 JSON 模式。
 
 我们使用每个 API 标准的函数调用接口来处理集成，因为函数调用是每个标准中启用工具使用的通用核心功能。
 
 ```python
 # 获取 OpenAI 的工具 JSON
-tools_json = registry.get_tools_json(api_format="openai-chatcompletion")
+tools_json = registry.get_schemas(api_format="openai-chat")
 ```
 
-从 v0.4.13 开始，我们在 `get_tools_json` 方法中添加了一个新参数 `api_format`，用于指定工具 JSON 的 API 格式。
+从 v0.4.13 开始，我们在 `get_schemas` 方法中添加了一个新参数 `api_format`，用于指定工具 JSON 的 API 格式。
 
 api_format 可以是以下之一：
 
-- [x] `openai-chatcompletion` 或 `openai`（默认）
+- [x] `openai-chat`（默认）
 - [x] `openai-response`（从 v0.4.13 开始）
 - [x] `anthropic`（从 v0.6.2 开始，通过 [llm-rosetta](https://pypi.org/project/llm-rosetta/)）
 - [x] `gemini`（从 v0.6.2 开始，通过 [llm-rosetta](https://pypi.org/project/llm-rosetta/)）
 
-例如 `openai-chatcompletion`，您将看到以下内容。同时，您可以看到函数 `add` 和 `subtract` 中参数 `a` 的 `type` 差异，一个是 `number`，另一个是 `integer`。
+例如 `openai-chat`，您将看到以下内容。同时，您可以看到函数 `add` 和 `subtract` 中参数 `a` 的 `type` 差异，一个是 `number`，另一个是 `integer`。
 
 ```json
 [
@@ -145,9 +145,9 @@ api_format 可以是以下之一：
 如果您对**工具级别**的 JSON 模式感兴趣，可以使用以下任一方法：
 
 ```python
-registry.get_tools_json(tool_name="add", api_format="openai-chatcompletion") # 您需要指定工具名称
-add_tool.get_json_schema(api_format="openai-chatcompletion")
-add_tool.describe(api_format="openai-chatcompletion") # 更简单的接口，get_json_schema 的别名
+registry.get_schemas(tool_name="add", api_format="openai-chat") # 您需要指定工具名称
+add_tool.get_json_schema(api_format="openai-chat")
+add_tool.describe(api_format="openai-chat") # 更简单的接口，get_json_schema 的别名
 ```
 
 ```json
@@ -212,16 +212,16 @@ result = add_fn(a=1, b=2)  # 输出：3
 
 ## 重构助手和工具调用消息
 
-`ToolRegistry` 类提供 `recover_tool_call_assistant_message` 来为 LLM 重构助手和工具调用消息。如果您想简化向 LLM 发送消息的过程，这可能很方便。
+`ToolRegistry` 类提供 `build_tool_call_messages` 来为 LLM 重构助手和工具调用消息。如果您想简化向 LLM 发送消息的过程，这可能很方便。
 
-与 `get_tool_schemas` 类似，您可以传入 `api_format` 参数来指定工具模式的格式。
+与 `get_schemas` 类似，您可以传入 `api_format` 参数来指定工具模式的格式。
 
 以下是 OpenAI Chat Completion 格式的示例：
 
 ```python
-assistant_tool_messages = registry.recover_tool_call_assistant_message(
-    tool_calls, tool_responses, api_format="openai-chatcompletion" # 或 "openai"
-) # 您可以省略 api_format，默认为 "openai-chatcompletion"
+assistant_tool_messages = registry.build_tool_call_messages(
+    tool_calls, tool_responses, api_format="openai-chat"
+) # 您可以省略 api_format，默认为 "openai-chat"
 ```
 
 ```json

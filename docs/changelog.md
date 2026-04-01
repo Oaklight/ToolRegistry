@@ -15,11 +15,11 @@ author: Oaklight
 ### 新特性
 
 - **Anthropic 与 Gemini 模式格式支持**（[#55](../../issues/55)、[#88](../../pull/88)）
-    - 为 `get_tools_json()` 和 `get_json_schema()` 添加 `"anthropic"` 和 `"gemini"` 作为有效的 `api_format` 值
+    - 为 `get_schemas()` 和 `get_json_schema()` 添加 `"anthropic"` 和 `"gemini"` 作为有效的 `api_format` 值
     - 所有模式转换由 [llm-rosetta](https://pypi.org/project/llm-rosetta/) 驱动，同时清理各格式不支持的 JSON Schema 关键字
     - 添加 `llm-rosetta>=0.2.6` 作为核心依赖
     - 在 `ToolCall.from_tool_call()` 中支持解析 Anthropic `tool_use` 块和 Gemini `functionCall` 部分
-    - 为 `recover_assistant_message()` 和 `recover_tool_message()` 添加 `"anthropic"` 和 `"gemini"` 格式支持
+    - 为 `build_assistant_message()` 和 `build_tool_response()` 添加 `"anthropic"` 和 `"gemini"` 格式支持
 
 - **权限系统**（[#79](../../issues/79)、[#80](../../issues/80)、[#81](../../issues/81)、[#82](../../issues/82)）
     - **ToolTag 与 ToolMetadata**（[#80](../../issues/80)、[#84](../../pull/84)）：添加 `ToolTag` 枚举（READ_ONLY、DESTRUCTIVE、NETWORK、FILE_SYSTEM、SLOW、PRIVILEGED）和 `ToolMetadata` 模型，包含执行提示（`is_async`、`is_concurrency_safe`、`timeout`）和分类标签
@@ -32,7 +32,7 @@ author: Oaklight
     - 支持按执行位置分类工具，便于过滤和调度
 
 - **基于标签的过滤与稳定排序**（[#83](../../issues/83)）
-    - 为 `get_tools_json()` 添加 `tags`、`exclude_tags` 和 `sort` 参数
+    - 为 `get_schemas()` 添加 `tags`、`exclude_tags` 和 `sort` 参数
     - 支持 prompt 级工具过滤和确定性排序，减少 token 浪费，提高大规模工具池的 prompt 缓存命中率
 
 - **MCP 和 OpenAPI 持久连接**（[#90](../../issues/90)）
@@ -44,8 +44,8 @@ author: Oaklight
 ### 修复
 
 - **Gemini 工具调用 ID 与名称解析**
-    - 修复 `recover_tool_call_assistant_message` 中的 ID 对齐问题：按位置将 `tool_responses`（由 `execute_tool_calls` 生成）的 ID 映射到转换后的 `ToolCall` 对象上，确保 assistant 和 tool 消息引用相同的 ID
-    - 将 `tool_calls` 传递给 `recover_tool_message` 以解析 Gemini `functionResponse.name`
+    - 修复 `build_tool_call_messages` 中的 ID 对齐问题：按位置将 `tool_responses`（由 `execute_tool_calls` 生成）的 ID 映射到转换后的 `ToolCall` 对象上，确保 assistant 和 tool 消息引用相同的 ID
+    - 将 `tool_calls` 传递给 `build_tool_response` 以解析 Gemini `functionResponse.name`
     - 此前 Gemini `functionResponse.name` 显示随机 UUID 而非函数名，原因是 `convert_tool_calls()` 被独立调用两次，每次生成不同的 ID
 
 ### 重构
@@ -63,6 +63,14 @@ author: Oaklight
     - 将 `tool_registry.py`（1459 行）拆分为 7 个专注的 mixin 类（剩余 454 行）
     - Mixin：`ChangeCallbackMixin`、`NamespaceMixin`、`EnableDisableMixin`、`RegistrationMixin`、`PermissionsMixin`、`ExecutionLoggingMixin`、`AdminMixin`
     - 公开 API 不变；通过 MRO 链实现协作式 `__init__`
+
+- **公开 API 重命名**（[#107](../../issues/107)）
+    - `get_tools_json()` → `get_schemas()`（`ToolRegistry` 方法）
+    - `recover_tool_call_assistant_message()` → `build_tool_call_messages()`（`ToolRegistry` 方法）
+    - `recover_assistant_message()` → `build_assistant_message()`（模块级函数）
+    - `recover_tool_message()` → `build_tool_response()`（模块级函数）
+    - 新增 `"openai-chat"` 作为规范 API 格式名称；弃用 `"openai"` 和 `"openai-chatcompletion"`
+    - 所有旧名称保留为弃用别名，使用时会触发 `DeprecationWarning`
 
 ## [0.6.1] - 2026-03-22
 

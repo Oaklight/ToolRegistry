@@ -2,7 +2,7 @@
 
 继续我们在[基础用法](basics)中的简单数学示例，本文档解释如何将工具注册表与 OpenAI API 一起使用。请注意，您可以将 OpenAI 客户端与任何提供 OpenAI 兼容 API 的 API 提供者一起使用。在本指南中，我们将使用 DeepSeek 作为示例。
 
-回想一下，我们使用 `registry.get_tools_json()` 获得了两个数学函数的 JSON 模式：
+回想一下，我们使用 `registry.get_schemas()` 获得了两个数学函数的 JSON 模式：
 
 ```json
 [
@@ -81,7 +81,7 @@ messages = [
 response = client.chat.completions.create(
     model="deepseek-chat",
     messages=messages,
-    tools=registry.get_tools_json(), # 这里我们提供模式
+    tools=registry.get_schemas(), # 这里我们提供模式
     tool_choice="auto",
 )
 ```
@@ -130,7 +130,7 @@ print(tool_responses)
 
 ```python
 # 构造带结果的助手消息
-assistant_tool_messages = registry.recover_tool_call_assistant_message(
+assistant_tool_messages = registry.build_tool_call_messages(
     tool_calls, tool_responses
 )
 print(assistant_tool_messages)
@@ -246,7 +246,7 @@ messages = [
 response = client.chat.completions.create(
     model="deepseek-chat",
     messages=messages,
-    tools=registry.get_tools_json(),
+    tools=registry.get_schemas(),
     tool_choice="auto",
 )
 
@@ -260,7 +260,7 @@ if response.choices[0].message.tool_calls:
     print(tool_responses)
 
     # 构造带结果的助手消息
-    assistant_tool_messages = registry.recover_tool_call_assistant_message(
+    assistant_tool_messages = registry.build_tool_call_messages(
         tool_calls, tool_responses
     )
     print(assistant_tool_messages)

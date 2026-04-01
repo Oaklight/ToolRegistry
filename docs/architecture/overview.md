@@ -36,7 +36,7 @@ graph LR
     end
 
     subgraph 执行
-        R -->|get_tools_json| S[JSON Schema]
+        R -->|get_schemas| S[JSON Schema]
         S -->|发送至 LLM| LLM[LLM API]
         LLM -->|tool_calls| R
         R -->|execute_tool_calls| BE[执行器后端]
@@ -89,7 +89,7 @@ sequenceDiagram
     participant Backend as 执行器后端
 
     App->>Registry: 注册工具（函数、MCP、OpenAPI……）
-    App->>Registry: get_tools_json(api_format="openai")
+    App->>Registry: get_schemas(api_format="openai-chat")
     App->>LLM: 携带工具 Schema 的对话请求
     LLM-->>App: tool_calls（函数名 + 参数）
     App->>Registry: execute_tool_calls(tool_calls)
@@ -97,7 +97,7 @@ sequenceDiagram
     Registry->>Backend: submit(fn, kwargs, timeout)
     Backend-->>Registry: 结果
     Registry-->>App: dict[tool_call_id, result]
-    App->>Registry: recover_tool_call_assistant_message(...)
+    App->>Registry: build_tool_call_messages(...)
     App->>LLM: 携带结果继续对话
     LLM-->>App: 最终回复
 ```
@@ -141,13 +141,13 @@ ToolRegistry 通过 [llm-rosetta](https://pypi.org/project/llm-rosetta/) 为多�
 
 ```python
 # OpenAI Chat Completion 格式（默认）
-registry.get_tools_json(api_format="openai")
+registry.get_schemas(api_format="openai-chat")
 
 # Anthropic 格式
-registry.get_tools_json(api_format="anthropic")
+registry.get_schemas(api_format="anthropic")
 
 # Google Gemini 格式
-registry.get_tools_json(api_format="gemini")
+registry.get_schemas(api_format="gemini")
 ```
 
 详见 [LLM API 格式](../usage/providers/openai_chat.md)章节的各格式集成指南。

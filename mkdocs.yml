@@ -104,6 +104,7 @@ nav:
           - OpenAPI 工具: usage/integrations/openapi.md
           - LangChain 工具: usage/integrations/langchain.md
       - 权限系统: usage/permissions.md
+      - 消息构建: usage/message_building.md
       - 最佳实践: usage/best_practices.md
       - LLM API 格式:
           - OpenAI Chat: usage/providers/openai_chat.md
