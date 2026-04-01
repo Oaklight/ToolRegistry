@@ -2,12 +2,14 @@ import asyncio
 from typing import Any
 
 from langchain_core.tools import BaseTool as LCBaseTool
-from loguru import logger
 
+from .._structlog import get_logger
 from ..tool import Tool, ToolMetadata
 from ..tool_registry import ToolRegistry
 from ..tool_wrapper import BaseToolWrapper
 from ..utils import normalize_tool_name
+
+logger = get_logger()
 
 
 class LangChainToolWrapper(BaseToolWrapper):
