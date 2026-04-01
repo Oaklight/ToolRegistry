@@ -358,6 +358,72 @@ class TestThinkAugmented:
         )
         assert "properties" not in tool.parameters
 
+    def test_think_metadata_false_strips_from_schema(self, sample_function):
+        """Test that think_augment=False strips thought from get_json_schema output."""
+        tool = Tool.from_function(
+            sample_function, metadata=ToolMetadata(think_augment=False)
+        )
+        # Internal storage still has thought
+        assert "thought" in tool.parameters["properties"]
+        # But get_json_schema strips it
+        schema = tool.get_json_schema("openai-chat")
+        assert "thought" not in schema["function"]["parameters"]["properties"]
+
+    def test_think_metadata_true_includes_in_schema(self, sample_function):
+        """Test that think_augment=True always includes thought in schema."""
+        tool = Tool.from_function(
+            sample_function, metadata=ToolMetadata(think_augment=True)
+        )
+        schema = tool.get_json_schema("openai-chat")
+        assert "thought" in schema["function"]["parameters"]["properties"]
+
+    def test_think_metadata_none_includes_by_default(self, sample_function):
+        """Test that think_augment=None (default) includes thought when called directly."""
+        tool = Tool.from_function(sample_function)
+        assert tool.metadata.think_augment is None
+        schema = tool.get_json_schema("openai-chat")
+        assert "thought" in schema["function"]["parameters"]["properties"]
+
+    def test_think_override_false_strips(self, sample_function):
+        """Test _think_augment=False override strips thought from output."""
+        tool = Tool.from_function(sample_function)
+        schema = tool.get_json_schema("openai-chat", _think_augment=False)
+        assert "thought" not in schema["function"]["parameters"]["properties"]
+
+    def test_think_override_true_includes(self, sample_function):
+        """Test _think_augment=True override includes thought in output."""
+        tool = Tool.from_function(
+            sample_function, metadata=ToolMetadata(think_augment=False)
+        )
+        # Per-tool says False, but override says True
+        schema = tool.get_json_schema("openai-chat", _think_augment=True)
+        assert "thought" in schema["function"]["parameters"]["properties"]
+
+    def test_think_native_param_never_stripped(self):
+        """Test that native thought parameter is never stripped from schema."""
+
+        def func_with_thought(thought: str, x: int) -> str:
+            """Uses thought natively."""
+            return f"{thought}: {x}"
+
+        tool = Tool.from_function(
+            func_with_thought, metadata=ToolMetadata(think_augment=False)
+        )
+        schema = tool.get_json_schema("openai-chat", _think_augment=False)
+        # Native thought should survive even with think_augment=False
+        assert "thought" in schema["function"]["parameters"]["properties"]
+
+    def test_think_strip_all_formats(self, sample_function):
+        """Test that thought is stripped across all API formats."""
+        tool = Tool.from_function(sample_function)
+        for fmt, path in [
+            ("openai-chat", lambda s: s["function"]["parameters"]["properties"]),
+            ("anthropic", lambda s: s["input_schema"]["properties"]),
+            ("gemini", lambda s: s["parameters"]["properties"]),
+        ]:
+            schema = tool.get_json_schema(fmt, _think_augment=False)
+            assert "thought" not in path(schema), f"thought not stripped for {fmt}"
+
 
 class TestToolMetadataFields:
     """Test cases for ToolMetadata and ToolTag."""
@@ -370,6 +436,7 @@ class TestToolMetadataFields:
         assert meta.is_concurrency_safe is True
         assert meta.timeout is None
         assert meta.locality == "any"
+        assert meta.think_augment is None
         assert meta.tags == set()
         assert meta.custom_tags == set()
         assert meta.extra == {}

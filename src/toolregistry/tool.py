@@ -88,6 +88,17 @@ class ToolMetadata(BaseModel):
     ``"jupyter notebook ipynb cell"``.
     """
 
+    think_augment: bool | None = None
+    """Control thought-augmented tool calling for this tool.
+
+    - ``None`` (default): follow the registry-level setting.
+    - ``True``: always inject a ``thought`` property into this tool's
+      schema, regardless of the registry setting.
+    - ``False``: never inject ``thought`` into this tool's schema.
+
+    Reference: https://arxiv.org/abs/2601.18282
+    """
+
     @property
     def all_tags(self) -> set[str]:
         """Union of predefined and custom tags (all as str)."""
@@ -305,9 +316,27 @@ class Tool(BaseModel):
 
         return tool
 
+    def _parameters_without_thought(self) -> dict[str, Any]:
+        """Return a shallow copy of ``parameters`` with ``thought`` removed.
+
+        Only strips ``thought`` when it was injected (i.e. the wrapped
+        function does not natively declare a ``thought`` parameter).
+        """
+        import copy
+
+        if self._has_native_thought_param():
+            return self.parameters
+        params = copy.deepcopy(self.parameters)
+        props = params.get("properties")
+        if props is not None:
+            props.pop("thought", None)
+        return params
+
     def get_json_schema(
         self,
         api_format: API_FORMATS = "openai-chat",
+        *,
+        _think_augment: bool | None = None,
     ) -> dict[str, Any]:
         """Generate JSON Schema representation of tool based on API format.
 
@@ -318,6 +347,11 @@ class Tool(BaseModel):
         Args:
             api_format: Target API format. One of ``"openai-chat"``,
                 ``"openai-response"``, ``"anthropic"``, ``"gemini"``.
+            _think_augment: Internal override for thought injection.
+                When ``None`` (default), falls back to
+                ``self.metadata.think_augment``.  Used by
+                :meth:`ToolRegistry.get_schemas` to pass the resolved
+                effective value.
 
         Returns:
             Provider-specific tool definition dict.
@@ -326,7 +360,22 @@ class Tool(BaseModel):
         from .types.common import _normalize_api_format
 
         api_format = _normalize_api_format(api_format)
-        ir_tool = _make_ir_tool_definition(self.name, self.description, self.parameters)
+
+        # Resolve effective think_augment: explicit override > per-tool metadata
+        effective = (
+            _think_augment
+            if _think_augment is not None
+            else self.metadata.think_augment
+        )
+        # None means "include" when called directly (no registry context)
+        should_include_thought = effective is not False
+
+        params = (
+            self.parameters
+            if should_include_thought
+            else self._parameters_without_thought()
+        )
+        ir_tool = _make_ir_tool_definition(self.name, self.description, params)
 
         if api_format == "openai-chat":
             from ._rosetta import _get_openai_chat_tool_ops

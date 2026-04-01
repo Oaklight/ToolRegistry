@@ -620,3 +620,103 @@ class TestThinkAugmentedExecution:
         ]
         results = registry.execute_tool_calls(tool_calls)
         assert results["call_think"] == "Hello, World!"
+
+    def test_get_schemas_default_no_thought(self):
+        """Test that get_schemas() excludes thought by default (think_augment=False)."""
+
+        def add(a: int, b: int) -> int:
+            """Add two numbers."""
+            return a + b
+
+        registry = ToolRegistry()
+        registry.register(add)
+        schemas = registry.get_schemas()
+        props = schemas[0]["function"]["parameters"]["properties"]
+        assert "thought" not in props
+
+    def test_get_schemas_with_think_augment_enabled(self):
+        """Test that get_schemas() includes thought when think_augment=True."""
+
+        def add(a: int, b: int) -> int:
+            """Add two numbers."""
+            return a + b
+
+        registry = ToolRegistry(think_augment=True)
+        registry.register(add)
+        schemas = registry.get_schemas()
+        props = schemas[0]["function"]["parameters"]["properties"]
+        assert "thought" in props
+
+    def test_enable_disable_think_augment(self):
+        """Test enable/disable_think_augment toggle methods."""
+
+        def add(a: int, b: int) -> int:
+            """Add two numbers."""
+            return a + b
+
+        registry = ToolRegistry()
+        registry.register(add)
+
+        # Default: off
+        schemas = registry.get_schemas()
+        assert "thought" not in schemas[0]["function"]["parameters"]["properties"]
+
+        # Enable
+        registry.enable_think_augment()
+        schemas = registry.get_schemas()
+        assert "thought" in schemas[0]["function"]["parameters"]["properties"]
+
+        # Disable again
+        registry.disable_think_augment()
+        schemas = registry.get_schemas()
+        assert "thought" not in schemas[0]["function"]["parameters"]["properties"]
+
+    def test_per_tool_override_true(self):
+        """Test per-tool think_augment=True overrides registry default (off)."""
+        from toolregistry.tool import Tool, ToolMetadata
+
+        def add(a: int, b: int) -> int:
+            """Add two numbers."""
+            return a + b
+
+        registry = ToolRegistry()  # think_augment=False by default
+        tool = Tool.from_function(add, metadata=ToolMetadata(think_augment=True))
+        registry.register(tool)
+        schemas = registry.get_schemas()
+        props = schemas[0]["function"]["parameters"]["properties"]
+        assert "thought" in props
+
+    def test_per_tool_override_false(self):
+        """Test per-tool think_augment=False overrides registry setting (on)."""
+        from toolregistry.tool import Tool, ToolMetadata
+
+        def add(a: int, b: int) -> int:
+            """Add two numbers."""
+            return a + b
+
+        registry = ToolRegistry(think_augment=True)
+        tool = Tool.from_function(add, metadata=ToolMetadata(think_augment=False))
+        registry.register(tool)
+        schemas = registry.get_schemas()
+        props = schemas[0]["function"]["parameters"]["properties"]
+        assert "thought" not in props
+
+    def test_per_tool_none_follows_registry(self):
+        """Test per-tool think_augment=None follows registry setting."""
+        from toolregistry.tool import Tool, ToolMetadata
+
+        def add(a: int, b: int) -> int:
+            """Add two numbers."""
+            return a + b
+
+        registry = ToolRegistry(think_augment=True)
+        tool = Tool.from_function(add, metadata=ToolMetadata(think_augment=None))
+        registry.register(tool)
+        schemas = registry.get_schemas()
+        props = schemas[0]["function"]["parameters"]["properties"]
+        assert "thought" in props
+
+        registry.disable_think_augment()
+        schemas = registry.get_schemas()
+        props = schemas[0]["function"]["parameters"]["properties"]
+        assert "thought" not in props
