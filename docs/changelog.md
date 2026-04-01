@@ -27,6 +27,32 @@ author: Oaklight
     - **权限规则引擎**（[#82](../../issues/82)、[#86](../../pull/86)）：添加 `PermissionRule` 和 `PermissionPolicy` 模型，采用首次匹配生效评估；添加 `set_permission_policy()`、`get_permission_policy()`、`remove_permission_policy()` 方法；添加五条内置规则（`ALLOW_READONLY`、`ASK_DESTRUCTIVE`、`DENY_PRIVILEGED`、`ASK_NETWORK`、`ASK_FILE_SYSTEM`）；权限检查集成到 `execute_tool_calls()` 中
     - 在回调机制中添加 `PERMISSION_DENIED` 和 `PERMISSION_ASKED` 事件类型
 
+- **ToolMetadata Locality 字段**（[#89](../../issues/89)）
+    - 为 `ToolMetadata` 添加 `locality` 字段，可选值为 `"local"`、`"remote"` 或 `"any"`（默认）
+    - 支持按执行位置分类工具，便于过滤和调度
+
+- **MCP 和 OpenAPI 持久连接**（[#90](../../issues/90)）
+    - MCP 集成现通过 `MCPConnectionManager` 在工具调用间保持持久连接
+    - OpenAPI 集成复用 `httpx` 客户端会话实现连接池
+    - 新增 `ToolRegistry.close()` / `close_async()` 方法用于显式资源清理
+    - 支持上下文管理器：`with ToolRegistry() as reg:` 和 `async with ToolRegistry() as reg:`
+
+### 重构
+
+- **可插拔 Executor 后端架构**（[#78](../../issues/78)）
+    - 将单体 `Executor` 类替换为可插拔的 `executor/` 包
+    - 新增 `ExecutionBackend` Protocol 和 `ExecutionHandle` ABC，实现后端可扩展性
+    - `ThreadBackend`：线程池执行器，支持通过 `ExecutionContext` 进行协作式取消
+    - `ProcessPoolBackend`：进程池执行器，使用 cloudpickle 序列化
+    - 在后端层面强制执行 `ToolMetadata.timeout`
+    - `ToolMetadata.is_concurrency_safe` 控制顺序执行与并行批处理
+    - 工具函数可接受 `_ctx: ExecutionContext` 参数实现协作式取消和进度报告
+
+- **基于 Mixin 的 ToolRegistry 架构**（[#94](../../issues/94)）
+    - 将 `tool_registry.py`（1459 行）拆分为 7 个专注的 mixin 类（剩余 454 行）
+    - Mixin：`ChangeCallbackMixin`、`NamespaceMixin`、`EnableDisableMixin`、`RegistrationMixin`、`PermissionsMixin`、`ExecutionLoggingMixin`、`AdminMixin`
+    - 公开 API 不变；通过 MRO 链实现协作式 `__init__`
+
 ## [0.6.1] - 2026-03-22
 
 ### 修复

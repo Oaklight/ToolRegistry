@@ -138,6 +138,18 @@ policy = PermissionPolicy(
 | `SLOW` | 工具可能耗时较长 |
 | `PRIVILEGED` | 工具需要提升权限 |
 
+### ToolMetadata 字段
+
+除标签外，`ToolMetadata` 还提供执行提示：
+
+| 字段 | 类型 | 默认值 | 描述 |
+|------|------|--------|------|
+| `tags` | `set[ToolTag]` | `set()` | 预定义分类标签 |
+| `custom_tags` | `set[str]` | `set()` | 用户自定义标签 |
+| `timeout` | `float \| None` | `None` | 单次调用超时（秒） |
+| `is_concurrency_safe` | `bool` | `True` | 工具是否可并发运行 |
+| `locality` | `"local" \| "remote" \| "any"` | `"any"` | 工具执行位置（本地、远程或任意） |
+
 ### 为工具打标签
 
 ```python
@@ -149,6 +161,7 @@ tool = Tool.from_function(
         tags={ToolTag.NETWORK, ToolTag.SLOW},
         custom_tags={"requires_api_key"},
         timeout=30.0,
+        locality="remote",
     ),
 )
 registry.register(tool)
