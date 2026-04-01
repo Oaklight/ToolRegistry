@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Any
 from collections.abc import Callable
 
-from loguru import logger
 from mcp.types import (
     BlobResourceContents,
     EmbeddedResource,
@@ -14,12 +13,15 @@ from mcp.types import (
 )
 from mcp.types import Tool as ToolSpec
 
+from .._structlog import get_logger
 from ..tool import Tool, ToolMetadata
 from ..tool_registry import ToolRegistry
 from ..tool_wrapper import BaseToolWrapper
 from ..utils import normalize_tool_name
 from .client import MCPClient
 from .connection import MCPConnectionManager
+
+logger = get_logger()
 
 
 class MCPToolWrapper(BaseToolWrapper):

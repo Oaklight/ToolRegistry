@@ -4,10 +4,12 @@ import asyncio
 from pathlib import Path
 from typing import Any
 
-from loguru import logger
 from mcp.types import CallToolResult
 
+from .._structlog import get_logger
 from .client import MCPClient
+
+logger = get_logger()
 
 
 class MCPConnectionManager:
