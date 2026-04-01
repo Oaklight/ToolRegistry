@@ -37,12 +37,26 @@ schemas = registry.get_tools_json(api_format="gemini")
     "name": "add",
     "description": "Add two numbers together.",
     "parameters": {
-      "type": "object",
       "properties": {
-        "a": { "type": "number" },
-        "b": { "type": "number" }
+        "a": { "title": "A", "type": "number" },
+        "b": { "title": "B", "type": "number" }
       },
-      "required": ["a", "b"]
+      "required": ["a", "b"],
+      "title": "addParameters",
+      "type": "object"
+    }
+  },
+  {
+    "name": "subtract",
+    "description": "Subtract the second number from the first.",
+    "parameters": {
+      "properties": {
+        "a": { "title": "A", "type": "number" },
+        "b": { "title": "B", "type": "number" }
+      },
+      "required": ["a", "b"],
+      "title": "subtractParameters",
+      "type": "object"
     }
   }
 ]
@@ -127,7 +141,7 @@ assistant_tool_messages = registry.recover_tool_call_assistant_message(
       {
         "functionResponse": {
           "name": "subtract",
-          "response": {"output": "12.0"}
+          "response": {"output": "12"}
         }
       }
     ]

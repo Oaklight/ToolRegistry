@@ -37,12 +37,26 @@ schemas = registry.get_tools_json(api_format="anthropic")
     "name": "add",
     "description": "Add two numbers together.",
     "input_schema": {
-      "type": "object",
       "properties": {
-        "a": { "type": "number" },
-        "b": { "type": "number" }
+        "a": { "title": "A", "type": "number" },
+        "b": { "title": "B", "type": "number" }
       },
-      "required": ["a", "b"]
+      "required": ["a", "b"],
+      "title": "addParameters",
+      "type": "object"
+    }
+  },
+  {
+    "name": "subtract",
+    "description": "Subtract the second number from the first.",
+    "input_schema": {
+      "properties": {
+        "a": { "title": "A", "type": "number" },
+        "b": { "title": "B", "type": "number" }
+      },
+      "required": ["a", "b"],
+      "title": "subtractParameters",
+      "type": "object"
     }
   }
 ]
@@ -98,7 +112,7 @@ tool_responses = registry.execute_tool_calls(tool_calls)
 返回一个字典，键为工具调用 ID，值为执行结果：
 
 ```json
-{"toolu_01A09q90qw90lq917835lq9": "12.0"}
+{"toolu_01A09q90qw90lq917835lq9": "12"}
 ```
 
 ## 将结果反馈给 LLM
@@ -132,7 +146,7 @@ assistant_tool_messages = registry.recover_tool_call_assistant_message(
       {
         "type": "tool_result",
         "tool_use_id": "toolu_01A09q90qw90lq917835lq9",
-        "content": "12.0"
+        "content": "12"
       }
     ]
   }
