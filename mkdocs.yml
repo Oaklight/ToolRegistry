@@ -103,6 +103,9 @@ nav:
           - MCP Tools: usage/integrations/mcp.md
           - OpenAPI Tools: usage/integrations/openapi.md
           - LangChain Tools: usage/integrations/langchain.md
+      - Tool Search: usage/tool_search.md
+      - Think-Augmented Calling: usage/think_augmented.md
+      - Result Size Management: usage/result_management.md
       - Permissions: usage/permissions.md
       - Message Building: usage/message_building.md
       - Best Practices: usage/best_practices.md

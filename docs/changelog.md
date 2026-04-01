@@ -41,6 +41,26 @@ This page documents all notable changes to the ToolRegistry project since the fi
     - Add `ToolRegistry.close()` / `close_async()` for explicit resource cleanup
     - Add context manager support: `with ToolRegistry() as reg:` and `async with ToolRegistry() as reg:`
 
+- **ToolSearchTool for Dynamic Tool Discovery** ([#108](../../pull/108))
+    - Add `ToolSearchTool` class for natural language tool search using BM25F multi-field scoring
+    - Vendor zerodep `SparseIndex` as `_sparse_search.py` (zero external dependencies)
+    - Add `ToolMetadata.defer` field to mark tools for deferred loading (excluded from initial prompt)
+    - Add `ToolMetadata.search_hint` field for free-form search keywords and synonyms
+    - Index tool name, description, tags, parameter names, and search_hint with configurable field weights
+
+- **Think-Augmented Function Calling** ([#49](../../pull/49))
+    - Inject a `thought` string property into every tool's parameter schema so LLMs can include chain-of-thought reasoning when calling tools
+    - The property is automatically stripped before execution
+    - Native `thought` parameters on functions are preserved (not overridden)
+    - Covers all integration paths (MCP, OpenAPI, LangChain, native)
+    - Reference: [arXiv:2601.18282](https://arxiv.org/abs/2601.18282)
+
+- **Result Size Management**
+    - Add `ToolMetadata.max_result_size` and `ToolRegistry(default_max_result_size=...)` for automatic result truncation
+    - Two strategies: `HEAD` (keep first N chars) and `HEAD_TAIL` (keep first and last portions, default)
+    - Full results automatically persisted to temporary files before truncation
+    - Add `truncate_result()` function and `TruncatedResult` dataclass for programmatic use
+
 ### Bug Fixes
 
 - **Gemini Tool Call ID and Name Resolution**
