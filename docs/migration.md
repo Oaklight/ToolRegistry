@@ -24,8 +24,8 @@ results = registry.execute_tool_calls(tool_calls, parallel_mode="thread")
 from toolregistry import ToolRegistry
 
 registry = ToolRegistry()
-# 使用 execution_mode 参数或 set_execution_mode()
-registry.set_execution_mode("thread")  # "thread" 或 "process"
+# 使用 execution_mode 参数或 set_default_execution_mode()
+registry.set_default_execution_mode("thread")  # "thread" 或 "process"
 results = registry.execute_tool_calls(tool_calls)
 
 # 或单次调用覆盖

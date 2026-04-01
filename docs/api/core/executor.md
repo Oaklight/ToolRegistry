@@ -124,7 +124,7 @@ from toolregistry import ToolRegistry, ToolMetadata, Tool
 registry = ToolRegistry()
 
 # 设置默认执行模式
-registry.set_execution_mode("thread")  # 或 "process"（默认）
+registry.set_default_execution_mode("thread")  # 或 "process"（默认）
 
 # 单次调用覆盖
 results = registry.execute_tool_calls(tool_calls, execution_mode="thread")

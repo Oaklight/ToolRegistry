@@ -70,7 +70,7 @@ backend.submit(fn, kwargs, timeout=...)  →  ExecutionHandle
 from toolregistry import ToolRegistry
 
 registry = ToolRegistry()
-registry.set_execution_mode("thread")  # 或 "process"（默认）
+registry.set_default_execution_mode("thread")  # 或 "process"（默认）
 ```
 
 ### 单次调用覆盖

@@ -34,7 +34,7 @@ from toolregistry.hub import BaseCalculator, Calculator, FileOps
 registry = ToolRegistry()
 
 # 注册 Calculator 工具（带命名空间）
-registry.register_from_class(Calculator, with_namespace=True)
+registry.register_from_class(Calculator, namespace=True)
 
 # 注册 FileOps 工具（不带命名空间）
 registry.register_from_class(FileOps)
@@ -44,15 +44,15 @@ print(registry.get_available_tools())
 # 输出: ['calculator-list_allowed_fns', 'calculator-help', 'calculator-evaluate', 'read_file', 'write_file', ...]
 ```
 
-在注册时使用 `with_namespace=True` 参数会将类名作为命名空间前缀添加到工具名称中，确保更好的组织性并避免命名冲突。例如：
+在注册时使用 `namespace=True` 参数会将类名作为命名空间前缀添加到工具名称中，确保更好的组织性并避免命名冲突。例如：
 
 ```python
-registry.register_from_class(BaseCalculator, with_namespace=True)
+registry.register_from_class(BaseCalculator, namespace=True)
 ```
 
 这将注册名称为 `base_calculator-add`、`base_calculator-subtract` 等的工具。
 
-使用 `with_namespace` 的优势：
+使用 `namespace` 的优势：
 
 1. 避免不同类中同名方法之间的命名冲突。
 2. 更清晰地标识工具来源。

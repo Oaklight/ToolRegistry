@@ -91,6 +91,9 @@ author: Oaklight
     - `recover_tool_call_assistant_message()` → `build_tool_call_messages()`（`ToolRegistry` 方法）
     - `recover_assistant_message()` → `build_assistant_message()`（模块级函数）
     - `recover_tool_message()` → `build_tool_response()`（模块级函数）
+    - 所有 `register_from_*` 方法中的 `with_namespace` 参数重命名为 `namespace`（旧名称仍可使用，触发弃用警告）
+    - `set_execution_mode()` 重命名为 `set_default_execution_mode()`（旧名称已弃用）
+    - `list_all_tools()` 合并至 `list_tools(include_disabled=True)`（旧名称已弃用）
     - 新增 `"openai-chat"` 作为规范 API 格式名称；弃用 `"openai"` 和 `"openai-chatcompletion"`
     - 所有旧名称保留为弃用别名，使用时会触发 `DeprecationWarning`
 
@@ -177,7 +180,7 @@ author: Oaklight
 	- 添加方法级和命名空间级的禁用，支持原因追踪
 	- 新增 `disable(name, reason)`、`enable(name)`、`is_enabled(tool_name)`、`get_disable_reason(tool_name)` 方法
 	- `list_tools()` 现在仅返回已启用的工具
-	- 新增 `list_all_tools()` 用于管理面板（返回包括已禁用在内的所有工具）
+	- 新增 `list_tools(include_disabled=True)` 用于管理面板（返回包括已禁用在内的所有工具）
 	- `get_tools_json()` 在未指定工具名时自动过滤已禁用工具
 	- `execute_tool_calls()` 对已禁用工具返回错误信息而非执行
 	- 添加 28 个新测试

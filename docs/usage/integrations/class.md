@@ -11,7 +11,7 @@ Hub 工具通过 `register_from_class` 方法注册到 ToolRegistry 中。开发
 
 ### 注册包含静态方法的类
 
-仅使用静态方法的类可以直接注册，无需创建实例。使用 `with_namespace=True` 参数可以帮助将工具组织到以类名派生的命名空间下。
+仅使用静态方法的类可以直接注册，无需创建实例。使用 `namespace=True` 参数可以帮助将工具组织到以类名派生的命名空间下。
 
 ```python
 from toolregistry import ToolRegistry
@@ -22,7 +22,7 @@ class StaticExample:
         return f"Hello, {name}!"
 
 registry = ToolRegistry()
-registry.register_from_class(StaticExample, with_namespace=True)
+registry.register_from_class(StaticExample, namespace=True)
 
 # List registered tools
 print(registry.get_available_tools())
@@ -102,30 +102,30 @@ class ScientificCalculator(BaseCalculator):
 registry = ToolRegistry()
 
 # Default behavior (traverse_mro=True): inherited methods are included
-registry.register_from_class(ScientificCalculator, with_namespace=True)
+registry.register_from_class(ScientificCalculator, namespace=True)
 print(registry.get_available_tools())
 # Output: ['scientific_calculator-add', 'scientific_calculator-subtract', 'scientific_calculator-power']
 
 # With traverse_mro=False: only methods defined directly on the class are registered
 registry2 = ToolRegistry()
-registry2.register_from_class(ScientificCalculator, with_namespace=True, traverse_mro=False)
+registry2.register_from_class(ScientificCalculator, namespace=True, traverse_mro=False)
 print(registry2.get_available_tools())
 # Output: ['scientific_calculator-power']
 ```
 
 如果你希望仅注册直接定义在该类上的方法（不包括继承的方法），请显式传递 `traverse_mro=False`。
 
-## `with_namespace` 选项
+## `namespace` 选项
 
-使用 `with_namespace=True` 参数会将类名作为命名空间前缀添加到工具名称中：
+使用 `namespace=True` 参数会将类名作为命名空间前缀添加到工具名称中：
 
 ```python
-registry.register_from_class(BaseCalculator, with_namespace=True)
+registry.register_from_class(BaseCalculator, namespace=True)
 ```
 
 这将注册名称类似 `base_calculator-add`、`base_calculator-subtract` 等的工具。
 
-**使用 with_namespace 的优势**：
+**使用 namespace 的优势**：
 
 1. 避免不同类中同名方法之间的命名冲突
 2. 更清晰地标识工具来源
@@ -141,7 +141,7 @@ from toolregistry.hub import Calculator, FileOps
 registry = ToolRegistry()
 
 # Register Calculator tools (with namespace)
-registry.register_from_class(Calculator, with_namespace=True)
+registry.register_from_class(Calculator, namespace=True)
 
 # Register FileOps tools (without namespace)
 registry.register_from_class(FileOps)
