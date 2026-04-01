@@ -111,14 +111,10 @@ def main():
     )
     # print(registry.list_tools())
     if FUNC:
-        target_func_name = [
-            name for name in registry.list_tools() if FUNC in name
-        ][0]
+        target_func_name = [name for name in registry.list_tools() if FUNC in name][0]
     else:
         target_func_name = None
-    tool_calls = generate_tool_calls(
-        N, registry.list_tools(), target_func_name
-    )
+    tool_calls = generate_tool_calls(N, registry.list_tools(), target_func_name)
 
     start_time = time.time()
     results = registry.execute_tool_calls(tool_calls, execution_mode=EXEC_MODE)
