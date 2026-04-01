@@ -366,3 +366,8 @@ registry.set_permission_handler(SimpleHandler())
 # search_db will be allowed (READ_ONLY tag matches ALLOW_READONLY)
 # drop_table will be escalated to handler (DESTRUCTIVE tag matches ASK_DESTRUCTIVE)
 ```
+
+## See Also
+
+- [Permissions API Reference](../api/permissions.md) -- `PermissionPolicy`, `PermissionRule`, `PermissionResult`, `PermissionHandler` class details
+- [Execution Modes](concurrency_modes.md) -- timeout and concurrency-safety settings via `ToolMetadata`

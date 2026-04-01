@@ -167,3 +167,8 @@ print(mixed_registry.get_available_tools())  # Tools with mcp registry
 ['add_get', 'subtract_get', 'multiply_get', 'divide_get']
 ['add', 'subtract', 'multiply', 'divide']
 ```
+
+## See Also
+
+- [Core Classes Overview](../api/core.md) -- architecture diagram and component relationships
+- [ToolRegistry API Reference](../api/core/toolregistry.md) -- `merge()`, `spinoff()`, and namespace-related methods

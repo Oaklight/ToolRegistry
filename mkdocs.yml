@@ -145,6 +145,7 @@ nav:
       - Types: api/types.md
   - Admin Panel: admin-panel.md
   - Ecosystem: ecosystem.md
+  - Migration: migration.md
   - Changelog: changelog.md
   - Hub Tools: https://toolregistry-hub.readthedocs.io/
   - Server: https://toolregistry-server.readthedocs.io/

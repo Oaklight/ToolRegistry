@@ -16,12 +16,13 @@ The ToolRegistry ecosystem consists of three complementary packages that work to
 
 ## Dependency Diagram
 
-```text
-toolregistry          ← Core: tool registration, schema generation, execution
-    ↑
-toolregistry-server   ← Server: OpenAPI & MCP protocol adapters
-    ↑
-toolregistry-hub      ← Hub: ready-to-use tool implementations
+```mermaid
+graph LR
+    Hub["toolregistry-hub<br/><i>Ready-to-use tool implementations</i>"]
+    Server["toolregistry-server<br/><i>OpenAPI & MCP protocol adapters</i>"]
+    Core["toolregistry<br/><i>Tool registration, schema generation, execution</i>"]
+
+    Hub --> Server --> Core
 ```
 
 ## Package Details

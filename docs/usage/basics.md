@@ -247,3 +247,8 @@ assistant_tool_messages = registry.recover_tool_call_assistant_message(
   }
 ]
 ```
+
+## See Also
+
+- [Function Calling of LLM](function_calling.md) -- end-to-end walkthrough of using tools with an LLM provider
+- [LLM Provider Integrations](providers/openai_chat.md) -- detailed provider-specific guides

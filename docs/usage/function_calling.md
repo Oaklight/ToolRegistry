@@ -275,3 +275,10 @@ if response.choices[0].message.tool_calls:
     # Print final response
     print(second_response.choices[0].message.content)
 ```
+
+## See Also
+
+- [OpenAI Chat Completion Integration](providers/openai_chat.md) -- step-by-step guide for OpenAI Chat Completion API
+- [OpenAI Responses Integration](providers/openai_response.md) -- guide for the OpenAI Responses API
+- [Anthropic Integration](providers/anthropic.md) -- guide for Anthropic Claude models
+- [Gemini Integration](providers/gemini.md) -- guide for Google Gemini models
