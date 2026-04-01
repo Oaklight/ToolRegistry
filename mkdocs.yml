@@ -108,6 +108,8 @@ nav:
       - LLM 供应商:
           - OpenAI Chat: usage/providers/openai_chat.md
           - OpenAI Response: usage/providers/openai_response.md
+          - Anthropic: usage/providers/anthropic.md
+          - Google Gemini: usage/providers/gemini.md
   - 示例:
       - 概览: examples/index.md
       - 连续工具调用: examples/consecutive_tool_calls.md
