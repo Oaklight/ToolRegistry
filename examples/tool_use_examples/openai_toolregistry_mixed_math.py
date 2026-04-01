@@ -80,7 +80,7 @@ messages = [
 response = client.chat.completions.create(
     model=model_name,
     messages=messages,
-    tools=mixed_registry.get_tools_json(),
+    tools=mixed_registry.get_schemas(),
     tool_choice="auto",
 )
 
@@ -94,7 +94,7 @@ if response.choices[0].message.tool_calls:
     print(tool_responses)
 
     # Construct assistant messages with results
-    assistant_tool_messages = mixed_registry.recover_tool_call_assistant_message(
+    assistant_tool_messages = mixed_registry.build_tool_call_messages(
         tool_calls, tool_responses
     )
     print(assistant_tool_messages)

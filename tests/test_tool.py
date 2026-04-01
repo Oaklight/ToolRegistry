@@ -66,7 +66,7 @@ class TestTool:
 
     def test_get_json_schema_openai_format(self, sample_tool):
         """Test getting JSON schema in OpenAI format."""
-        schema = sample_tool.get_json_schema("openai")
+        schema = sample_tool.get_json_schema("openai-chat")
 
         assert schema["type"] == "function"
         assert "function" in schema
@@ -74,9 +74,9 @@ class TestTool:
         assert schema["function"]["description"] == sample_tool.description
         assert "parameters" in schema["function"]
 
-    def test_get_json_schema_openai_chatcompletion_format(self, sample_tool):
+    def test_get_json_schema_openai_chat_format(self, sample_tool):
         """Test getting JSON schema in OpenAI chat completion format."""
-        schema = sample_tool.get_json_schema("openai-chatcompletion")
+        schema = sample_tool.get_json_schema("openai-chat")
 
         assert schema["type"] == "function"
         assert "function" in schema
@@ -290,7 +290,7 @@ class TestThinkAugmented:
 
     def test_think_property_in_openai_format(self, sample_tool):
         """Test that thought appears in OpenAI format schema."""
-        schema = sample_tool.get_json_schema("openai")
+        schema = sample_tool.get_json_schema("openai-chat")
         params = schema["function"]["parameters"]
         assert "thought" in params["properties"]
 

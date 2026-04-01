@@ -36,6 +36,6 @@ print(type(add_tool))
 value = add_tool.run({"a": 7, "b": 8})
 print(value)
 
-tools_json = registry.get_tools_json()
+tools_json = registry.get_schemas()
 
 print(json.dumps(tools_json, indent=2))

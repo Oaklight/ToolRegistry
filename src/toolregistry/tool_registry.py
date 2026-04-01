@@ -4,6 +4,7 @@ import logging
 import random
 import string
 import time
+import warnings
 from typing import Any, Literal
 from collections.abc import Callable
 
@@ -16,9 +17,9 @@ from .permissions import (
 from .types import (
     API_FORMATS,
     AnyToolCall,
+    build_assistant_message,
+    build_tool_response,
     convert_tool_calls,
-    recover_assistant_message,
-    recover_tool_message,
 )
 
 from ._admin import AdminMixin
@@ -104,7 +105,7 @@ class ToolRegistry(
         Returns:
             str: JSON string representation of the registry.
         """
-        return json.dumps(self.get_tools_json(), indent=2)
+        return json.dumps(self.get_schemas(), indent=2)
 
     def __str__(self):
         """Return the JSON representation of the registry as a string.
@@ -112,7 +113,7 @@ class ToolRegistry(
         Returns:
             str: JSON string representation of the registry.
         """
-        return json.dumps(self.get_tools_json(), indent=2)
+        return json.dumps(self.get_schemas(), indent=2)
 
     def __getitem__(self, key: str) -> Callable[..., Any] | None:
         """Enable key-value access to retrieve callables.
@@ -400,26 +401,42 @@ class ToolRegistry(
 
         return tool_responses
 
-    def recover_tool_call_assistant_message(
+    def build_tool_call_messages(
         self,
         tool_calls: list[AnyToolCall],
         tool_responses: dict[str, str],
-        api_format: API_FORMATS = "openai-chatcompletion",
+        api_format: API_FORMATS = "openai-chat",
     ) -> list[dict[str, Any]]:
-        """Construct assistant messages from tool call results.
+        """Build conversation messages for a tool-calling round-trip.
 
-        Creates a conversation history with:
-            - Assistant tool call requests
-            - Tool execution responses
+        Combines the assistant message (tool call requests) and the tool
+        result messages into the format required by the next LLM turn.
+
+        This is a convenience method wrapping :func:`build_assistant_message`
+        and :func:`build_tool_response`.  It handles Gemini-specific ID
+        alignment automatically (position-based remapping).
+
+        .. important::
+
+            Do **not** reorder ``tool_calls`` between
+            :meth:`execute_tool_calls` and this method.  Gemini format
+            relies on positional alignment between ``tool_calls`` and
+            ``tool_responses`` because Gemini does not provide tool call
+            IDs upstream.
 
         Args:
-            tool_calls (List[AnyToolCall]): List of tool call objects in various formats.
-            tool_responses (Dict[str, str]): Dictionary of tool call IDs to results.
-            api_format (API_FORMATS): The desired API format for the output.
+            tool_calls: Tool call objects in any supported format.
+            tool_responses: Mapping of tool call IDs to result strings,
+                as returned by :meth:`execute_tool_calls`.
+            api_format: Target API format. Defaults to ``"openai-chat"``.
 
         Returns:
-            List[Dict[str, Any]]: List of message dictionaries in conversation format.
+            Conversation messages ready to extend the message history.
         """
+        from .types.common import _normalize_api_format
+
+        api_format = _normalize_api_format(api_format)
+
         messages = []
         generic_tool_calls = convert_tool_calls(tool_calls)
 
@@ -432,17 +449,30 @@ class ToolRegistry(
             if i < len(response_ids):
                 tc.id = response_ids[i]
 
-        # extend assistant message(s) of tool calls
         messages.extend(
-            recover_assistant_message(generic_tool_calls, api_format=api_format)
+            build_assistant_message(generic_tool_calls, api_format=api_format)
         )
-        # extend messages with tool responses
         messages.extend(
-            recover_tool_message(
+            build_tool_response(
                 tool_responses, api_format=api_format, tool_calls=generic_tool_calls
             )
         )
         return messages
+
+    def recover_tool_call_assistant_message(
+        self,
+        tool_calls: list[AnyToolCall],
+        tool_responses: dict[str, str],
+        api_format: API_FORMATS = "openai-chat",
+    ) -> list[dict[str, Any]]:
+        """Deprecated: use :meth:`build_tool_call_messages` instead."""
+        warnings.warn(
+            "recover_tool_call_assistant_message() is deprecated, "
+            "use build_tool_call_messages() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.build_tool_call_messages(tool_calls, tool_responses, api_format)
 
     # ============== Presentation ==============
     def list_tools(self) -> list[str]:
@@ -504,16 +534,16 @@ class ToolRegistry(
             )
         return status_list
 
-    def get_tools_json(
+    def get_schemas(
         self,
         tool_name: str | None = None,
         *,
-        api_format: API_FORMATS = "openai",
+        api_format: API_FORMATS = "openai-chat",
         tags: set[str | ToolTag] | None = None,
         exclude_tags: set[str | ToolTag] | None = None,
         sort: bool = True,
     ) -> list[dict[str, Any]]:
-        """Get the JSON representation of registered tools, following JSON Schema.
+        """Get tool definitions as JSON Schema dicts for a target API format.
 
         When no specific tool_name is given, only enabled tools are returned.
         Tools can be filtered by tags and sorted for deterministic ordering.
@@ -521,15 +551,19 @@ class ToolRegistry(
         Args:
             tool_name: Optional name of specific tool to get schema for.
                 When set, tag filtering and sorting are skipped.
-            api_format: API format for the schema output.
+            api_format: Target API format. Defaults to ``"openai-chat"``.
             tags: If set, only include tools matching ANY of these tags.
             exclude_tags: Exclude tools matching ANY of these tags.
             sort: If True (default), sort tools by name for deterministic
                 ordering. Stable sorting improves prompt cache hit rates.
 
         Returns:
-            A list of tools in JSON format, compliant with JSON Schema.
+            A list of tool definition dicts in the specified API format.
         """
+        from .types.common import _normalize_api_format
+
+        api_format = _normalize_api_format(api_format)
+
         if tool_name:
             target_tool = self.get_tool(tool_name)
             tools = [target_tool] if target_tool else []
@@ -554,3 +588,26 @@ class ToolRegistry(
                 tools.sort(key=lambda t: t.name)
 
         return [tool.get_json_schema(api_format) for tool in tools]
+
+    def get_tools_json(
+        self,
+        tool_name: str | None = None,
+        *,
+        api_format: API_FORMATS = "openai-chat",
+        tags: set[str | ToolTag] | None = None,
+        exclude_tags: set[str | ToolTag] | None = None,
+        sort: bool = True,
+    ) -> list[dict[str, Any]]:
+        """Deprecated: use :meth:`get_schemas` instead."""
+        warnings.warn(
+            "get_tools_json() is deprecated, use get_schemas() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.get_schemas(
+            tool_name,
+            api_format=api_format,
+            tags=tags,
+            exclude_tags=exclude_tags,
+            sort=sort,
+        )

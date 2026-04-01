@@ -134,7 +134,7 @@ transport = StreamableHttpTransport(url="https://mcphub.example.com/mcp", header
 registry.register_from_mcp(transport)
 
 # Get all tools' JSON, including MCP tools
-tools_json = registry.get_tools_json()
+tools_json = registry.get_schemas()
 ```
 
 ## OpenAPI Integration
@@ -160,7 +160,7 @@ registry.register_from_openapi(
 )
 
 # Get all tools' JSON, including OpenAPI tools
-tools_json = registry.get_tools_json()
+tools_json = registry.get_schemas()
 ```
 
 ### Note
@@ -182,7 +182,7 @@ from toolregistry import ToolRegistry
 registry = ToolRegistry()
 
 registry.register_from_langchain([ArxivQueryRun(), PubmedQueryRun()])
-tools_json = registry.get_tools_json()
+tools_json = registry.get_schemas()
 ```
 
 ## Registering Class Tools

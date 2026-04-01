@@ -40,7 +40,7 @@ class TestToolRegistryIntegration:
         assert len(registry.list_tools()) == 3
 
         # Test JSON schema generation
-        tools_json = registry.get_tools_json()
+        tools_json = registry.get_schemas()
         assert len(tools_json) == 3
 
         # Verify each tool has proper schema
@@ -104,7 +104,7 @@ class TestToolRegistryIntegration:
         assert results["call_2"] == "15.00 square meters"
 
         # Test message recovery
-        messages = registry.recover_tool_call_assistant_message(tool_calls, results)
+        messages = registry.build_tool_call_messages(tool_calls, results)
 
         assert len(messages) == 3  # Assistant message + 2 tool responses
         assert messages[0]["role"] == "assistant"
@@ -333,11 +333,11 @@ class TestToolRegistryIntegration:
         registry.register(simple_func)
 
         # Test different API formats
-        openai_format = registry.get_tools_json(api_format="openai")
-        openai_chat_format = registry.get_tools_json(api_format="openai-chatcompletion")
-        response_format = registry.get_tools_json(api_format="openai-response")
-        anthropic_format = registry.get_tools_json(api_format="anthropic")
-        gemini_format = registry.get_tools_json(api_format="gemini")
+        openai_format = registry.get_schemas(api_format="openai-chat")
+        openai_chat_format = registry.get_schemas(api_format="openai-chat")
+        response_format = registry.get_schemas(api_format="openai-response")
+        anthropic_format = registry.get_schemas(api_format="anthropic")
+        gemini_format = registry.get_schemas(api_format="gemini")
 
         # Verify OpenAI formats
         assert openai_format[0]["type"] == "function"

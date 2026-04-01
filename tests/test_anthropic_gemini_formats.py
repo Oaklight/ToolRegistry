@@ -1,7 +1,7 @@
 """Tests for Anthropic, Gemini, and rosetta-based OpenAI schema format support.
 
 Covers get_json_schema(), ToolCall.from_tool_call(),
-recover_assistant_message(), and recover_tool_message().
+build_assistant_message(), and build_tool_response().
 """
 
 import json
@@ -10,8 +10,8 @@ import json
 from toolregistry import Tool
 from toolregistry.types.common import (
     ToolCall,
-    recover_assistant_message,
-    recover_tool_message,
+    build_assistant_message,
+    build_tool_response,
 )
 
 
@@ -100,7 +100,7 @@ class TestGetJsonSchemaOpenAI:
 
     def test_openai_chat_format(self):
         tool = _sample_tool()
-        schema = tool.get_json_schema(api_format="openai")
+        schema = tool.get_json_schema(api_format="openai-chat")
         assert schema["type"] == "function"
         assert "function" in schema
         assert schema["function"]["name"] == "add"
@@ -234,7 +234,7 @@ class TestFromToolCallGemini:
 
 
 # ---------------------------------------------------------------------------
-# recover_assistant_message — Anthropic
+# build_assistant_message — Anthropic
 # ---------------------------------------------------------------------------
 
 
@@ -247,7 +247,7 @@ class TestRecoverAssistantMessageAnthropic:
                 arguments=json.dumps({"a": 1, "b": 2}),
             )
         ]
-        result = recover_assistant_message(tool_calls, api_format="anthropic")
+        result = build_assistant_message(tool_calls, api_format="anthropic")
         assert len(result) == 1
         msg = result[0]
         assert msg["role"] == "assistant"
@@ -263,7 +263,7 @@ class TestRecoverAssistantMessageAnthropic:
             ToolCall(id="t1", name="add", arguments=json.dumps({"a": 1, "b": 2})),
             ToolCall(id="t2", name="sub", arguments=json.dumps({"x": 5})),
         ]
-        result = recover_assistant_message(tool_calls, api_format="anthropic")
+        result = build_assistant_message(tool_calls, api_format="anthropic")
         assert len(result) == 1
         assert len(result[0]["content"]) == 2
 
@@ -271,12 +271,12 @@ class TestRecoverAssistantMessageAnthropic:
         tool_calls = [
             ToolCall(id="t1", name="", arguments="{}"),
         ]
-        result = recover_assistant_message(tool_calls, api_format="anthropic")
+        result = build_assistant_message(tool_calls, api_format="anthropic")
         assert result[0]["content"] == []
 
 
 # ---------------------------------------------------------------------------
-# recover_assistant_message — Gemini
+# build_assistant_message — Gemini
 # ---------------------------------------------------------------------------
 
 
@@ -289,7 +289,7 @@ class TestRecoverAssistantMessageGemini:
                 arguments=json.dumps({"a": 1, "b": 2}),
             )
         ]
-        result = recover_assistant_message(tool_calls, api_format="gemini")
+        result = build_assistant_message(tool_calls, api_format="gemini")
         assert len(result) == 1
         msg = result[0]
         assert msg["role"] == "model"
@@ -301,14 +301,14 @@ class TestRecoverAssistantMessageGemini:
 
 
 # ---------------------------------------------------------------------------
-# recover_tool_message — Anthropic
+# build_tool_response — Anthropic
 # ---------------------------------------------------------------------------
 
 
 class TestRecoverToolMessageAnthropic:
     def test_basic_structure(self):
         responses = {"toolu_1": "3"}
-        result = recover_tool_message(responses, api_format="anthropic")
+        result = build_tool_response(responses, api_format="anthropic")
         assert len(result) == 1
         msg = result[0]
         assert msg["role"] == "user"
@@ -320,13 +320,13 @@ class TestRecoverToolMessageAnthropic:
 
     def test_multiple_results(self):
         responses = {"t1": "result1", "t2": "result2"}
-        result = recover_tool_message(responses, api_format="anthropic")
+        result = build_tool_response(responses, api_format="anthropic")
         assert len(result) == 1
         assert len(result[0]["content"]) == 2
 
 
 # ---------------------------------------------------------------------------
-# recover_tool_message — Gemini
+# build_tool_response — Gemini
 # ---------------------------------------------------------------------------
 
 
@@ -334,7 +334,7 @@ class TestRecoverToolMessageGemini:
     def test_basic_structure(self):
         responses = {"fc_1": "42"}
         tcs = [ToolCall(id="fc_1", name="add", arguments="{}")]
-        result = recover_tool_message(responses, api_format="gemini", tool_calls=tcs)
+        result = build_tool_response(responses, api_format="gemini", tool_calls=tcs)
         assert len(result) == 1
         msg = result[0]
         assert msg["role"] == "user"
@@ -346,14 +346,14 @@ class TestRecoverToolMessageGemini:
 
     def test_fallback_to_call_id_when_no_tool_calls(self):
         responses = {"fc_1": "42"}
-        result = recover_tool_message(responses, api_format="gemini")
+        result = build_tool_response(responses, api_format="gemini")
         # Without tool_calls, falls back to call_id as function name
         part = result[0]["parts"][0]
         assert part["functionResponse"]["name"] == "fc_1"
 
 
 # ---------------------------------------------------------------------------
-# Round-trip: from_tool_call -> recover_assistant_message
+# Round-trip: from_tool_call -> build_assistant_message
 # ---------------------------------------------------------------------------
 
 
@@ -367,7 +367,7 @@ class TestRoundTrip:
             "input": {"a": 10, "b": 20},
         }
         tc = ToolCall.from_tool_call(original)
-        recovered = recover_assistant_message([tc], api_format="anthropic")
+        recovered = build_assistant_message([tc], api_format="anthropic")
         block = recovered[0]["content"][0]
         assert block["type"] == original["type"]
         assert block["id"] == original["id"]
@@ -383,7 +383,7 @@ class TestRoundTrip:
             }
         }
         tc = ToolCall.from_tool_call(original)
-        recovered = recover_assistant_message([tc], api_format="gemini")
+        recovered = build_assistant_message([tc], api_format="gemini")
         part = recovered[0]["parts"][0]
         assert part["functionCall"]["name"] == original["functionCall"]["name"]
         assert part["functionCall"]["args"] == original["functionCall"]["args"]

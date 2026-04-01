@@ -225,14 +225,14 @@ class TestListToolsFiltering:
 
 
 # ===========================================================================
-# 5. get_tools_json filtering
+# 5. get_schemas filtering
 # ===========================================================================
 
 
 class TestGetToolsJsonFiltering:
-    """Verify that get_tools_json filters disabled tools."""
+    """Verify that get_schemas filters disabled tools."""
 
-    def test_get_tools_json_excludes_disabled(self):
+    def test_get_schemas_excludes_disabled(self):
         registry = ToolRegistry(name="test")
         registry.register(add)
         registry.register(subtract)
@@ -240,7 +240,7 @@ class TestGetToolsJsonFiltering:
 
         registry.disable("subtract")
 
-        schemas = registry.get_tools_json()
+        schemas = registry.get_schemas()
         schema_names = [
             s["function"]["name"]
             for s in schemas
@@ -250,7 +250,7 @@ class TestGetToolsJsonFiltering:
         assert "subtract" not in schema_names
         assert "multiply" in schema_names
 
-    def test_get_tools_json_specific_tool_returns_even_if_disabled(self):
+    def test_get_schemas_specific_tool_returns_even_if_disabled(self):
         registry = ToolRegistry(name="test")
         registry.register(add)
         registry.register(subtract)
@@ -258,11 +258,11 @@ class TestGetToolsJsonFiltering:
         registry.disable("subtract")
 
         # Querying a specific tool by name should still return its schema
-        schemas = registry.get_tools_json(tool_name="subtract")
+        schemas = registry.get_schemas(tool_name="subtract")
         assert len(schemas) == 1
         assert schemas[0]["function"]["name"] == "subtract"
 
-    def test_get_tools_json_all_disabled(self):
+    def test_get_schemas_all_disabled(self):
         registry = ToolRegistry(name="test")
         registry.register(add)
         registry.register(subtract)
@@ -270,7 +270,7 @@ class TestGetToolsJsonFiltering:
         registry.disable("add")
         registry.disable("subtract")
 
-        schemas = registry.get_tools_json()
+        schemas = registry.get_schemas()
         assert schemas == []
 
 
