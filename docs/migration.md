@@ -63,16 +63,16 @@ registry.set_permission_policy(policy)
 
 ### Multi-Format Schema Support
 
-`get_tools_json()` now accepts `api_format` values `"anthropic"` and `"gemini"` in addition to the existing OpenAI formats.
+`get_schemas()` now accepts `api_format` values `"anthropic"` and `"gemini"` in addition to the existing OpenAI formats.
 
 ```python
 # New formats
-schemas = registry.get_tools_json(api_format="anthropic")
-schemas = registry.get_tools_json(api_format="gemini")
+schemas = registry.get_schemas(api_format="anthropic")
+schemas = registry.get_schemas(api_format="gemini")
 
 # Existing formats still work
-schemas = registry.get_tools_json()  # default: OpenAI chat completion
-schemas = registry.get_tools_json(api_format="openai-response")
+schemas = registry.get_schemas()  # default: OpenAI chat completion
+schemas = registry.get_schemas(api_format="openai-response")
 ```
 
 ---

@@ -216,7 +216,7 @@ messages = [{"role": "user", "content": "I have 15 chestnuts. Joe ate 3. How man
 
 # Make chat completion request using MCP tools
 response = client.chat.completions.create(
-    model="deepseek-chat", messages=messages, tools=registry.get_tools_json(), tool_choice="auto"
+    model="deepseek-chat", messages=messages, tools=registry.get_schemas(), tool_choice="auto"
 )
 ```
 
@@ -232,7 +232,7 @@ if response.choices[0].message.tool_calls:
     tool_responses = registry.execute_tool_calls(tool_calls)
 
     # Construct assistant messages and extend conversation
-    assistant_tool_messages = registry.recover_tool_call_assistant_message(tool_calls, tool_responses)
+    assistant_tool_messages = registry.build_tool_call_messages(tool_calls, tool_responses)
     messages.extend(assistant_tool_messages)
 
     # Feed updated messages back to the model

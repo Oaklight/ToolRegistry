@@ -229,7 +229,7 @@ registry = ToolRegistry()
 registry.register(calculate_area)
 
 # Verify schema generation
-schemas = registry.get_tools_json()
+schemas = registry.get_schemas()
 assert len(schemas) == 1
 assert schemas[0]["function"]["name"] == "calculate_area"
 ```

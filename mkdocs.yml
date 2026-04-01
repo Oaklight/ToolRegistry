@@ -104,6 +104,7 @@ nav:
           - OpenAPI Tools: usage/integrations/openapi.md
           - LangChain Tools: usage/integrations/langchain.md
       - Permissions: usage/permissions.md
+      - Message Building: usage/message_building.md
       - Best Practices: usage/best_practices.md
       - LLM API Formats:
           - OpenAI Chat: usage/providers/openai_chat.md

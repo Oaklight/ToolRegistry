@@ -36,7 +36,7 @@ graph LR
     end
 
     subgraph Execution
-        R -->|get_tools_json| S[JSON Schema]
+        R -->|get_schemas| S[JSON Schema]
         S -->|to LLM| LLM[LLM API]
         LLM -->|tool_calls| R
         R -->|execute_tool_calls| BE[Executor Backend]
@@ -89,7 +89,7 @@ sequenceDiagram
     participant Backend as Executor Backend
 
     App->>Registry: register tools (functions, MCP, OpenAPI, ...)
-    App->>Registry: get_tools_json(api_format="openai")
+    App->>Registry: get_schemas(api_format="openai-chat")
     App->>LLM: chat completion with tool schemas
     LLM-->>App: tool_calls (function name + arguments)
     App->>Registry: execute_tool_calls(tool_calls)
@@ -97,7 +97,7 @@ sequenceDiagram
     Registry->>Backend: submit(fn, kwargs, timeout)
     Backend-->>Registry: results
     Registry-->>App: dict[tool_call_id, result]
-    App->>Registry: recover_tool_call_assistant_message(...)
+    App->>Registry: build_tool_call_messages(...)
     App->>LLM: continue conversation with results
     LLM-->>App: final response
 ```
@@ -141,13 +141,13 @@ ToolRegistry generates tool schemas for multiple LLM API formats via [llm-rosett
 
 ```python
 # OpenAI Chat Completion format (default)
-registry.get_tools_json(api_format="openai")
+registry.get_schemas(api_format="openai-chat")
 
 # Anthropic format
-registry.get_tools_json(api_format="anthropic")
+registry.get_schemas(api_format="anthropic")
 
 # Google Gemini format
-registry.get_tools_json(api_format="gemini")
+registry.get_schemas(api_format="gemini")
 ```
 
 See the [LLM API Formats](../usage/providers/openai_chat.md) section for format-specific integration guides.

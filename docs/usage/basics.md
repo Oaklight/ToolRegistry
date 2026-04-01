@@ -73,25 +73,25 @@ You can access the available tools in the following ways:
 
 ## JSON Schema of Tools
 
-Use the `get_tools_json` method at the ToolRegistry level to retrieve JSON schemas compatible with your target API’s function calling interface.
+Use the `get_schemas` method at the ToolRegistry level to retrieve JSON schemas compatible with your target API’s function calling interface.
 
 We use each API standard’s function calling interface to handle integration, as function calling is the common, core feature enabling tool usage in every standard.
 
 ```python
 # Get tools JSON for OpenAI
-tools_json = registry.get_tools_json(api_format="openai-chatcompletion")
+tools_json = registry.get_schemas(api_format="openai-chat")
 ```
 
-Since v0.4.13, we added a new parameter `api_format` to `get_tools_json` method, which is used to specify the API format of the tools JSON.
+Since v0.4.13, we added a new parameter `api_format` to `get_schemas` method, which is used to specify the API format of the tools JSON.
 
 api_format can be one of the following:
 
-- [x] `openai-chatcompletion` or `openai` (default)
+- [x] `openai-chat` (default; also accepts deprecated aliases `openai` and `openai-chatcompletion`)
 - [x] `openai-response` (since v0.4.13)
 - [x] `anthropic` (since v0.6.2, via [llm-rosetta](https://pypi.org/project/llm-rosetta/))
 - [x] `gemini` (since v0.6.2, via [llm-rosetta](https://pypi.org/project/llm-rosetta/))
 
-For example of `openai-chatcompletion`, you will see the following. Meanwhile, you can see the difference of parameter `a`'s `type` in function `add` and `subtract`, one as `number`, another as `integer`.
+For example of `openai-chat`, you will see the following. Meanwhile, you can see the difference of parameter `a`'s `type` in function `add` and `subtract`, one as `number`, another as `integer`.
 
 ```json
 [
@@ -145,9 +145,9 @@ For example of `openai-chatcompletion`, you will see the following. Meanwhile, y
 If you are interested in **Tool-level** JSON schema, you can use either of the following methods:
 
 ```python
-registry.get_tools_json(tool_name="add", api_format="openai-chatcompletion") # you will need to specify the tool name
-add_tool.get_json_schema(api_format="openai-chatcompletion")
-add_tool.describe(api_format="openai-chatcompletion") # simpler interface, alias to get_json_schema
+registry.get_schemas(tool_name="add", api_format="openai-chat") # you will need to specify the tool name
+add_tool.get_json_schema(api_format="openai-chat")
+add_tool.describe(api_format="openai-chat") # simpler interface, alias to get_json_schema
 ```
 
 ```json
@@ -212,16 +212,16 @@ result = add_fn(a=1, b=2)  # Output: 3
 
 ## Reconstructing Assistant and Tool Calls Messages
 
-The `ToolRegistry` class provides `recover_tool_call_assistant_message` to reconstruct assistant and tool calls messages for LLMs. This could be handy if you want to streamline the process of sending messages to LLMs.
+The `ToolRegistry` class provides `build_tool_call_messages` to reconstruct assistant and tool calls messages for LLMs. This could be handy if you want to streamline the process of sending messages to LLMs.
 
-Similar to `get_tool_schemas`, you can pass in the `api_format` parameter to specify the format of the tool schemas.
+Similar to `get_schemas`, you can pass in the `api_format` parameter to specify the format of the tool schemas.
 
 Here is an example of OpenAI Chat Completion format:
 
 ```python
-assistant_tool_messages = registry.recover_tool_call_assistant_message(
-    tool_calls, tool_responses, api_format="openai-chatcompletion" # or "openai"
-) # you can leave out api_format, it defaults to "openai-chatcompletion"
+assistant_tool_messages = registry.build_tool_call_messages(
+    tool_calls, tool_responses, api_format="openai-chat"
+) # you can leave out api_format, it defaults to "openai-chat"
 ```
 
 ```json

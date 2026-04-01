@@ -26,7 +26,7 @@ def subtract(a: float, b: float) -> float:
 ## Exposing Tool Schemas
 
 ```python
-schemas = registry.get_tools_json(api_format="anthropic")
+schemas = registry.get_schemas(api_format="anthropic")
 ```
 
 This returns tools in Anthropic's format:
@@ -120,7 +120,7 @@ Returns a dict mapping tool call IDs to results:
 Reconstruct the conversation messages in Anthropic format:
 
 ```python
-assistant_tool_messages = registry.recover_tool_call_assistant_message(
+assistant_tool_messages = registry.build_tool_call_messages(
     tool_calls, tool_responses, api_format="anthropic"
 )
 ```
@@ -197,7 +197,7 @@ messages = [
 response = client.messages.create(
     model="claude-sonnet-4-20250514",
     max_tokens=1024,
-    tools=registry.get_tools_json(api_format="anthropic"),
+    tools=registry.get_schemas(api_format="anthropic"),
     messages=messages,
 )
 
@@ -207,7 +207,7 @@ if tool_calls:
     tool_responses = registry.execute_tool_calls(tool_calls)
     print(tool_responses)
 
-    assistant_tool_messages = registry.recover_tool_call_assistant_message(
+    assistant_tool_messages = registry.build_tool_call_messages(
         tool_calls, tool_responses, api_format="anthropic"
     )
     print(json.dumps(assistant_tool_messages, indent=2))

@@ -27,8 +27,8 @@ def subtract(a: float, b: float) -> float:
 ## Exposing Tool Schemas
 
 ```python
-schemas = registry.get_tools_json(api_format="openai") # since it was the only format for openai for a long time
-schemas = registry.get_tools_json(api_format="openai-chatcompletion") # to be explicit
+schemas = registry.get_schemas(api_format="openai-chat") # canonical name since v0.7.0
+# Legacy aliases "openai" and "openai-chatcompletion" still work but emit DeprecationWarning
 ```
 
 Either of the above will return the tool schemas in the format required by the OpenAI Chat Completion API. Here is the indented JSON output:
@@ -168,9 +168,9 @@ To maintain the tool-calling context for subsequent LLM interactions, we need to
 
 ```python
 # Construct assistant messages with results
-assistant_tool_messages = registry.recover_tool_call_assistant_message(
-    tool_calls, tool_responses, api_format="openai-chatcompletion" # or "openai"
-) # you can leave out api_format, it defaults to "openai-chatcompletion"
+assistant_tool_messages = registry.build_tool_call_messages(
+    tool_calls, tool_responses, api_format="openai-chat"
+) # you can leave out api_format, it defaults to "openai-chat"
 ```
 
 ```json
@@ -281,7 +281,7 @@ messages = [
 response = client.chat.completions.create(
     model=model_name,
     messages=messages,
-    tools=registry.get_tools_json(api_format="openai-chatcompletion"),
+    tools=registry.get_schemas(api_format="openai-chat"),
     tool_choice="auto",
 )
 
@@ -295,8 +295,8 @@ if response.choices[0].message.tool_calls:
     print(tool_responses)
 
     # Construct assistant messages with results
-    assistant_tool_messages = registry.recover_tool_call_assistant_message(
-        tool_calls, tool_responses, api_format="openai-chatcompletion"
+    assistant_tool_messages = registry.build_tool_call_messages(
+        tool_calls, tool_responses, api_format="openai-chat"
     )
     print(json.dumps(assistant_tool_messages, indent=2))
 

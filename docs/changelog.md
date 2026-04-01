@@ -15,11 +15,11 @@ This page documents all notable changes to the ToolRegistry project since the fi
 ### New Features
 
 - **Anthropic & Gemini Schema Format Support** ([#55](../../issues/55), [#88](../../pull/88))
-    - Add `"anthropic"` and `"gemini"` as valid `api_format` values for `get_tools_json()` and `get_json_schema()`
+    - Add `"anthropic"` and `"gemini"` as valid `api_format` values for `get_schemas()` and `get_json_schema()`
     - All schema conversion is powered by [llm-rosetta](https://pypi.org/project/llm-rosetta/), which also sanitizes JSON Schema keywords unsupported by each format
     - Add `llm-rosetta>=0.2.6` as a core dependency
     - Support parsing Anthropic `tool_use` blocks and Gemini `functionCall` parts in `ToolCall.from_tool_call()`
-    - Add `recover_assistant_message()` and `recover_tool_message()` support for `"anthropic"` and `"gemini"` formats
+    - Add `build_assistant_message()` and `build_tool_response()` support for `"anthropic"` and `"gemini"` formats
 
 - **Permission System** ([#79](../../issues/79), [#80](../../issues/80), [#81](../../issues/81), [#82](../../issues/82))
     - **ToolTag & ToolMetadata** ([#80](../../issues/80), [#84](../../pull/84)): Add `ToolTag` enum (READ_ONLY, DESTRUCTIVE, NETWORK, FILE_SYSTEM, SLOW, PRIVILEGED) and `ToolMetadata` model with execution hints (`is_async`, `is_concurrency_safe`, `timeout`) and classification tags
@@ -32,7 +32,7 @@ This page documents all notable changes to the ToolRegistry project since the fi
     - Enables classification of tools by execution location for filtering and scheduling
 
 - **Tag-Based Filtering and Stable Sorting** ([#83](../../issues/83))
-    - Add `tags`, `exclude_tags`, and `sort` parameters to `get_tools_json()`
+    - Add `tags`, `exclude_tags`, and `sort` parameters to `get_schemas()`
     - Enables prompt-level tool filtering and deterministic ordering, reducing token waste and improving prompt cache hit rates with large tool pools
 
 - **Persistent Connections for MCP and OpenAPI** ([#90](../../issues/90))
@@ -44,8 +44,8 @@ This page documents all notable changes to the ToolRegistry project since the fi
 ### Bug Fixes
 
 - **Gemini Tool Call ID and Name Resolution**
-    - Fix `recover_tool_call_assistant_message` to align tool call IDs by position: IDs from `tool_responses` (produced by `execute_tool_calls`) are remapped onto the converted `ToolCall` objects so assistant and tool messages reference the same IDs
-    - Pass `tool_calls` to `recover_tool_message` for Gemini `functionResponse.name` resolution
+    - Fix `build_tool_call_messages` to align tool call IDs by position: IDs from `tool_responses` (produced by `execute_tool_calls`) are remapped onto the converted `ToolCall` objects so assistant and tool messages reference the same IDs
+    - Pass `tool_calls` to `build_tool_response` for Gemini `functionResponse.name` resolution
     - Previously, Gemini `functionResponse.name` showed a random UUID instead of the function name because `convert_tool_calls()` was called twice independently, generating different IDs each time
 
 ### Refactoring
@@ -63,6 +63,14 @@ This page documents all notable changes to the ToolRegistry project since the fi
     - Split `tool_registry.py` (1459 lines) into 7 focused mixin classes (454 lines remaining)
     - Mixins: `ChangeCallbackMixin`, `NamespaceMixin`, `EnableDisableMixin`, `RegistrationMixin`, `PermissionsMixin`, `ExecutionLoggingMixin`, `AdminMixin`
     - Public API unchanged; cooperative `__init__` via MRO chain
+
+- **Public API Rename** ([#107](../../issues/107))
+    - `get_tools_json()` → `get_schemas()` on `ToolRegistry`
+    - `recover_tool_call_assistant_message()` → `build_tool_call_messages()` on `ToolRegistry`
+    - `recover_assistant_message()` → `build_assistant_message()` (module-level)
+    - `recover_tool_message()` → `build_tool_response()` (module-level)
+    - Add `"openai-chat"` as canonical API format name; deprecate `"openai"` and `"openai-chatcompletion"`
+    - All old names remain as deprecated aliases with `DeprecationWarning`
 
 ## [0.6.1] - 2026-03-22
 
