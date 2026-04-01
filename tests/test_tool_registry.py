@@ -5,6 +5,7 @@ import json
 import pytest
 
 from toolregistry import Tool, ToolRegistry
+from toolregistry.tool import ToolMetadata, ToolTag
 from toolregistry.types import (
     ChatCompletionMessageFunctionToolCall,
     ResponseFunctionToolCall,
@@ -375,3 +376,121 @@ class TestToolRegistry:
 
         expected_name = f"{sample_registry.name}-test_func"
         assert expected_name in sample_registry
+
+
+class TestToolRegistryTagFiltering:
+    """Test cases for tag-based filtering and stable sorting in get_tools_json."""
+
+    @pytest.fixture()
+    def tagged_registry(self):
+        """Registry with tools tagged for filtering tests."""
+        registry = ToolRegistry(name="tag_test")
+
+        def read_file(path: str) -> str:
+            """Read a file."""
+            return path
+
+        def delete_file(path: str) -> str:
+            """Delete a file."""
+            return path
+
+        def fetch_url(url: str) -> str:
+            """Fetch a URL."""
+            return url
+
+        def compute(x: int) -> int:
+            """Pure computation."""
+            return x * 2
+
+        registry.register(
+            Tool.from_function(
+                read_file,
+                metadata=ToolMetadata(tags={ToolTag.READ_ONLY, ToolTag.FILE_SYSTEM}),
+            )
+        )
+        registry.register(
+            Tool.from_function(
+                delete_file,
+                metadata=ToolMetadata(tags={ToolTag.DESTRUCTIVE, ToolTag.FILE_SYSTEM}),
+            )
+        )
+        registry.register(
+            Tool.from_function(
+                fetch_url,
+                metadata=ToolMetadata(
+                    tags={ToolTag.NETWORK}, custom_tags={"api", "external"}
+                ),
+            )
+        )
+        registry.register(Tool.from_function(compute))
+        return registry
+
+    def test_get_tools_json_filter_by_tags(self, tagged_registry):
+        """Test filtering tools by inclusion tags."""
+        result = tagged_registry.get_tools_json(tags={ToolTag.FILE_SYSTEM})
+        names = [t["function"]["name"] for t in result]
+
+        assert len(names) == 2
+        assert "read_file" in names
+        assert "delete_file" in names
+        assert "fetch_url" not in names
+        assert "compute" not in names
+
+    def test_get_tools_json_exclude_tags(self, tagged_registry):
+        """Test excluding tools by tags."""
+        result = tagged_registry.get_tools_json(exclude_tags={ToolTag.DESTRUCTIVE})
+        names = [t["function"]["name"] for t in result]
+
+        assert "delete_file" not in names
+        assert "read_file" in names
+        assert "fetch_url" in names
+        assert "compute" in names
+
+    def test_get_tools_json_tags_and_exclude_combined(self, tagged_registry):
+        """Test combining inclusion and exclusion tags."""
+        result = tagged_registry.get_tools_json(
+            tags={ToolTag.FILE_SYSTEM},
+            exclude_tags={ToolTag.DESTRUCTIVE},
+        )
+        names = [t["function"]["name"] for t in result]
+
+        assert names == ["read_file"]
+
+    def test_get_tools_json_tags_with_custom_tags(self, tagged_registry):
+        """Test filtering with custom string tags."""
+        result = tagged_registry.get_tools_json(tags={"api"})
+        names = [t["function"]["name"] for t in result]
+
+        assert names == ["fetch_url"]
+
+    def test_get_tools_json_tags_no_match_returns_empty(self, tagged_registry):
+        """Test that no matching tags returns empty list."""
+        result = tagged_registry.get_tools_json(tags={"nonexistent_tag"})
+
+        assert result == []
+
+    def test_get_tools_json_stable_sort_default(self, tagged_registry):
+        """Test that tools are sorted alphabetically by default."""
+        result = tagged_registry.get_tools_json()
+        names = [t["function"]["name"] for t in result]
+
+        assert names == sorted(names)
+        assert names == ["compute", "delete_file", "fetch_url", "read_file"]
+
+    def test_get_tools_json_stable_sort_disabled(self, tagged_registry):
+        """Test that sort=False preserves insertion order."""
+        result = tagged_registry.get_tools_json(sort=False)
+        names = [t["function"]["name"] for t in result]
+
+        # Insertion order: read_file, delete_file, fetch_url, compute
+        assert names == ["read_file", "delete_file", "fetch_url", "compute"]
+
+    def test_get_tools_json_tags_ignored_when_tool_name_set(self, tagged_registry):
+        """Test that tag filtering is skipped for single-tool lookup."""
+        result = tagged_registry.get_tools_json(
+            tool_name="compute",
+            tags={ToolTag.NETWORK},
+        )
+
+        assert len(result) == 1
+        assert result[0]["function"]["name"] == "compute"

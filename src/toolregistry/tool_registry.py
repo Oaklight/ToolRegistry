@@ -8,6 +8,7 @@ from typing import Any, Literal
 from collections.abc import Callable
 
 from .executor import ProcessPoolBackend, ThreadBackend
+from .tool import ToolTag
 from .permissions import (
     PermissionResult,
 )
@@ -465,19 +466,26 @@ class ToolRegistry(
         tool_name: str | None = None,
         *,
         api_format: API_FORMATS = "openai",
+        tags: set[str | ToolTag] | None = None,
+        exclude_tags: set[str | ToolTag] | None = None,
+        sort: bool = True,
     ) -> list[dict[str, Any]]:
         """Get the JSON representation of registered tools, following JSON Schema.
 
         When no specific tool_name is given, only enabled tools are returned.
+        Tools can be filtered by tags and sorted for deterministic ordering.
 
         Args:
-            tool_name (Optional[str]): Optional name of specific tool to get schema for.
-            api_format (Literal): Optional mode for formatting the schema.
-                - 'openai-chatcompletion': Legacy format with is_async
-                - 'openai-response': OpenAI function calling format
+            tool_name: Optional name of specific tool to get schema for.
+                When set, tag filtering and sorting are skipped.
+            api_format: API format for the schema output.
+            tags: If set, only include tools matching ANY of these tags.
+            exclude_tags: Exclude tools matching ANY of these tags.
+            sort: If True (default), sort tools by name for deterministic
+                ordering. Stable sorting improves prompt cache hit rates.
 
         Returns:
-            List[Dict[str, Any]]: A list of tools in JSON format, compliant with JSON Schema.
+            A list of tools in JSON format, compliant with JSON Schema.
         """
         if tool_name:
             target_tool = self.get_tool(tool_name)
@@ -485,5 +493,21 @@ class ToolRegistry(
         else:
             # Only return enabled tools
             tools = [t for t in self._tools.values() if self.is_enabled(t.name)]
+
+            # Tag inclusion filter
+            if tags is not None:
+                include = {t.value if isinstance(t, ToolTag) else t for t in tags}
+                tools = [t for t in tools if t.metadata.all_tags & include]
+
+            # Tag exclusion filter
+            if exclude_tags is not None:
+                exclude = {
+                    t.value if isinstance(t, ToolTag) else t for t in exclude_tags
+                }
+                tools = [t for t in tools if not (t.metadata.all_tags & exclude)]
+
+            # Stable sort by name
+            if sort:
+                tools.sort(key=lambda t: t.name)
 
         return [tool.get_json_schema(api_format) for tool in tools]
