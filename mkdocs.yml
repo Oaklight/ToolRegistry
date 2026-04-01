@@ -105,7 +105,7 @@ nav:
           - LangChain Tools: usage/integrations/langchain.md
       - Permissions: usage/permissions.md
       - Best Practices: usage/best_practices.md
-      - LLM Providers:
+      - LLM API Formats:
           - OpenAI Chat: usage/providers/openai_chat.md
           - OpenAI Response: usage/providers/openai_response.md
           - Anthropic: usage/providers/anthropic.md

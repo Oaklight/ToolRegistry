@@ -235,4 +235,4 @@ if tool_calls:
 ## See Also
 
 - [Gemini Function Calling Documentation](https://ai.google.dev/gemini-api/docs/function-calling)
-- [Architecture Overview](../../architecture/overview.md) — how ToolRegistry generates multi-provider schemas via llm-rosetta
+- [Architecture Overview](../../architecture/overview.md) — how ToolRegistry generates multi-format schemas via llm-rosetta

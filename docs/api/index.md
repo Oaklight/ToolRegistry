@@ -44,7 +44,7 @@ Supporting utilities:
 
 ## Type Definitions
 
-LLM provider compatibility types:
+LLM API format compatibility types:
 
 - [**Types**](types.md) — Common, OpenAI, Anthropic, and Gemini type definitions
 

@@ -198,7 +198,7 @@ By default the `execution_mode` parameter is set to `process`, which means the t
 
 Results will be packed as a dictionary with the tool call ID as the key and the result as the value.
 
-Please read [OpenAI Chat Completion Integration](providers/openai_chat) or specific provider integration guide for detailed example and step-by-step breakdown with explanation.
+Please read [OpenAI Chat Completion Integration](providers/openai_chat) or specific format integration guide for detailed example and step-by-step breakdown with explanation.
 
 ### Manual Tool Execution
 
@@ -250,5 +250,5 @@ assistant_tool_messages = registry.recover_tool_call_assistant_message(
 
 ## See Also
 
-- [Function Calling of LLM](function_calling.md) -- end-to-end walkthrough of using tools with an LLM provider
-- [LLM Provider Integrations](providers/openai_chat.md) -- detailed provider-specific guides
+- [Function Calling of LLM](function_calling.md) -- end-to-end walkthrough of using tools with an LLM API
+- [LLM API Format Guides](providers/openai_chat.md) -- detailed format-specific integration guides

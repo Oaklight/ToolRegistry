@@ -43,7 +43,7 @@ results = registry.execute_tool_calls(tool_calls, execution_mode="thread")
 
 ### New Dependency: llm-rosetta
 
-`llm-rosetta>=0.2.6` is now a core dependency, powering multi-provider schema generation. No action needed — it installs automatically.
+`llm-rosetta>=0.2.6` is now a core dependency, powering multi-format schema generation. No action needed — it installs automatically.
 
 ### New Permission System
 
@@ -61,7 +61,7 @@ policy = PermissionPolicy(rules=[ALLOW_READONLY, ASK_DESTRUCTIVE])
 registry.set_permission_policy(policy)
 ```
 
-### Multi-Provider Schema Support
+### Multi-Format Schema Support
 
 `get_tools_json()` now accepts `api_format` values `"anthropic"` and `"gemini"` in addition to the existing OpenAI formats.
 

@@ -1,6 +1,6 @@
 # Type Definitions
 
-This section documents the type definitions used across the ToolRegistry library for compatibility with various LLM providers.
+This section documents the type definitions used across the ToolRegistry library for compatibility with various LLM API formats.
 
 ## Common Types
 

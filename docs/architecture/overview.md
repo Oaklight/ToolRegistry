@@ -2,7 +2,7 @@
 
 ## Who Is This For?
 
-ToolRegistry is designed for **agent developers** — engineers building AI agents and LLM-powered applications that need to call external functions (tools) based on model decisions. If your application uses function calling / tool calling with any LLM provider, ToolRegistry gives you a unified way to register, manage, and execute those tools.
+ToolRegistry is designed for **agent developers** — engineers building AI agents and LLM-powered applications that need to call external functions (tools) based on model decisions. If your application uses function calling / tool calling with any LLM API, ToolRegistry gives you a unified way to register, manage, and execute those tools.
 
 ## What Is Function Calling?
 
@@ -13,7 +13,7 @@ Modern LLMs can do more than generate text — they can decide to **call functio
 3. Your application executes the tool(s) and returns results to the LLM
 4. The LLM incorporates the results into its response
 
-ToolRegistry manages the entire lifecycle: registering tools from diverse sources, generating schemas for any LLM provider, executing calls concurrently, and recovering messages for multi-turn conversations.
+ToolRegistry manages the entire lifecycle: registering tools from diverse sources, generating schemas for any LLM API format, executing calls concurrently, and recovering messages for multi-turn conversations.
 
 ## Core Concepts
 
@@ -37,7 +37,7 @@ graph LR
 
     subgraph Execution
         R -->|get_tools_json| S[JSON Schema]
-        S -->|to LLM| LLM[LLM Provider]
+        S -->|to LLM| LLM[LLM API]
         LLM -->|tool_calls| R
         R -->|execute_tool_calls| BE[Executor Backend]
         BE --> RES[Results]
@@ -50,7 +50,7 @@ graph LR
 The central orchestrator. It holds a collection of `Tool` objects and provides methods to:
 
 - **Register** tools from multiple sources (functions, MCP, OpenAPI, classes, LangChain)
-- **Generate schemas** in provider-specific formats (OpenAI, Anthropic, Gemini)
+- **Generate schemas** for multiple API formats (OpenAI, Anthropic, Gemini)
 - **Execute** tool calls concurrently with configurable backends
 - **Control access** via permission policies and metadata tags
 - **Organize** tools into namespaces
@@ -85,7 +85,7 @@ A typical function calling workflow with ToolRegistry:
 sequenceDiagram
     participant App
     participant Registry as ToolRegistry
-    participant LLM as LLM Provider
+    participant LLM as LLM API
     participant Backend as Executor Backend
 
     App->>Registry: register tools (functions, MCP, OpenAPI, ...)
@@ -135,9 +135,9 @@ with ToolRegistry() as registry:
 # All connections closed automatically
 ```
 
-## Multi-Provider Schema Support
+## Multi-Format Schema Support
 
-ToolRegistry generates tool schemas for multiple LLM providers via [llm-rosetta](https://pypi.org/project/llm-rosetta/):
+ToolRegistry generates tool schemas for multiple LLM API formats via [llm-rosetta](https://pypi.org/project/llm-rosetta/):
 
 ```python
 # OpenAI Chat Completion format (default)
@@ -150,4 +150,4 @@ registry.get_tools_json(api_format="anthropic")
 registry.get_tools_json(api_format="gemini")
 ```
 
-See the [LLM Providers](../usage/providers/openai_chat.md) section for provider-specific integration guides.
+See the [LLM API Formats](../usage/providers/openai_chat.md) section for format-specific integration guides.

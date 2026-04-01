@@ -211,4 +211,4 @@ if tool_calls:
 ## See Also
 
 - [Anthropic Tool Use Documentation](https://docs.anthropic.com/en/docs/build-with-claude/tool-use)
-- [Architecture Overview](../../architecture/overview.md) — how ToolRegistry generates multi-provider schemas via llm-rosetta
+- [Architecture Overview](../../architecture/overview.md) — how ToolRegistry generates multi-format schemas via llm-rosetta

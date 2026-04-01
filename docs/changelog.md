@@ -16,7 +16,7 @@ This page documents all notable changes to the ToolRegistry project since the fi
 
 - **Anthropic & Gemini Schema Format Support** ([#55](../../issues/55), [#88](../../pull/88))
     - Add `"anthropic"` and `"gemini"` as valid `api_format` values for `get_tools_json()` and `get_json_schema()`
-    - All schema conversion is powered by [llm-rosetta](https://pypi.org/project/llm-rosetta/), which also sanitizes JSON Schema keywords unsupported by each provider
+    - All schema conversion is powered by [llm-rosetta](https://pypi.org/project/llm-rosetta/), which also sanitizes JSON Schema keywords unsupported by each format
     - Add `llm-rosetta>=0.2.6` as a core dependency
     - Support parsing Anthropic `tool_use` blocks and Gemini `functionCall` parts in `ToolCall.from_tool_call()`
     - Add `recover_assistant_message()` and `recover_tool_message()` support for `"anthropic"` and `"gemini"` formats
