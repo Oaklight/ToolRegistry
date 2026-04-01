@@ -49,7 +49,9 @@ This page documents all notable changes to the ToolRegistry project since the fi
     - Index tool name, description, tags, parameter names, and search_hint with configurable field weights
 
 - **Think-Augmented Function Calling** ([#49](../../pull/49))
-    - Inject a `thought` string property into every tool's parameter schema so LLMs can include chain-of-thought reasoning when calling tools
+    - Inject a `thought` string property into tool parameter schemas so LLMs can include chain-of-thought reasoning when calling tools
+    - **Off by default** — enable globally via `ToolRegistry(think_augment=True)` or at runtime with `enable_think_augment()` / `disable_think_augment()`
+    - Per-tool override via `ToolMetadata.think_augment` (`None`=follow registry, `True`=force on, `False`=force off)
     - The property is automatically stripped before execution
     - Native `thought` parameters on functions are preserved (not overridden)
     - Covers all integration paths (MCP, OpenAPI, LangChain, native)

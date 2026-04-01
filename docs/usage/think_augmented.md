@@ -1,14 +1,16 @@
 ---
 title: Think-Augmented Tool Calling
 summary: Chain-of-thought reasoning injected into tool call schemas
-description: How ToolRegistry injects a thought property into every tool schema so LLMs can reason before acting, and how the property is stripped before execution
-keywords: think, thought, chain-of-thought, reasoning, tool calling, THINK_PROPERTY
+description: How ToolRegistry injects a thought property into tool schemas so LLMs can reason before acting, and how to configure it at the registry and per-tool level
+keywords: think, thought, chain-of-thought, reasoning, tool calling, THINK_PROPERTY, think_augment
 author: Oaklight
 ---
 
 # Think-Augmented Tool Calling
 
-ToolRegistry automatically injects a `thought` string property into every tool's parameter schema. This gives LLMs a dedicated field to express step-by-step reasoning about **why** they chose a tool and **how** they plan to use it — before the tool actually runs.
+ToolRegistry can inject a `thought` string property into every tool's parameter schema. This gives LLMs a dedicated field to express step-by-step reasoning about **why** they chose a tool and **how** they plan to use it — before the tool actually runs.
+
+Think-augmented calling is **off by default** and can be enabled globally on the registry or per-tool via `ToolMetadata`.
 
 ???+ note "Changelog"
     New in: [#49](../../pull/49) (Unreleased)
@@ -19,8 +21,11 @@ ToolRegistry automatically injects a `thought` string property into every tool's
 ```mermaid
 flowchart LR
     subgraph Schema Generation
-        Tool["Tool schema"] --> Inject["Inject 'thought' property"]
+        Tool["Tool schema"] --> Check{"think_augment\nenabled?"}
+        Check -->|Yes| Inject["Include 'thought' property"]
+        Check -->|No| Skip["Omit 'thought'"]
         Inject --> LLM["Send to LLM"]
+        Skip --> LLM
     end
     subgraph Execution
         LLM --> Call["LLM calls tool with thought + args"]
@@ -29,16 +34,62 @@ flowchart LR
     end
 ```
 
-1. **Injection**: When a `Tool` is created (via `@registry.register`, `Tool.from_function`, or any integration), `thought` is automatically added to the tool's JSON schema `properties`.
-2. **LLM response**: The LLM fills in the `thought` field with its reasoning alongside the actual arguments.
-3. **Stripping**: Before the tool function executes, ToolRegistry removes the `thought` parameter so the function receives only its declared arguments.
+1. **Injection**: Internally, `thought` is always present in the tool's parameter storage. When schemas are generated via `get_schemas()`, the registry resolves whether each tool should include `thought` based on the two-layer configuration.
+2. **LLM response**: When enabled, the LLM fills in the `thought` field with its reasoning alongside the actual arguments.
+3. **Stripping**: Before the tool function executes, ToolRegistry always removes the `thought` parameter so the function receives only its declared arguments — regardless of the toggle.
+
+## Enabling Think-Augmented Calling
+
+### At Registry Level
+
+```python
+from toolregistry import ToolRegistry
+
+# Enable at construction
+registry = ToolRegistry(think_augment=True)
+
+# Or toggle at any time
+registry.enable_think_augment()
+registry.disable_think_augment()
+```
+
+### Per-Tool Override
+
+Individual tools can override the registry setting via `ToolMetadata.think_augment`:
+
+| Value   | Behavior                              |
+|---------|---------------------------------------|
+| `None`  | Follow the registry setting (default) |
+| `True`  | Always include `thought` for this tool |
+| `False` | Never include `thought` for this tool |
+
+```python
+from toolregistry import ToolRegistry
+from toolregistry.tool import Tool, ToolMetadata
+
+registry = ToolRegistry()  # think_augment=False by default
+
+# This tool always gets thought, even though the registry default is off
+tool = Tool.from_function(
+    my_complex_function,
+    metadata=ToolMetadata(think_augment=True),
+)
+registry.register(tool)
+
+# This tool never gets thought, even if registry is enabled later
+tool2 = Tool.from_function(
+    my_simple_function,
+    metadata=ToolMetadata(think_augment=False),
+)
+registry.register(tool2)
+```
 
 ## Example
 
 ```python
 from toolregistry import ToolRegistry
 
-registry = ToolRegistry()
+registry = ToolRegistry(think_augment=True)
 
 @registry.register
 def get_weather(city: str) -> str:
