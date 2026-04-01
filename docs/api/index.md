@@ -1,77 +1,69 @@
 # API Reference
 
-This section provides comprehensive API documentation for all classes and methods in ToolRegistry, automatically generated from the source code.
-
-## Overview
-
-The ToolRegistry library consists of several main components:
-
-- **Core Classes**: Fundamental classes like `ToolRegistry`, `Tool`, and `BaseToolWrapper`
-- **Tool Wrappers**: Specialized wrappers for different tool types (MCP, OpenAPI, LangChain)
-- **Modules and Functions**: Utility modules and helper functions
-- **Integration Modules**: Compatibility modules for various frameworks
-- **Type Definitions**: Type definitions for LLM provider compatibility
+Comprehensive API documentation for all classes and methods in ToolRegistry, automatically generated from the source code.
 
 ## Core Classes
 
 Fundamental classes and base components:
 
-- [`ToolRegistry`](core.md#toolregistry) - The central registry class
-- [`Tool`](core.md#tool) - Individual tool representation
-- [`ToolMetadata`](core.md#tool) - Behavioral and classification metadata
-- [`ToolTag`](core.md#tool) - Predefined tags for tool characteristics
-- [`BaseToolWrapper`](core.md#basetoolwrapper) - Base wrapper class
+- [**ToolRegistry**](core/toolregistry.md) — Central orchestrator for tool management
+- [**Tool**](core/tool.md) — Individual tool with metadata and execution logic
+- [**Executor**](core/executor.md) — Pluggable execution backends (thread/process)
+- [**Events**](events.md) — Change event types and callback mechanism
+- [**Permissions**](permissions.md) — Rule-based authorization framework
 
-## Permissions
-
-Authorization framework for tool execution control:
-
-- [`PermissionPolicy`](permissions.md) - Composable rule-based policies
-- [`PermissionRule`](permissions.md) - Match predicate with result
-- [`PermissionHandler`](permissions.md) - Handler protocol for ASK results
-- [`PermissionResult`](permissions.md) - Three-state decision enum (ALLOW, DENY, ASK)
-
-## Tool Wrappers
-
-Specialized wrapper classes for different tool types:
-
-- [`MCPToolWrapper`](wrappers.md#mcp-tool-wrapper) - MCP server tool wrapper
-- [`OpenAPIToolWrapper`](wrappers.md#openapi-tool-wrapper) - OpenAPI tool wrapper
-- [`LangChainToolWrapper`](wrappers.md#langchain-tool-wrapper) - LangChain tool wrapper
-
-## Modules and Functions
-
-Utility modules and helper functions:
-
-- [`executor`](modules.md#executor-module) - Tool execution engine
-- [`parameter_models`](modules.md#parameter-models) - Parameter validation
-- [`utils`](modules.md#utilities) - Utility functions
+See [Core Classes Overview](core.md) for architecture diagram.
 
 ## Integration Modules
 
-Framework and protocol compatibility:
+Framework and protocol compatibility for tool registration:
 
-- [`MCP Integration`](integrations.md#mcp-integration) - Model Context Protocol support
-- [`OpenAPI Integration`](integrations.md#openapi-integration) - OpenAPI/Swagger support
-- [`LangChain Integration`](integrations.md#langchain-integration) - LangChain compatibility
-- [`Native Integration`](integrations.md#native-integration) - Direct Python integration
+- [**OpenAPI**](integrations/openapi.md) — REST API tool generation from OpenAPI specs
+- [**MCP**](integrations/mcp.md) — Model Context Protocol server communication
+- [**LangChain**](integrations/langchain.md) — LangChain BaseTool interoperability
+- [**Native**](integrations/native.md) — Python class method registration
+
+See [Integration Modules Overview](integrations.md) for common patterns.
+
+## Tool Wrappers
+
+Adapter classes for different tool types:
+
+- [**BaseToolWrapper**](wrappers/basetoolwrapper.md) — Abstract base class
+- [**MCPToolWrapper**](wrappers/mcp.md) — MCP server tool wrapper
+- [**OpenAPIToolWrapper**](wrappers/openapi.md) — OpenAPI/REST tool wrapper
+- [**LangChainToolWrapper**](wrappers/langchain.md) — LangChain tool wrapper
+
+See [Tool Wrappers Overview](wrappers.md) for execution model.
+
+## Helper Classes
+
+Supporting utilities:
+
+- [**Parameter Models & Utilities**](helpers.md) — Parameter validation, tool name normalization, HTTP client configuration
 
 ## Type Definitions
 
-Type definitions for LLM provider compatibility:
+LLM provider compatibility types:
 
-- [`Common Types`](types.md#common-types) - Universal type definitions
-- [`OpenAI Types`](types.md#openai-types) - OpenAI API compatibility
-- [`Anthropic Types`](types.md#anthropic-types) - Anthropic API compatibility
-- [`Gemini Types`](types.md#gemini-types) - Google Gemini API compatibility
+- [**Types**](types.md) — Common, OpenAI, Anthropic, and Gemini type definitions
 
 ## Complete Module Overview
 
-For a complete overview with all classes and functions:
-
 ::: toolregistry
-options:
-show_source: false
-show_root_heading: true
-show_root_toc_entry: true
-members: - ToolRegistry - Tool - executor - parameter_models - utils - hub - mcp - openapi - langchain - native - types
+    options:
+        show_source: false
+        show_root_heading: true
+        show_root_toc_entry: true
+        members:
+            - ToolRegistry
+            - Tool
+            - executor
+            - parameter_models
+            - utils
+            - hub
+            - mcp
+            - openapi
+            - langchain
+            - native
+            - types

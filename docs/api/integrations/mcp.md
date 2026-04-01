@@ -56,33 +56,33 @@ The integration supports multiple transport mechanisms:
 Wrapper class providing both async and sync versions of MCP tool calls.
 
 ::: toolregistry.mcp.integration.MCPToolWrapper
-options:
-show_source: false
-show_root_heading: true
-show_root_toc_entry: false
-merge_init_into_class: true
+    options:
+        show_source: false
+        show_root_heading: true
+        show_root_toc_entry: false
+        merge_init_into_class: true
 
 ### MCPTool
 
 Wrapper class for MCP tools that preserves original function metadata.
 
 ::: toolregistry.mcp.integration.MCPTool
-options:
-show_source: false
-show_root_heading: true
-show_root_toc_entry: false
-merge_init_into_class: true
+    options:
+        show_source: false
+        show_root_heading: true
+        show_root_toc_entry: false
+        merge_init_into_class: true
 
 ### MCPIntegration
 
 Handles integration with MCP server for tool registration.
 
 ::: toolregistry.mcp.integration.MCPIntegration
-options:
-show_source: false
-show_root_heading: true
-show_root_toc_entry: false
-merge_init_into_class: true
+    options:
+        show_source: false
+        show_root_heading: true
+        show_root_toc_entry: false
+        merge_init_into_class: true
 
 ## Module Utilities
 
@@ -91,19 +91,19 @@ merge_init_into_class: true
 Minimal MCP client adapter over the official `mcp` SDK. Supports stdio, SSE, streamable-http, and websocket transports.
 
 ::: toolregistry.mcp.client.MCPClient
-options:
-show_source: false
-show_root_heading: true
-show_root_toc_entry: false
-merge_init_into_class: true
+    options:
+        show_source: false
+        show_root_heading: true
+        show_root_toc_entry: false
+        merge_init_into_class: true
 
 ### MCP Module
 
 The main MCP integration module.
 
 ::: toolregistry.mcp
-options:
-show_source: false
-show_root_heading: true
-show_root_toc_entry: false
-merge_init_into_class: true
+    options:
+        show_source: false
+        show_root_heading: true
+        show_root_toc_entry: false
+        merge_init_into_class: true

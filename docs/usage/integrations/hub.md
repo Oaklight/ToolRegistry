@@ -20,7 +20,7 @@ Hub encapsulates commonly used tools as methods of a class, including both stati
 4. **Extensibility**: New tool classes or methods can be easily added.
 5. **Safety and Exception Handling**: Encapsulated tools provide better control over security and handle exceptions more effectively compared to allowing models to directly execute commands.
 
-Hub tools can be registered using the `register_from_class` method. Refer to [**Registering Class-Based Python Tools**](../class.md) for detailed instructions.
+Hub tools can be registered using the `register_from_class` method. Refer to [**Registering Class-Based Python Tools**](class.md) for detailed instructions.
 
 ## Example of Using Predefined Tools
 

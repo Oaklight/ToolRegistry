@@ -45,11 +45,11 @@ ToolRegistry Response
 ## API Reference
 
 ::: toolregistry.mcp.integration.MCPToolWrapper
-options:
-show_source: false
-show_root_heading: true
-show_root_toc_entry: false
-merge_init_into_class: true
+    options:
+        show_source: false
+        show_root_heading: true
+        show_root_toc_entry: false
+        merge_init_into_class: true
 
 ## Usage Examples
 

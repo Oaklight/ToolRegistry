@@ -46,13 +46,13 @@ The ToolRegistry follows a registry pattern with the following key responsibilit
 ## API Reference
 
 ::: toolregistry.ToolRegistry
-options:
-show_source: false
-show_root_heading: true
-show_root_toc_entry: false
-merge_init_into_class: true
-separate_signature: true
-show_signature_annotations: true
+    options:
+        show_source: false
+        show_root_heading: true
+        show_root_toc_entry: false
+        merge_init_into_class: true
+        separate_signature: true
+        show_signature_annotations: true
 
 ## Usage Examples
 
