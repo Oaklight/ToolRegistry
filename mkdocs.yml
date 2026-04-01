@@ -105,7 +105,7 @@ nav:
           - LangChain 工具: usage/integrations/langchain.md
       - 权限系统: usage/permissions.md
       - 最佳实践: usage/best_practices.md
-      - LLM 供应商:
+      - LLM API 格式:
           - OpenAI Chat: usage/providers/openai_chat.md
           - OpenAI Response: usage/providers/openai_response.md
           - Anthropic: usage/providers/anthropic.md

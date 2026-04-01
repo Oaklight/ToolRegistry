@@ -43,7 +43,7 @@ results = registry.execute_tool_calls(tool_calls, execution_mode="thread")
 
 ### 新依赖：llm-rosetta
 
-`llm-rosetta>=0.2.6` 现在是核心依赖，驱动多供应商 Schema 生成。无需操作——自动安装。
+`llm-rosetta>=0.2.6` 现在是核心依赖，驱动多格式 Schema 生成。无需操作——自动安装。
 
 ### 新权限系统
 
@@ -61,7 +61,7 @@ policy = PermissionPolicy(rules=[ALLOW_READONLY, ASK_DESTRUCTIVE])
 registry.set_permission_policy(policy)
 ```
 
-### 多供应商 Schema 支持
+### 多格式 Schema 支持
 
 `get_tools_json()` 现在除了现有的 OpenAI 格式外，还接受 `api_format` 值 `"anthropic"` 和 `"gemini"`。
 

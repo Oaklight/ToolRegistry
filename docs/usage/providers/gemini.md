@@ -235,4 +235,4 @@ if tool_calls:
 ## 参见
 
 - [Gemini Function Calling 文档](https://ai.google.dev/gemini-api/docs/function-calling)
-- [架构概览](../../architecture/overview.md) -- ToolRegistry 如何通过 llm-rosetta 生成多供应商 Schema
+- [架构概览](../../architecture/overview.md) -- ToolRegistry 如何通过 llm-rosetta 生成多格式 Schema

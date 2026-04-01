@@ -16,7 +16,7 @@ author: Oaklight
 
 - **Anthropic 与 Gemini 模式格式支持**（[#55](../../issues/55)、[#88](../../pull/88)）
     - 为 `get_tools_json()` 和 `get_json_schema()` 添加 `"anthropic"` 和 `"gemini"` 作为有效的 `api_format` 值
-    - 所有模式转换由 [llm-rosetta](https://pypi.org/project/llm-rosetta/) 驱动，同时清理各供应商不支持的 JSON Schema 关键字
+    - 所有模式转换由 [llm-rosetta](https://pypi.org/project/llm-rosetta/) 驱动，同时清理各格式不支持的 JSON Schema 关键字
     - 添加 `llm-rosetta>=0.2.6` 作为核心依赖
     - 在 `ToolCall.from_tool_call()` 中支持解析 Anthropic `tool_use` 块和 Gemini `functionCall` 部分
     - 为 `recover_assistant_message()` 和 `recover_tool_message()` 添加 `"anthropic"` 和 `"gemini"` 格式支持

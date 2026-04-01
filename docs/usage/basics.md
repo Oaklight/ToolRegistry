@@ -198,7 +198,7 @@ tool_responses = registry.execute_tool_calls(tool_calls)
 
 结果将打包为字典，工具调用 ID 作为键，结果作为值。
 
-请阅读 [OpenAI Chat Completion 集成](providers/openai_chat)或特定提供者集成指南，了解详细示例和逐步分解说明。
+请阅读 [OpenAI Chat Completion 集成](providers/openai_chat)或特定格式集成指南，了解详细示例和逐步分解说明。
 
 ### 手动工具执行
 
@@ -250,5 +250,5 @@ assistant_tool_messages = registry.recover_tool_call_assistant_message(
 
 ## 参见
 
-- [LLM 函数调用](function_calling.md) -- 使用 LLM 提供者调用工具的端到端演练
-- [LLM 提供者集成](providers/openai_chat.md) -- 详细的提供者特定指南
+- [LLM 函数调用](function_calling.md) -- 使用 LLM API 调用工具的端到端演练
+- [LLM API 格式指南](providers/openai_chat.md) -- 详细的各格式集成指南

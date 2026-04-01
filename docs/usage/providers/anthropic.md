@@ -211,4 +211,4 @@ if tool_calls:
 ## 参见
 
 - [Anthropic Tool Use 文档](https://docs.anthropic.com/en/docs/build-with-claude/tool-use)
-- [架构概览](../../architecture/overview.md) -- ToolRegistry 如何通过 llm-rosetta 生成多供应商 Schema
+- [架构概览](../../architecture/overview.md) -- ToolRegistry 如何通过 llm-rosetta 生成多格式 Schema
