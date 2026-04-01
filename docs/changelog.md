@@ -44,8 +44,9 @@ author: Oaklight
 ### 修复
 
 - **Gemini 工具调用 ID 与名称解析**
-    - Gemini `functionCall` 部分的 ID 生成从随机 UUID 改为确定性 md5 哈希，使重复调用 `convert_tool_calls()` 产生一致的 ID
-    - 修复 `recover_tool_call_assistant_message` 未将 `tool_calls` 传递给 `recover_tool_message` 的问题，解决 Gemini `functionResponse.name` 显示随机哈希而非函数名的问题
+    - 修复 `recover_tool_call_assistant_message` 中的 ID 对齐问题：按位置将 `tool_responses`（由 `execute_tool_calls` 生成）的 ID 映射到转换后的 `ToolCall` 对象上，确保 assistant 和 tool 消息引用相同的 ID
+    - 将 `tool_calls` 传递给 `recover_tool_message` 以解析 Gemini `functionResponse.name`
+    - 此前 Gemini `functionResponse.name` 显示随机 UUID 而非函数名，原因是 `convert_tool_calls()` 被独立调用两次，每次生成不同的 ID
 
 ### 重构
 
