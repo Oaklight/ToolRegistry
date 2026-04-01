@@ -10,9 +10,9 @@ The ToolRegistry ecosystem consists of three complementary packages that work to
 
 | Package | Description | PyPI | Docs |
 |---------|-------------|------|------|
-| **toolregistry** | Core library for protocol-agnostic tool management | [![PyPI](https://img.shields.io/pypi/v/toolregistry)](https://pypi.org/project/toolregistry/) | [Docs](https://toolregistry.readthedocs.io/) |
-| **toolregistry-server** | Server adapters (OpenAPI & MCP) for exposing tools | [![PyPI](https://img.shields.io/pypi/v/toolregistry-server)](https://pypi.org/project/toolregistry-server/) | [Docs](https://toolregistry-server.readthedocs.io/) |
-| **toolregistry-hub** | Curated collection of ready-to-use utility tools | [![PyPI](https://img.shields.io/pypi/v/toolregistry-hub)](https://pypi.org/project/toolregistry-hub/) | [Docs](https://toolregistry-hub.readthedocs.io/) |
+| **toolregistry** | Core library for protocol-agnostic tool management | [![PyPI](https://img.shields.io/pypi/v/toolregistry?color=green)](https://pypi.org/project/toolregistry/) | [Docs](https://toolregistry.readthedocs.io/) |
+| **toolregistry-server** | Server adapters (OpenAPI & MCP) for exposing tools | [![PyPI](https://img.shields.io/pypi/v/toolregistry-server?color=green)](https://pypi.org/project/toolregistry-server/) | [Docs](https://toolregistry-server.readthedocs.io/) |
+| **toolregistry-hub** | Curated collection of ready-to-use utility tools | [![PyPI](https://img.shields.io/pypi/v/toolregistry-hub?color=green)](https://pypi.org/project/toolregistry-hub/) | [Docs](https://toolregistry-hub.readthedocs.io/) |
 
 ## Dependency Diagram
 
