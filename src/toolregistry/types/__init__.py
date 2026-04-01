@@ -21,7 +21,9 @@ from .content_blocks import (
     ContentBlock,
     ImageBlock,
     TextBlock,
+    build_expanded_user_message,
     content_blocks_to_text,
+    expand_content_blocks,
     is_content_block_list,
 )
 from .openai import (
@@ -64,7 +66,9 @@ __all__ = [
     "ContentBlock",
     "ImageBlock",
     "TextBlock",
+    "build_expanded_user_message",
     "content_blocks_to_text",
+    "expand_content_blocks",
     "is_content_block_list",
     # OpenAI Chat Completion API
     "Function",

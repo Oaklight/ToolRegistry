@@ -362,10 +362,10 @@ def build_tool_response(
     instead of call IDs).
 
     Values in *tool_responses* may be plain strings or
-    ``list[ContentBlock]`` for multimodal results.  Only the Anthropic
-    format natively supports multimodal content blocks; all other
-    formats receive a text-only fallback via
-    :func:`content_blocks_to_text`.
+    ``list[ContentBlock]`` for multimodal results.  All formats
+    receive text-only tool results; multimodal content should be
+    expanded into a separate user message upstream via
+    :func:`~toolregistry.types.content_blocks.expand_content_blocks`.
 
     Args:
         tool_responses: Mapping of tool call IDs to results (``str``
@@ -417,16 +417,11 @@ def build_tool_response(
     elif api_format == "anthropic":
         content = []
         for call_id, result in tool_responses.items():
-            # Anthropic natively supports multimodal content blocks
-            if isinstance(result, list) and is_content_block_list(result):
-                block_content = result
-            else:
-                block_content = str(result)
             content.append(
                 {
                     "type": "tool_result",
                     "tool_use_id": call_id,
-                    "content": block_content,
+                    "content": _to_text(result),
                 }
             )
         return [{"role": "user", "content": content}]

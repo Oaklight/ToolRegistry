@@ -494,8 +494,14 @@ class ToolRegistry(
 
         Returns:
             Conversation messages ready to extend the message history.
+            When multimodal content is present, an additional user
+            message is appended containing the expanded content.
         """
         from .types.common import _normalize_api_format
+        from .types.content_blocks import (
+            build_expanded_user_message,
+            expand_content_blocks,
+        )
 
         api_format = _normalize_api_format(api_format)
 
@@ -511,14 +517,21 @@ class ToolRegistry(
             if i < len(response_ids):
                 tc.id = response_ids[i]
 
+        # Expand multimodal content blocks into a separate user message
+        text_responses, extra_user_content = expand_content_blocks(tool_responses)
+
         messages.extend(
             build_assistant_message(generic_tool_calls, api_format=api_format)
         )
         messages.extend(
             build_tool_response(
-                tool_responses, api_format=api_format, tool_calls=generic_tool_calls
+                text_responses, api_format=api_format, tool_calls=generic_tool_calls
             )
         )
+
+        if extra_user_content:
+            messages.append(build_expanded_user_message(extra_user_content, api_format))
+
         return messages
 
     def recover_tool_call_assistant_message(
