@@ -44,8 +44,9 @@ This page documents all notable changes to the ToolRegistry project since the fi
 ### Bug Fixes
 
 - **Gemini Tool Call ID and Name Resolution**
-    - Use deterministic (md5-based) IDs for Gemini `functionCall` parts instead of random UUIDs, so repeated `convert_tool_calls()` calls produce consistent IDs
-    - Fix `recover_tool_call_assistant_message` to pass `tool_calls` to `recover_tool_message`, resolving an issue where Gemini `functionResponse.name` showed a random hash instead of the function name
+    - Fix `recover_tool_call_assistant_message` to align tool call IDs by position: IDs from `tool_responses` (produced by `execute_tool_calls`) are remapped onto the converted `ToolCall` objects so assistant and tool messages reference the same IDs
+    - Pass `tool_calls` to `recover_tool_message` for Gemini `functionResponse.name` resolution
+    - Previously, Gemini `functionResponse.name` showed a random UUID instead of the function name because `convert_tool_calls()` was called twice independently, generating different IDs each time
 
 ### Refactoring
 
