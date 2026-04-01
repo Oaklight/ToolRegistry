@@ -59,7 +59,7 @@ if __name__ == "__main__":
     registry.register_from_langchain(arxiv_tool)
     registry.register_from_langchain(pubmed_tool)
 
-    print(registry.get_available_tools())
+    print(registry.list_tools())
 
     user_input = input("what's your recent research interests? ")
     print(user_input)

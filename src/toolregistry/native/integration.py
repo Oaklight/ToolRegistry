@@ -10,7 +10,7 @@ Example:
     from toolregistry import ToolRegistry
     registry = ToolRegistry()
     registry.register_from_class(MyClass)
-    registry.get_available_tools()  # ['MyClass.method1', 'MyClass.method2', ...]
+    registry.list_tools()  # ['MyClass.method1', 'MyClass.method2', ...]
     ```
 """
 

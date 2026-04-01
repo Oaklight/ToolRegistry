@@ -1,6 +1,6 @@
 """Tests for Anthropic, Gemini, and rosetta-based OpenAI schema format support.
 
-Covers get_json_schema(), ToolCall.from_tool_call(),
+Covers get_schema(), ToolCall.from_tool_call(),
 build_assistant_message(), and build_tool_response().
 """
 
@@ -38,26 +38,26 @@ def _sample_tool() -> Tool:
 class TestGetJsonSchemaAnthropic:
     def test_returns_input_schema_key(self):
         tool = _sample_tool()
-        schema = tool.get_json_schema(api_format="anthropic")
+        schema = tool.get_schema(api_format="anthropic")
         assert "input_schema" in schema
         assert "parameters" not in schema
 
     def test_has_name_and_description(self):
         tool = _sample_tool()
-        schema = tool.get_json_schema(api_format="anthropic")
+        schema = tool.get_schema(api_format="anthropic")
         assert schema["name"] == "add"
         assert "Add two numbers" in schema["description"]
 
     def test_input_schema_is_valid_json_schema(self):
         tool = _sample_tool()
-        schema = tool.get_json_schema(api_format="anthropic")
+        schema = tool.get_schema(api_format="anthropic")
         input_schema = schema["input_schema"]
         assert input_schema["type"] == "object"
         assert "properties" in input_schema
 
     def test_no_type_wrapper(self):
         tool = _sample_tool()
-        schema = tool.get_json_schema(api_format="anthropic")
+        schema = tool.get_schema(api_format="anthropic")
         # Anthropic format is flat — no "type": "function" wrapper
         assert "type" not in schema or schema.get("type") != "function"
 
@@ -70,7 +70,7 @@ class TestGetJsonSchemaAnthropic:
 class TestGetJsonSchemaGemini:
     def test_returns_flat_format(self):
         tool = _sample_tool()
-        schema = tool.get_json_schema(api_format="gemini")
+        schema = tool.get_schema(api_format="gemini")
         # Should be unwrapped (no function_declarations wrapper)
         assert "function_declarations" not in schema
         assert "name" in schema
@@ -78,13 +78,13 @@ class TestGetJsonSchemaGemini:
 
     def test_has_name_and_description(self):
         tool = _sample_tool()
-        schema = tool.get_json_schema(api_format="gemini")
+        schema = tool.get_schema(api_format="gemini")
         assert schema["name"] == "add"
         assert "Add two numbers" in schema["description"]
 
     def test_parameters_is_valid_json_schema(self):
         tool = _sample_tool()
-        schema = tool.get_json_schema(api_format="gemini")
+        schema = tool.get_schema(api_format="gemini")
         params = schema["parameters"]
         assert params["type"] == "object"
         assert "properties" in params
@@ -100,7 +100,7 @@ class TestGetJsonSchemaOpenAI:
 
     def test_openai_chat_format(self):
         tool = _sample_tool()
-        schema = tool.get_json_schema(api_format="openai-chat")
+        schema = tool.get_schema(api_format="openai-chat")
         assert schema["type"] == "function"
         assert "function" in schema
         assert schema["function"]["name"] == "add"
@@ -112,7 +112,7 @@ class TestGetJsonSchemaOpenAI:
 
     def test_openai_response_format(self):
         tool = _sample_tool()
-        schema = tool.get_json_schema(api_format="openai-response")
+        schema = tool.get_schema(api_format="openai-response")
         assert schema["type"] == "function"
         assert schema["name"] == "add"
         assert "Add two numbers" in schema["description"]

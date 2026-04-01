@@ -588,7 +588,14 @@ class ToolRegistry(
         """
         return [n for n in self._tools if self.is_enabled(n)]
 
-    get_available_tools = list_tools  # Alias for backward compatibility
+    def get_available_tools(self) -> list[str]:
+        """Deprecated: use :meth:`list_tools` instead."""
+        warnings.warn(
+            "get_available_tools() is deprecated, use list_tools() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.list_tools()
 
     def list_all_tools(self) -> list[str]:
         """List all tools including disabled (for admin panel).
@@ -698,7 +705,7 @@ class ToolRegistry(
             effective = tool.metadata.think_augment
             if effective is None:
                 effective = self._think_augment
-            schemas.append(tool.get_json_schema(api_format, _think_augment=effective))
+            schemas.append(tool.get_schema(api_format, _think_augment=effective))
         return schemas
 
     def get_tools_json(

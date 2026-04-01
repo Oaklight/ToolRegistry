@@ -14,7 +14,7 @@ registry.register_from_openapi(client_config, openapi_spec, with_namespace=True)
 
 # print("Registry:", registry)
 
-print(registry.get_available_tools())
+print(registry.list_tools())
 
 # -------------------------------
 # Synchronous Tests

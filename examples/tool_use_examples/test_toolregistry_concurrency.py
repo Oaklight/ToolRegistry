@@ -124,15 +124,15 @@ def main():
     registry.register(local_subtract)
     registry.register(local_multiply)
     registry.register(local_divide)
-    print(registry.get_available_tools())
+    print(registry.list_tools())
     if FUNC:
         target_func_name = [
-            name for name in registry.get_available_tools() if FUNC in name
+            name for name in registry.list_tools() if FUNC in name
         ][0]
     else:
         target_func_name = None
     tool_calls = generate_tool_calls(
-        N, registry.get_available_tools(), target_func_name
+        N, registry.list_tools(), target_func_name
     )
 
     start_time = time.time()
@@ -149,15 +149,15 @@ def main():
 
     registry = ToolRegistry()
     registry.register_from_class(BaseCalculator, with_namespace=True)
-    # print(registry.get_available_tools())
+    # print(registry.list_tools())
     if FUNC:
         target_func_name = [
-            name for name in registry.get_available_tools() if FUNC in name
+            name for name in registry.list_tools() if FUNC in name
         ][0]
     else:
         target_func_name = None
     tool_calls = generate_tool_calls(
-        N, registry.get_available_tools(), target_func_name
+        N, registry.list_tools(), target_func_name
     )
 
     start_time = time.time()
@@ -178,15 +178,15 @@ def main():
     openapi_spec = load_openapi_spec(f"http://localhost:{OPENAPI_PORT}")
 
     registry.register_from_openapi(client_config, openapi_spec, with_namespace=True)
-    # print(registry.get_available_tools())
+    # print(registry.list_tools())
     if FUNC:
         target_func_name = [
-            name for name in registry.get_available_tools() if FUNC in name
+            name for name in registry.list_tools() if FUNC in name
         ][0]
     else:
         target_func_name = None
     tool_calls = generate_tool_calls(
-        N, registry.get_available_tools(), target_func_name
+        N, registry.list_tools(), target_func_name
     )
 
     start_time = time.time()
@@ -203,15 +203,15 @@ def main():
 
     MCP_PORT = os.getenv("MCP_PORT", 8001)
     registry.register_from_mcp(f"http://localhost:{MCP_PORT}/sse", with_namespace=True)
-    # print(registry.get_available_tools())
+    # print(registry.list_tools())
     if FUNC:
         target_func_name = [
-            name for name in registry.get_available_tools() if FUNC in name
+            name for name in registry.list_tools() if FUNC in name
         ][0]
     else:
         target_func_name = None
     tool_calls = generate_tool_calls(
-        N, registry.get_available_tools(), target_func_name
+        N, registry.list_tools(), target_func_name
     )
 
     start_time = time.time()

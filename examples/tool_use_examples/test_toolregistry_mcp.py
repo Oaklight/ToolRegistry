@@ -109,15 +109,15 @@ def main():
     registry.register_from_mcp(
         f"http://localhost:{MCP_PORT}/{MCP_MODE}", with_namespace=True
     )
-    # print(registry.get_available_tools())
+    # print(registry.list_tools())
     if FUNC:
         target_func_name = [
-            name for name in registry.get_available_tools() if FUNC in name
+            name for name in registry.list_tools() if FUNC in name
         ][0]
     else:
         target_func_name = None
     tool_calls = generate_tool_calls(
-        N, registry.get_available_tools(), target_func_name
+        N, registry.list_tools(), target_func_name
     )
 
     start_time = time.time()

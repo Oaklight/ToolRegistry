@@ -44,7 +44,7 @@ else:
 tool_registry.register_from_class(websearch, with_namespace=True)
 tool_registry.register_from_class(UnitConverter, with_namespace=True)
 
-print(tool_registry.get_available_tools())
+print(tool_registry.list_tools())
 
 # Set up OpenAI client
 client = OpenAI(
