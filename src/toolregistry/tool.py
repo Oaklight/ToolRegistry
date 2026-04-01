@@ -332,13 +332,13 @@ class Tool(BaseModel):
             props.pop("thought", None)
         return params
 
-    def get_json_schema(
+    def get_schema(
         self,
         api_format: API_FORMATS = "openai-chat",
         *,
         _think_augment: bool | None = None,
     ) -> dict[str, Any]:
-        """Generate JSON Schema representation of tool based on API format.
+        """Generate schema representation of tool for a target API format.
 
         All formats are produced via llm-rosetta converters, which also
         apply schema sanitization (stripping unsupported JSON Schema
@@ -399,7 +399,33 @@ class Tool(BaseModel):
         else:
             raise ValueError(f"Unsupported API format: {api_format}")
 
-    describe = get_json_schema
+    def get_json_schema(
+        self,
+        api_format: API_FORMATS = "openai-chat",
+    ) -> dict[str, Any]:
+        """Deprecated: use :meth:`get_schema` instead."""
+        import warnings
+
+        warnings.warn(
+            "get_json_schema() is deprecated, use get_schema() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.get_schema(api_format)
+
+    def describe(
+        self,
+        api_format: API_FORMATS = "openai-chat",
+    ) -> dict[str, Any]:
+        """Deprecated: use :meth:`get_schema` instead."""
+        import warnings
+
+        warnings.warn(
+            "describe() is deprecated, use get_schema() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.get_schema(api_format)
 
     def _validate_parameters(self, parameters: dict[str, Any]) -> dict[str, Any]:
         """Validate parameters against tool schema.

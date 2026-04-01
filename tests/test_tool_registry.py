@@ -128,10 +128,17 @@ class TestToolRegistry:
         assert "multiply_numbers" in tools
         assert len(tools) >= 2
 
-    def test_get_available_tools_alias(self, populated_registry):
-        """Test get_available_tools is an alias for list_tools."""
+    def test_get_available_tools_deprecated_alias(self, populated_registry):
+        """Test get_available_tools() is a deprecated alias for list_tools()."""
+        import warnings
+
         tools1 = populated_registry.list_tools()
-        tools2 = populated_registry.get_available_tools()
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            tools2 = populated_registry.get_available_tools()
+            assert len(w) == 1
+            assert issubclass(w[0].category, DeprecationWarning)
+            assert "list_tools" in str(w[0].message)
 
         assert tools1 == tools2
 

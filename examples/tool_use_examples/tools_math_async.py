@@ -21,7 +21,7 @@ async def subtract(a: int, b: int) -> int:
 
 
 async def main():
-    print(registry.get_available_tools())
+    print(registry.list_tools())
 
     add_func = registry.get_callable("add")
     print(type(add_func))
@@ -42,7 +42,7 @@ async def main():
     tools_json = registry.get_schemas()
     print(json.dumps(tools_json, indent=2))
 
-    print(json.dumps(add_tool.describe(), indent=2))
+    print(json.dumps(add_tool.get_schema(), indent=2))
 
 
 if __name__ == "__main__":

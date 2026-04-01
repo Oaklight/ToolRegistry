@@ -39,7 +39,7 @@ OPENAPI_PORT = os.getenv(
     "OPENAPI_PORT", 8000
 )  # default OPENAPI_PORT 8000, change via environment variable
 asyncio.run(async_register())
-pprint(openapi_registry.get_available_tools())
+pprint(openapi_registry.list_tools())
 pprint(openapi_registry._sub_registries)
 
 
@@ -51,14 +51,14 @@ MCP_PORT = os.getenv(
 mcp_registry = ToolRegistry("mcp_math")
 mcp_server_url = f"http://localhost:{MCP_PORT}/sse"
 mcp_registry.register_from_mcp(mcp_server_url, with_namespace=True)
-pprint(mcp_registry.get_available_tools())
+pprint(mcp_registry.list_tools())
 pprint(mcp_registry._sub_registries)
 
 # ================ mix registry ================
 print("================ MIXUP ================")
 mixed_registry = openapi_registry
 mixed_registry.merge(mcp_registry)
-pprint(mixed_registry.get_available_tools())
+pprint(mixed_registry.list_tools())
 pprint(mixed_registry._sub_registries)
 
 # ================ testing ================

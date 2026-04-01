@@ -91,7 +91,7 @@ def add(a: float, b: float) -> float:
     """将两个数字相加。"""
     return a + b
 
-available_tools = registry.get_available_tools()
+available_tools = registry.list_tools()
 
 print(available_tools) # ['add']
 
@@ -208,12 +208,12 @@ class InstanceExample:
 
 registry = ToolRegistry()
 registry.register_from_class(StaticExample, with_namespace=True)
-print(registry.get_available_tools())  # ['static_example.greet']
+print(registry.list_tools())  # ['static_example.greet']
 print(registry["static_example.greet"]("Alice"))  # 你好，Alice！
 
 registry = ToolRegistry()
 registry.register_from_class(InstanceExample("Bob"), with_namespace=True)
-print(registry.get_available_tools())  # ['instance_example.greet']
+print(registry.list_tools())  # ['instance_example.greet']
 print(registry["instance_example.greet"]("Alice"))  # 你好，Alice！我是 Bob。
 ```
 
@@ -244,7 +244,7 @@ registry = ToolRegistry()
 registry.register_from_class(Calculator, with_namespace=True)
 
 # 获取可用工具列表
-print(registry.get_available_tools())
+print(registry.list_tools())
 # ['calculator-list_allowed_fns', 'calculator-help', 'calculator-evaluate']
 ```
 

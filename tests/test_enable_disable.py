@@ -204,13 +204,17 @@ class TestListToolsFiltering:
         assert "multiply" in all_tools
 
     def test_get_available_tools_matches_list_tools(self):
+        import warnings
+
         registry = ToolRegistry(name="test")
         registry.register(add)
         registry.register(subtract)
 
         registry.disable("subtract")
 
-        assert registry.get_available_tools() == registry.list_tools()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            assert registry.get_available_tools() == registry.list_tools()
 
     def test_list_tools_empty_when_all_disabled(self):
         registry = ToolRegistry(name="test")

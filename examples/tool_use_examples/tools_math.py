@@ -17,7 +17,7 @@ def subtract(a: int, b: int) -> int:
     return a - b
 
 
-print(registry.get_available_tools())
+print(registry.list_tools())
 
 add_func = registry.get_callable("add")
 print(type(add_func))

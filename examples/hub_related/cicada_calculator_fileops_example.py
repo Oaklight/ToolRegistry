@@ -27,7 +27,7 @@ llm = MultiModalModel(
 tool_registry = ToolRegistry()
 tool_registry.register_from_class(Calculator, with_namespace=True)
 tool_registry.register_from_class(FileOps, with_namespace=True)
-print(tool_registry.get_available_tools())
+print(tool_registry.list_tools())
 
 input_file = "examples/hub_related/concurrent_raw_results.txt"
 output_file = "examples/hub_related/concurrent_average_results.txt"

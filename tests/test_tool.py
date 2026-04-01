@@ -66,7 +66,7 @@ class TestTool:
 
     def test_get_json_schema_openai_format(self, sample_tool):
         """Test getting JSON schema in OpenAI format."""
-        schema = sample_tool.get_json_schema("openai-chat")
+        schema = sample_tool.get_schema("openai-chat")
 
         assert schema["type"] == "function"
         assert "function" in schema
@@ -76,7 +76,7 @@ class TestTool:
 
     def test_get_json_schema_openai_chat_format(self, sample_tool):
         """Test getting JSON schema in OpenAI chat completion format."""
-        schema = sample_tool.get_json_schema("openai-chat")
+        schema = sample_tool.get_schema("openai-chat")
 
         assert schema["type"] == "function"
         assert "function" in schema
@@ -84,7 +84,7 @@ class TestTool:
 
     def test_get_json_schema_openai_response_format(self, sample_tool):
         """Test getting JSON schema in OpenAI response format."""
-        schema = sample_tool.get_json_schema("openai-response")
+        schema = sample_tool.get_schema("openai-response")
 
         assert schema["type"] == "function"
         assert schema["name"] == sample_tool.name
@@ -93,14 +93,14 @@ class TestTool:
 
     def test_get_json_schema_anthropic_format(self, sample_tool):
         """Test getting JSON schema in Anthropic format."""
-        schema = sample_tool.get_json_schema("anthropic")
+        schema = sample_tool.get_schema("anthropic")
 
         assert schema["name"] == sample_tool.name
         assert "input_schema" in schema
 
     def test_get_json_schema_gemini_format(self, sample_tool):
         """Test getting JSON schema in Gemini format."""
-        schema = sample_tool.get_json_schema("gemini")
+        schema = sample_tool.get_schema("gemini")
 
         assert schema["name"] == sample_tool.name
         assert "parameters" in schema
@@ -108,12 +108,33 @@ class TestTool:
     def test_get_json_schema_unsupported_format_raises_error(self, sample_tool):
         """Test that unsupported API format raises ValueError."""
         with pytest.raises(ValueError, match="Unsupported API format"):
-            sample_tool.get_json_schema("unsupported_format")
+            sample_tool.get_schema("unsupported_format")
 
-    def test_describe_alias(self, sample_tool):
-        """Test that describe is an alias for get_json_schema."""
-        schema1 = sample_tool.get_json_schema()
-        schema2 = sample_tool.describe()
+    def test_describe_deprecated_alias(self, sample_tool):
+        """Test that describe() is a deprecated alias for get_schema()."""
+        import warnings
+
+        schema1 = sample_tool.get_schema()
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            schema2 = sample_tool.describe()
+            assert len(w) == 1
+            assert issubclass(w[0].category, DeprecationWarning)
+            assert "get_schema" in str(w[0].message)
+
+        assert schema1 == schema2
+
+    def test_get_json_schema_deprecated_alias(self, sample_tool):
+        """Test that get_json_schema() is a deprecated alias for get_schema()."""
+        import warnings
+
+        schema1 = sample_tool.get_schema()
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            schema2 = sample_tool.get_json_schema()
+            assert len(w) == 1
+            assert issubclass(w[0].category, DeprecationWarning)
+            assert "get_schema" in str(w[0].message)
 
         assert schema1 == schema2
 
@@ -290,18 +311,18 @@ class TestThinkAugmented:
 
     def test_think_property_in_openai_format(self, sample_tool):
         """Test that thought appears in OpenAI format schema."""
-        schema = sample_tool.get_json_schema("openai-chat")
+        schema = sample_tool.get_schema("openai-chat")
         params = schema["function"]["parameters"]
         assert "thought" in params["properties"]
 
     def test_think_property_in_anthropic_format(self, sample_tool):
         """Test that thought appears in Anthropic format schema."""
-        schema = sample_tool.get_json_schema("anthropic")
+        schema = sample_tool.get_schema("anthropic")
         assert "thought" in schema["input_schema"]["properties"]
 
     def test_think_property_in_gemini_format(self, sample_tool):
         """Test that thought appears in Gemini format schema."""
-        schema = sample_tool.get_json_schema("gemini")
+        schema = sample_tool.get_schema("gemini")
         assert "thought" in schema["parameters"]["properties"]
 
     def test_think_stripped_on_run(self, sample_tool):
@@ -359,14 +380,14 @@ class TestThinkAugmented:
         assert "properties" not in tool.parameters
 
     def test_think_metadata_false_strips_from_schema(self, sample_function):
-        """Test that think_augment=False strips thought from get_json_schema output."""
+        """Test that think_augment=False strips thought from get_schema output."""
         tool = Tool.from_function(
             sample_function, metadata=ToolMetadata(think_augment=False)
         )
         # Internal storage still has thought
         assert "thought" in tool.parameters["properties"]
-        # But get_json_schema strips it
-        schema = tool.get_json_schema("openai-chat")
+        # But get_schema strips it
+        schema = tool.get_schema("openai-chat")
         assert "thought" not in schema["function"]["parameters"]["properties"]
 
     def test_think_metadata_true_includes_in_schema(self, sample_function):
@@ -374,20 +395,20 @@ class TestThinkAugmented:
         tool = Tool.from_function(
             sample_function, metadata=ToolMetadata(think_augment=True)
         )
-        schema = tool.get_json_schema("openai-chat")
+        schema = tool.get_schema("openai-chat")
         assert "thought" in schema["function"]["parameters"]["properties"]
 
     def test_think_metadata_none_includes_by_default(self, sample_function):
         """Test that think_augment=None (default) includes thought when called directly."""
         tool = Tool.from_function(sample_function)
         assert tool.metadata.think_augment is None
-        schema = tool.get_json_schema("openai-chat")
+        schema = tool.get_schema("openai-chat")
         assert "thought" in schema["function"]["parameters"]["properties"]
 
     def test_think_override_false_strips(self, sample_function):
         """Test _think_augment=False override strips thought from output."""
         tool = Tool.from_function(sample_function)
-        schema = tool.get_json_schema("openai-chat", _think_augment=False)
+        schema = tool.get_schema("openai-chat", _think_augment=False)
         assert "thought" not in schema["function"]["parameters"]["properties"]
 
     def test_think_override_true_includes(self, sample_function):
@@ -396,7 +417,7 @@ class TestThinkAugmented:
             sample_function, metadata=ToolMetadata(think_augment=False)
         )
         # Per-tool says False, but override says True
-        schema = tool.get_json_schema("openai-chat", _think_augment=True)
+        schema = tool.get_schema("openai-chat", _think_augment=True)
         assert "thought" in schema["function"]["parameters"]["properties"]
 
     def test_think_native_param_never_stripped(self):
@@ -409,7 +430,7 @@ class TestThinkAugmented:
         tool = Tool.from_function(
             func_with_thought, metadata=ToolMetadata(think_augment=False)
         )
-        schema = tool.get_json_schema("openai-chat", _think_augment=False)
+        schema = tool.get_schema("openai-chat", _think_augment=False)
         # Native thought should survive even with think_augment=False
         assert "thought" in schema["function"]["parameters"]["properties"]
 
@@ -421,7 +442,7 @@ class TestThinkAugmented:
             ("anthropic", lambda s: s["input_schema"]["properties"]),
             ("gemini", lambda s: s["parameters"]["properties"]),
         ]:
-            schema = tool.get_json_schema(fmt, _think_augment=False)
+            schema = tool.get_schema(fmt, _think_augment=False)
             assert "thought" not in path(schema), f"thought not stripped for {fmt}"
 
 

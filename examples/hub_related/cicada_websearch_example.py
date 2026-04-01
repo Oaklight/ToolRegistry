@@ -53,7 +53,7 @@ tool_registry.register_from_class(
     websearch
 )  # Register the web search tool with the registry
 
-print(tool_registry.get_available_tools())
+print(tool_registry.list_tools())
 
 # Example query using the web search tool
 response = llm.query(

@@ -90,7 +90,7 @@ if __name__ == "__main__":
 
     tool_registry.register_from_mcp(transport, with_namespace=True)
 
-    print(tool_registry.get_available_tools())
+    print(tool_registry.list_tools())
     print(tool_registry.get_schemas())
     # exit()
 

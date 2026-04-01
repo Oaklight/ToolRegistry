@@ -83,7 +83,7 @@ if __name__ == "__main__":
         client_config, openapi_spec, with_namespace=True
     )
 
-    print(tool_registry.get_available_tools())
+    print(tool_registry.list_tools())
 
     # Make the chat completion request
     response = client.chat.completions.create(

@@ -246,7 +246,7 @@ class AdminRequestHandler(BaseHTTPRequestHandler):
             "description": tool.description,
             "enabled": enabled,
             "reason": reason,
-            "schema": tool.get_json_schema(),
+            "schema": tool.get_schema(),
         }
         self._send_json_response(tool_info)
 
