@@ -9,6 +9,7 @@ from collections.abc import Callable
 
 from .executor import ProcessPoolBackend, ThreadBackend
 from .tool import ToolTag
+from .truncation import truncate_result
 from .permissions import (
     PermissionResult,
 )
@@ -54,17 +55,23 @@ class ToolRegistry(
     """
 
     # ============== dunder methods ==============
-    def __init__(self, name: str | None = None) -> None:
+    def __init__(
+        self,
+        name: str | None = None,
+        *,
+        default_max_result_size: int | None = None,
+    ) -> None:
         """Initialize an empty ToolRegistry.
 
         This method initializes an empty ToolRegistry with a name and internal
         structures for storing tools and sub-registries.
 
         Args:
-            name (Optional[str]): Name of the tool registry. Defaults to a random "reg_<4-char>" string. For instance, "reg_1a3c".
-
-        Attributes:
-            name (str): Name of the tool registry.
+            name: Name of the tool registry. Defaults to a random
+                "reg_<4-char>" string. For instance, "reg_1a3c".
+            default_max_result_size: Default maximum result size in characters
+                for all tools. Individual tools can override this via
+                ``ToolMetadata.max_result_size``. None means no limit.
 
         Notes:
             This class uses private attributes `_tools` and `_sub_registries` internally
@@ -78,6 +85,7 @@ class ToolRegistry(
         self._thread_backend = ThreadBackend()
         self._process_backend = ProcessPoolBackend()
         self._execution_mode: Literal["process", "thread"] = "process"
+        self._default_max_result_size = default_max_result_size
 
     def __contains__(self, name: str) -> bool:
         """Check if a tool with the given name is registered.
@@ -152,6 +160,36 @@ class ToolRegistry(
         self.close()
 
     # ============== Execution ==============
+    def _finalize_result(self, result: Any, tool_name: str) -> str:
+        """Convert a raw tool result to a string, applying truncation if configured.
+
+        Args:
+            result: Raw result from tool execution.
+            tool_name: Name of the tool (used to look up ``max_result_size``).
+
+        Returns:
+            The result as a string, possibly truncated.
+        """
+        # Serialize to string
+        try:
+            json.dumps(result)
+        except (TypeError, ValueError):
+            result = str(result)
+        result_str: str = result if isinstance(result, str) else json.dumps(result)
+
+        # Determine effective max size
+        tool_obj = self._tools.get(tool_name)
+        max_size = None
+        if tool_obj and tool_obj.metadata.max_result_size is not None:
+            max_size = tool_obj.metadata.max_result_size
+        elif self._default_max_result_size is not None:
+            max_size = self._default_max_result_size
+
+        if max_size is not None:
+            tr = truncate_result(result_str, max_size, tool_name=tool_name)
+            return str(tr)
+        return result_str
+
     def set_execution_mode(self, mode: Literal["thread", "process"]) -> None:
         """Set the execution mode for parallel tasks.
 
@@ -312,12 +350,8 @@ class ToolRegistry(
                     # Sequential execution: wait for result immediately
                     try:
                         result = handle.result()
-                        try:
-                            json.dumps(result)
-                        except (TypeError, ValueError):
-                            result = str(result)
-                        tool_responses[tc.id] = (
-                            result if isinstance(result, str) else json.dumps(result)
+                        tool_responses[tc.id] = self._finalize_result(
+                            result, function_name
                         )
                     except TimeoutError:
                         tool_responses[tc.id] = (
@@ -334,13 +368,7 @@ class ToolRegistry(
             for tc, handle in handles:
                 try:
                     result = handle.result()
-                    try:
-                        json.dumps(result)
-                    except (TypeError, ValueError):
-                        result = str(result)
-                    tool_responses[tc.id] = (
-                        result if isinstance(result, str) else json.dumps(result)
-                    )
+                    tool_responses[tc.id] = self._finalize_result(result, tc.name)
                 except TimeoutError:
                     tool_responses[tc.id] = f"Error: Tool '{tc.name}' timed out"
                 except Exception as e:
