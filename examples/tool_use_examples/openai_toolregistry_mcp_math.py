@@ -24,7 +24,7 @@ mcp_server_url = f"http://localhost:{PORT}/sse"
 
 
 async def async_register():
-    await registry.register_from_mcp_async(mcp_server_url, with_namespace=True)
+    await registry.register_from_mcp_async(mcp_server_url, namespace=True)
     pprint(registry)
 
 

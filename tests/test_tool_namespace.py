@@ -225,7 +225,7 @@ class TestRegisterFromClass:
 
     def test_static_class_with_namespace(self):
         registry = ToolRegistry(name="test")
-        registry.register_from_class(Calculator, with_namespace=True)
+        registry.register_from_class(Calculator, namespace=True)
         tools = registry.list_tools()
         assert len(tools) == 2
 
@@ -237,7 +237,7 @@ class TestRegisterFromClass:
 
     def test_static_class_with_custom_namespace(self):
         registry = ToolRegistry(name="test")
-        registry.register_from_class(Calculator, with_namespace="math")
+        registry.register_from_class(Calculator, namespace="math")
         tools = registry.list_tools()
 
         for tool_name in tools:
@@ -247,7 +247,7 @@ class TestRegisterFromClass:
 
     def test_static_class_without_namespace(self):
         registry = ToolRegistry(name="test")
-        registry.register_from_class(Calculator, with_namespace=False)
+        registry.register_from_class(Calculator, namespace=False)
         tools = registry.list_tools()
 
         for tool_name in tools:
@@ -259,7 +259,7 @@ class TestRegisterFromClass:
     def test_instance_class_with_namespace(self):
         registry = ToolRegistry(name="test")
         greeter = Greeter()
-        registry.register_from_class(greeter, with_namespace=True)
+        registry.register_from_class(greeter, namespace=True)
         tools = registry.list_tools()
         assert len(tools) == 2
 
@@ -272,7 +272,7 @@ class TestRegisterFromClass:
     def test_instance_class_with_namespace_from_type(self):
         """When passing a class (not instance) with instance methods."""
         registry = ToolRegistry(name="test")
-        registry.register_from_class(Greeter, with_namespace="greet")
+        registry.register_from_class(Greeter, namespace="greet")
         tools = registry.list_tools()
 
         for tool_name in tools:

@@ -259,7 +259,7 @@ class TestStaticMethodsMROWithNamespace:
     def test_mro_with_namespace(self):
         """Inherited methods should also get the namespace prefix."""
         registry = ToolRegistry(name="test")
-        registry.register_from_class(ChildTools, with_namespace=True, traverse_mro=True)
+        registry.register_from_class(ChildTools, namespace=True, traverse_mro=True)
         tools = registry.list_tools()
         # All tools should have the namespace prefix
         for tool_name in tools:
@@ -278,7 +278,7 @@ class TestStaticMethodsMROWithNamespace:
         """Custom namespace should be applied to all inherited methods."""
         registry = ToolRegistry(name="test")
         registry.register_from_class(
-            ChildTools, with_namespace="my_tools", traverse_mro=True
+            ChildTools, namespace="my_tools", traverse_mro=True
         )
         tools = registry.list_tools()
         for tool_name in tools:
@@ -342,7 +342,7 @@ class TestInstanceMethodsMROTraversal:
         """Instance methods with namespace and MRO traversal."""
         registry = ToolRegistry(name="test")
         child = ChildInstance()
-        registry.register_from_class(child, with_namespace=True, traverse_mro=True)
+        registry.register_from_class(child, namespace=True, traverse_mro=True)
         tools = registry.list_tools()
         for tool_name in tools:
             tool = registry.get_tool(tool_name)

@@ -107,7 +107,7 @@ def main():
 
     MCP_PORT = os.getenv("MCP_PORT", 8001)
     registry.register_from_mcp(
-        f"http://localhost:{MCP_PORT}/{MCP_MODE}", with_namespace=True
+        f"http://localhost:{MCP_PORT}/{MCP_MODE}", namespace=True
     )
     # print(registry.list_tools())
     if FUNC:

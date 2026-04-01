@@ -97,8 +97,8 @@ class TestNamespaceDisable:
 
     def test_disable_namespace_disables_all_tools(self):
         registry = ToolRegistry(name="test")
-        registry.register_from_class(MathTools, with_namespace=True)
-        tools = registry.list_all_tools()
+        registry.register_from_class(MathTools, namespace=True)
+        tools = registry.list_tools(include_disabled=True)
         assert len(tools) == 3
 
         registry.disable("math_tools")
@@ -107,8 +107,8 @@ class TestNamespaceDisable:
 
     def test_disable_namespace_reason_propagates(self):
         registry = ToolRegistry(name="test")
-        registry.register_from_class(MathTools, with_namespace=True)
-        tools = registry.list_all_tools()
+        registry.register_from_class(MathTools, namespace=True)
+        tools = registry.list_tools(include_disabled=True)
 
         registry.disable("math_tools", reason="namespace disabled")
         for tool_name in tools:
@@ -116,8 +116,8 @@ class TestNamespaceDisable:
 
     def test_enable_namespace_enables_all_tools(self):
         registry = ToolRegistry(name="test")
-        registry.register_from_class(MathTools, with_namespace=True)
-        tools = registry.list_all_tools()
+        registry.register_from_class(MathTools, namespace=True)
+        tools = registry.list_tools(include_disabled=True)
 
         registry.disable("math_tools")
         for tool_name in tools:
@@ -138,8 +138,8 @@ class TestMethodOverridesNamespace:
 
     def test_method_reason_overrides_namespace_reason(self):
         registry = ToolRegistry(name="test")
-        registry.register_from_class(MathTools, with_namespace=True)
-        tools = registry.list_all_tools()
+        registry.register_from_class(MathTools, namespace=True)
+        tools = registry.list_tools(include_disabled=True)
 
         # Disable namespace
         registry.disable("math_tools", reason="namespace disabled")
@@ -157,8 +157,8 @@ class TestMethodOverridesNamespace:
 
     def test_both_method_and_namespace_disabled(self):
         registry = ToolRegistry(name="test")
-        registry.register_from_class(MathTools, with_namespace=True)
-        tools = registry.list_all_tools()
+        registry.register_from_class(MathTools, namespace=True)
+        tools = registry.list_tools(include_disabled=True)
 
         specific_tool = tools[0]
         registry.disable("math_tools", reason="namespace disabled")
@@ -190,7 +190,7 @@ class TestListToolsFiltering:
         assert "subtract" not in enabled
         assert "multiply" in enabled
 
-    def test_list_all_tools_includes_disabled(self):
+    def test_list_tools_include_disabled(self):
         registry = ToolRegistry(name="test")
         registry.register(add)
         registry.register(subtract)
@@ -198,7 +198,7 @@ class TestListToolsFiltering:
 
         registry.disable("subtract")
 
-        all_tools = registry.list_all_tools()
+        all_tools = registry.list_tools(include_disabled=True)
         assert "add" in all_tools
         assert "subtract" in all_tools
         assert "multiply" in all_tools
@@ -225,7 +225,7 @@ class TestListToolsFiltering:
         registry.disable("subtract")
 
         assert registry.list_tools() == []
-        assert len(registry.list_all_tools()) == 2
+        assert len(registry.list_tools(include_disabled=True)) == 2
 
 
 # ===========================================================================
@@ -454,7 +454,7 @@ class TestGetToolsStatus:
     def test_namespace_tools_status(self):
         """Test status of tools registered with a namespace."""
         registry = ToolRegistry(name="test")
-        registry.register_from_class(MathTools, with_namespace=True)
+        registry.register_from_class(MathTools, namespace=True)
 
         status = registry.get_tools_status()
         assert len(status) == 3
@@ -469,7 +469,7 @@ class TestGetToolsStatus:
     def test_namespace_disabled_tools_status(self):
         """Test status when namespace is disabled."""
         registry = ToolRegistry(name="test")
-        registry.register_from_class(MathTools, with_namespace=True)
+        registry.register_from_class(MathTools, namespace=True)
         registry.disable("math_tools", reason="Namespace disabled")
 
         status = registry.get_tools_status()
@@ -483,7 +483,7 @@ class TestGetToolsStatus:
     def test_method_level_override_in_status(self):
         """Test that method-level disable reason appears in status."""
         registry = ToolRegistry(name="test")
-        registry.register_from_class(MathTools, with_namespace=True)
+        registry.register_from_class(MathTools, namespace=True)
 
         # Disable namespace
         registry.disable("math_tools", reason="Namespace disabled")

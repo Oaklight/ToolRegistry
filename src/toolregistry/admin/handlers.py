@@ -297,7 +297,7 @@ class AdminRequestHandler(BaseHTTPRequestHandler):
         """Handle GET /api/namespaces - get all namespaces."""
         # Get unique namespaces from tools (including "default" for non-namespaced)
         namespaces: dict[str, dict[str, Any]] = {}
-        for tool_name in self.registry.list_all_tools():
+        for tool_name in self.registry.list_tools(include_disabled=True):
             tool = self.registry.get_tool(tool_name)
             if tool:
                 ns = tool.namespace or "default"
@@ -332,7 +332,7 @@ class AdminRequestHandler(BaseHTTPRequestHandler):
 
         # Also enable individual tools in the namespace
         enabled_count = 0
-        for tool_name in self.registry.list_all_tools():
+        for tool_name in self.registry.list_tools(include_disabled=True):
             tool = self.registry.get_tool(tool_name)
             if tool and tool.namespace == namespace:
                 self.registry.enable(tool_name)
@@ -366,7 +366,7 @@ class AdminRequestHandler(BaseHTTPRequestHandler):
 
         # Count affected tools
         affected_count = 0
-        for tool_name in self.registry.list_all_tools():
+        for tool_name in self.registry.list_tools(include_disabled=True):
             tool = self.registry.get_tool(tool_name)
             if tool and tool.namespace == namespace:
                 affected_count += 1
@@ -446,7 +446,7 @@ class AdminRequestHandler(BaseHTTPRequestHandler):
         # Export disabled tools/namespaces
         state = {
             "disabled": dict(self.registry._disabled),
-            "tools": self.registry.list_all_tools(),
+            "tools": self.registry.list_tools(include_disabled=True),
         }
         self._send_json_response(state)
 

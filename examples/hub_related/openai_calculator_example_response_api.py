@@ -18,7 +18,7 @@ BASE_URL = os.getenv("BASE_URL", "https://api.deepseek.com/")
 
 # Initialize tool registry and register Calculator static methods
 tool_registry = ToolRegistry()
-tool_registry.register_from_class(Calculator, with_namespace=False)
+tool_registry.register_from_class(Calculator, namespace=False)
 
 # Set up OpenAI client
 client = OpenAI(

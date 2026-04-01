@@ -1,6 +1,7 @@
 """Unit tests for the ToolRegistry class."""
 
 import json
+import warnings
 
 import pytest
 
@@ -225,18 +226,18 @@ class TestToolRegistry:
 
         assert callable_func is None
 
-    def test_set_execution_mode(self, sample_registry):
+    def test_set_default_execution_mode(self, sample_registry):
         """Test setting execution mode."""
-        sample_registry.set_execution_mode("thread")
+        sample_registry.set_default_execution_mode("thread")
         assert sample_registry._execution_mode == "thread"
 
-        sample_registry.set_execution_mode("process")
+        sample_registry.set_default_execution_mode("process")
         assert sample_registry._execution_mode == "process"
 
-    def test_set_execution_mode_invalid(self, sample_registry):
+    def test_set_default_execution_mode_invalid(self, sample_registry):
         """Test setting invalid execution mode raises ValueError."""
         with pytest.raises(ValueError, match="Invalid mode"):
-            sample_registry.set_execution_mode("invalid")
+            sample_registry.set_default_execution_mode("invalid")
 
     def test_execute_tool_calls_with_openai_format(self, populated_registry):
         """Test executing tool calls with OpenAI format."""
@@ -381,6 +382,49 @@ class TestToolRegistry:
 
         expected_name = f"{sample_registry.name}-test_func"
         assert expected_name in sample_registry
+
+
+class TestDeprecatedAliases:
+    """Test that deprecated API aliases emit DeprecationWarning."""
+
+    def test_with_namespace_deprecation_warning(self):
+        """with_namespace emits DeprecationWarning."""
+
+        class Calculator:
+            @staticmethod
+            def add(a: int, b: int) -> int:
+                """Add two numbers."""
+                return a + b
+
+        registry = ToolRegistry()
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            registry.register_from_class(Calculator, with_namespace=True)
+            assert any(issubclass(x.category, DeprecationWarning) for x in w)
+            assert any("with_namespace" in str(x.message) for x in w)
+
+    def test_set_execution_mode_deprecation_warning(self):
+        """set_execution_mode emits DeprecationWarning."""
+        registry = ToolRegistry()
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            registry.set_execution_mode("thread")
+            assert any(issubclass(x.category, DeprecationWarning) for x in w)
+
+    def test_list_all_tools_deprecation_warning(self):
+        """list_all_tools emits DeprecationWarning."""
+
+        def dummy_tool(x: int) -> int:
+            """A dummy tool."""
+            return x
+
+        registry = ToolRegistry()
+        registry.register(dummy_tool)
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = registry.list_all_tools()
+            assert any(issubclass(x.category, DeprecationWarning) for x in w)
+            assert len(result) == 1
 
 
 class TestToolRegistryTagFiltering:

@@ -280,8 +280,11 @@ class ToolRegistry(
                 remaining = 0
         return truncated
 
-    def set_execution_mode(self, mode: Literal["thread", "process"]) -> None:
-        """Set the execution mode for parallel tasks.
+    def set_default_execution_mode(self, mode: Literal["thread", "process"]) -> None:
+        """Set the default execution mode for parallel tasks.
+
+        This sets the default mode used by :meth:`execute_tool_calls` when no
+        per-call ``execution_mode`` override is provided.
 
         Args:
             mode (Literal["thread", "process"]): The desired execution mode.
@@ -292,6 +295,16 @@ class ToolRegistry(
         if mode not in {"thread", "process"}:
             raise ValueError("Invalid mode. Choose 'thread' or 'process'.")
         self._execution_mode = mode
+
+    def set_execution_mode(self, mode: Literal["thread", "process"]) -> None:
+        """Deprecated: use :meth:`set_default_execution_mode` instead."""
+        warnings.warn(
+            "set_execution_mode() is deprecated, "
+            "use set_default_execution_mode() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.set_default_execution_mode(mode)
 
     def execute_tool_calls(
         self,
@@ -580,12 +593,18 @@ class ToolRegistry(
         return self.build_tool_call_messages(tool_calls, tool_responses, api_format)
 
     # ============== Presentation ==============
-    def list_tools(self) -> list[str]:
-        """List enabled tools only.
+    def list_tools(self, include_disabled: bool = False) -> list[str]:
+        """List registered tools.
+
+        Args:
+            include_disabled: If ``True``, include disabled tools in the
+                result.  Defaults to ``False`` (only enabled tools).
 
         Returns:
-            List[str]: A list of enabled tool names.
+            List[str]: A list of tool names.
         """
+        if include_disabled:
+            return list(self._tools.keys())
         return [n for n in self._tools if self.is_enabled(n)]
 
     def get_available_tools(self) -> list[str]:
@@ -598,12 +617,14 @@ class ToolRegistry(
         return self.list_tools()
 
     def list_all_tools(self) -> list[str]:
-        """List all tools including disabled (for admin panel).
-
-        Returns:
-            List[str]: A list of all tool names.
-        """
-        return list(self._tools.keys())
+        """Deprecated: use ``list_tools(include_disabled=True)`` instead."""
+        warnings.warn(
+            "list_all_tools() is deprecated, "
+            "use list_tools(include_disabled=True) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.list_tools(include_disabled=True)
 
     def get_tools_status(self) -> list[dict[str, Any]]:
         """Get status information for all registered tools.

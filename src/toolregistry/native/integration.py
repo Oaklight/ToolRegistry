@@ -40,7 +40,7 @@ class ClassToolIntegration:
     def register_class_methods(
         self,
         cls_or_instance: type | object,
-        with_namespace: bool | str = False,
+        namespace: bool | str = False,
     ) -> None:
         """Register all methods from a class or instance as tools.
 
@@ -52,13 +52,13 @@ class ClassToolIntegration:
 
         Args:
             cls_or_instance (Union[Type, object]): The class or instance to scan for methods.
-            with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
+            namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
                 - If False, no namespace is used.
                 - If True, the namespace is derived from the class name.
                 - If a string is provided, it is used as the namespace.
                 Defaults to False.
         """
-        namespace = _determine_namespace(cls_or_instance, with_namespace)
+        namespace = _determine_namespace(cls_or_instance, namespace)
 
         if isinstance(cls_or_instance, type):
             if _is_all_static_methods(cls_or_instance):
@@ -80,7 +80,7 @@ class ClassToolIntegration:
     async def register_class_methods_async(
         self,
         cls_or_instance: type | object,
-        with_namespace: bool | str = False,
+        namespace: bool | str = False,
     ) -> None:
         """Async implementation to register tools from a class.
 
@@ -88,7 +88,7 @@ class ClassToolIntegration:
 
         Args:
             cls_or_instance (Union[Type, object]): The class or instance to scan for methods.
-            with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
+            namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
                 - If False, no namespace is used.
                 - If True, the namespace is derived from the class name.
                 - If a string is provided, it is used as the namespace.
@@ -96,7 +96,7 @@ class ClassToolIntegration:
         """
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(
-            None, self.register_class_methods, cls_or_instance, with_namespace
+            None, self.register_class_methods, cls_or_instance, namespace
         )
 
     def _collect_static_methods_from_mro(self, cls: type) -> dict:

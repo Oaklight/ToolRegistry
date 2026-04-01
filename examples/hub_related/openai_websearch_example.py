@@ -41,8 +41,8 @@ else:
     websearch = WebSearchGoogle()  # Assuming there's a WebSearchGoogle class
 
 
-tool_registry.register_from_class(websearch, with_namespace=True)
-tool_registry.register_from_class(UnitConverter, with_namespace=True)
+tool_registry.register_from_class(websearch, namespace=True)
+tool_registry.register_from_class(UnitConverter, namespace=True)
 
 print(tool_registry.list_tools())
 
