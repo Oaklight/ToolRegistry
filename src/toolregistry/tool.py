@@ -71,6 +71,23 @@ class ToolMetadata(BaseModel):
 
     extra: dict[str, Any] = Field(default_factory=dict)
 
+    defer: bool = False
+    """Whether this tool should be deferred from the initial prompt.
+
+    When ``True``, the tool's schema is excluded from the initial
+    tool list sent to the LLM.  The LLM can discover it via
+    ``ToolSearchTool`` and have the schema injected on demand.
+    """
+
+    search_hint: str = ""
+    """Free-form keywords to improve tool discoverability.
+
+    Indexed by ``ToolSearchTool`` alongside the tool's name,
+    description, and tags.  Use this to add synonyms, related
+    concepts, or domain-specific terms, e.g.
+    ``"jupyter notebook ipynb cell"``.
+    """
+
     @property
     def all_tags(self) -> set[str]:
         """Union of predefined and custom tags (all as str)."""
