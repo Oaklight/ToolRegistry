@@ -112,11 +112,16 @@ class MCPToolWrapper(BaseToolWrapper):
     def _post_process_result(self, result: Any) -> Any:
         """Post-process the result from an MCP tool call.
 
+        Returns canonical content block format when the result contains
+        non-text content (images, blobs).  Single text-only results are
+        returned as plain strings for backward compatibility.
+
         Args:
-            result (Any): Raw result from MCP tool call.
+            result: Raw result from MCP tool call.
 
         Returns:
-            Any: Processed result (single value or list).
+            A plain ``str`` for text-only results, or a
+            ``list[ContentBlock]`` for multimodal results.
 
         Raises:
             NotImplementedError: If content type is not supported.
@@ -131,26 +136,40 @@ class MCPToolWrapper(BaseToolWrapper):
                 return result
             contents = result.content
 
-        def process_text(content: TextContent) -> str:
-            return content.text
+        _IMAGE_MIME_PREFIXES = ("image/",)
+
+        def process_text(content: TextContent) -> dict:
+            return {"type": "text", "text": content.text}
 
         def process_image(content: ImageContent) -> dict:
             return {
                 "type": "image",
-                "data": content.data,
-                "mimeType": content.mimeType,
+                "source": {
+                    "type": "base64",
+                    "media_type": content.mimeType,
+                    "data": content.data,
+                },
             }
 
-        def process_embedded(content: EmbeddedResource) -> Any:
+        def process_embedded(content: EmbeddedResource) -> dict:
             if isinstance(content.resource, TextResourceContents):
-                return content.resource.text
+                return {"type": "text", "text": content.resource.text}
             elif isinstance(content.resource, BlobResourceContents):
+                mime = content.resource.mimeType or ""
+                if mime.startswith(_IMAGE_MIME_PREFIXES):
+                    return {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": mime,
+                            "data": content.resource.blob,
+                        },
+                    }
                 return {
-                    "type": "blob",
-                    "data": content.resource.blob,
-                    "mimeType": content.resource.mimeType,
+                    "type": "text",
+                    "text": f"[Blob: {mime}, {len(content.resource.blob)} chars]",
                 }
-            return content
+            return {"type": "text", "text": str(content)}
 
         handlers: dict[Any, Callable] = {
             TextContent: process_text,
@@ -168,7 +187,11 @@ class MCPToolWrapper(BaseToolWrapper):
                 )
             processed.append(handler(content))
 
-        return processed[0] if len(processed) == 1 else processed
+        # Single text-only result: return plain string for backward compat
+        if len(processed) == 1 and processed[0].get("type") == "text":
+            return processed[0]["text"]
+
+        return processed
 
 
 class MCPTool(Tool):

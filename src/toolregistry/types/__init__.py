@@ -16,6 +16,14 @@ from .common import (
     recover_assistant_message,
     recover_tool_message,
 )
+from .content_blocks import (
+    Base64ImageSource,
+    ContentBlock,
+    ImageBlock,
+    TextBlock,
+    content_blocks_to_text,
+    is_content_block_list,
+)
 from .openai import (
     ChatCompetionMessageToolCallResult,
     ChatCompletionMessage,
@@ -51,6 +59,13 @@ __all__ = [
     "recover_assistant_message",
     "recover_tool_message",
     "AnyToolCall",
+    # Content block types
+    "Base64ImageSource",
+    "ContentBlock",
+    "ImageBlock",
+    "TextBlock",
+    "content_blocks_to_text",
+    "is_content_block_list",
     # OpenAI Chat Completion API
     "Function",
     "Custom",
