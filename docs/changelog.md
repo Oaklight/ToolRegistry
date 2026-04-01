@@ -31,11 +31,21 @@ This page documents all notable changes to the ToolRegistry project since the fi
     - Add `locality` field to `ToolMetadata` with values `"local"`, `"remote"`, or `"any"` (default)
     - Enables classification of tools by execution location for filtering and scheduling
 
+- **Tag-Based Filtering and Stable Sorting** ([#83](../../issues/83))
+    - Add `tags`, `exclude_tags`, and `sort` parameters to `get_tools_json()`
+    - Enables prompt-level tool filtering and deterministic ordering, reducing token waste and improving prompt cache hit rates with large tool pools
+
 - **Persistent Connections for MCP and OpenAPI** ([#90](../../issues/90))
     - MCP integrations now maintain persistent connections across tool calls via `MCPConnectionManager`
     - OpenAPI integrations reuse `httpx` client sessions for connection pooling
     - Add `ToolRegistry.close()` / `close_async()` for explicit resource cleanup
     - Add context manager support: `with ToolRegistry() as reg:` and `async with ToolRegistry() as reg:`
+
+### Bug Fixes
+
+- **Gemini Tool Call ID and Name Resolution**
+    - Use deterministic (md5-based) IDs for Gemini `functionCall` parts instead of random UUIDs, so repeated `convert_tool_calls()` calls produce consistent IDs
+    - Fix `recover_tool_call_assistant_message` to pass `tool_calls` to `recover_tool_message`, resolving an issue where Gemini `functionResponse.name` showed a random hash instead of the function name
 
 ### Refactoring
 
