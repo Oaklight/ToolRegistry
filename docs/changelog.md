@@ -31,11 +31,21 @@ author: Oaklight
     - 为 `ToolMetadata` 添加 `locality` 字段，可选值为 `"local"`、`"remote"` 或 `"any"`（默认）
     - 支持按执行位置分类工具，便于过滤和调度
 
+- **基于标签的过滤与稳定排序**（[#83](../../issues/83)）
+    - 为 `get_tools_json()` 添加 `tags`、`exclude_tags` 和 `sort` 参数
+    - 支持 prompt 级工具过滤和确定性排序，减少 token 浪费，提高大规模工具池的 prompt 缓存命中率
+
 - **MCP 和 OpenAPI 持久连接**（[#90](../../issues/90)）
     - MCP 集成现通过 `MCPConnectionManager` 在工具调用间保持持久连接
     - OpenAPI 集成复用 `httpx` 客户端会话实现连接池
     - 新增 `ToolRegistry.close()` / `close_async()` 方法用于显式资源清理
     - 支持上下文管理器：`with ToolRegistry() as reg:` 和 `async with ToolRegistry() as reg:`
+
+### 修复
+
+- **Gemini 工具调用 ID 与名称解析**
+    - Gemini `functionCall` 部分的 ID 生成从随机 UUID 改为确定性 md5 哈希，使重复调用 `convert_tool_calls()` 产生一致的 ID
+    - 修复 `recover_tool_call_assistant_message` 未将 `tool_calls` 传递给 `recover_tool_message` 的问题，解决 Gemini `functionResponse.name` 显示随机哈希而非函数名的问题
 
 ### 重构
 
