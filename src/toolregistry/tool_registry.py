@@ -393,6 +393,15 @@ class ToolRegistry(
         messages = []
         generic_tool_calls = convert_tool_calls(tool_calls)
 
+        # Align IDs: convert_tool_calls may generate new IDs (e.g. Gemini
+        # format has no upstream ID), but tool_responses already carries
+        # the IDs produced by execute_tool_calls.  Remap by position so
+        # the assistant and tool messages reference the same IDs.
+        response_ids = list(tool_responses.keys())
+        for i, tc in enumerate(generic_tool_calls):
+            if i < len(response_ids):
+                tc.id = response_ids[i]
+
         # extend assistant message(s) of tool calls
         messages.extend(
             recover_assistant_message(generic_tool_calls, api_format=api_format)
