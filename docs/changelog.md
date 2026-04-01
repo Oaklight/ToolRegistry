@@ -41,6 +41,26 @@ author: Oaklight
     - 新增 `ToolRegistry.close()` / `close_async()` 方法用于显式资源清理
     - 支持上下文管理器：`with ToolRegistry() as reg:` 和 `async with ToolRegistry() as reg:`
 
+- **ToolSearchTool 动态工具发现**（[#108](../../pull/108)）
+    - 新增 `ToolSearchTool` 类，使用 BM25F 多字段评分进行自然语言工具搜索
+    - 内置 zerodep `SparseIndex` 作为 `_sparse_search.py`（零外部依赖）
+    - 新增 `ToolMetadata.defer` 字段，标记工具为延迟加载（从初始提示中排除）
+    - 新增 `ToolMetadata.search_hint` 字段，支持自由格式的搜索关键词和同义词
+    - 索引工具名称、描述、标签、参数名和 search_hint，支持可配置字段权重
+
+- **思维增强函数调用**（[#49](../../pull/49)）
+    - 在每个工具的参数 schema 中注入 `thought` 字符串属性，让 LLM 在调用工具时可以包含链式推理
+    - 该属性在执行前自动剥离
+    - 函数原生的 `thought` 参数会被保留（不会被覆盖）
+    - 覆盖所有集成路径（MCP、OpenAPI、LangChain、原生）
+    - 参考文献：[arXiv:2601.18282](https://arxiv.org/abs/2601.18282)
+
+- **结果大小管理**
+    - 新增 `ToolMetadata.max_result_size` 和 `ToolRegistry(default_max_result_size=...)` 用于自动结果截断
+    - 两种策略：`HEAD`（保留前 N 个字符）和 `HEAD_TAIL`（保留首尾部分，默认）
+    - 截断前完整结果自动持久化到临时文件
+    - 新增 `truncate_result()` 函数和 `TruncatedResult` 数据类供编程使用
+
 ### 修复
 
 - **Gemini 工具调用 ID 与名称解析**
