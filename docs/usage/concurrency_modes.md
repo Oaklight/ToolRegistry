@@ -70,7 +70,7 @@ Uses a process pool with **cloudpickle** serialization for true parallelism.
 from toolregistry import ToolRegistry
 
 registry = ToolRegistry()
-registry.set_execution_mode("thread")  # or "process" (default)
+registry.set_default_execution_mode("thread")  # or "process" (default)
 ```
 
 ### Per-Call Override

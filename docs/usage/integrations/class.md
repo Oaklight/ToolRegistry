@@ -11,7 +11,7 @@ The `register_from_class` method in `ToolRegistry` allows you to easily register
 
 ### Registering a Class with Static Methods
 
-Classes that exclusively use static methods can be registered directly without creating instances. Use the `with_namespace=True` argument to help organize tools under a namespace derived from the class name.
+Classes that exclusively use static methods can be registered directly without creating instances. Use the `namespace=True` argument to help organize tools under a namespace derived from the class name.
 
 ```python
 from toolregistry import ToolRegistry
@@ -22,7 +22,7 @@ class StaticExample:
         return f"Hello, {name}!"
 
 registry = ToolRegistry()
-registry.register_from_class(StaticExample, with_namespace=True)
+registry.register_from_class(StaticExample, namespace=True)
 
 # List registered tools
 print(registry.get_available_tools())
@@ -102,30 +102,30 @@ class ScientificCalculator(BaseCalculator):
 registry = ToolRegistry()
 
 # Default behavior (traverse_mro=True): inherited methods are included
-registry.register_from_class(ScientificCalculator, with_namespace=True)
+registry.register_from_class(ScientificCalculator, namespace=True)
 print(registry.get_available_tools())
 # Output: ['scientific_calculator-add', 'scientific_calculator-subtract', 'scientific_calculator-power']
 
 # With traverse_mro=False: only methods defined directly on the class are registered
 registry2 = ToolRegistry()
-registry2.register_from_class(ScientificCalculator, with_namespace=True, traverse_mro=False)
+registry2.register_from_class(ScientificCalculator, namespace=True, traverse_mro=False)
 print(registry2.get_available_tools())
 # Output: ['scientific_calculator-power']
 ```
 
 If you want to restrict registration to only methods defined directly on the class (excluding inherited ones), explicitly pass `traverse_mro=False`.
 
-## `with_namespace` Option
+## `namespace` Option
 
-Using `with_namespace=True` parameter adds the class name as a namespace prefix to tool names:
+Using `namespace=True` parameter adds the class name as a namespace prefix to tool names:
 
 ```python
-registry.register_from_class(BaseCalculator, with_namespace=True)
+registry.register_from_class(BaseCalculator, namespace=True)
 ```
 
 This will register tools with names like `base_calculator-add`, `base_calculator-subtract`, etc.
 
-**Advantages of using with_namespace**:
+**Advantages of using namespace**:
 
 1. Avoids naming conflicts between methods with same names in different classes
 2. More clearly identifies tool source
@@ -141,7 +141,7 @@ from toolregistry.hub import Calculator, FileOps
 registry = ToolRegistry()
 
 # Register Calculator tools (with namespace)
-registry.register_from_class(Calculator, with_namespace=True)
+registry.register_from_class(Calculator, namespace=True)
 
 # Register FileOps tools (without namespace)
 registry.register_from_class(FileOps)

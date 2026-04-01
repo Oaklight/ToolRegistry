@@ -124,7 +124,7 @@ from toolregistry import ToolRegistry, ToolMetadata, Tool
 registry = ToolRegistry()
 
 # Set the default execution mode
-registry.set_execution_mode("thread")  # or "process" (default)
+registry.set_default_execution_mode("thread")  # or "process" (default)
 
 # Per-call override
 results = registry.execute_tool_calls(tool_calls, execution_mode="thread")

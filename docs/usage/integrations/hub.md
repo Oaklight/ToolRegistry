@@ -34,7 +34,7 @@ from toolregistry.hub import BaseCalculator, Calculator, FileOps
 registry = ToolRegistry()
 
 # Register Calculator tools (with namespace)
-registry.register_from_class(Calculator, with_namespace=True)
+registry.register_from_class(Calculator, namespace=True)
 
 # Register FileOps tools (without namespace)
 registry.register_from_class(FileOps)
@@ -44,15 +44,15 @@ print(registry.get_available_tools())
 # Output: ['calculator-list_allowed_fns', 'calculator-help', 'calculator-evaluate', 'read_file', 'write_file', ...]
 ```
 
-Using the `with_namespace=True` parameter during registration adds the class name as a namespace prefix to tool names, ensuring better organization and avoiding naming conflicts. For example:
+Using the `namespace=True` parameter during registration adds the class name as a namespace prefix to tool names, ensuring better organization and avoiding naming conflicts. For example:
 
 ```python
-registry.register_from_class(BaseCalculator, with_namespace=True)
+registry.register_from_class(BaseCalculator, namespace=True)
 ```
 
 This will register tools with names like `base_calculator-add`, `base_calculator-subtract`, etc.
 
-Advantages of using `with_namespace`:
+Advantages of using `namespace`:
 
 1. Avoids naming conflicts between methods with the same names in different classes.
 2. More clearly identifies tool sources.

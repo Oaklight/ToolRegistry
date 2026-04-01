@@ -132,7 +132,7 @@ openapi_spec = load_openapi_spec("http://localhost:8000/openapi.json") # URL to 
 registry.register_from_openapi(
     client_config=client_config,
     openapi_spec=openapi_spec,
-    with_namespace=False,
+    namespace=False,
 )
 ```
 

@@ -91,6 +91,9 @@ This page documents all notable changes to the ToolRegistry project since the fi
     - `recover_tool_call_assistant_message()` → `build_tool_call_messages()` on `ToolRegistry`
     - `recover_assistant_message()` → `build_assistant_message()` (module-level)
     - `recover_tool_message()` → `build_tool_response()` (module-level)
+    - `with_namespace` parameter renamed to `namespace` in all `register_from_*` methods (old name still accepted with deprecation warning)
+    - `set_execution_mode()` renamed to `set_default_execution_mode()` (old name deprecated)
+    - `list_all_tools()` merged into `list_tools(include_disabled=True)` (old name deprecated)
     - Add `"openai-chat"` as canonical API format name; deprecate `"openai"` and `"openai-chatcompletion"`
     - All old names remain as deprecated aliases with `DeprecationWarning`
 
@@ -177,7 +180,7 @@ This page documents all notable changes to the ToolRegistry project since the fi
 	- Add method-level and namespace-level disable with reason tracking
 	- New methods: `disable(name, reason)`, `enable(name)`, `is_enabled(tool_name)`, `get_disable_reason(tool_name)`
 	- `list_tools()` now only returns enabled tools
-	- Add `list_all_tools()` for admin panel use (returns all tools including disabled)
+	- Add `list_tools(include_disabled=True)` for admin panel use (returns all tools including disabled)
 	- `get_tools_json()` filters disabled tools when no specific tool_name given
 	- `execute_tool_calls()` returns error message for disabled tools instead of executing
 	- Add 28 new tests

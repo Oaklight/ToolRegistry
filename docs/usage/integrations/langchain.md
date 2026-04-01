@@ -126,6 +126,6 @@ if __name__ == "__main__":
 ## Notes
 
 - Ensure the corresponding extension dependencies (e.g., langchain) are installed.
-- The `with_namespace` parameter allows flexible namespace configuration when registering tools to avoid naming conflicts from different sources.
+- The `namespace` parameter allows flexible namespace configuration when registering tools to avoid naming conflicts from different sources.
 
 The LangChain integration module enhances the Tool Registry's flexibility in supporting various tool sources, making it easier for developers to invoke different types of tools through a unified interface.

@@ -153,7 +153,7 @@ if __name__ == "__main__":
         # stdio
         transport = "/home/pding/projects/toolregistry/examples/mcp_related/mcp_servers/math_server.py"
 
-    tool_registry.register_from_mcp(transport, with_namespace=True)
+    tool_registry.register_from_mcp(transport, namespace=True)
 
     print(tool_registry.get_available_tools())
 
@@ -256,7 +256,7 @@ if __name__ == "__main__":
         # stdio
         transport = "/home/pding/projects/toolregistry/examples/mcp_related/mcp_servers/math_server.py"
 
-    tool_registry.register_from_mcp(transport, with_namespace=True)
+    tool_registry.register_from_mcp(transport, namespace=True)
 
     print(tool_registry.get_available_tools())
 

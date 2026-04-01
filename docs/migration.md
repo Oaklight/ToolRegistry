@@ -24,8 +24,8 @@ results = registry.execute_tool_calls(tool_calls, parallel_mode="thread")
 from toolregistry import ToolRegistry
 
 registry = ToolRegistry()
-# Use execution_mode parameter or set_execution_mode()
-registry.set_execution_mode("thread")  # "thread" or "process"
+# Use execution_mode parameter or set_default_execution_mode()
+registry.set_default_execution_mode("thread")  # "thread" or "process"
 results = registry.execute_tool_calls(tool_calls)
 
 # Or per-call override
