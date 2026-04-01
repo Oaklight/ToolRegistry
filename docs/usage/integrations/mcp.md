@@ -132,6 +132,55 @@ asyncio.run(call_async_add_func())
 asyncio.run(call_async_add_tool())
 ```
 
+## Persistent Connections
+
+???+ note "Changelog"
+    New in version: 0.7.0
+
+By default, MCP connections are now **persistent** — the connection to the MCP server stays open across multiple tool calls, avoiding repeated handshake overhead. This is managed by `MCPConnectionManager` internally.
+
+### Context Manager Usage
+
+Use `ToolRegistry` as a context manager to ensure connections are properly closed:
+
+```python
+from toolregistry import ToolRegistry
+
+# Synchronous
+with ToolRegistry() as registry:
+    registry.register_from_mcp("http://localhost:8000/mcp")
+    result = registry["add"](1, 2)
+# Connections are automatically closed on exit
+
+# Asynchronous
+async with ToolRegistry() as registry:
+    await registry.register_from_mcp_async("http://localhost:8000/mcp")
+    result = await registry["add"](1, 2)
+# Connections are automatically closed on exit
+```
+
+### Explicit Cleanup
+
+You can also close connections explicitly:
+
+```python
+registry = ToolRegistry()
+registry.register_from_mcp("http://localhost:8000/mcp")
+# ... use tools ...
+registry.close()  # Close all persistent connections
+
+# Or in async code:
+await registry.close_async()
+```
+
+### Opting Out
+
+If you prefer per-call connections (the old behavior), pass `persistent=False` during registration:
+
+```python
+registry.register_from_mcp("http://localhost:8000/mcp", persistent=False)
+```
+
 ## Integrating MCP with OpenAI Client
 
 Enhance OpenAI workflows by registering MCP tools in ToolRegistry, providing tool schemas for automated execution during chat completions.

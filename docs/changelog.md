@@ -27,6 +27,32 @@ This page documents all notable changes to the ToolRegistry project since the fi
     - **Permission Rule Engine** ([#82](../../issues/82), [#86](../../pull/86)): Add `PermissionRule` and `PermissionPolicy` models with first-match-wins evaluation; add `set_permission_policy()`, `get_permission_policy()`, `remove_permission_policy()` methods; add five built-in rules (`ALLOW_READONLY`, `ASK_DESTRUCTIVE`, `DENY_PRIVILEGED`, `ASK_NETWORK`, `ASK_FILE_SYSTEM`); permission checks integrated into `execute_tool_calls()`
     - Add `PERMISSION_DENIED` and `PERMISSION_ASKED` event types to the callback mechanism
 
+- **ToolMetadata Locality** ([#89](../../issues/89))
+    - Add `locality` field to `ToolMetadata` with values `"local"`, `"remote"`, or `"any"` (default)
+    - Enables classification of tools by execution location for filtering and scheduling
+
+- **Persistent Connections for MCP and OpenAPI** ([#90](../../issues/90))
+    - MCP integrations now maintain persistent connections across tool calls via `MCPConnectionManager`
+    - OpenAPI integrations reuse `httpx` client sessions for connection pooling
+    - Add `ToolRegistry.close()` / `close_async()` for explicit resource cleanup
+    - Add context manager support: `with ToolRegistry() as reg:` and `async with ToolRegistry() as reg:`
+
+### Refactoring
+
+- **Pluggable Executor Backend Architecture** ([#78](../../issues/78))
+    - Replace monolithic `Executor` class with a pluggable `executor/` package
+    - New `ExecutionBackend` Protocol and `ExecutionHandle` ABC for backend extensibility
+    - `ThreadBackend`: thread-pool executor with cooperative cancellation via `ExecutionContext`
+    - `ProcessPoolBackend`: process-pool executor with cloudpickle serialization
+    - `ToolMetadata.timeout` enforcement at the backend level
+    - `ToolMetadata.is_concurrency_safe` controls sequential vs parallel batching
+    - Tool functions can accept `_ctx: ExecutionContext` for cooperative cancellation and progress reporting
+
+- **Mixin-Based ToolRegistry Architecture** ([#94](../../issues/94))
+    - Split `tool_registry.py` (1459 lines) into 7 focused mixin classes (454 lines remaining)
+    - Mixins: `ChangeCallbackMixin`, `NamespaceMixin`, `EnableDisableMixin`, `RegistrationMixin`, `PermissionsMixin`, `ExecutionLoggingMixin`, `AdminMixin`
+    - Public API unchanged; cooperative `__init__` via MRO chain
+
 ## [0.6.1] - 2026-03-22
 
 ### Bug Fixes

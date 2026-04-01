@@ -130,6 +130,51 @@ openapi_spec = load_openapi_spec("http://localhost:8000") # auto-discovery with 
 openapi_spec = load_openapi_spec("http://localhost:8000/openapi.json") # load from specification URL
 ```
 
+## Persistent Connections
+
+???+ note "Changelog"
+    New in version: 0.7.0
+
+By default, OpenAPI integrations now use **persistent HTTP connections** — the `httpx` client is reused across multiple tool calls, enabling connection pooling and reducing latency.
+
+### Context Manager Usage
+
+Use `ToolRegistry` as a context manager to ensure HTTP clients are properly closed:
+
+```python
+from toolregistry import ToolRegistry
+from toolregistry.openapi import HttpxClientConfig, load_openapi_spec
+
+with ToolRegistry() as registry:
+    client_config = HttpxClientConfig(base_url="http://localhost:8000")
+    openapi_spec = load_openapi_spec("http://localhost:8000")
+    registry.register_from_openapi(client_config=client_config, openapi_spec=openapi_spec)
+    result = registry["add_get"](1, 2)
+# HTTP clients are automatically closed on exit
+```
+
+### Explicit Cleanup
+
+```python
+registry = ToolRegistry()
+registry.register_from_openapi(client_config=client_config, openapi_spec=openapi_spec)
+# ... use tools ...
+registry.close()  # Close all persistent HTTP clients
+
+# Or in async code:
+await registry.close_async()
+```
+
+### Opting Out
+
+To create a fresh HTTP client per call (the old behavior), pass `persistent=False`:
+
+```python
+registry.register_from_openapi(
+    client_config=client_config, openapi_spec=openapi_spec, persistent=False
+)
+```
+
 ## Calling OpenAPI Tools
 
 Once the OpenAPI tools are registered, they support both synchronous and asynchronous invocation methods.

@@ -1,166 +1,140 @@
-# Executor
+# Executor Backends
 
-Handles the execution of tool calls with support for different concurrency modes and parallel execution strategies.
+The `executor` package provides pluggable execution backends for running tool functions with concurrency, cancellation, and timeout support.
 
 ## Overview
 
-The `Executor` class serves as the core execution engine for the ToolRegistry system, providing efficient parallel tool execution with support for both thread-based and process-based concurrency. It handles the complexity of concurrent tool execution while maintaining thread safety and proper resource management.
+The executor package operates on bare `Callable + dict` arguments with **zero imports** from toolregistry internals. `ToolRegistry.execute_tool_calls()` translates tool calls into this interface automatically.
 
-## Key Features
-
-- **Dual Execution Modes**: Support for both thread-pool and process-pool execution
-- **Automatic Serialization**: Uses dill for function serialization across process boundaries
-- **Async/Sync Bridge**: Automatic conversion of async functions to sync execution
-- **Error Handling**: Comprehensive error handling and result serialization
-- **Resource Management**: Automatic cleanup of executor pools on shutdown
-- **Fallback Support**: Graceful fallback from process to thread execution
-
-## Architecture
-
-The Executor follows a strategy pattern for concurrent execution:
-
-### Core Components
-
-1. **Process Pool Executor**: For CPU-bound tasks and true parallel execution
-2. **Thread Pool Executor**: For I/O-bound tasks and lightweight concurrency
-3. **Execution Mode Management**: Dynamic switching between execution strategies
-4. **Function Serialization**: dill-based serialization for cross-process execution
-
-### Execution Flow
+### Architecture
 
 ```
-Tool Call Request
+ToolRegistry.execute_tool_calls()
     ↓
-Function Serialization (if process mode)
+Extract callable + arguments from Tool
     ↓
-Executor Pool Selection
+backend.submit(fn, kwargs, timeout=...)
     ↓
-Parallel Execution
+ExecutionHandle (cancel, status, result, progress)
     ↓
-Result Collection & Serialization
-    ↓
-Response Mapping
+Collect results → dict[str, str]
 ```
 
-## API Reference
+## Backends
 
-::: toolregistry.executor.Executor
-options:
-show_source: false
-show_root_heading: true
-show_root_toc_entry: false
-merge_init_into_class: true
+### ThreadBackend
 
-## Usage Examples
-
-### Basic Executor Setup
+Thread-pool executor with **cooperative cancellation** via `ExecutionContext`.
 
 ```python
-from toolregistry.executor import Executor
+from toolregistry.executor import ThreadBackend
 
-# Create executor instance
-executor = Executor()
-
-# Set execution mode
-executor.set_execution_mode("process")  # or "thread"
+backend = ThreadBackend(max_workers=4)
+handle = backend.submit(my_func, {"x": 1, "y": 2}, timeout=10.0)
+result = handle.result()
+backend.shutdown()
 ```
 
-### Tool Execution
+Features:
+
+- Cooperative cancellation via `ExecutionContext`
+- Progress reporting via `handle.on_progress(callback)`
+- Automatic async-to-sync wrapping
+- Auto-injection of `_ctx: ExecutionContext` parameter
+
+### ProcessPoolBackend
+
+Process-pool executor with **cloudpickle serialization** for true parallelism.
 
 ```python
-import json
-from toolregistry.executor import Executor
-from toolregistry.types import ToolCall
+from toolregistry.executor import ProcessPoolBackend
 
-def get_tool_function(tool_name: str):
-    """Function to retrieve tool by name."""
-    # Implementation depends on your tool registry
-    pass
-
-# Prepare tool calls
-tool_calls = [
-    ToolCall(id="call_1", name="calculate", arguments='{"a": 5, "b": 3}'),
-    ToolCall(id="call_2", name="multiply", arguments='{"x": 4, "y": 2}'),
-]
-
-# Execute tool calls
-executor = Executor()
-results = executor.execute_tool_calls(get_tool_function, tool_calls)
-
-# Results: {"call_1": "8", "call_2": "8"}
+backend = ProcessPoolBackend(max_workers=4)
+handle = backend.submit(my_func, {"x": 1, "y": 2}, timeout=10.0)
+result = handle.result()
+backend.shutdown()
 ```
 
-### Async Function Support
+Features:
+
+- True parallel execution across processes
+- Cloudpickle serialization for function transport
+- Automatic async-to-sync wrapping
+- Hard cancel via `future.cancel()` (no cooperative cancellation)
+
+## ExecutionContext
+
+Tool functions can opt into cooperative cancellation and progress reporting by declaring a `_ctx: ExecutionContext` parameter:
 
 ```python
-import asyncio
-from toolregistry.executor import Executor
+from toolregistry.executor import ExecutionContext
 
-async def async_calculator(a: int, b: int) -> int:
-    """Async calculation function."""
-    await asyncio.sleep(0.1)  # Simulate async work
-    return a + b
-
-# Async functions are automatically converted to sync
-# when executed through the executor
+def long_running_task(data: list, _ctx: ExecutionContext) -> str:
+    for i, item in enumerate(data):
+        _ctx.check_cancelled()  # raises CancelledError if cancelled
+        process(item)
+        _ctx.report_progress(fraction=(i + 1) / len(data), message=f"Step {i+1}")
+    return "done"
 ```
 
-## Execution Modes
+The backend auto-injects the context when it detects the `_ctx` parameter. Users do **not** pass it explicitly.
 
-### Process Mode
+**Key methods:**
 
-- **Use Case**: CPU-bound tasks, true parallel execution
-- **Pros**: True parallelism, memory isolation
-- **Cons**: Higher overhead, serialization required
-- **Best For**: Mathematical computations, data processing
+| Method | Description |
+|--------|-------------|
+| `cancelled` | Property: `True` if cancellation was requested |
+| `check_cancelled()` | Raises `CancelledError` if cancelled |
+| `report_progress(fraction, message, detail)` | Emit a progress update |
 
-### Thread Mode
+## ExecutionHandle
 
-- **Use Case**: I/O-bound tasks, lightweight concurrency
-- **Pros**: Lower overhead, shared memory
-- **Cons**: GIL limitations, less true parallelism
-- **Best For**: API calls, file operations, database queries
+Returned by `backend.submit()`. Controls and observes a running execution.
 
-## Configuration
+| Method | Description |
+|--------|-------------|
+| `result(timeout)` | Block until result or timeout |
+| `cancel()` | Request cancellation |
+| `status()` | Return `ExecutionStatus` (PENDING, RUNNING, COMPLETED, FAILED, CANCELLED) |
+| `on_progress(callback)` | Register a progress listener |
+| `execution_id` | Unique ID for this execution |
 
-### Mode Selection
+## ExecutionBackend Protocol
+
+Custom backends can be created by implementing the `ExecutionBackend` protocol:
 
 ```python
-# Dynamic mode setting
-executor.set_execution_mode("thread")  # Switch to thread mode
+from toolregistry.executor import ExecutionBackend, ExecutionHandle
 
-# Per-execution mode override
-results = executor.execute_tool_calls(
-    get_tool_fn,
-    tool_calls,
-    execution_mode="process"
-)
+class MyBackend:
+    def submit(self, fn, kwargs, *, execution_id=None, timeout=None) -> ExecutionHandle:
+        ...
+
+    def shutdown(self, wait=True) -> None:
+        ...
 ```
 
-### Resource Management
+## Integration with ToolRegistry
+
+Backends are used transparently via `ToolRegistry`:
 
 ```python
-# Automatic cleanup on program exit
-# Manual shutdown (rarely needed)
-executor._shutdown_executors()
+from toolregistry import ToolRegistry, ToolMetadata, Tool
+
+registry = ToolRegistry()
+
+# Set the default execution mode
+registry.set_execution_mode("thread")  # or "process" (default)
+
+# Per-call override
+results = registry.execute_tool_calls(tool_calls, execution_mode="thread")
+
+# Timeout enforcement via ToolMetadata
+tool = Tool.from_function(slow_func, metadata=ToolMetadata(timeout=5.0))
+registry.register(tool)
+
+# Concurrency safety control
+tool = Tool.from_function(unsafe_func, metadata=ToolMetadata(is_concurrency_safe=False))
+registry.register(tool)
+# When any tool in a batch is not concurrency-safe, the entire batch runs sequentially
 ```
-
-## Error Handling
-
-The executor provides robust error handling:
-
-- **Serialization Errors**: Graceful handling of non-serializable functions
-- **Execution Errors**: Individual tool call failures don't crash other executions
-- **Fallback Mechanisms**: Automatic fallback from process to thread execution
-- **Result Serialization**: Automatic conversion of non-JSON results to strings
-
-## Integration
-
-The Executor integrates with:
-
-- **ToolRegistry**: Primary execution engine for tool calls
-- **Tool Classes**: Works with any Tool implementation
-- **LLM Applications**: Handles tool calls from language models
-- **Async Frameworks**: Bridges async/sync execution boundaries
-
-This makes it the central execution component that enables efficient, concurrent tool execution across the entire ToolRegistry ecosystem.

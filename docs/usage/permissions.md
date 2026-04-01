@@ -138,6 +138,18 @@ Predefined tags for common tool characteristics:
 | `SLOW` | Tool may take a long time |
 | `PRIVILEGED` | Tool requires elevated permissions |
 
+### ToolMetadata Fields
+
+Beyond tags, `ToolMetadata` provides execution hints:
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `tags` | `set[ToolTag]` | `set()` | Predefined classification tags |
+| `custom_tags` | `set[str]` | `set()` | User-defined tags |
+| `timeout` | `float \| None` | `None` | Per-call timeout in seconds |
+| `is_concurrency_safe` | `bool` | `True` | Whether the tool can run concurrently |
+| `locality` | `"local" \| "remote" \| "any"` | `"any"` | Where the tool executes (local machine, remote server, or either) |
+
 ### Tagging Tools
 
 ```python
@@ -149,6 +161,7 @@ tool = Tool.from_function(
         tags={ToolTag.NETWORK, ToolTag.SLOW},
         custom_tags={"requires_api_key"},
         timeout=30.0,
+        locality="remote",
     ),
 )
 registry.register(tool)
