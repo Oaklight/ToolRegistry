@@ -202,7 +202,7 @@ API_FORMATS = Literal[
     "gemini",
 ]
 
-_DEPRECATED_API_FORMATS: dict[str, str] = {
+_DEPRECATED_API_FORMATS: dict[str, API_FORMATS] = {
     "openai": "openai-chat",
     "openai-chatcompletion": "openai-chat",
 }
@@ -213,14 +213,14 @@ def _normalize_api_format(api_format: API_FORMATS) -> API_FORMATS:
 
     Emits a ``DeprecationWarning`` when a deprecated name is used.
     """
-    canonical = _DEPRECATED_API_FORMATS.get(api_format)  # type: ignore[arg-type]
+    canonical = _DEPRECATED_API_FORMATS.get(api_format)
     if canonical is not None:
         warnings.warn(
             f'api_format="{api_format}" is deprecated, use "{canonical}" instead.',
             DeprecationWarning,
             stacklevel=3,
         )
-        return canonical  # type: ignore[return-value]
+        return canonical
     return api_format
 
 
