@@ -41,12 +41,17 @@ author: Oaklight
     - 新增 `ToolRegistry.close()` / `close_async()` 方法用于显式资源清理
     - 支持上下文管理器：`with ToolRegistry() as reg:` 和 `async with ToolRegistry() as reg:`
 
-- **ToolSearchTool 动态工具发现**（[#108](../../pull/108)）
+- **ToolSearchTool 动态工具发现**（[#108](../../pull/108)、[#114](../../pull/114)）
     - 新增 `ToolSearchTool` 类，使用 BM25F 多字段评分进行自然语言工具搜索
     - 内置 zerodep `SparseIndex` 作为 `_sparse_search.py`（零外部依赖）
     - 新增 `ToolMetadata.defer` 字段，标记工具为延迟加载（从初始提示中排除）
     - 新增 `ToolMetadata.search_hint` 字段，支持自由格式的搜索关键词和同义词
     - 索引工具名称、描述、标签、参数名和 search_hint，支持可配置字段权重
+    - 新增 `enable_tool_search()` / `disable_tool_search()`，将 `search_tools` 注册为 registry 中的一等可调用工具（[#114](../../pull/114)）
+    - 为 `get_schemas()` 添加 `include_deferred` 参数 — 设为 `False` 可从初始 schema 中排除延迟工具（[#114](../../pull/114)）
+    - 延迟工具的搜索结果现在包含完整的工具 `schema`，使 LLM 发现后可立即调用（[#114](../../pull/114)）
+    - 通过 ChangeCallback 在工具注册或注销时自动重建搜索索引（[#114](../../pull/114)）
+    - 新增 `ToolRegistry(tool_search=True)` 构造函数参数提供便捷启用方式（[#114](../../pull/114)）
 
 - **思维增强函数调用**（[#49](../../pull/49)）
     - 在工具的参数 schema 中注入 `thought` 字符串属性，让 LLM 在调用工具时可以包含链式推理
