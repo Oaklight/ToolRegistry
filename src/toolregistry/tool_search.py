@@ -19,6 +19,7 @@ from ._sparse_search import SparseIndex
 if TYPE_CHECKING:
     from .tool import Tool
     from .tool_registry import ToolRegistry
+    from .types import API_FORMATS
 
 _DEFAULT_FIELD_WEIGHTS: dict[str, float] = {
     "name": 3.0,
@@ -114,7 +115,7 @@ class ToolSearchTool:
         self,
         query: str,
         top_k: int = 10,
-        api_format: str = "openai-chat",
+        api_format: API_FORMATS = "openai-chat",
     ) -> list[dict[str, Any]]:
         """Search tools matching the query.
 
