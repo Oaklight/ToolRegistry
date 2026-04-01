@@ -1,5 +1,8 @@
 # Consecutive Tool Calls
 
+!!! warning "本页尚未翻译"
+    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+
 In real agentic AI development, it's common to see LLM using multiple tools consecutively to accomplish a task. This example demonstrates how to handle such scenarios.
 
 We ask LLM to query the latest weather of some location (mock API call), which is often in Celsius, and then ask it to convert the temperature to Fahrenheit.

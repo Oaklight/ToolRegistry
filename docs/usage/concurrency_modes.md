@@ -1,142 +1,148 @@
-# 并发模式：线程模式和进程模式
+# 执行模式：线程与进程
 
 ???+ note "更新日志"
-    新增于版本：0.4.5
+    - 重构于版本：0.7.0（可插拔执行器后端）
+    - 新增于版本：0.4.5
 
 ## 概览
 
-在版本 0.4.5 之前，执行模式由 `tool_calls` 中的任务数量决定。对于两个或更少的任务，主线程按顺序执行它们。对于超过两个任务，使用线程池进行并行执行。
+ToolRegistry 使用可插拔的**执行器后端**并发执行工具调用。提供两种后端：
 
-版本 0.4.5 引入了并发进程模式作为默认执行模式，确保增强的隔离和崩溃预防。并发线程模式仍然可用作需要共享内存或较低开销场景的可选备份。
+| 后端 | 类 | 适用场景 |
+|------|---|---------|
+| **线程** | `ThreadBackend` | 轻量级 CPU 密集型任务、共享内存场景 |
+| **进程** | `ProcessPoolBackend` | 网络 I/O（MCP、OpenAPI）、崩溃隔离 |
 
-## 设计概念
+进程模式是**默认模式** — 它为网络密集型工具提供更好的隔离和更高的吞吐量。
 
-### 线程模式
+## 工作原理
 
-- **目的**：适用于需要共享内存和最小开销的轻量级任务。
-- **优势**：
-  - 更快的上下文切换。
-  - 共享内存访问。
-- **限制**：
-  - 由于共享内存损坏而容易崩溃。
+当调用 `execute_tool_calls()` 时，ToolRegistry 将每个调用路由到选定的后端：
 
-### 进程模式
+```
+execute_tool_calls(tool_calls)
+    ↓
+从每个 Tool 中提取 callable + arguments
+    ↓
+backend.submit(fn, kwargs, timeout=...)  →  ExecutionHandle
+    ↓
+收集结果 → dict[str, str]
+```
 
-- **目的**：适用于需要高隔离和安全性的任务。
-- **优势**：
-  - 独立的内存空间。
-  - 增强的崩溃抵抗力。
-- **限制**：
-  - 由于进程间通信而产生更高的开销。
+每次提交返回一个 `ExecutionHandle`，支持取消、状态查询和进度回调。详见 [Executor API 参考](../api/core/executor.md)。
+
+## 线程模式
+
+使用线程池（`concurrent.futures.ThreadPoolExecutor`），通过 `ExecutionContext` 实现协作式取消。
+
+**优势：**
+
+- CPU 密集型本地函数开销更低
+- 共享内存 — 无需序列化
+- 支持协作式取消和进度报告
+
+**限制：**
+
+- 受 GIL 限制，CPU 密集型任务无法真正并行
+- 共享内存在高并发 I/O 下可能导致损坏或争用
+
+## 进程模式（默认）
+
+使用进程池，通过 **cloudpickle** 序列化实现真正的并行。
+
+**优势：**
+
+- 独立内存空间 — 工具调用之间的崩溃隔离
+- 无 GIL — 真正的并行执行
+- 网络 I/O（MCP、OpenAPI）吞吐量更高，因为事件循环互相隔离
+
+**限制：**
+
+- 进程间通信和序列化带来更高开销
+- 不支持协作式取消（使用 `future.cancel()` 硬取消）
+- 函数和参数必须可序列化
 
 ## 模式切换
 
-### 配置
+### 永久更改
 
-可以通过修改 ToolRegistry 配置或在执行期间覆盖来切换模式。以下步骤概述了该过程：
+```python
+from toolregistry import ToolRegistry
 
-默认情况下，`ToolRegistry` 初始化时将 `parallel_mode` 设置为 `"process"`。要永久更改模式，请使用 `set_execution_mode` 方法。对于单次使用覆盖，在 `execute_tool_calls` 方法中提供 `parallel_mode` 参数。
-
-#### 示例
-
-1. **线程模式**：
-
-   - 将执行模式设置为 `thread`。
-   - 示例：
-
-     ```python
-     tool_registry.set_execution_mode("thread")
-     ```
-
-2. **进程模式（默认）**：
-
-   - 将执行模式设置为 `process`。
-   - 示例：
-
-     ```python
-     tool_registry.set_execution_mode("process")
-     ```
-
-3. **单次使用覆盖**：
-
-   - 在执行期间覆盖模式。
-   - 示例：
-
-     ```python
-     tool_registry.execute_tool_calls(tool_calls, parallel_mode="thread")
-     ```
-
-## 性能和结果
-
-为了评估并发执行模式的性能，我们使用脚本 [`examples/test_toolregistry_concurrency.py`](https://github.com/Oaklight/ToolRegistry/blob/concurrent%2Bdill/examples/test_toolregistry_concurrency.py) 进行了实验。测试涉及在四种场景中执行 100 个工具调用（`N = 100`）：原生函数工具、原生类工具、OpenAPI 工具和 MCP SSE 工具。每个工具调用执行简单的随机数学运算（`add`、`subtract`、`multiply` 和 `divide`）。测试在 `"process"` 和 `thread` 模式下测量执行时间和吞吐量。
-
-### 并发模式性能比较
-
-#### 性能日志
-
-```bash
-$ EXEC_MODE=thread python examples/test_toolregistry_concurrency.py
----------- Native Func Tool ----------
-Success rate: 100.00% (100/100)
-Average execution time: 0.021 seconds
-Average throughput: 4772.17 calls/second
----------- Native Class Tool ----------
-Success rate: 100.00% (100/100)
-Average execution time: 0.0083 seconds
-Average throughput: 12125.03 calls/second
----------- OpenAPI Tool ----------
-Success rate: 100.00% (100/100)
-Average execution time: 3.5234 seconds
-Average throughput: 28.40 calls/second
----------- MCP SSE Tool ----------
-Success rate: 100.00% (100/100)
-Average execution time: 3.6547 seconds
-Average throughput: 27.39 calls/second
-
-$ EXEC_MODE=process python examples/test_toolregistry_concurrency.py
----------- Native Func Tool ----------
-Success rate: 100.00% (100/100)
-Average execution time: 0.0425 seconds
-Average throughput: 2357.26 calls/second
----------- Native Class Tool ----------
-Success rate: 100.00% (100/100)
-Average execution time: 0.0332 seconds
-Average throughput: 3010.66 calls/second
----------- OpenAPI Tool ----------
-Success rate: 100.00% (100/100)
-Average execution time: 0.2216 seconds
-Average throughput: 451.28 calls/second
----------- MCP SSE Tool ----------
-Success rate: 100.00% (100/100)
-Average execution time: 0.7551 seconds
-Average throughput: 132.44 calls/second
+registry = ToolRegistry()
+registry.set_execution_mode("thread")  # 或 "process"（默认）
 ```
 
-注意：此计算由 `cicada-agent` 使用包含 `Calculator` 和 `FileOps` 的 `ToolRegistry` 作为演示完成。
+### 单次调用覆盖
 
-#### 分析
+```python
+results = registry.execute_tool_calls(tool_calls, execution_mode="thread")
+```
 
-1. **MCP 集成实现**
+## 通过 ToolMetadata 控制并发
 
-- MCP 工具同步调用在每次调用时创建和关闭事件循环，造成开销。
-- 异步调用使用 SSE 长连接和事件循环，具有网络 I/O 和事件循环调度开销。
-- 线程模式在线程间共享进程资源，在事件循环和网络连接中造成资源争用，导致性能瓶颈（27.39 调用/秒）。
-- 进程模式每个进程使用独立的事件循环和网络连接，减少争用并提高吞吐量（132.44 调用/秒）。
+### 超时控制
 
-2. **OpenAPI 集成实现**
+通过 `ToolMetadata` 设置单工具超时，后端自动执行：
 
-- OpenAPI 工具同步调用使用 httpx 同步客户端；异步调用使用 httpx 异步客户端。
-- 线程模式下许多线程发出网络请求会导致线程切换和网络 I/O 争用，降低性能（28.40 调用/秒）。
-- 进程模式使用独立进程，避免 GIL 和线程上下文切换开销，改善网络 I/O 调度（451.28 调用/秒）。
+```python
+from toolregistry import Tool, ToolMetadata
 
-3. **原生本地工具调用**
+tool = Tool.from_function(slow_func, metadata=ToolMetadata(timeout=5.0))
+registry.register(tool)
+# 如果 slow_func 执行超过 5 秒，将被取消/超时
+```
 
-- 原生函数和类工具调用主要是 CPU 和内存操作；线程模式释放 GIL 并具有低线程切换开销，导致更好的性能（函数 4772.17 调用/秒，类 12125.03 调用/秒）。
-<!-- - 类工具显示更高的吞吐量，因为更高效的方法绑定和减少的每次调用开销 -->
-- 进程模式实现真正的并行性但具有更高的开销，与线程模式相比吞吐量较低（函数 2357.26 调用/秒，类 3010.66 调用/秒）。
+### 顺序执行
 
-#### 总结
+将工具标记为非并发安全，可强制整个批次顺序执行：
 
-- OpenAPI 和 MCP 调用涉及网络 I/O 和事件循环管理；线程模式受到资源争用和事件循环开销的影响，降低性能。
-- 进程模式隔离资源，避免争用，并提高网络调用吞吐量。
-- 进程模式在 tool_call 用例中实现了相当的性能并提供更好的安全防护。因此我们通常建议将执行模式保留为默认的 `process`。
+```python
+tool = Tool.from_function(
+    unsafe_func,
+    metadata=ToolMetadata(is_concurrency_safe=False),
+)
+registry.register(tool)
+# 当批次中任何工具的 is_concurrency_safe=False 时，
+# 整个批次顺序执行
+```
+
+### 协作式取消（仅线程模式）
+
+工具函数可通过接受 `_ctx` 参数实现协作式取消。后端自动注入：
+
+```python
+from toolregistry.executor import ExecutionContext
+
+def long_task(data: list, _ctx: ExecutionContext) -> str:
+    for i, item in enumerate(data):
+        _ctx.check_cancelled()  # 如果已取消则抛出 CancelledError
+        process(item)
+        _ctx.report_progress(fraction=(i + 1) / len(data), message=f"步骤 {i+1}")
+    return "done"
+```
+
+!!! note
+    `ExecutionContext` 仅在 `ThreadBackend` 中支持。进程模式下通过 `future.cancel()` 处理取消。
+
+## 性能特征
+
+以下基准测试比较了不同工具类型在线程和进程模式下的表现（每种 100 次并发调用）：
+
+| 工具类型 | 线程模式 | 进程模式 |
+|---------|---------|---------|
+| 原生函数 | 4772 调用/秒 | 2357 调用/秒 |
+| 原生类 | 12125 调用/秒 | 3011 调用/秒 |
+| OpenAPI（网络） | 28 调用/秒 | 451 调用/秒 |
+| MCP SSE（网络） | 27 调用/秒 | 132 调用/秒 |
+
+**要点：**
+
+- **本地函数**：线程模式更优，开销更低（无序列化、无 IPC）
+- **网络 I/O（OpenAPI、MCP）**：进程模式大幅领先（5-16 倍），因为每个进程拥有独立的事件循环和网络连接，消除了争用
+- **默认推荐**：使用进程模式，除非工作负载纯粹是本地 CPU 密集型函数
+
+## 另请参阅
+
+- [Executor 后端 API 参考](../api/core/executor.md) — `ThreadBackend`、`ProcessPoolBackend`、`ExecutionContext`、`ExecutionHandle`
+- [工具元数据与标签](permissions.md#toolmetadata-fields) — `timeout`、`is_concurrency_safe`

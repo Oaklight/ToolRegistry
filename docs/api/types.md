@@ -1,5 +1,8 @@
 # Type Definitions
 
+!!! warning "本页尚未翻译"
+    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+
 This section documents the type definitions used across the ToolRegistry library for compatibility with various LLM providers.
 
 ## Common Types

@@ -1,5 +1,8 @@
 # Class-based Tools Usage Guide
 
+!!! warning "本页尚未翻译"
+    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+
 Hub tools are registered to ToolRegistry using the `register_from_class` method. This allows developers to extend the functionality of ToolRegistry by creating custom tool classes with reusable methods.
 
 ???+ note "API changes"

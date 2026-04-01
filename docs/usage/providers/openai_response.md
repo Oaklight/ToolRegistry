@@ -1,5 +1,8 @@
 # OpenAI Response API Integration
 
+!!! warning "本页尚未翻译"
+    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+
 Following our simple math example from the [Basic Usage](../basics), this document explains how to use a tool registry with the OpenAI Response API. Note that you could use the OpenAI client with any API provider that offers OpenAI-Response API. In this guide, we'll use OpenAI as an example.
 
 ## Setup ToolRegistry

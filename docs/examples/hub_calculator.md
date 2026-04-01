@@ -1,5 +1,8 @@
 # FileOps + Calculator Example: Read, Compute, and Write Back
 
+!!! warning "本页尚未翻译"
+    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+
 The file [concurrent_raw_results.txt](concurrent_raw_results.txt) contains the raw statistics from the concurrent tool calls benchmark when developing different integrations of toolregistry.
 
 Let's make use of it to test out LLM's ability to use multiple tools from the ToolRegistry-Hub. We want LLM to read the file, compute the averages of the metrics and then write the results to a new file. We will use the `Calculator` and `FileOps` tools from the ToolRegistry-Hub.

@@ -1,5 +1,8 @@
 # MCPToolWrapper
 
+!!! warning "本页尚未翻译"
+    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+
 Wrapper class providing both async and sync versions of MCP (Model Context Protocol) tool calls.
 
 ## Overview

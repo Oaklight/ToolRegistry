@@ -89,13 +89,14 @@ extra:
 
 nav:
   - 首页: index.md
+  - 架构:
+      - 概览: architecture/overview.md
+      - 执行模式: usage/concurrency_modes.md
+      - 命名空间: usage/namespace.md
   - 使用指南:
       - 安装: usage/installation.md
       - 基本用法: usage/basics.md
       - 函数调用: usage/function_calling.md
-      - 并发模式: usage/concurrency_modes.md
-      - 最佳实践: usage/best_practices.md
-      - 命名空间: usage/namespace.md
       - 集成:
           - 基于类的工具: usage/integrations/class.md
           - Hub 工具: usage/integrations/hub.md
@@ -103,7 +104,8 @@ nav:
           - OpenAPI 工具: usage/integrations/openapi.md
           - LangChain 工具: usage/integrations/langchain.md
       - 权限系统: usage/permissions.md
-      - 供应商:
+      - 最佳实践: usage/best_practices.md
+      - LLM 供应商:
           - OpenAI Chat: usage/providers/openai_chat.md
           - OpenAI Response: usage/providers/openai_response.md
   - 示例:

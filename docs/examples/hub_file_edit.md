@@ -1,5 +1,8 @@
 # FileOps Example: Editing a File with LLM
 
+!!! warning "本页尚未翻译"
+    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+
 This example demonstrates how to use the `FileOps` tool to modify a file using instructions provided to a Large Language Model (LLM). The `FileOps` tool allows for operations such as reading, writing, and editing files.
 
 One thing worth noting is that the `FileOps` tool can handle both `git` conflict/merge style and unified `diff` style edits. This flexibility allows you to choose the style that best fits your needs and capability of the LLM. You can direct LLM to use either style in your instructions.

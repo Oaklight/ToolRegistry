@@ -1,5 +1,8 @@
 # Use LangChain Arxiv Tool to Summarize Recent Papers in a Specific Field
 
+!!! warning "本页尚未翻译"
+    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+
 Here is an example of LLM using Arxiv tool from LangChain community to make summary of recent papers in a specific field.
 
 ## OpenAI client example

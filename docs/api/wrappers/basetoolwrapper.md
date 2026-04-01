@@ -1,5 +1,8 @@
 # BaseToolWrapper
 
+!!! warning "本页尚未翻译"
+    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+
 Base class for tool wrappers that provide support for synchronous and asynchronous calls within the ToolRegistry ecosystem.
 
 ## Overview

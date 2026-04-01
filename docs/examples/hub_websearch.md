@@ -1,5 +1,8 @@
 # WebSearch + UnitConverter Example: Querying the Web for Information then Converting Units
 
+!!! warning "本页尚未翻译"
+    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+
 This example demonstrates how to use the `WebSearch` tool from the ToolRegistry-Hub to query the web for information. We will use the `WebSearch` tool to search for information about a specific topic and then process the results.
 
 In this example, we will search for the temperature of Shanghai and then convert the temperature from Celsius to Fahrenheit using the `UnitConverter` tool.

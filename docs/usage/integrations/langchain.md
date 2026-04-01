@@ -1,5 +1,8 @@
 # LangChain Tool Usage Guide
 
+!!! warning "本页尚未翻译"
+    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+
 ???+ note "Changelog"
     New in version: 0.4.9
 

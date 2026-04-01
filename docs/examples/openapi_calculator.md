@@ -1,5 +1,8 @@
 # Example Make and Use of Calculator OpenAPI Tool
 
+!!! warning "本页尚未翻译"
+    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+
 This example demonstrates how to:
 
 1. Create a simple calculator API using FastAPI. The API provides basic arithmetic operations such as addition, subtraction, multiplication, and division.

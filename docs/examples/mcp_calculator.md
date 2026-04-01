@@ -1,5 +1,8 @@
 # Example Make and Use of Calculator MCP Tool
 
+!!! warning "本页尚未翻译"
+    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+
 The file [concurrent_raw_results.txt](concurrent_raw_results.txt) contains the raw statistics from the concurrent tool calls benchmark when developing different integrations of toolregistry.
 
 We ask LLM to compute the average of metrics from this file and report back with the results.
