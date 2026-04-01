@@ -30,6 +30,8 @@ _DEFAULT_FIELD_WEIGHTS: dict[str, float] = {
 
 _SPLIT_RE = re.compile(r"[_\-]+")
 
+TOOL_SEARCH_NAME = "search_tools"
+
 
 def _tool_name_to_text(name: str) -> str:
     """Convert a tool name like ``read_file`` to ``read file``."""
@@ -98,6 +100,9 @@ class ToolSearchTool:
         self._index = SparseIndex(field_weights=self._field_weights)
 
         for name, tool in self._registry._tools.items():
+            # Skip the search tool itself to avoid circular results
+            if name == TOOL_SEARCH_NAME:
+                continue
             fields = _tool_to_fields(tool)
             metadata: dict[str, Any] = {
                 "namespace": tool.namespace,
@@ -105,12 +110,20 @@ class ToolSearchTool:
             }
             self._index.add(name, fields, metadata=metadata)
 
-    def search(self, query: str, top_k: int = 10) -> list[dict[str, Any]]:
+    def search(
+        self,
+        query: str,
+        top_k: int = 10,
+        api_format: str = "openai-chat",
+    ) -> list[dict[str, Any]]:
         """Search tools matching the query.
 
         Args:
             query: Natural language search query.
             top_k: Maximum number of results to return.
+            api_format: Target API format for schema generation.
+                Only used for deferred tools whose schemas are
+                included in the result. Defaults to ``"openai-chat"``.
 
         Returns:
             List of dicts with keys:
@@ -120,20 +133,21 @@ class ToolSearchTool:
             - ``score`` (float): BM25 relevance score.
             - ``namespace`` (str | None): Tool namespace.
             - ``deferred`` (bool): Whether the tool is deferred.
+            - ``schema`` (dict): Tool schema (only for deferred tools).
         """
         results = self._index.search(query, top_k=top_k)
         out: list[dict[str, Any]] = []
         for r in results:
             tool = self._registry.get_tool(r.doc_id)
-            out.append(
-                {
-                    "name": r.doc_id,
-                    "description": tool.description if tool else "",
-                    "score": r.score,
-                    "namespace": r.metadata.get("namespace") if r.metadata else None,
-                    "deferred": r.metadata.get("deferred", False)
-                    if r.metadata
-                    else False,
-                }
-            )
+            is_deferred = r.metadata.get("deferred", False) if r.metadata else False
+            entry: dict[str, Any] = {
+                "name": r.doc_id,
+                "description": tool.description if tool else "",
+                "score": r.score,
+                "namespace": r.metadata.get("namespace") if r.metadata else None,
+                "deferred": is_deferred,
+            }
+            if is_deferred and tool is not None:
+                entry["schema"] = tool.get_schema(api_format)
+            out.append(entry)
         return out

@@ -191,3 +191,180 @@ class TestToolSearchTool:
         results = searcher.search("namespaced math")
         assert len(results) > 0
         assert results[0]["namespace"] == "math"
+
+    def test_search_returns_schema_for_deferred(self):
+        """Deferred tools should include schema in search results."""
+        registry = ToolRegistry()
+
+        def hidden_tool(x: int) -> int:
+            """A deferred tool with params."""
+            return x
+
+        registry.register(
+            Tool.from_function(
+                hidden_tool,
+                metadata=ToolMetadata(defer=True),
+            )
+        )
+        searcher = ToolSearchTool(registry)
+        results = searcher.search("hidden tool")
+        assert len(results) > 0
+        assert results[0]["deferred"] is True
+        assert "schema" in results[0]
+        schema = results[0]["schema"]
+        # Schema should be a valid tool definition dict
+        assert "function" in schema or "name" in schema
+
+    def test_search_no_schema_for_non_deferred(self):
+        """Non-deferred tools should not include schema in results."""
+        registry = ToolRegistry()
+
+        def normal_tool(x: int) -> int:
+            """A normal tool."""
+            return x
+
+        registry.register(normal_tool)
+        searcher = ToolSearchTool(registry)
+        results = searcher.search("normal tool")
+        assert len(results) > 0
+        assert results[0]["deferred"] is False
+        assert "schema" not in results[0]
+
+
+class TestToolSearchIntegration:
+    """Test cases for enable_tool_search() / disable_tool_search()."""
+
+    def test_enable_tool_search(self):
+        """After enable_tool_search(), search_tools appears in schemas."""
+        registry = ToolRegistry()
+
+        def add(a: int, b: int) -> int:
+            """Add numbers."""
+            return a + b
+
+        registry.register(add)
+        registry.enable_tool_search()
+
+        schemas = registry.get_schemas()
+        names = [s["function"]["name"] for s in schemas]
+        assert "search_tools" in names
+
+    def test_disable_tool_search(self):
+        """After disable_tool_search(), search_tools is removed."""
+        registry = ToolRegistry()
+        registry.enable_tool_search()
+        registry.disable_tool_search()
+
+        schemas = registry.get_schemas()
+        names = [s["function"]["name"] for s in schemas]
+        assert "search_tools" not in names
+
+    def test_get_schemas_include_deferred_false(self):
+        """include_deferred=False should exclude deferred tools."""
+        registry = ToolRegistry()
+
+        def visible(x: int) -> int:
+            """Visible tool."""
+            return x
+
+        def hidden(x: int) -> int:
+            """Hidden deferred tool."""
+            return x
+
+        registry.register(visible)
+        registry.register(Tool.from_function(hidden, metadata=ToolMetadata(defer=True)))
+
+        all_schemas = registry.get_schemas()
+        filtered = registry.get_schemas(include_deferred=False)
+
+        all_names = [s["function"]["name"] for s in all_schemas]
+        filtered_names = [s["function"]["name"] for s in filtered]
+
+        assert "hidden" in all_names
+        assert "hidden" not in filtered_names
+        assert "visible" in filtered_names
+
+    def test_get_schemas_include_deferred_default(self):
+        """Default include_deferred=True preserves backward compat."""
+        registry = ToolRegistry()
+
+        def hidden(x: int) -> int:
+            """Hidden deferred tool."""
+            return x
+
+        registry.register(Tool.from_function(hidden, metadata=ToolMetadata(defer=True)))
+
+        schemas = registry.get_schemas()
+        names = [s["function"]["name"] for s in schemas]
+        assert "hidden" in names
+
+    def test_search_auto_rebuild(self):
+        """Registering new tools should auto-rebuild the search index."""
+        registry = ToolRegistry()
+
+        def first(x: int) -> int:
+            """The first tool."""
+            return x
+
+        registry.register(first)
+        registry.enable_tool_search()
+
+        # Register a new tool after enabling search
+        def second(y: int) -> int:
+            """The second tool."""
+            return y
+
+        registry.register(second)
+
+        searcher = registry._tool_search
+        results = searcher.search("second tool")
+        assert len(results) > 0
+        assert results[0]["name"] == "second"
+
+    def test_tool_search_init_param(self):
+        """ToolRegistry(tool_search=True) should enable search."""
+        registry = ToolRegistry(tool_search=True)
+
+        def my_func(x: int) -> int:
+            """A tool."""
+            return x
+
+        registry.register(my_func)
+
+        assert registry._tool_search is not None
+        schemas = registry.get_schemas()
+        names = [s["function"]["name"] for s in schemas]
+        assert "search_tools" in names
+
+    def test_search_tool_not_deferred(self):
+        """The search tool itself should not be deferred."""
+        registry = ToolRegistry()
+        registry.enable_tool_search()
+
+        # Even with include_deferred=False, search_tools should appear
+        schemas = registry.get_schemas(include_deferred=False)
+        names = [s["function"]["name"] for s in schemas]
+        assert "search_tools" in names
+
+    def test_search_tool_not_in_own_results(self):
+        """search_tools should not appear in its own search results."""
+        registry = ToolRegistry()
+
+        def add(a: int, b: int) -> int:
+            """Add numbers."""
+            return a + b
+
+        registry.register(add)
+        registry.enable_tool_search()
+
+        searcher = registry._tool_search
+        results = searcher.search("search tools")
+        result_names = [r["name"] for r in results]
+        assert "search_tools" not in result_names
+
+    def test_enable_idempotent(self):
+        """Calling enable_tool_search() twice returns the same instance."""
+        registry = ToolRegistry()
+        s1 = registry.enable_tool_search()
+        s2 = registry.enable_tool_search()
+        assert s1 is s2

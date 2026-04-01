@@ -23,6 +23,9 @@ from .types import (
     convert_tool_calls,
 )
 
+from .events import ChangeCallback, ChangeEvent, ChangeEventType
+from .tool_search import TOOL_SEARCH_NAME, ToolSearchTool
+
 from ._admin import AdminMixin
 from ._callbacks import ChangeCallbackMixin
 from ._enable_disable import EnableDisableMixin
@@ -63,6 +66,7 @@ class ToolRegistry(
         *,
         default_max_result_size: int | None = None,
         think_augment: bool = False,
+        tool_search: bool = False,
     ) -> None:
         """Initialize an empty ToolRegistry.
 
@@ -81,6 +85,11 @@ class ToolRegistry(
                 reasoning alongside tool calls.  Individual tools can
                 override this via ``ToolMetadata.think_augment``.
                 Defaults to ``False``.
+            tool_search: Enable tool search on initialization.
+                When ``True``, :meth:`enable_tool_search` is called
+                automatically, registering a ``search_tools`` tool
+                that LLMs can use to discover other tools.
+                Defaults to ``False``.
 
         Notes:
             This class uses private attributes `_tools` and `_sub_registries` internally
@@ -96,6 +105,11 @@ class ToolRegistry(
         self._execution_mode: Literal["process", "thread"] = "process"
         self._default_max_result_size = default_max_result_size
         self._think_augment = think_augment
+        self._tool_search: ToolSearchTool | None = None
+        self._tool_search_callback: ChangeCallback | None = None
+
+        if tool_search:
+            self.enable_tool_search()
 
     def __contains__(self, name: str) -> bool:
         """Check if a tool with the given name is registered.
@@ -190,6 +204,76 @@ class ToolRegistry(
         opts in via ``ToolMetadata.think_augment = True``.
         """
         self._think_augment = False
+
+    # ============== Tool search toggle ==============
+    def enable_tool_search(
+        self,
+        field_weights: dict[str, float] | None = None,
+    ) -> ToolSearchTool:
+        """Enable tool search and register a search tool into this registry.
+
+        Creates a :class:`ToolSearchTool`, registers its ``search`` method
+        as a callable tool named ``search_tools``, and subscribes to
+        registry change events for automatic index rebuilds.
+
+        The search tool itself is never deferred (``defer=False``) so that
+        LLMs always see it in the initial schema.
+
+        Args:
+            field_weights: Optional per-field BM25F boost weights.
+
+        Returns:
+            The :class:`ToolSearchTool` instance.
+        """
+        from .tool import Tool, ToolMetadata
+
+        if self._tool_search is not None:
+            return self._tool_search
+
+        searcher = ToolSearchTool(self, field_weights=field_weights)
+
+        search_tool = Tool.from_function(
+            searcher.search,
+            name=TOOL_SEARCH_NAME,
+            description=(
+                "Search registered tools by natural language query. "
+                "Use this to discover available tools when you need a "
+                "capability not visible in your current tool list. "
+                "Returns tool names, descriptions, and schemas for "
+                "deferred tools so you can call them."
+            ),
+            metadata=ToolMetadata(defer=False),
+        )
+        self.register(search_tool)
+
+        def _on_registry_change(event: ChangeEvent) -> None:
+            if event.event_type in {
+                ChangeEventType.REGISTER,
+                ChangeEventType.UNREGISTER,
+            }:
+                if event.tool_name != TOOL_SEARCH_NAME:
+                    searcher.rebuild_index()
+
+        self.on_change(_on_registry_change)
+
+        self._tool_search = searcher
+        self._tool_search_callback = _on_registry_change
+        return searcher
+
+    def disable_tool_search(self) -> None:
+        """Disable tool search and unregister the search tool."""
+        if self._tool_search is None:
+            return
+
+        # Remove the search tool from registry
+        self._tools.pop(TOOL_SEARCH_NAME, None)
+
+        # Remove the change callback
+        if self._tool_search_callback is not None:
+            self.remove_on_change(self._tool_search_callback)
+            self._tool_search_callback = None
+
+        self._tool_search = None
 
     # ============== Execution ==============
     def _finalize_result(self, result: Any, tool_name: str) -> str | list:
@@ -675,6 +759,7 @@ class ToolRegistry(
         tags: set[str | ToolTag] | None = None,
         exclude_tags: set[str | ToolTag] | None = None,
         sort: bool = True,
+        include_deferred: bool = True,
     ) -> list[dict[str, Any]]:
         """Get tool definitions as JSON Schema dicts for a target API format.
 
@@ -689,6 +774,10 @@ class ToolRegistry(
             exclude_tags: Exclude tools matching ANY of these tags.
             sort: If True (default), sort tools by name for deterministic
                 ordering. Stable sorting improves prompt cache hit rates.
+            include_deferred: If False, exclude tools with
+                ``metadata.defer == True``. Defaults to True for backward
+                compatibility. Set to False when tool search is enabled so
+                that deferred tools are only discovered via search.
 
         Returns:
             A list of tool definition dicts in the specified API format.
@@ -703,6 +792,10 @@ class ToolRegistry(
         else:
             # Only return enabled tools
             tools = [t for t in self._tools.values() if self.is_enabled(t.name)]
+
+            # Defer filter
+            if not include_deferred:
+                tools = [t for t in tools if not t.metadata.defer]
 
             # Tag inclusion filter
             if tags is not None:
@@ -737,6 +830,7 @@ class ToolRegistry(
         tags: set[str | ToolTag] | None = None,
         exclude_tags: set[str | ToolTag] | None = None,
         sort: bool = True,
+        include_deferred: bool = True,
     ) -> list[dict[str, Any]]:
         """Deprecated: use :meth:`get_schemas` instead."""
         warnings.warn(
@@ -750,4 +844,5 @@ class ToolRegistry(
             tags=tags,
             exclude_tags=exclude_tags,
             sort=sort,
+            include_deferred=include_deferred,
         )
