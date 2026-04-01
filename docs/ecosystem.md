@@ -10,9 +10,9 @@ ToolRegistry 生态系统由三个互补的包组成，它们协同工作，为 
 
 | 包名 | 描述 | PyPI | 文档 |
 |------|------|------|------|
-| **toolregistry** | 协议无关的工具管理核心库 | [![PyPI](https://img.shields.io/pypi/v/toolregistry)](https://pypi.org/project/toolregistry/) | [文档](https://toolregistry.readthedocs.io/zh/) |
-| **toolregistry-server** | 用于暴露工具的服务器适配器（OpenAPI 和 MCP） | [![PyPI](https://img.shields.io/pypi/v/toolregistry-server)](https://pypi.org/project/toolregistry-server/) | [文档](https://toolregistry-server.readthedocs.io/zh/) |
-| **toolregistry-hub** | 精选的即用型实用工具集合 | [![PyPI](https://img.shields.io/pypi/v/toolregistry-hub)](https://pypi.org/project/toolregistry-hub/) | [文档](https://toolregistry-hub.readthedocs.io/zh/) |
+| **toolregistry** | 协议无关的工具管理核心库 | [![PyPI](https://img.shields.io/pypi/v/toolregistry?color=green)](https://pypi.org/project/toolregistry/) | [文档](https://toolregistry.readthedocs.io/zh/) |
+| **toolregistry-server** | 用于暴露工具的服务器适配器（OpenAPI 和 MCP） | [![PyPI](https://img.shields.io/pypi/v/toolregistry-server?color=green)](https://pypi.org/project/toolregistry-server/) | [文档](https://toolregistry-server.readthedocs.io/zh/) |
+| **toolregistry-hub** | 精选的即用型实用工具集合 | [![PyPI](https://img.shields.io/pypi/v/toolregistry-hub?color=green)](https://pypi.org/project/toolregistry-hub/) | [文档](https://toolregistry-hub.readthedocs.io/zh/) |
 
 ## 依赖关系图
 
