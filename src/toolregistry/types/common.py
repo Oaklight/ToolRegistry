@@ -349,7 +349,7 @@ def build_assistant_message(
 
 
 def build_tool_response(
-    tool_responses: dict[str, str],
+    tool_responses: dict[str, str | list],
     *,
     api_format: API_FORMATS = "openai-chat",
     tool_calls: list[ToolCall] | None = None,
@@ -361,8 +361,15 @@ def build_tool_response(
     provided to resolve function names (Gemini uses function names
     instead of call IDs).
 
+    Values in *tool_responses* may be plain strings or
+    ``list[ContentBlock]`` for multimodal results.  Only the Anthropic
+    format natively supports multimodal content blocks; all other
+    formats receive a text-only fallback via
+    :func:`content_blocks_to_text`.
+
     Args:
-        tool_responses: Mapping of tool call IDs to result strings.
+        tool_responses: Mapping of tool call IDs to results (``str``
+            or ``list[ContentBlock]``).
             Must preserve insertion order (guaranteed in Python 3.7+).
         api_format: Target API format. Defaults to ``"openai-chat"``.
         tool_calls: Optional ToolCall list for Gemini name resolution.
@@ -374,6 +381,14 @@ def build_tool_response(
     Raises:
         ValueError: If the API format is unsupported.
     """
+    from .content_blocks import content_blocks_to_text, is_content_block_list
+
+    def _to_text(result: str | list) -> str:
+        """Convert a result to a text string."""
+        if isinstance(result, list) and is_content_block_list(result):
+            return content_blocks_to_text(result)
+        return str(result)
+
     api_format = _normalize_api_format(api_format)
     if api_format == "openai-chat":
         from .openai.chat_completion import ChatCompetionMessageToolCallResult
@@ -382,7 +397,7 @@ def build_tool_response(
         for call_id, result in tool_responses.items():
             tool_message = ChatCompetionMessageToolCallResult(
                 tool_call_id=call_id,
-                content=str(result),
+                content=_to_text(result),
             )
             messages.append(tool_message.model_dump())
         return messages
@@ -394,7 +409,7 @@ def build_tool_response(
         for call_id, result in tool_responses.items():
             tool_message = ResponseFunctionToolCallResult(
                 call_id=call_id,
-                output=str(result),
+                output=_to_text(result),
             )
             messages.append(tool_message.model_dump())
         return messages
@@ -402,11 +417,16 @@ def build_tool_response(
     elif api_format == "anthropic":
         content = []
         for call_id, result in tool_responses.items():
+            # Anthropic natively supports multimodal content blocks
+            if isinstance(result, list) and is_content_block_list(result):
+                block_content = result
+            else:
+                block_content = str(result)
             content.append(
                 {
                     "type": "tool_result",
                     "tool_use_id": call_id,
-                    "content": str(result),
+                    "content": block_content,
                 }
             )
         return [{"role": "user", "content": content}]
@@ -424,7 +444,7 @@ def build_tool_response(
                 {
                     "functionResponse": {
                         "name": func_name,
-                        "response": {"output": str(result)},
+                        "response": {"output": _to_text(result)},
                     }
                 }
             )
@@ -454,7 +474,7 @@ def recover_assistant_message(
 
 
 def recover_tool_message(
-    tool_responses: dict[str, str],
+    tool_responses: dict[str, str | list],
     *,
     api_format: API_FORMATS = "openai-chat",
     tool_calls: list[ToolCall] | None = None,

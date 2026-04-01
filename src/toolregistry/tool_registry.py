@@ -11,6 +11,7 @@ from collections.abc import Callable
 from .executor import ProcessPoolBackend, ThreadBackend
 from .tool import ToolTag
 from .truncation import truncate_result
+from .types.content_blocks import is_content_block_list
 from .permissions import (
     PermissionResult,
 )
@@ -161,16 +162,35 @@ class ToolRegistry(
         self.close()
 
     # ============== Execution ==============
-    def _finalize_result(self, result: Any, tool_name: str) -> str:
-        """Convert a raw tool result to a string, applying truncation if configured.
+    def _finalize_result(self, result: Any, tool_name: str) -> str | list:
+        """Convert a raw tool result to a string or content block list.
+
+        Multimodal results (lists of content blocks with ``"type"`` keys)
+        are preserved as-is so that downstream formatters can handle them
+        per API format.  All other results are serialized to strings.
 
         Args:
             result: Raw result from tool execution.
             tool_name: Name of the tool (used to look up ``max_result_size``).
 
         Returns:
-            The result as a string, possibly truncated.
+            The result as a string (possibly truncated), or a
+            ``list[ContentBlock]`` for multimodal results.
         """
+        # Preserve multimodal content block lists
+        if is_content_block_list(result):
+            # Truncate only text blocks if max_result_size is set
+            tool_obj = self._tools.get(tool_name)
+            max_size = None
+            if tool_obj and tool_obj.metadata.max_result_size is not None:
+                max_size = tool_obj.metadata.max_result_size
+            elif self._default_max_result_size is not None:
+                max_size = self._default_max_result_size
+
+            if max_size is not None:
+                result = self._truncate_content_blocks(result, max_size, tool_name)
+            return result
+
         # Serialize to string
         try:
             json.dumps(result)
@@ -191,6 +211,45 @@ class ToolRegistry(
             return str(tr)
         return result_str
 
+    @staticmethod
+    def _truncate_content_blocks(blocks: list, max_size: int, tool_name: str) -> list:
+        """Truncate text blocks within a content block list.
+
+        Image blocks are left untouched.  Text blocks are truncated
+        proportionally so the total text size stays within *max_size*.
+
+        Args:
+            blocks: Content block list.
+            max_size: Maximum total text size in characters.
+            tool_name: Tool name for truncation metadata.
+
+        Returns:
+            The (possibly modified) content block list.
+        """
+        total_text = sum(
+            len(b.get("text", "")) for b in blocks if b.get("type") == "text"
+        )
+        if total_text <= max_size:
+            return blocks
+
+        truncated: list = []
+        remaining = max_size
+        for block in blocks:
+            if block.get("type") != "text":
+                truncated.append(block)
+                continue
+            text = block.get("text", "")
+            if len(text) <= remaining:
+                truncated.append(block)
+                remaining -= len(text)
+            else:
+                tr = truncate_result(
+                    text, remaining, tool_name=tool_name, persist=False
+                )
+                truncated.append({"type": "text", "text": tr.content})
+                remaining = 0
+        return truncated
+
     def set_execution_mode(self, mode: Literal["thread", "process"]) -> None:
         """Set the execution mode for parallel tasks.
 
@@ -208,7 +267,7 @@ class ToolRegistry(
         self,
         tool_calls: list[AnyToolCall],
         execution_mode: Literal["process", "thread"] | None = None,
-    ) -> dict[str, str]:
+    ) -> dict[str, str | list]:
         """Execute tool calls with concurrency using cloudpickle for serialization.
 
         Disabled tools are rejected with an error message instead of being
@@ -219,7 +278,9 @@ class ToolRegistry(
             execution_mode: Execution mode to use; defaults to the Executor's current mode.
 
         Returns:
-            Dict[str, str]: Dictionary mapping tool call IDs to their results.
+            Dictionary mapping tool call IDs to their results.  Values
+            are ``str`` for normal results or ``list[ContentBlock]`` for
+            multimodal results (e.g. images).
         """
         from .admin import ExecutionLogEntry, ExecutionStatus
         from .executor import ExecutionHandle
@@ -228,7 +289,7 @@ class ToolRegistry(
 
         # Separate enabled and disabled tool calls
         enabled_calls = []
-        tool_responses: dict[str, str] = {}
+        tool_responses: dict[str, str | list] = {}
         # Track timing for each tool call
         call_start_times: dict[str, float] = {}
         call_arguments: dict[str, dict] = {}
@@ -404,7 +465,7 @@ class ToolRegistry(
     def build_tool_call_messages(
         self,
         tool_calls: list[AnyToolCall],
-        tool_responses: dict[str, str],
+        tool_responses: dict[str, str | list],
         api_format: API_FORMATS = "openai-chat",
     ) -> list[dict[str, Any]]:
         """Build conversation messages for a tool-calling round-trip.
@@ -426,8 +487,9 @@ class ToolRegistry(
 
         Args:
             tool_calls: Tool call objects in any supported format.
-            tool_responses: Mapping of tool call IDs to result strings,
-                as returned by :meth:`execute_tool_calls`.
+            tool_responses: Mapping of tool call IDs to results,
+                as returned by :meth:`execute_tool_calls`.  Values are
+                ``str`` or ``list[ContentBlock]`` for multimodal results.
             api_format: Target API format. Defaults to ``"openai-chat"``.
 
         Returns:
@@ -462,7 +524,7 @@ class ToolRegistry(
     def recover_tool_call_assistant_message(
         self,
         tool_calls: list[AnyToolCall],
-        tool_responses: dict[str, str],
+        tool_responses: dict[str, str | list],
         api_format: API_FORMATS = "openai-chat",
     ) -> list[dict[str, Any]]:
         """Deprecated: use :meth:`build_tool_call_messages` instead."""
