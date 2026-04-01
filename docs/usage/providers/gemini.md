@@ -37,12 +37,26 @@ This returns tools in Gemini's function declaration format:
     "name": "add",
     "description": "Add two numbers together.",
     "parameters": {
-      "type": "object",
       "properties": {
-        "a": { "type": "number" },
-        "b": { "type": "number" }
+        "a": { "title": "A", "type": "number" },
+        "b": { "title": "B", "type": "number" }
       },
-      "required": ["a", "b"]
+      "required": ["a", "b"],
+      "title": "addParameters",
+      "type": "object"
+    }
+  },
+  {
+    "name": "subtract",
+    "description": "Subtract the second number from the first.",
+    "parameters": {
+      "properties": {
+        "a": { "title": "A", "type": "number" },
+        "b": { "title": "B", "type": "number" }
+      },
+      "required": ["a", "b"],
+      "title": "subtractParameters",
+      "type": "object"
     }
   }
 ]
@@ -127,7 +141,7 @@ This produces Gemini-native message structure:
       {
         "functionResponse": {
           "name": "subtract",
-          "response": {"output": "12.0"}
+          "response": {"output": "12"}
         }
       }
     ]

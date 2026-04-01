@@ -66,11 +66,11 @@ Here is the pretty printed JSON schema:
       "properties": {
         "a": {
           "title": "A",
-          "type": "integer"
+          "type": "number"
         },
         "b": {
           "title": "B",
-          "type": "integer"
+          "type": "number"
         }
       },
       "required": [
@@ -262,7 +262,7 @@ def add(a: float, b: float) -> float:
 
 
 @registry.register
-def subtract(a: int, b: int) -> int:
+def subtract(a: float, b: float) -> float:
     """Subtract the second number from the first."""
     return a - b
 

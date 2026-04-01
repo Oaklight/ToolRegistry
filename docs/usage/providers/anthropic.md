@@ -37,12 +37,26 @@ This returns tools in Anthropic's format:
     "name": "add",
     "description": "Add two numbers together.",
     "input_schema": {
-      "type": "object",
       "properties": {
-        "a": { "type": "number" },
-        "b": { "type": "number" }
+        "a": { "title": "A", "type": "number" },
+        "b": { "title": "B", "type": "number" }
       },
-      "required": ["a", "b"]
+      "required": ["a", "b"],
+      "title": "addParameters",
+      "type": "object"
+    }
+  },
+  {
+    "name": "subtract",
+    "description": "Subtract the second number from the first.",
+    "input_schema": {
+      "properties": {
+        "a": { "title": "A", "type": "number" },
+        "b": { "title": "B", "type": "number" }
+      },
+      "required": ["a", "b"],
+      "title": "subtractParameters",
+      "type": "object"
     }
   }
 ]
@@ -98,7 +112,7 @@ tool_responses = registry.execute_tool_calls(tool_calls)
 Returns a dict mapping tool call IDs to results:
 
 ```json
-{"toolu_01A09q90qw90lq917835lq9": "12.0"}
+{"toolu_01A09q90qw90lq917835lq9": "12"}
 ```
 
 ## Feed Results Back to LLM
@@ -132,7 +146,7 @@ This produces Anthropic-native message structure:
       {
         "type": "tool_result",
         "tool_use_id": "toolu_01A09q90qw90lq917835lq9",
-        "content": "12.0"
+        "content": "12"
       }
     ]
   }
