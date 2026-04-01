@@ -26,6 +26,19 @@ class ToolTag(str, Enum):
     PRIVILEGED = "privileged"
 
 
+THINK_PROPERTY: dict[str, str] = {
+    "type": "string",
+    "description": (
+        "Your step-by-step reasoning about why you chose this tool and how to use it."
+    ),
+}
+"""Schema snippet injected into every tool's ``parameters.properties``
+so that LLMs can include chain-of-thought reasoning when calling a tool.
+
+Reference: https://arxiv.org/abs/2601.18282
+"""
+
+
 class ToolMetadata(BaseModel):
     """Behavioral and classification metadata for a Tool.
 
@@ -154,6 +167,28 @@ class Tool(BaseModel):
             elif isinstance(data["metadata"], dict):
                 data["metadata"].setdefault("is_async", is_async)
         return data
+
+    def model_post_init(self, __context: Any) -> None:
+        """Inject ``thought`` property into the tool's parameter schema.
+
+        Runs after every ``Tool`` (and subclass) construction, regardless
+        of whether the instance was created via ``from_function()``, or
+        directly (MCP, OpenAPI, LangChain integrations).
+
+        The ``thought`` field is only added when ``parameters`` already
+        contains a ``properties`` mapping and does not already define a
+        ``thought`` key (i.e. native ``thought`` parameters are preserved).
+        """
+        props = self.parameters.get("properties")
+        if props is not None and "thought" not in props:
+            props["thought"] = THINK_PROPERTY
+
+    def _has_native_thought_param(self) -> bool:
+        """Return True if the wrapped function natively declares a ``thought`` parameter."""
+        return (
+            self.parameters_model is not None
+            and "thought" in self.parameters_model.model_fields
+        )
 
     @property
     def is_async(self) -> bool:
@@ -336,6 +371,8 @@ class Tool(BaseModel):
             return raw results without truncation.
         """
         try:
+            if not self._has_native_thought_param():
+                parameters = {k: v for k, v in parameters.items() if k != "thought"}
             validated_params = self._validate_parameters(parameters)
             return self.callable(**validated_params)
         except Exception as e:
@@ -361,6 +398,8 @@ class Tool(BaseModel):
             return raw results without truncation.
         """
         try:
+            if not self._has_native_thought_param():
+                parameters = {k: v for k, v in parameters.items() if k != "thought"}
             validated_params = self._validate_parameters(parameters)
 
             if inspect.iscoroutinefunction(self.callable):

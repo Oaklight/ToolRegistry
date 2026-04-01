@@ -591,3 +591,34 @@ class TestToolRegistryResultTruncation:
 
         # 50 chars < 1000 limit, so no truncation
         assert "Truncated" not in results["call_override"]
+
+
+class TestThinkAugmentedExecution:
+    """Test think-augmented calling in execute_tool_calls path."""
+
+    def test_execute_tool_calls_strips_thought(self):
+        """Test that thought is stripped in execute_tool_calls."""
+        from openai.types.chat.chat_completion_message_tool_call import (
+            ChatCompletionMessageToolCall as ChatCompletionMessageFunctionToolCall,
+            Function,
+        )
+
+        def greet(name: str) -> str:
+            """Greet someone."""
+            return f"Hello, {name}!"
+
+        registry = ToolRegistry()
+        registry.register(greet)
+
+        tool_calls = [
+            ChatCompletionMessageFunctionToolCall(
+                id="call_think",
+                type="function",
+                function=Function(
+                    name="greet",
+                    arguments='{"name": "World", "thought": "I should greet the world"}',
+                ),
+            )
+        ]
+        results = registry.execute_tool_calls(tool_calls)
+        assert results["call_think"] == "Hello, World!"
