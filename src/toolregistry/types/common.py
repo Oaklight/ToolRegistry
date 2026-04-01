@@ -1,5 +1,5 @@
+import hashlib
 import json
-import uuid
 from typing import Any, Literal
 
 from pydantic import BaseModel, ValidationError, field_serializer
@@ -159,7 +159,12 @@ class ToolCall(BaseModel):
             )
             if fc:
                 return cls(
-                    id=fc.get("id", uuid.uuid4().hex[:24]),
+                    id=fc.get(
+                        "id",
+                        hashlib.md5(
+                            json.dumps(fc, sort_keys=True).encode()
+                        ).hexdigest()[:24],
+                    ),
                     name=fc.get("name", ""),
                     arguments=json.dumps(fc.get("args", {})),
                     type="function",

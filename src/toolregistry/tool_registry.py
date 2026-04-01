@@ -398,7 +398,11 @@ class ToolRegistry(
             recover_assistant_message(generic_tool_calls, api_format=api_format)
         )
         # extend messages with tool responses
-        messages.extend(recover_tool_message(tool_responses, api_format=api_format))
+        messages.extend(
+            recover_tool_message(
+                tool_responses, api_format=api_format, tool_calls=generic_tool_calls
+            )
+        )
         return messages
 
     # ============== Presentation ==============
