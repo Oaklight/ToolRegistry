@@ -89,13 +89,14 @@ extra:
 
 nav:
   - Home: index.md
+  - Architecture:
+      - Overview: architecture/overview.md
+      - Execution Modes: usage/concurrency_modes.md
+      - Namespace: usage/namespace.md
   - Usage:
       - Installation: usage/installation.md
       - Basic Usage: usage/basics.md
       - Function Calling: usage/function_calling.md
-      - Concurrency Modes: usage/concurrency_modes.md
-      - Best Practices: usage/best_practices.md
-      - Namespace: usage/namespace.md
       - Integrations:
           - Class-based Tools: usage/integrations/class.md
           - Hub Tools: usage/integrations/hub.md
@@ -103,7 +104,8 @@ nav:
           - OpenAPI Tools: usage/integrations/openapi.md
           - LangChain Tools: usage/integrations/langchain.md
       - Permissions: usage/permissions.md
-      - Providers:
+      - Best Practices: usage/best_practices.md
+      - LLM Providers:
           - OpenAI Chat: usage/providers/openai_chat.md
           - OpenAI Response: usage/providers/openai_response.md
   - Examples:
