@@ -58,11 +58,11 @@ class ClassToolIntegration:
                 - If a string is provided, it is used as the namespace.
                 Defaults to False.
         """
-        namespace = _determine_namespace(cls_or_instance, namespace)
+        resolved_ns = _determine_namespace(cls_or_instance, namespace)
 
         if isinstance(cls_or_instance, type):
             if _is_all_static_methods(cls_or_instance):
-                self._register_static_methods(cls_or_instance, namespace)
+                self._register_static_methods(cls_or_instance, resolved_ns)
             else:
                 try:
                     instance = cls_or_instance()
@@ -73,9 +73,9 @@ class ClassToolIntegration:
                         "Attempted to instantiate the class, but failed without arguments. "
                         "Please provide an instance of the class."
                     ) from e
-                self._register_instance_methods(instance, namespace)
+                self._register_instance_methods(instance, resolved_ns)
         else:
-            self._register_instance_methods(cls_or_instance, namespace)
+            self._register_instance_methods(cls_or_instance, resolved_ns)
 
     async def register_class_methods_async(
         self,
