@@ -1,14 +1,16 @@
 ---
 title: 思维增强工具调用
 summary: 在工具调用 schema 中注入链式推理
-description: ToolRegistry 如何在每个工具 schema 中注入 thought 属性让 LLM 在行动前进行推理，以及该属性如何在执行前被剥离
-keywords: think, thought, 链式推理, 推理, 工具调用, THINK_PROPERTY
+description: ToolRegistry 如何在工具 schema 中注入 thought 属性让 LLM 在行动前进行推理，以及如何在注册表和单个工具级别进行配置
+keywords: think, thought, 链式推理, 推理, 工具调用, THINK_PROPERTY, think_augment
 author: Oaklight
 ---
 
 # 思维增强工具调用
 
-ToolRegistry 会自动在每个工具的参数 schema 中注入一个 `thought` 字符串属性。这为 LLM 提供了一个专用字段，用于表达关于**为什么**选择该工具以及**如何**使用它的逐步推理——在工具实际运行之前。
+ToolRegistry 可以在每个工具的参数 schema 中注入一个 `thought` 字符串属性。这为 LLM 提供了一个专用字段，用于表达关于**为什么**选择该工具以及**如何**使用它的逐步推理——在工具实际运行之前。
+
+思维增强调用**默认关闭**，可以在注册表全局启用，也可以通过 `ToolMetadata` 按工具启用。
 
 ???+ note "更新日志"
     新增于：[#49](../../pull/49)（Unreleased）
@@ -19,8 +21,11 @@ ToolRegistry 会自动在每个工具的参数 schema 中注入一个 `thought` 
 ```mermaid
 flowchart LR
     subgraph Schema 生成
-        Tool["工具 schema"] --> Inject["注入 'thought' 属性"]
+        Tool["工具 schema"] --> Check{"think_augment\n已启用？"}
+        Check -->|是| Inject["包含 'thought' 属性"]
+        Check -->|否| Skip["省略 'thought'"]
         Inject --> LLM["发送给 LLM"]
+        Skip --> LLM
     end
     subgraph 执行
         LLM --> Call["LLM 调用工具（含 thought + 参数）"]
@@ -29,16 +34,62 @@ flowchart LR
     end
 ```
 
-1. **注入**：当 `Tool` 被创建时（通过 `@registry.register`、`Tool.from_function` 或任何集成方式），`thought` 会自动添加到工具 JSON schema 的 `properties` 中。
-2. **LLM 响应**：LLM 在填写实际参数的同时，在 `thought` 字段中填入其推理过程。
-3. **剥离**：在工具函数执行前，ToolRegistry 移除 `thought` 参数，使函数只接收其声明的参数。
+1. **注入**：在内部，`thought` 始终存在于工具的参数存储中。通过 `get_schemas()` 生成 schema 时，注册表会根据两层配置解析每个工具是否应包含 `thought`。
+2. **LLM 响应**：启用后，LLM 在填写实际参数的同时，在 `thought` 字段中填入其推理过程。
+3. **剥离**：在工具函数执行前，ToolRegistry 始终移除 `thought` 参数，使函数只接收其声明的参数——无论开关状态如何。
+
+## 启用思维增强调用
+
+### 注册表级别
+
+```python
+from toolregistry import ToolRegistry
+
+# 在构造时启用
+registry = ToolRegistry(think_augment=True)
+
+# 或在任意时刻切换
+registry.enable_think_augment()
+registry.disable_think_augment()
+```
+
+### 单个工具覆盖
+
+单个工具可以通过 `ToolMetadata.think_augment` 覆盖注册表设置：
+
+| 值      | 行为                                   |
+|---------|----------------------------------------|
+| `None`  | 跟随注册表设置（默认）                   |
+| `True`  | 始终为该工具包含 `thought`              |
+| `False` | 始终不为该工具包含 `thought`            |
+
+```python
+from toolregistry import ToolRegistry
+from toolregistry.tool import Tool, ToolMetadata
+
+registry = ToolRegistry()  # think_augment=False（默认）
+
+# 该工具始终包含 thought，即使注册表默认关闭
+tool = Tool.from_function(
+    my_complex_function,
+    metadata=ToolMetadata(think_augment=True),
+)
+registry.register(tool)
+
+# 该工具始终不包含 thought，即使之后注册表启用
+tool2 = Tool.from_function(
+    my_simple_function,
+    metadata=ToolMetadata(think_augment=False),
+)
+registry.register(tool2)
+```
 
 ## 示例
 
 ```python
 from toolregistry import ToolRegistry
 
-registry = ToolRegistry()
+registry = ToolRegistry(think_augment=True)
 
 @registry.register
 def get_weather(city: str) -> str:

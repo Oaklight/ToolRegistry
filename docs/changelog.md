@@ -49,7 +49,9 @@ author: Oaklight
     - 索引工具名称、描述、标签、参数名和 search_hint，支持可配置字段权重
 
 - **思维增强函数调用**（[#49](../../pull/49)）
-    - 在每个工具的参数 schema 中注入 `thought` 字符串属性，让 LLM 在调用工具时可以包含链式推理
+    - 在工具的参数 schema 中注入 `thought` 字符串属性，让 LLM 在调用工具时可以包含链式推理
+    - **默认关闭** — 通过 `ToolRegistry(think_augment=True)` 全局启用，或在运行时使用 `enable_think_augment()` / `disable_think_augment()` 切换
+    - 支持单个工具覆盖：`ToolMetadata.think_augment`（`None`=跟随注册表、`True`=强制开启、`False`=强制关闭）
     - 该属性在执行前自动剥离
     - 函数原生的 `thought` 参数会被保留（不会被覆盖）
     - 覆盖所有集成路径（MCP、OpenAPI、LangChain、原生）
