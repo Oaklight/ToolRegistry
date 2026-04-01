@@ -207,12 +207,12 @@ class InstanceExample:
         return f"你好，{name}！我是 {self.name}。"
 
 registry = ToolRegistry()
-registry.register_from_class(StaticExample, with_namespace=True)
+registry.register_from_class(StaticExample, namespace=True)
 print(registry.list_tools())  # ['static_example.greet']
 print(registry["static_example.greet"]("Alice"))  # 你好，Alice！
 
 registry = ToolRegistry()
-registry.register_from_class(InstanceExample("Bob"), with_namespace=True)
+registry.register_from_class(InstanceExample("Bob"), namespace=True)
 print(registry.list_tools())  # ['instance_example.greet']
 print(registry["instance_example.greet"]("Alice"))  # 你好，Alice！我是 Bob。
 ```
@@ -241,7 +241,7 @@ from toolregistry import ToolRegistry
 from toolregistry.hub import Calculator
 
 registry = ToolRegistry()
-registry.register_from_class(Calculator, with_namespace=True)
+registry.register_from_class(Calculator, namespace=True)
 
 # 获取可用工具列表
 print(registry.list_tools())

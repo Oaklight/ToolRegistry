@@ -30,7 +30,7 @@ def get_weather(location: str):
 #     return f"{celsius} celsius degree == {fahrenheit} fahrenheit degree"
 
 # replace c_to_f with hub tool UnitConverter
-tool_registry.register_from_class(UnitConverter, with_namespace=True)
+tool_registry.register_from_class(UnitConverter, namespace=True)
 
 # Set up OpenAI client
 client = OpenAI(

@@ -265,7 +265,7 @@ class MCPIntegration:
     async def register_mcp_tools_async(
         self,
         transport: str | dict[str, Any] | Path,
-        with_namespace: bool | str = False,
+        namespace: bool | str = False,
         persistent: bool = True,
     ) -> None:
         """Async implementation to register all tools from an MCP server.
@@ -275,9 +275,9 @@ class MCPIntegration:
                 - URL string (http(s)://, ws(s)://)
                 - Path to script file (.py, .js)
                 - Dict with "command", "args", "env" keys for stdio transport
-            with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
-                - If `False`, no namespace is used.
-                - If `True`, the namespace is derived from the server info name.
+            namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
+                - If ``False``, no namespace is used.
+                - If ``True``, the namespace is derived from the server info name.
                 - If a string is provided, it is used as the namespace.
                 Defaults to False.
             persistent (bool): If True (default), keep the connection open
@@ -296,12 +296,12 @@ class MCPIntegration:
         async with MCPClient(transport) as client:
             server_info: Implementation | None = client.server_info
 
-            if isinstance(with_namespace, str):
-                namespace = with_namespace
-            elif with_namespace:  # with_namespace is True
-                namespace = server_info.name if server_info else "MCP sse service"
+            if isinstance(namespace, str):
+                resolved_ns = namespace
+            elif namespace:  # namespace is True
+                resolved_ns = server_info.name if server_info else "MCP sse service"
             else:
-                namespace = None
+                resolved_ns = None
 
             # Get available tools from server
             tools_response: list[ToolSpec] = await client.list_tools()
@@ -311,15 +311,15 @@ class MCPIntegration:
                 mcp_tool = MCPTool.from_tool_json(
                     tool_spec=tool_spec,
                     connection=connection,
-                    namespace=namespace,
+                    namespace=resolved_ns,
                 )
 
-                self.registry.register(mcp_tool, namespace=namespace)
+                self.registry.register(mcp_tool, namespace=resolved_ns)
 
     def register_mcp_tools(
         self,
         transport: str | dict[str, Any] | Path,
-        with_namespace: bool | str = False,
+        namespace: bool | str = False,
         persistent: bool = True,
     ) -> None:
         """Register all tools from an MCP server (synchronous entry point).
@@ -329,9 +329,9 @@ class MCPIntegration:
                 - URL string (http(s)://, ws(s)://)
                 - Path to script file (.py, .js)
                 - Dict with "command", "args", "env" keys for stdio transport
-            with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
-                - If `False`, no namespace is used.
-                - If `True`, the namespace is derived from the server info name.
+            namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
+                - If ``False``, no namespace is used.
+                - If ``True``, the namespace is derived from the server info name.
                 - If a string is provided, it is used as the namespace.
                 Defaults to False.
             persistent (bool): If True (default), keep the connection open
@@ -340,7 +340,7 @@ class MCPIntegration:
         loop = asyncio.new_event_loop()
         try:
             loop.run_until_complete(
-                self.register_mcp_tools_async(transport, with_namespace, persistent)
+                self.register_mcp_tools_async(transport, namespace, persistent)
             )
         finally:
             loop.close()

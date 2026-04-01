@@ -79,9 +79,7 @@ if __name__ == "__main__":
     )
     openapi_spec = load_openapi_spec(base_url)
 
-    tool_registry.register_from_openapi(
-        client_config, openapi_spec, with_namespace=True
-    )
+    tool_registry.register_from_openapi(client_config, openapi_spec, namespace=True)
 
     print(tool_registry.list_tools())
 

@@ -17,7 +17,7 @@ class InstanceExample:
 
 
 registry = ToolRegistry()
-registry.register_from_class(StaticExample, with_namespace=True)
+registry.register_from_class(StaticExample, namespace=True)
 print(registry.list_tools())  # ['static_example.greet']
 print(registry["static_example-greet"]("Alice"))  # Hello, Alice!
 
@@ -25,7 +25,7 @@ print(registry["static_example-greet"]("Alice"))  # Hello, Alice!
 async def test_register_from_class_async():
     """Test async registration of static methods."""
     return await registry.register_from_class_async(
-        InstanceExample("Bob"), with_namespace=True
+        InstanceExample("Bob"), namespace=True
     )
 
 

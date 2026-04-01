@@ -131,15 +131,15 @@ class LangChainIntegration:
     async def register_langchain_tools_async(
         self,
         tool: LCBaseTool,
-        with_namespace: bool | str = False,
+        namespace: bool | str = False,
     ) -> None:
         """Async implementation to register LangChain tool using asyncio.
 
         Args:
             tool (LCBaseTool): Single LangChain tool.
-            with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
-                - If `False`, no namespace is used.
-                - If `True`, the namespace is derived from the tool's metadata if available.
+            namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
+                - If ``False``, no namespace is used.
+                - If ``True``, the namespace is derived from the tool's metadata if available.
                 - If a string is provided, it is used as the namespace.
                 Defaults to False.
 
@@ -147,35 +147,33 @@ class LangChainIntegration:
             ValueError: If tools argument is invalid.
         """
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(
-            None, self.register_langchain_tools, tool, with_namespace
-        )
+        await loop.run_in_executor(None, self.register_langchain_tools, tool, namespace)
 
     def register_langchain_tools(
         self,
         tool: LCBaseTool,
-        with_namespace: bool | str = False,
+        namespace: bool | str = False,
     ) -> None:
         """Register LangChain tool (synchronous entry point).
 
         Args:
             tool (LCBaseTool): Single LangChain tool
-            with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
-                - If `False`, no namespace is used.
-                - If `True`, the namespace is derived from the tool's metadata if available.
+            namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
+                - If ``False``, no namespace is used.
+                - If ``True``, the namespace is derived from the tool's metadata if available.
                 - If a string is provided, it is used as the namespace.
                 Defaults to False.
         """
 
-        if isinstance(with_namespace, str):
-            namespace = with_namespace
-        elif with_namespace:  # with_namespace is True
-            namespace = "langchain tool"
+        if isinstance(namespace, str):
+            resolved_ns = namespace
+        elif namespace:  # namespace is True
+            resolved_ns = "langchain tool"
         else:
-            namespace = None
+            resolved_ns = None
 
         langchain_tool = LangChainTool.from_langchain_tool(
             tool=tool,
-            namespace=namespace,
+            namespace=resolved_ns,
         )
-        self.registry.register(langchain_tool, namespace=namespace)
+        self.registry.register(langchain_tool, namespace=resolved_ns)

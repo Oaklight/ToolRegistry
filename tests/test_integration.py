@@ -394,11 +394,11 @@ class TestToolRegistryIntegration:
         ]
 
         # Test thread mode
-        registry.set_execution_mode("thread")
+        registry.set_default_execution_mode("thread")
         thread_results = registry.execute_tool_calls(tool_calls)
 
         # Test process mode
-        registry.set_execution_mode("process")
+        registry.set_default_execution_mode("process")
         process_results = registry.execute_tool_calls(tool_calls)
 
         # Results should be the same regardless of execution mode

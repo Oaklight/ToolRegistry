@@ -19,7 +19,7 @@ from toolregistry import ToolRegistry
 # ── 1. Create registry and register some tools ──────────────────────────
 
 registry = ToolRegistry()
-registry.set_execution_mode("thread")  # Use threads for faster execution
+registry.set_default_execution_mode("thread")  # Use threads for faster execution
 
 
 @registry.register
@@ -55,7 +55,7 @@ class StringUtils:
         return len(text)
 
 
-registry.register_from_class(StringUtils, with_namespace="StringUtils")
+registry.register_from_class(StringUtils, namespace="StringUtils")
 
 
 # ── 2. Enable execution logging ─────────────────────────────────────────

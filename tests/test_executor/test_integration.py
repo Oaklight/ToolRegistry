@@ -131,7 +131,7 @@ class TestConcurrencySafe:
 class TestSetExecutionMode:
     def test_switch_mode(self):
         reg = ToolRegistry()
-        reg.set_execution_mode("thread")
+        reg.set_default_execution_mode("thread")
         reg.register(_sync_add)
         tc = _make_tool_call("_sync_add", {"x": 1, "y": 1})
         result = reg.execute_tool_calls([tc])
@@ -140,7 +140,7 @@ class TestSetExecutionMode:
     def test_invalid_mode_raises(self):
         reg = ToolRegistry()
         with pytest.raises(ValueError):
-            reg.set_execution_mode("invalid")  # type: ignore[arg-type]
+            reg.set_default_execution_mode("invalid")  # type: ignore[arg-type]
 
 
 class TestContextInjection:

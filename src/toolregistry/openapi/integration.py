@@ -204,7 +204,7 @@ class OpenAPIIntegration:
         self,
         client_config: HttpxClientConfig,
         openapi_spec: dict[str, Any],
-        with_namespace: bool | str = False,
+        namespace: bool | str = False,
         persistent: bool = True,
     ) -> None:
         """Asynchronously register all tools defined in an OpenAPI specification.
@@ -212,9 +212,9 @@ class OpenAPIIntegration:
         Args:
             client_config (HttpxClientConfig): Configuration for the HTTP client.
             openapi_spec (Dict[str, Any]): The OpenAPI specification dictionary.
-            with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
-                - If `False`, no namespace is used.
-                - If `True`, the namespace is derived from the OpenAPI info.title.
+            namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
+                - If ``False``, no namespace is used.
+                - If ``True``, the namespace is derived from the OpenAPI info.title.
                 - If a string is provided, it is used as the namespace.
                 Defaults to False.
             persistent (bool): If True (default), reuse a persistent HTTP
@@ -226,11 +226,11 @@ class OpenAPIIntegration:
         try:
             self._client_configs.append(client_config)
 
-            namespace = (
-                with_namespace
-                if isinstance(with_namespace, str)
+            resolved_ns = (
+                namespace
+                if isinstance(namespace, str)
                 else openapi_spec.get("info", {}).get("title", "OpenAPI service")
-                if with_namespace
+                if namespace
                 else None
             )
 
@@ -245,10 +245,10 @@ class OpenAPIIntegration:
                         path=path,
                         method=method,
                         spec=spec,
-                        namespace=namespace,
+                        namespace=resolved_ns,
                         persistent=persistent,
                     )
-                    self.registry.register(open_api_tool, namespace=namespace)
+                    self.registry.register(open_api_tool, namespace=resolved_ns)
         except Exception as e:
             raise ValueError(f"Failed to register OpenAPI tools: {e}")
 
@@ -256,7 +256,7 @@ class OpenAPIIntegration:
         self,
         client_config: HttpxClientConfig,
         openapi_spec: dict[str, Any],
-        with_namespace: bool | str = False,
+        namespace: bool | str = False,
         persistent: bool = True,
     ) -> None:
         """Synchronously register all tools defined in an OpenAPI specification.
@@ -264,9 +264,9 @@ class OpenAPIIntegration:
         Args:
             client_config (HttpxClientConfig): Configuration for the HTTP client.
             openapi_spec (Dict[str, Any]): The OpenAPI specification dictionary.
-            with_namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
-                - If `False`, no namespace is used.
-                - If `True`, the namespace is derived from the OpenAPI info.title.
+            namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
+                - If ``False``, no namespace is used.
+                - If ``True``, the namespace is derived from the OpenAPI info.title.
                 - If a string is provided, it is used as the namespace.
                 Defaults to False.
             persistent (bool): If True (default), reuse a persistent HTTP
@@ -281,7 +281,7 @@ class OpenAPIIntegration:
             asyncio.set_event_loop(loop)
             loop.run_until_complete(
                 self.register_openapi_tools_async(
-                    client_config, openapi_spec, with_namespace, persistent
+                    client_config, openapi_spec, namespace, persistent
                 )
             )
         finally:
