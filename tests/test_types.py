@@ -11,9 +11,9 @@ from toolregistry.types import (
     ResponseFunctionToolCallResult,
     ToolCall,
     ToolCallResult,
+    build_assistant_message,
+    build_tool_response,
     convert_tool_calls,
-    recover_assistant_message,
-    recover_tool_message,
 )
 
 
@@ -304,15 +304,15 @@ class TestConvertToolCalls:
 
 
 class TestRecoverAssistantMessage:
-    """Test cases for the recover_assistant_message function."""
+    """Test cases for the build_assistant_message function."""
 
-    def test_recover_assistant_message_openai_format(self):
+    def test_build_assistant_message_openai_format(self):
         """Test recovering assistant message in OpenAI format."""
         tool_calls = [
             ToolCall(id="call_1", name="test_function", arguments='{"param": "value"}')
         ]
 
-        messages = recover_assistant_message(tool_calls, api_format="openai")
+        messages = build_assistant_message(tool_calls, api_format="openai-chat")
 
         assert len(messages) == 1
         assert messages[0]["role"] == "assistant"
@@ -320,40 +320,38 @@ class TestRecoverAssistantMessage:
         assert len(messages[0]["tool_calls"]) == 1
         assert messages[0]["tool_calls"][0]["id"] == "call_1"
 
-    def test_recover_assistant_message_openai_chatcompletion_format(self):
+    def test_build_assistant_message_openai_chatcompletion_format(self):
         """Test recovering assistant message in OpenAI chat completion format."""
         tool_calls = [
             ToolCall(id="call_1", name="test_function", arguments='{"param": "value"}')
         ]
 
-        messages = recover_assistant_message(
-            tool_calls, api_format="openai-chatcompletion"
-        )
+        messages = build_assistant_message(tool_calls, api_format="openai-chat")
 
         assert len(messages) == 1
         assert messages[0]["role"] == "assistant"
         assert "tool_calls" in messages[0]
 
-    def test_recover_assistant_message_openai_response_format(self):
+    def test_build_assistant_message_openai_response_format(self):
         """Test recovering assistant message in OpenAI response format."""
         tool_calls = [
             ToolCall(id="call_1", name="test_function", arguments='{"param": "value"}')
         ]
 
-        messages = recover_assistant_message(tool_calls, api_format="openai-response")
+        messages = build_assistant_message(tool_calls, api_format="openai-response")
 
         assert len(messages) == 1
         assert messages[0]["call_id"] == "call_1"
         assert messages[0]["name"] == "test_function"
         assert messages[0]["type"] == "function_call"
 
-    def test_recover_assistant_message_anthropic_format(self):
+    def test_build_assistant_message_anthropic_format(self):
         """Test recovering assistant message in Anthropic format."""
         tool_calls = [
             ToolCall(id="call_1", name="test_function", arguments='{"param": "value"}')
         ]
 
-        messages = recover_assistant_message(tool_calls, api_format="anthropic")
+        messages = build_assistant_message(tool_calls, api_format="anthropic")
 
         assert len(messages) == 1
         assert messages[0]["role"] == "assistant"
@@ -361,20 +359,20 @@ class TestRecoverAssistantMessage:
         assert messages[0]["content"][0]["type"] == "tool_use"
         assert messages[0]["content"][0]["name"] == "test_function"
 
-    def test_recover_assistant_message_gemini_format(self):
+    def test_build_assistant_message_gemini_format(self):
         """Test recovering assistant message in Gemini format."""
         tool_calls = [
             ToolCall(id="call_1", name="test_function", arguments='{"param": "value"}')
         ]
 
-        messages = recover_assistant_message(tool_calls, api_format="gemini")
+        messages = build_assistant_message(tool_calls, api_format="gemini")
 
         assert len(messages) == 1
         assert messages[0]["role"] == "model"
         assert "parts" in messages[0]
         assert "functionCall" in messages[0]["parts"][0]
 
-    def test_recover_assistant_message_filters_invalid_tool_calls(self):
+    def test_build_assistant_message_filters_invalid_tool_calls(self):
         """Test that invalid tool calls are filtered out."""
         tool_calls = [
             ToolCall(
@@ -388,28 +386,28 @@ class TestRecoverAssistantMessage:
             ),  # Empty arguments
         ]
 
-        messages = recover_assistant_message(tool_calls, api_format="openai")
+        messages = build_assistant_message(tool_calls, api_format="openai-chat")
 
         assert len(messages) == 1
         assert len(messages[0]["tool_calls"]) == 1  # Only valid tool call
         assert messages[0]["tool_calls"][0]["id"] == "call_1"
 
-    def test_recover_assistant_message_unsupported_format_raises_error(self):
+    def test_build_assistant_message_unsupported_format_raises_error(self):
         """Test that unsupported format raises ValueError."""
         tool_calls = [ToolCall(id="call_1", name="test", arguments="{}")]
 
         with pytest.raises(ValueError, match="Unsupported API format"):
-            recover_assistant_message(tool_calls, api_format="unsupported")
+            build_assistant_message(tool_calls, api_format="unsupported")
 
 
 class TestRecoverToolMessage:
-    """Test cases for the recover_tool_message function."""
+    """Test cases for the build_tool_response function."""
 
-    def test_recover_tool_message_openai_format(self):
+    def test_build_tool_response_openai_format(self):
         """Test recovering tool message in OpenAI format."""
         tool_responses = {"call_1": "Result 1", "call_2": "Result 2"}
 
-        messages = recover_tool_message(tool_responses, api_format="openai")
+        messages = build_tool_response(tool_responses, api_format="openai-chat")
 
         assert len(messages) == 2
 
@@ -423,35 +421,33 @@ class TestRecoverToolMessage:
         assert "call_1" in call_ids
         assert "call_2" in call_ids
 
-    def test_recover_tool_message_openai_chatcompletion_format(self):
+    def test_build_tool_response_openai_chatcompletion_format(self):
         """Test recovering tool message in OpenAI chat completion format."""
         tool_responses = {"call_1": "Result"}
 
-        messages = recover_tool_message(
-            tool_responses, api_format="openai-chatcompletion"
-        )
+        messages = build_tool_response(tool_responses, api_format="openai-chat")
 
         assert len(messages) == 1
         assert messages[0]["role"] == "tool"
         assert messages[0]["tool_call_id"] == "call_1"
         assert messages[0]["content"] == "Result"
 
-    def test_recover_tool_message_openai_response_format(self):
+    def test_build_tool_response_openai_response_format(self):
         """Test recovering tool message in OpenAI response format."""
         tool_responses = {"call_1": "Result"}
 
-        messages = recover_tool_message(tool_responses, api_format="openai-response")
+        messages = build_tool_response(tool_responses, api_format="openai-response")
 
         assert len(messages) == 1
         assert messages[0]["type"] == "function_call_output"
         assert messages[0]["call_id"] == "call_1"
         assert messages[0]["output"] == "Result"
 
-    def test_recover_tool_message_anthropic_format(self):
+    def test_build_tool_response_anthropic_format(self):
         """Test recovering tool message in Anthropic format."""
         tool_responses = {"call_1": "result"}
 
-        messages = recover_tool_message(tool_responses, api_format="anthropic")
+        messages = build_tool_response(tool_responses, api_format="anthropic")
 
         assert len(messages) == 1
         assert messages[0]["role"] == "user"
@@ -459,18 +455,18 @@ class TestRecoverToolMessage:
         assert messages[0]["content"][0]["type"] == "tool_result"
         assert messages[0]["content"][0]["tool_use_id"] == "call_1"
 
-    def test_recover_tool_message_gemini_format(self):
+    def test_build_tool_response_gemini_format(self):
         """Test recovering tool message in Gemini format."""
         tool_responses = {"call_1": "result"}
 
-        messages = recover_tool_message(tool_responses, api_format="gemini")
+        messages = build_tool_response(tool_responses, api_format="gemini")
 
         assert len(messages) == 1
         assert messages[0]["role"] == "user"
         assert "parts" in messages[0]
         assert "functionResponse" in messages[0]["parts"][0]
 
-    def test_recover_tool_message_converts_non_string_results(self):
+    def test_build_tool_response_converts_non_string_results(self):
         """Test that non-string results are converted to strings."""
         tool_responses = {
             "call_1": 42,
@@ -478,24 +474,24 @@ class TestRecoverToolMessage:
             "call_3": [1, 2, 3],
         }
 
-        messages = recover_tool_message(tool_responses, api_format="openai")
+        messages = build_tool_response(tool_responses, api_format="openai-chat")
 
         assert len(messages) == 3
 
         for message in messages:
             assert isinstance(message["content"], str)
 
-    def test_recover_tool_message_unsupported_format_raises_error(self):
+    def test_build_tool_response_unsupported_format_raises_error(self):
         """Test that unsupported format raises ValueError."""
         tool_responses = {"call_1": "result"}
 
         with pytest.raises(ValueError, match="Unsupported API format"):
-            recover_tool_message(tool_responses, api_format="unsupported")
+            build_tool_response(tool_responses, api_format="unsupported")
 
-    def test_recover_tool_message_empty_responses(self):
+    def test_build_tool_response_empty_responses(self):
         """Test recovering tool message with empty responses."""
         tool_responses = {}
 
-        messages = recover_tool_message(tool_responses, api_format="openai")
+        messages = build_tool_response(tool_responses, api_format="openai-chat")
 
         assert messages == []

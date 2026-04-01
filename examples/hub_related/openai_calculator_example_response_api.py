@@ -47,7 +47,7 @@ def handle_tool_calls_response(response, messages):
         tool_responses = tool_registry.execute_tool_calls(tool_calls)
 
         # Construct assistant messages with results
-        assistant_tool_messages = tool_registry.recover_tool_call_assistant_message(
+        assistant_tool_messages = tool_registry.build_tool_call_messages(
             tool_calls, tool_responses, api_format="openai-response"
         )
 
@@ -57,7 +57,7 @@ def handle_tool_calls_response(response, messages):
         response = client.responses.create(
             model=model_name,
             input=messages,
-            tools=tool_registry.get_tools_json(api_format="openai-response"),
+            tools=tool_registry.get_schemas(api_format="openai-response"),
             tool_choice="auto",
         )
     return response
@@ -80,7 +80,7 @@ if __name__ == "__main__":
     response = client.responses.create(
         model=model_name,
         input=messages,
-        tools=tool_registry.get_tools_json(api_format="openai-response"),
+        tools=tool_registry.get_schemas(api_format="openai-response"),
         tool_choice="auto",
     )
     response = handle_tool_calls_response(response, messages)

@@ -135,9 +135,9 @@ class TestToolRegistry:
 
         assert tools1 == tools2
 
-    def test_get_tools_json_all_tools(self, populated_registry):
+    def test_get_schemas_all_tools(self, populated_registry):
         """Test getting JSON schema for all tools."""
-        tools_json = populated_registry.get_tools_json()
+        tools_json = populated_registry.get_schemas()
 
         assert isinstance(tools_json, list)
         assert len(tools_json) >= 2
@@ -147,26 +147,24 @@ class TestToolRegistry:
             assert tool_schema["type"] == "function"
             assert "function" in tool_schema
 
-    def test_get_tools_json_specific_tool(self, populated_registry):
+    def test_get_schemas_specific_tool(self, populated_registry):
         """Test getting JSON schema for a specific tool."""
-        tools_json = populated_registry.get_tools_json(tool_name="add_numbers")
+        tools_json = populated_registry.get_schemas(tool_name="add_numbers")
 
         assert isinstance(tools_json, list)
         assert len(tools_json) == 1
         assert tools_json[0]["function"]["name"] == "add_numbers"
 
-    def test_get_tools_json_nonexistent_tool(self, populated_registry):
+    def test_get_schemas_nonexistent_tool(self, populated_registry):
         """Test getting JSON schema for nonexistent tool returns empty list."""
-        tools_json = populated_registry.get_tools_json(tool_name="nonexistent")
+        tools_json = populated_registry.get_schemas(tool_name="nonexistent")
 
         assert tools_json == []
 
-    def test_get_tools_json_different_api_formats(self, populated_registry):
+    def test_get_schemas_different_api_formats(self, populated_registry):
         """Test getting JSON schema in different API formats."""
-        openai_format = populated_registry.get_tools_json(api_format="openai")
-        response_format = populated_registry.get_tools_json(
-            api_format="openai-response"
-        )
+        openai_format = populated_registry.get_schemas(api_format="openai-chat")
+        response_format = populated_registry.get_schemas(api_format="openai-response")
 
         assert len(openai_format) == len(response_format)
 
@@ -177,17 +175,17 @@ class TestToolRegistry:
         assert "name" in response_format[0]
         assert "strict" in response_format[0]
 
-    def test_get_tools_json_anthropic_format(self, populated_registry):
+    def test_get_schemas_anthropic_format(self, populated_registry):
         """Test getting JSON schema in Anthropic format."""
-        anthropic_format = populated_registry.get_tools_json(api_format="anthropic")
+        anthropic_format = populated_registry.get_schemas(api_format="anthropic")
 
         assert len(anthropic_format) >= 2
         assert "name" in anthropic_format[0]
         assert "input_schema" in anthropic_format[0]
 
-    def test_get_tools_json_gemini_format(self, populated_registry):
+    def test_get_schemas_gemini_format(self, populated_registry):
         """Test getting JSON schema in Gemini format."""
-        gemini_format = populated_registry.get_tools_json(api_format="gemini")
+        gemini_format = populated_registry.get_schemas(api_format="gemini")
 
         assert len(gemini_format) >= 2
         assert "name" in gemini_format[0]
@@ -281,7 +279,7 @@ class TestToolRegistry:
         assert "call_3" in results
         assert int(results["call_3"]) == 30
 
-    def test_recover_tool_call_assistant_message(self, populated_registry):
+    def test_build_tool_call_messages(self, populated_registry):
         """Test recovering assistant message from tool calls."""
         tool_calls = [
             ChatCompletionMessageFunctionToolCall(
@@ -292,7 +290,7 @@ class TestToolRegistry:
 
         tool_responses = {"call_1": "8"}
 
-        messages = populated_registry.recover_tool_call_assistant_message(
+        messages = populated_registry.build_tool_call_messages(
             tool_calls, tool_responses
         )
 
@@ -379,7 +377,7 @@ class TestToolRegistry:
 
 
 class TestToolRegistryTagFiltering:
-    """Test cases for tag-based filtering and stable sorting in get_tools_json."""
+    """Test cases for tag-based filtering and stable sorting in get_schemas."""
 
     @pytest.fixture()
     def tagged_registry(self):
@@ -425,9 +423,9 @@ class TestToolRegistryTagFiltering:
         registry.register(Tool.from_function(compute))
         return registry
 
-    def test_get_tools_json_filter_by_tags(self, tagged_registry):
+    def test_get_schemas_filter_by_tags(self, tagged_registry):
         """Test filtering tools by inclusion tags."""
-        result = tagged_registry.get_tools_json(tags={ToolTag.FILE_SYSTEM})
+        result = tagged_registry.get_schemas(tags={ToolTag.FILE_SYSTEM})
         names = [t["function"]["name"] for t in result]
 
         assert len(names) == 2
@@ -436,9 +434,9 @@ class TestToolRegistryTagFiltering:
         assert "fetch_url" not in names
         assert "compute" not in names
 
-    def test_get_tools_json_exclude_tags(self, tagged_registry):
+    def test_get_schemas_exclude_tags(self, tagged_registry):
         """Test excluding tools by tags."""
-        result = tagged_registry.get_tools_json(exclude_tags={ToolTag.DESTRUCTIVE})
+        result = tagged_registry.get_schemas(exclude_tags={ToolTag.DESTRUCTIVE})
         names = [t["function"]["name"] for t in result]
 
         assert "delete_file" not in names
@@ -446,9 +444,9 @@ class TestToolRegistryTagFiltering:
         assert "fetch_url" in names
         assert "compute" in names
 
-    def test_get_tools_json_tags_and_exclude_combined(self, tagged_registry):
+    def test_get_schemas_tags_and_exclude_combined(self, tagged_registry):
         """Test combining inclusion and exclusion tags."""
-        result = tagged_registry.get_tools_json(
+        result = tagged_registry.get_schemas(
             tags={ToolTag.FILE_SYSTEM},
             exclude_tags={ToolTag.DESTRUCTIVE},
         )
@@ -456,38 +454,38 @@ class TestToolRegistryTagFiltering:
 
         assert names == ["read_file"]
 
-    def test_get_tools_json_tags_with_custom_tags(self, tagged_registry):
+    def test_get_schemas_tags_with_custom_tags(self, tagged_registry):
         """Test filtering with custom string tags."""
-        result = tagged_registry.get_tools_json(tags={"api"})
+        result = tagged_registry.get_schemas(tags={"api"})
         names = [t["function"]["name"] for t in result]
 
         assert names == ["fetch_url"]
 
-    def test_get_tools_json_tags_no_match_returns_empty(self, tagged_registry):
+    def test_get_schemas_tags_no_match_returns_empty(self, tagged_registry):
         """Test that no matching tags returns empty list."""
-        result = tagged_registry.get_tools_json(tags={"nonexistent_tag"})
+        result = tagged_registry.get_schemas(tags={"nonexistent_tag"})
 
         assert result == []
 
-    def test_get_tools_json_stable_sort_default(self, tagged_registry):
+    def test_get_schemas_stable_sort_default(self, tagged_registry):
         """Test that tools are sorted alphabetically by default."""
-        result = tagged_registry.get_tools_json()
+        result = tagged_registry.get_schemas()
         names = [t["function"]["name"] for t in result]
 
         assert names == sorted(names)
         assert names == ["compute", "delete_file", "fetch_url", "read_file"]
 
-    def test_get_tools_json_stable_sort_disabled(self, tagged_registry):
+    def test_get_schemas_stable_sort_disabled(self, tagged_registry):
         """Test that sort=False preserves insertion order."""
-        result = tagged_registry.get_tools_json(sort=False)
+        result = tagged_registry.get_schemas(sort=False)
         names = [t["function"]["name"] for t in result]
 
         # Insertion order: read_file, delete_file, fetch_url, compute
         assert names == ["read_file", "delete_file", "fetch_url", "compute"]
 
-    def test_get_tools_json_tags_ignored_when_tool_name_set(self, tagged_registry):
+    def test_get_schemas_tags_ignored_when_tool_name_set(self, tagged_registry):
         """Test that tag filtering is skipped for single-tool lookup."""
-        result = tagged_registry.get_tools_json(
+        result = tagged_registry.get_schemas(
             tool_name="compute",
             tags={ToolTag.NETWORK},
         )

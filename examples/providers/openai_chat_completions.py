@@ -45,7 +45,7 @@ messages = [
 response = client.chat.completions.create(
     model=model_name,
     messages=messages,
-    tools=registry.get_tools_json(api_format="openai-chatcompletion"),
+    tools=registry.get_schemas(api_format="openai-chat"),
     tool_choice="auto",
 )
 
@@ -59,8 +59,8 @@ if response.choices[0].message.tool_calls:
     print(tool_responses)
 
     # Construct assistant messages with results
-    assistant_tool_messages = registry.recover_tool_call_assistant_message(
-        tool_calls, tool_responses, api_format="openai-chatcompletion"
+    assistant_tool_messages = registry.build_tool_call_messages(
+        tool_calls, tool_responses, api_format="openai-chat"
     )
     print(json.dumps(assistant_tool_messages, indent=2))
 

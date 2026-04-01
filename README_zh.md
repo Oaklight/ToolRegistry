@@ -134,7 +134,7 @@ transport = StreamableHttpTransport(url="https://mcphub.example.com/mcp", header
 registry.register_from_mcp(transport)
 
 # 获取所有工具的 JSON，包括 MCP 工具
-tools_json = registry.get_tools_json()
+tools_json = registry.get_schemas()
 ```
 
 ## OpenAPI 集成
@@ -160,7 +160,7 @@ registry.register_from_openapi(
 )
 
 # 获取所有工具的JSON，包括OpenAPI工具
-tools_json = registry.get_tools_json()
+tools_json = registry.get_schemas()
 ```
 
 ### 注意
@@ -182,7 +182,7 @@ from toolregistry import ToolRegistry
 registry = ToolRegistry()
 
 registry.register_from_langchain([ArxivQueryRun(), PubmedQueryRun()])
-tools_json = registry.get_tools_json()
+tools_json = registry.get_schemas()
 ```
 
 ## 注册 Class 工具

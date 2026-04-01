@@ -307,7 +307,7 @@ class Tool(BaseModel):
 
     def get_json_schema(
         self,
-        api_format: API_FORMATS = "openai",
+        api_format: API_FORMATS = "openai-chat",
     ) -> dict[str, Any]:
         """Generate JSON Schema representation of tool based on API format.
 
@@ -316,18 +316,19 @@ class Tool(BaseModel):
         keywords like ``$ref``, ``$schema``, ``anyOf``, etc.).
 
         Args:
-            api_format: Target API format. One of ``"openai"``,
-                ``"openai-chatcompletion"``, ``"openai-response"``,
-                ``"anthropic"``, ``"gemini"``.
+            api_format: Target API format. One of ``"openai-chat"``,
+                ``"openai-response"``, ``"anthropic"``, ``"gemini"``.
 
         Returns:
             Provider-specific tool definition dict.
         """
         from ._rosetta import _make_ir_tool_definition
+        from .types.common import _normalize_api_format
 
+        api_format = _normalize_api_format(api_format)
         ir_tool = _make_ir_tool_definition(self.name, self.description, self.parameters)
 
-        if api_format in ["openai", "openai-chatcompletion"]:
+        if api_format == "openai-chat":
             from ._rosetta import _get_openai_chat_tool_ops
 
             return _get_openai_chat_tool_ops().ir_tool_definition_to_p(ir_tool)

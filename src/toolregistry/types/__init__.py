@@ -8,7 +8,11 @@ from .common import (
     API_FORMATS,
     ToolCall,
     ToolCallResult,
+    _normalize_api_format,
+    build_assistant_message,
+    build_tool_response,
     convert_tool_calls,
+    # Deprecated aliases (kept for backward compatibility)
     recover_assistant_message,
     recover_tool_message,
 )
@@ -39,7 +43,11 @@ __all__ = [
     "ToolCall",
     "ToolCallResult",
     "API_FORMATS",
+    "_normalize_api_format",
+    "build_assistant_message",
+    "build_tool_response",
     "convert_tool_calls",
+    # Deprecated aliases
     "recover_assistant_message",
     "recover_tool_message",
     "AnyToolCall",

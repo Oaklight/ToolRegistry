@@ -1,5 +1,6 @@
 import json
 import uuid
+import warnings
 from typing import Any, Literal
 
 from pydantic import BaseModel, ValidationError, field_serializer
@@ -193,12 +194,34 @@ class ToolCallResult(BaseModel):
 
 
 API_FORMATS = Literal[
-    "openai",  # old default, alias to openai-chatcompletion
-    "openai-chatcompletion",  # chat completion
+    "openai",  # deprecated, alias for openai-chat
+    "openai-chat",  # chat completion (canonical)
+    "openai-chatcompletion",  # deprecated, alias for openai-chat
     "openai-response",
     "anthropic",
     "gemini",
 ]
+
+_DEPRECATED_API_FORMATS: dict[str, str] = {
+    "openai": "openai-chat",
+    "openai-chatcompletion": "openai-chat",
+}
+
+
+def _normalize_api_format(api_format: API_FORMATS) -> API_FORMATS:
+    """Map deprecated format names to their canonical equivalents.
+
+    Emits a ``DeprecationWarning`` when a deprecated name is used.
+    """
+    canonical = _DEPRECATED_API_FORMATS.get(api_format)  # type: ignore[arg-type]
+    if canonical is not None:
+        warnings.warn(
+            f'api_format="{api_format}" is deprecated, use "{canonical}" instead.',
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        return canonical  # type: ignore[return-value]
+    return api_format
 
 
 def convert_tool_calls(tool_calls: list[Any]) -> list[ToolCall]:
@@ -213,30 +236,31 @@ def convert_tool_calls(tool_calls: list[Any]) -> list[ToolCall]:
     return [ToolCall.from_tool_call(tool_call) for tool_call in tool_calls]
 
 
-def recover_assistant_message(
+def build_assistant_message(
     tool_calls: list[ToolCall],
     *,
-    api_format: API_FORMATS = "openai",
+    api_format: API_FORMATS = "openai-chat",
 ) -> list[dict[str, Any]]:
-    """Recover the assistant message from tool calls in various API formats.
+    """Build the assistant message from tool calls in various API formats.
 
-    This function can handle mixed tool call types (function and custom) and will
-    generate the appropriate message format based on each tool call's type.
+    Reconstructs the assistant-side message containing tool call requests
+    in the target API format.  This function only handles the tool-call
+    portion of the assistant message; content, thinking, reasoning, and
+    other vendor-specific fields must be preserved by the caller from the
+    original LLM response.
 
     Args:
-        tool_calls (List[ToolCall]): A list of ToolCall objects with mixed types.
-        api_format (API_FORMATS, optional): The desired API format. Defaults to "openai".
+        tool_calls: A list of ToolCall objects (may contain mixed types).
+        api_format: Target API format. Defaults to ``"openai-chat"``.
 
     Returns:
-        List[Dict[str, Any]]: The assistant message in the specified API format.
-        For OpenAI format, returns a list with ChatCompletionMessage containing
-        both function and custom tool calls as appropriate.
+        The assistant message as a list of dicts in the specified API format.
 
     Raises:
-        NotImplementedError: If the API format is "anthropic" or "gemini".
         ValueError: If the API format is unsupported.
     """
-    if api_format in ["openai", "openai-chatcompletion"]:
+    api_format = _normalize_api_format(api_format)
+    if api_format == "openai-chat":
         from .openai.chat_completion import (
             ChatCompletionMessage,
             ChatCompletionMessageCustomToolCall,
@@ -324,29 +348,34 @@ def recover_assistant_message(
         raise ValueError(f"Unsupported API format: {api_format}")
 
 
-def recover_tool_message(
+def build_tool_response(
     tool_responses: dict[str, str],
     *,
-    api_format: API_FORMATS = "openai",
+    api_format: API_FORMATS = "openai-chat",
     tool_calls: list[ToolCall] | None = None,
 ) -> list[dict[str, Any]]:
-    """Recover the tool message from tool responses in various API formats.
+    """Build tool result messages from tool execution responses.
+
+    Reconstructs the tool-result messages needed by the LLM to process
+    function call outcomes.  For Gemini format, ``tool_calls`` must be
+    provided to resolve function names (Gemini uses function names
+    instead of call IDs).
 
     Args:
-        tool_responses: A dictionary of tool responses with call_ids as
-            keys and results as values.
-        api_format: The desired API format. Defaults to "openai".
-        tool_calls: Optional list of ToolCall objects for name resolution.
-            Required by Gemini format which needs function names instead
-            of call IDs. Falls back to call_id when unavailable.
+        tool_responses: Mapping of tool call IDs to result strings.
+            Must preserve insertion order (guaranteed in Python 3.7+).
+        api_format: Target API format. Defaults to ``"openai-chat"``.
+        tool_calls: Optional ToolCall list for Gemini name resolution.
+            Falls back to call_id when unavailable.
 
     Returns:
-        A list of tool messages in the specified API format.
+        Tool result messages in the specified API format.
 
     Raises:
         ValueError: If the API format is unsupported.
     """
-    if api_format in ["openai", "openai-chatcompletion"]:
+    api_format = _normalize_api_format(api_format)
+    if api_format == "openai-chat":
         from .openai.chat_completion import ChatCompetionMessageToolCallResult
 
         messages = []
@@ -403,3 +432,39 @@ def recover_tool_message(
 
     else:
         raise ValueError(f"Unsupported API format: {api_format}")
+
+
+# ------------------------------------------------------------------
+# Deprecated aliases (will be removed in a future major release)
+# ------------------------------------------------------------------
+
+
+def recover_assistant_message(
+    tool_calls: list[ToolCall],
+    *,
+    api_format: API_FORMATS = "openai-chat",
+) -> list[dict[str, Any]]:
+    """Deprecated: use :func:`build_assistant_message` instead."""
+    warnings.warn(
+        "recover_assistant_message() is deprecated, use build_assistant_message() instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return build_assistant_message(tool_calls, api_format=api_format)
+
+
+def recover_tool_message(
+    tool_responses: dict[str, str],
+    *,
+    api_format: API_FORMATS = "openai-chat",
+    tool_calls: list[ToolCall] | None = None,
+) -> list[dict[str, Any]]:
+    """Deprecated: use :func:`build_tool_response` instead."""
+    warnings.warn(
+        "recover_tool_message() is deprecated, use build_tool_response() instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return build_tool_response(
+        tool_responses, api_format=api_format, tool_calls=tool_calls
+    )
