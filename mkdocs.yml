@@ -108,6 +108,8 @@ nav:
       - LLM Providers:
           - OpenAI Chat: usage/providers/openai_chat.md
           - OpenAI Response: usage/providers/openai_response.md
+          - Anthropic: usage/providers/anthropic.md
+          - Google Gemini: usage/providers/gemini.md
   - Examples:
       - Overview: examples/index.md
       - Consecutive Tool Calls: examples/consecutive_tool_calls.md
