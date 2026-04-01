@@ -37,6 +37,11 @@ class ToolMetadata(BaseModel):
             must run on the user's machine (e.g. file-system, shell),
             ``"remote"`` for tools best served by a remote server
             (e.g. web search), ``"any"`` (default) for location-agnostic tools.
+        max_result_size: Maximum result size in characters. When a tool's
+            result exceeds this limit, it is automatically truncated and
+            the full output is persisted to a temporary file. Only
+            effective when executed through
+            ``ToolRegistry.execute_tool_calls()``. None means no limit.
         tags: Predefined tags from ToolTag enum.
         custom_tags: User-defined free-form string tags.
         extra: Arbitrary key-value pairs for application-specific use.
@@ -46,6 +51,7 @@ class ToolMetadata(BaseModel):
     is_concurrency_safe: bool = True
     timeout: float | None = None
     locality: Literal["local", "remote", "any"] = "any"
+    max_result_size: int | None = None
 
     tags: set[ToolTag] = Field(default_factory=set)
     custom_tags: set[str] = Field(default_factory=set)
@@ -322,6 +328,12 @@ class Tool(BaseModel):
 
         Raises:
             Exception: On execution failure.
+
+        Note:
+            Result size truncation (via ``max_result_size``) is only applied
+            when tools are executed through
+            ``ToolRegistry.execute_tool_calls()``. Direct calls to ``run()``
+            return raw results without truncation.
         """
         try:
             validated_params = self._validate_parameters(parameters)
@@ -341,6 +353,12 @@ class Tool(BaseModel):
         Raises:
             NotImplementedError: If async execution unsupported.
             Exception: On execution failure.
+
+        Note:
+            Result size truncation (via ``max_result_size``) is only applied
+            when tools are executed through
+            ``ToolRegistry.execute_tool_calls()``. Direct calls to ``arun()``
+            return raw results without truncation.
         """
         try:
             validated_params = self._validate_parameters(parameters)

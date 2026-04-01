@@ -494,3 +494,100 @@ class TestToolRegistryTagFiltering:
 
         assert len(result) == 1
         assert result[0]["function"]["name"] == "compute"
+
+
+class TestToolRegistryResultTruncation:
+    """Test cases for result truncation in execute_tool_calls."""
+
+    def test_execute_tool_calls_truncates_large_result(self):
+        """Test that large results are truncated when max_result_size is set."""
+        registry = ToolRegistry(name="trunc_test")
+
+        def big_output(n: int) -> str:
+            """Return a large string."""
+            return "x" * n
+
+        registry.register(
+            Tool.from_function(big_output, metadata=ToolMetadata(max_result_size=50))
+        )
+
+        tool_calls = [
+            ChatCompletionMessageFunctionToolCall(
+                id="call_big",
+                function=Function(name="big_output", arguments='{"n": 500}'),
+            )
+        ]
+        results = registry.execute_tool_calls(tool_calls)
+
+        assert "call_big" in results
+        assert "Truncated" in results["call_big"]
+        assert "500 chars" in results["call_big"]
+        # The truncated content should be much shorter than 500
+        assert len(results["call_big"]) < 500
+
+    def test_execute_tool_calls_no_truncation_when_under_limit(self):
+        """Test that small results are not truncated."""
+        registry = ToolRegistry(name="no_trunc_test")
+
+        def small_output() -> str:
+            """Return a small string."""
+            return "hello"
+
+        registry.register(
+            Tool.from_function(
+                small_output, metadata=ToolMetadata(max_result_size=1000)
+            )
+        )
+
+        tool_calls = [
+            ChatCompletionMessageFunctionToolCall(
+                id="call_small",
+                function=Function(name="small_output", arguments="{}"),
+            )
+        ]
+        results = registry.execute_tool_calls(tool_calls)
+
+        assert results["call_small"] == "hello"
+
+    def test_execute_tool_calls_default_max_result_size(self):
+        """Test that registry-level default_max_result_size is applied."""
+        registry = ToolRegistry(name="default_trunc", default_max_result_size=30)
+
+        def verbose_output() -> str:
+            """Return a verbose string."""
+            return "a" * 200
+
+        registry.register(verbose_output)
+
+        tool_calls = [
+            ChatCompletionMessageFunctionToolCall(
+                id="call_verbose",
+                function=Function(name="verbose_output", arguments="{}"),
+            )
+        ]
+        results = registry.execute_tool_calls(tool_calls)
+
+        assert "Truncated" in results["call_verbose"]
+
+    def test_execute_tool_calls_tool_level_overrides_default(self):
+        """Test that tool-level max_result_size takes precedence over default."""
+        registry = ToolRegistry(name="override_test", default_max_result_size=10)
+
+        def output() -> str:
+            """Return a medium string."""
+            return "b" * 50
+
+        registry.register(
+            Tool.from_function(output, metadata=ToolMetadata(max_result_size=1000))
+        )
+
+        tool_calls = [
+            ChatCompletionMessageFunctionToolCall(
+                id="call_override",
+                function=Function(name="output", arguments="{}"),
+            )
+        ]
+        results = registry.execute_tool_calls(tool_calls)
+
+        # 50 chars < 1000 limit, so no truncation
+        assert "Truncated" not in results["call_override"]
