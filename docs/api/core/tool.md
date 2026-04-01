@@ -1,48 +1,45 @@
 # Tool
 
-!!! warning "本页尚未翻译"
-    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+表示 ToolRegistry 生态系统中具有元数据和执行逻辑的单个工具。
 
-Represents an individual tool with metadata and execution logic within the ToolRegistry ecosystem.
+## 概览
 
-## Overview
+`Tool` 类是 ToolRegistry 系统中所有工具的基础抽象。它封装了可执行逻辑以及工具发现、参数验证和在 LLM 应用中执行所需的元数据。
 
-The `Tool` class serves as a fundamental abstraction for all tools in the ToolRegistry system. It encapsulates both the executable logic and the metadata necessary for proper tool discovery, parameter validation, and execution within LLM applications.
+## 主要特性
 
-## Key Features
+- **元数据管理**：全面的工具描述、参数和执行元数据
+- **参数验证**：内置参数模式验证和类型检查
+- **执行抽象**：同步和异步执行的统一接口
+- **命名空间支持**：与命名空间组织集成，用于工具分组
+- **可调用集成**：通过可调用接口直接执行
 
-- **Metadata Management**: Comprehensive tool description, parameters, and execution metadata
-- **Parameter Validation**: Built-in parameter schema validation and type checking
-- **Execution Abstraction**: Unified interface for both synchronous and asynchronous execution
-- **Namespace Support**: Integration with namespace organization for tool grouping
-- **Callable Integration**: Direct execution through callable interface
+## 架构
 
-## Architecture
+Tool 类遵循数据传输对象模式，包含以下关键组件：
 
-The Tool class follows a data-transfer-object pattern with the following key components:
+### 核心属性
 
-### Core Attributes
+1. **name**：工具的唯一标识符
+2. **description**：人类可读的工具功能描述
+3. **parameters**：定义预期参数的 JSON Schema
+4. **callable**：实际的可执行函数或包装器
+5. **is_async**：指示异步执行能力的标志
+6. **namespace**：可选的组织命名空间（存储规范化后的原始命名空间字符串）
+7. **method_name**：可选的命名空间前缀添加前的原始方法/函数名称（保留用于无歧义的基础名称恢复）
 
-1. **name**: Unique identifier for the tool
-2. **description**: Human-readable description of tool functionality
-3. **parameters**: JSON schema defining expected parameters
-4. **callable**: The actual executable function or wrapper
-5. **is_async**: Flag indicating asynchronous execution capability
-6. **namespace**: Optional namespace for organization (stores the original namespace string after normalization)
-7. **method_name**: Optional original method/function name before namespace prefixing (preserved for unambiguous base name recovery)
+### 计算属性
 
-### Computed Properties
+- **qualified_name**：返回完全限定的工具名称。如果同时设置了 `namespace` 和 `method_name`，则返回 `{namespace}-{method_name}`；否则回退到 `name` 字段。
 
-- **qualified_name**: Returns the fully-qualified tool name. If both `namespace` and `method_name` are set, returns `{namespace}-{method_name}`; otherwise falls back to the `name` field.
+### 设计理念
 
-### Design Philosophy
+- **不可变性**：Tool 实例设计为创建后不可变
+- **模式驱动**：基于 JSON Schema 标准的参数验证
+- **执行灵活性**：支持同步和异步执行模式
+- **元数据保留**：完整保留工具元数据以供 LLM 使用
 
-- **Immutability**: Tool instances are designed to be immutable after creation
-- **Schema-Driven**: Parameter validation based on JSON Schema standards
-- **Execution Flexibility**: Support for both sync and async execution patterns
-- **Metadata Preservation**: Complete preservation of tool metadata for LLM consumption
-
-## API Reference
+## API 参考
 
 ::: toolregistry.Tool
     options:
@@ -51,9 +48,9 @@ The Tool class follows a data-transfer-object pattern with the following key com
         show_root_toc_entry: false
         merge_init_into_class: true
 
-## Usage Examples
+## 使用示例
 
-### Basic Tool Creation
+### 基本工具创建
 
 ```python
 from toolregistry import Tool
@@ -79,7 +76,7 @@ area_tool = Tool(
 )
 ```
 
-### Tool with Namespace
+### 带命名空间的工具
 
 ```python
 from toolregistry import Tool
@@ -108,7 +105,7 @@ print(math_tool.namespace)       # Output: "math_ops"
 print(math_tool.method_name)     # Output: "multiply"
 ```
 
-### Tool from Function with Namespace
+### 通过函数创建带命名空间的工具
 
 ```python
 from toolregistry import Tool
@@ -130,7 +127,7 @@ print(tool2.name)            # Output: "math_ops-mul"
 print(tool2.method_name)     # Output: "mul"
 ```
 
-### Updating Namespace
+### 更新命名空间
 
 ```python
 from toolregistry import Tool
@@ -146,7 +143,7 @@ print(math_tool.method_name)    # Output: "multiply"
 print(math_tool.qualified_name) # Output: "math_operations-multiply"
 ```
 
-### Async Tool
+### 异步工具
 
 ```python
 import asyncio
@@ -173,9 +170,9 @@ async_tool = Tool(
 )
 ```
 
-## Parameter Schema Format
+## 参数模式格式
 
-The Tool class uses JSON Schema format for parameter validation:
+Tool 类使用 JSON Schema 格式进行参数验证：
 
 ```json
 {
@@ -191,9 +188,9 @@ The Tool class uses JSON Schema format for parameter validation:
 }
 ```
 
-## Integration with ToolRegistry
+## 与 ToolRegistry 集成
 
-Tools are primarily used through the ToolRegistry:
+工具主要通过 ToolRegistry 使用：
 
 ```python
 from toolregistry import ToolRegistry, Tool
@@ -207,4 +204,4 @@ registry.register(tool_instance)
 result = registry.execute_tool("tool_name", param1="value1", param2="value2")
 ```
 
-The Tool class provides the foundation for all tool operations within the ToolRegistry ecosystem, ensuring consistent behavior across different tool sources and execution environments.
+Tool 类为 ToolRegistry 生态系统中的所有工具操作提供了基础，确保在不同工具来源和执行环境中具有一致的行为。

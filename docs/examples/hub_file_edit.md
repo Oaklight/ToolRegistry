@@ -1,15 +1,12 @@
-# FileOps Example: Editing a File with LLM
+# FileOps 示例：使用 LLM 编辑文件
 
-!!! warning "本页尚未翻译"
-    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+本示例演示了如何使用 `FileOps` 工具，通过向大语言模型（LLM）提供指令来修改文件。`FileOps` 工具支持文件的读取、写入和编辑等操作。
 
-This example demonstrates how to use the `FileOps` tool to modify a file using instructions provided to a Large Language Model (LLM). The `FileOps` tool allows for operations such as reading, writing, and editing files.
+值得注意的是，`FileOps` 工具同时支持 `git` 冲突/合并风格和统一 `diff` 风格的编辑。这种灵活性允许你根据需求和 LLM 的能力选择最合适的风格。你可以在指令中指定 LLM 使用哪种风格。
 
-One thing worth noting is that the `FileOps` tool can handle both `git` conflict/merge style and unified `diff` style edits. This flexibility allows you to choose the style that best fits your needs and capability of the LLM. You can direct LLM to use either style in your instructions.
+此外，`FileOps` 工具以 Python 类的形式实现，仅包含静态方法。因此你无需创建类的实例，可以直接将类类型注册到 `ToolRegistry` 中。
 
-Also, `FileOps` tool is implemented as a Python class with only staticmethod. In this case, you can avoid creating an instance of the class and directly register the class type to the `ToolRegistry`.
-
-## Cicada `MultiModalModel` implementation
+## Cicada `MultiModalModel` 实现
 
 ```python
 import json

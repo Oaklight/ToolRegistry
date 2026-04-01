@@ -1,61 +1,58 @@
-# LangChain Integration
+# LangChain 集成
 
-!!! warning "本页尚未翻译"
-    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+本节介绍 ToolRegistry 库的 LangChain 集成功能。
 
-This section documents the LangChain integration capabilities of the ToolRegistry library.
+## 架构概览
 
-## Architecture Overview
+LangChain 集成实现了 LangChain 工具与 ToolRegistry 生态系统之间的无缝互操作。该集成允许在 ToolRegistry 框架中使用 LangChain 丰富的工具生态系统：
 
-The LangChain integration enables seamless interoperability between LangChain tools and the ToolRegistry ecosystem. This integration allows LangChain's extensive tool ecosystem to be used within the ToolRegistry framework:
+### 核心组件
 
-### Core Components
+1. **LangChainToolWrapper**：一个包装器类，桥接 LangChain 工具与 ToolRegistry 的统一接口
 
-1. **LangChainToolWrapper**: A wrapper class that bridges LangChain tools with ToolRegistry's unified interface
+   - 提供同步（`_run`）和异步（`_arun`）执行方法
+   - 管理 LangChain 和 ToolRegistry 格式之间的参数映射
+   - 处理错误传播和日志记录
 
-   - Provides both synchronous (`_run`) and asynchronous (`_arun`) execution methods
-   - Manages parameter mapping between LangChain and ToolRegistry formats
-   - Handles error propagation and logging
+2. **LangChainTool**：一个工具类，包装 LangChain BaseTool 实例
 
-2. **LangChainTool**: A tool class that wraps LangChain BaseTool instances
+   - 保留原始工具元数据和描述
+   - 将 LangChain 输入模式转换为 ToolRegistry 格式
+   - 支持命名空间，用于工具组织
 
-   - Preserves original tool metadata and descriptions
-   - Converts LangChain input schemas to ToolRegistry format
-   - Maintains namespace support for tool organization
+3. **LangChainIntegration**：主集成类，协调桥接流程
+   - 管理从 LangChain 工具到 ToolRegistry 工具的转换
+   - 支持单个工具和批量注册模式
+   - 处理模式转换和规范化
 
-3. **LangChainIntegration**: The main integration class that orchestrates the bridging process
-   - Manages the conversion from LangChain tools to ToolRegistry tools
-   - Supports both individual tool and batch registration patterns
-   - Handles schema transformation and normalization
+### 设计理念
 
-### Design Philosophy
+- **非侵入式集成**：保留原始 LangChain 工具行为
+- **模式兼容性**：LangChain 和 ToolRegistry 模式之间的自动转换
+- **错误透明性**：保留原始 LangChain 异常并增强上下文信息
+- **异步支持**：完全兼容 LangChain 的异步执行模型
 
-- **Non-invasive Integration**: Preserves original LangChain tool behavior
-- **Schema Compatibility**: Automatic conversion between LangChain and ToolRegistry schemas
-- **Error Transparency**: Original LangChain exceptions are preserved and enhanced with context
-- **Async Support**: Full compatibility with LangChain's async execution model
+### 主要特性
 
-### Key Features
+- 直接与 LangChain 的 `BaseTool` 实例集成
+- 从 LangChain 到 ToolRegistry 格式的自动模式转换
+- 支持同步和异步执行模式
+- 命名空间支持，用于组织 LangChain 工具
+- 保留原始 LangChain 工具的错误处理和日志记录
+- 最小开销——无需额外依赖或转换
 
-- Direct integration with LangChain's `BaseTool` instances
-- Automatic schema transformation from LangChain to ToolRegistry format
-- Support for both synchronous and asynchronous execution modes
-- Namespace support for organizing LangChain tools
-- Preserved error handling and logging from original LangChain tools
-- Minimal overhead - no additional dependencies or transformations
+### 使用模式
 
-### Usage Patterns
+- **单工具集成**：注册单个 LangChain 工具
+- **工具集合**：从集合中集成多个 LangChain 工具
+- **命名空间组织**：将 LangChain 工具分组到公共命名空间下
+- **错误处理**：保持 LangChain 原始异常行为并增强上下文
 
-- **Single Tool Integration**: Register individual LangChain tools
-- **Tool Collections**: Integrate multiple LangChain tools from collections
-- **Namespace Organization**: Group LangChain tools under common namespaces
-- **Error Handling**: Maintain LangChain's original exception behavior with enhanced context
-
-## API Reference
+## API 参考
 
 ### LangChainToolWrapper
 
-Wrapper class providing both async and sync versions of LangChain tool calls.
+提供异步和同步版本的 LangChain 工具调用的包装器类。
 
 ::: toolregistry.langchain.integration.LangChainToolWrapper
     options:
@@ -66,7 +63,7 @@ Wrapper class providing both async and sync versions of LangChain tool calls.
 
 ### LangChainTool
 
-Wrapper class for LangChain tools that preserves original function metadata.
+保留原始函数元数据的 LangChain 工具包装器类。
 
 ::: toolregistry.langchain.integration.LangChainTool
     options:
@@ -77,7 +74,7 @@ Wrapper class for LangChain tools that preserves original function metadata.
 
 ### LangChainIntegration
 
-Handles integration with LangChain tools for registration.
+处理与 LangChain 工具集成以进行注册的类。
 
 ::: toolregistry.langchain.integration.LangChainIntegration
     options:
@@ -86,11 +83,11 @@ Handles integration with LangChain tools for registration.
         show_root_toc_entry: false
         merge_init_into_class: true
 
-## Module Overview
+## 模块概览
 
-### LangChain Module
+### LangChain 模块
 
-The main LangChain integration module.
+LangChain 集成主模块。
 
 ::: toolregistry.langchain
     options:

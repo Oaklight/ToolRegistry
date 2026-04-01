@@ -1,13 +1,10 @@
-# Helper Classes
+# 辅助类
 
-!!! warning "本页尚未翻译"
-    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+支持 ToolRegistry 库核心功能的实用类和辅助函数。
 
-Utility classes and helper functions that support the core functionality of the ToolRegistry library.
+## 参数模型
 
-## Parameter Models
-
-Parameter validation and schema generation for tool functions. `ArgModelBase` dynamically creates Pydantic models from function signatures for runtime argument validation.
+工具函数的参数验证和 Schema 生成。`ArgModelBase` 根据函数签名动态创建 Pydantic 模型，用于运行时参数验证。
 
 ::: toolregistry.parameter_models
     options:
@@ -15,9 +12,9 @@ Parameter validation and schema generation for tool functions. `ArgModelBase` dy
         show_root_heading: true
         show_root_toc_entry: false
 
-## Utilities
+## 实用工具
 
-Common utility functions used across the library, including tool name normalization and HTTP client configuration for OpenAPI integrations.
+库中通用的实用函数，包括工具名称标准化和用于 OpenAPI 集成的 HTTP 客户端配置。
 
 ::: toolregistry.utils
     options:

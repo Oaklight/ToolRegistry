@@ -1,49 +1,46 @@
 # LangChainToolWrapper
 
-!!! warning "本页尚未翻译"
-    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+提供异步和同步版本的 LangChain 工具调用的包装器类。
 
-Wrapper class providing both async and sync versions of LangChain tool calls.
+## 概览
 
-## Overview
+`LangChainToolWrapper` 是专门为 LangChain 工具设计的包装器，提供 LangChain 丰富的工具生态系统与 ToolRegistry 标准化接口之间的无缝互操作。它保留 LangChain 原始的执行语义，同时支持与更广泛的 ToolRegistry 生态系统集成。
 
-`LangChainToolWrapper` serves as the specialized wrapper for LangChain tools, providing seamless interoperability between LangChain's extensive tool ecosystem and the ToolRegistry's standardized interface. It preserves LangChain's original execution semantics while enabling integration with the broader ToolRegistry ecosystem.
+## 主要特性
 
-## Key Features
+- **LangChain 集成**：直接兼容 LangChain BaseTool 实例
+- **执行保留**：保持 LangChain 原始的异步/同步执行行为
+- **模式转换**：LangChain 和 ToolRegistry 模式之间的自动转换
+- **错误透明性**：保留原始 LangChain 异常并增强上下文信息
+- **参数映射**：不同模式格式之间的无缝参数处理
+- **异步/同步桥接**：全面支持同步和异步执行
 
-- **LangChain Integration**: Direct compatibility with LangChain BaseTool instances
-- **Execution Preservation**: Maintains LangChain's original async/sync execution behavior
-- **Schema Conversion**: Automatic conversion between LangChain and ToolRegistry schemas
-- **Error Transparency**: Preserves original LangChain exceptions with enhanced context
-- **Parameter Mapping**: Seamless parameter handling between different schema formats
-- **Async/Sync Bridge**: Full support for both synchronous and asynchronous execution
+## 架构
 
-## Architecture
+LangChainToolWrapper 通过 LangChain 特定功能扩展了 `BaseToolWrapper`：
 
-The LangChainToolWrapper extends `BaseToolWrapper` with LangChain-specific functionality:
+### 核心组件
 
-### Core Components
+1. **LangChain 工具管理**：直接与 LangChain BaseTool 实例集成
+2. **模式转换**：将 LangChain 输入模式转换为 ToolRegistry 格式
+3. **执行桥接**：保留 LangChain 的 _run() 和 _arun() 方法
+4. **错误增强**：保持 LangChain 异常并添加额外上下文
 
-1. **LangChain Tool Management**: Direct integration with LangChain BaseTool instances
-2. **Schema Transformation**: Converts LangChain input schemas to ToolRegistry format
-3. **Execution Bridge**: Preserves LangChain's _run() and _arun() methods
-4. **Error Enhancement**: Maintains LangChain exceptions with additional context
-
-### Integration Flow
+### 集成流程
 
 ```
-ToolRegistry Tool Call
+ToolRegistry 工具调用
     ↓
-Schema Mapping
+模式映射
     ↓
-LangChain Tool Execution (_run/_arun)
+LangChain 工具执行 (_run/_arun)
     ↓
-Result Processing
+结果处理
     ↓
-ToolRegistry Response
+ToolRegistry 响应
 ```
 
-## API Reference
+## API 参考
 
 ::: toolregistry.langchain.integration.LangChainToolWrapper
     options:
@@ -52,9 +49,9 @@ ToolRegistry Response
       show_root_toc_entry: false
       merge_init_into_class: true
 
-## Usage Examples
+## 使用示例
 
-### Basic LangChain Tool Wrapper
+### 基本 LangChain 工具包装器
 
 ```python
 from langchain_core.tools import BaseTool
@@ -75,7 +72,7 @@ result = wrapper(a=5, b=3, operation="add")  # Sync - calls tool._run()
 result = await wrapper(a=5, b=3, operation="add")  # Async - calls tool._arun()
 ```
 
-### Custom LangChain Tool
+### 自定义 LangChain 工具
 
 ```python
 from langchain_core.tools import BaseTool, Tool
@@ -106,18 +103,18 @@ langchain_tool = Tool(
 wrapper = LangChainToolWrapper(langchain_tool)
 ```
 
-## Schema Conversion
+## 模式转换
 
-The wrapper automatically converts LangChain schemas:
+该包装器自动转换 LangChain 模式：
 
-### LangChain Schema (Pydantic)
+### LangChain 模式（Pydantic）
 ```python
 class InputSchema(BaseModel):
     query: str = Field(description="Search query")
     limit: int = Field(description="Result limit", default=10)
 ```
 
-### ToolRegistry Schema (JSON)
+### ToolRegistry 模式（JSON）
 ```python
 {
     "type": "object",
@@ -129,7 +126,7 @@ class InputSchema(BaseModel):
 }
 ```
 
-### Automatic Conversion
+### 自动转换
 ```python
 # Wrapper handles the conversion automatically
 langchain_tool = Tool(...)
@@ -139,23 +136,23 @@ wrapper = LangChainToolWrapper(langchain_tool)
 result = wrapper(query="search term", limit=5)
 ```
 
-## Execution Modes
+## 执行模式
 
-### Synchronous Execution
+### 同步执行
 ```python
 # Calls langchain_tool._run(*args, **kwargs)
 wrapper = LangChainToolWrapper(langchain_tool)
 result = wrapper(param1="value1", param2="value2")
 ```
 
-### Asynchronous Execution
+### 异步执行
 ```python
 # Calls langchain_tool._arun(*args, **kwargs)
 wrapper = LangChainToolWrapper(langchain_tool)
 result = await wrapper(param1="value1", param2="value2")
 ```
 
-### Automatic Mode Detection
+### 自动模式检测
 ```python
 import asyncio
 
@@ -164,9 +161,9 @@ result1 = wrapper(arg="value")  # Sync context → _run()
 result2 = await wrapper(arg="value")  # Async context → _arun()
 ```
 
-## Integration Patterns
+## 集成模式
 
-### With LangChain Integration
+### 与 LangChain 集成配合使用
 
 ```python
 from toolregistry import ToolRegistry
@@ -181,7 +178,7 @@ await langchain_integration.register_langchain_tools_async(langchain_tool)
 # Tool is automatically wrapped with LangChainToolWrapper
 ```
 
-### Direct Wrapper Usage
+### 直接使用包装器
 
 ```python
 # For immediate tool wrapping
@@ -191,11 +188,11 @@ wrapper = LangChainToolWrapper(langchain_tool)
 registry.register(wrapper)
 ```
 
-## Error Handling
+## 错误处理
 
-The wrapper preserves LangChain's original error handling:
+该包装器保留 LangChain 原始的错误处理：
 
-### LangChain Exceptions
+### LangChain 异常
 ```python
 # Original LangChain exceptions are preserved
 from langchain_core.tools import ToolException
@@ -207,7 +204,7 @@ except ToolException as e:
     print(f"LangChain Error: {e}")
 ```
 
-### Enhanced Error Context
+### 增强的错误上下文
 ```python
 try:
     result = wrapper(param="value")
@@ -217,9 +214,9 @@ except Exception as e:
     raise  # Original exception is re-raised
 ```
 
-## Supported LangChain Tool Types
+## 支持的 LangChain 工具类型
 
-### Function Tools
+### 函数工具
 ```python
 from langchain_core.tools import Tool
 
@@ -230,7 +227,7 @@ tool = Tool(name="my_tool", func=my_function)
 wrapper = LangChainToolWrapper(tool)
 ```
 
-### Structured Tools
+### 结构化工具
 ```python
 from langchain_core.tools import StructuredTool
 
@@ -241,34 +238,34 @@ tool = StructuredTool.from_function(structured_function)
 wrapper = LangChainToolWrapper(tool)
 ```
 
-### BaseTool Subclasses
+### BaseTool 子类
 ```python
 from langchain_core.tools import BaseTool
 
 class CustomTool(BaseTool):
     name = "custom_tool"
     description = "Custom tool description"
-    
+
     def _run(self, query: str) -> str:
         return f"Custom result: {query}"
-    
+
     async def _arun(self, query: str) -> str:
         return f"Custom async result: {query}"
 
 wrapper = LangChainToolWrapper(CustomTool())
 ```
 
-## Integration Benefits
+## 集成优势
 
-### Non-Invasive Integration
-- Original LangChain tool behavior is preserved
-- No modification to existing LangChain tools required
-- Backward compatibility with LangChain applications
+### 非侵入式集成
+- 保留原始 LangChain 工具行为
+- 无需修改现有 LangChain 工具
+- 与 LangChain 应用向后兼容
 
-### ToolRegistry Benefits
-- Unified interface for all tool types
-- Namespace organization support
-- Cross-framework tool discovery
-- Enhanced error logging and debugging
+### ToolRegistry 优势
+- 所有工具类型的统一接口
+- 命名空间组织支持
+- 跨框架工具发现
+- 增强的错误日志和调试
 
-The LangChainToolWrapper enables seamless integration of LangChain's rich tool ecosystem into the ToolRegistry framework, providing the best of both worlds: LangChain's proven tool implementations with ToolRegistry's standardized execution interface.
+LangChainToolWrapper 实现了 LangChain 丰富工具生态系统与 ToolRegistry 框架的无缝集成，融合了两者的优势：LangChain 经过验证的工具实现与 ToolRegistry 标准化的执行接口。

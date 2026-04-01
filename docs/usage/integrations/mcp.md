@@ -1,44 +1,41 @@
-# MCP Tool Usage Guide
+# MCP 工具使用指南
 
-!!! warning "本页尚未翻译"
-    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+???+ note "变更日志"
+    新增于版本：0.3.0
 
-???+ note "Changelog"
-    New in version: 0.3.0
+## 简介
 
-## Introduction
+本指南介绍如何将 MCP（Model Context Protocol）与 ToolRegistry 集成，实现从 MCP 服务器注册和调用工具的功能。指南以数学服务为例，提供了同步和异步调用的示例工作流。
 
-This guide explains how to integrate MCP (Model Context Protocol) with ToolRegistry, enabling registration and invocation of tools from an MCP server. It provides example workflows for synchronous and asynchronous calls, using a math service as a demonstration.
+## 支持的传输方式和输入类型
 
-## Supported Transport and Input Types
+MCP 集成支持灵活的传输选项：
 
-The MCP integration supports flexible transport options:
+- **基于 Web 的传输方式**：
+    - `Streamable Http`（例如 `http://localhost:8000/mcp`）
+    - `SSE`（例如 `http://localhost:8000/mcp/sse`）
+    - `WebSocket`（例如 `ws://localhost:8000/mcp`）
+- **Stdio 传输方式**：
+    - 脚本文件路径（例如 `.py`、`.js`）
+    - 基于配置的方式（包含 `command`、`args`、`env` 的字典）
 
-- **Web-based Transports**:
-  - `Streamable Http` (e.g., `http://localhost:8000/mcp`)
-  - `SSE` (e.g., `http://localhost:8000/mcp/sse`)
-  - `WebSocket` (e.g., `ws://localhost:8000/mcp`)
-- **Stdio Transport**:
-  - Script file paths (e.g., `.py`, `.js`)
-  - Config-based setup (dict with `command`, `args`, `env`)
+支持的输入包括 URL 字符串（`http://`、`https://`、`ws://`、`wss://`）、脚本路径（`.py`、`.js`）或字典配置。我们将在下方的[注册示例](#registration-synchronous)中进行演示。
 
-Supported inputs include URL strings (`http://`, `https://`, `ws://`, `wss://`), script paths (`.py`, `.js`), or dict configurations. We will demonstrate in [registration example](#registration-synchronous) below.
+!!! note "MCP 客户端解耦"
+    自 **`toolregistry 0.5.0`** 起，MCP 集成使用官方 [`mcp`](https://pypi.org/project/mcp/) SDK（`mcp>=1.0.0,<2.0.0`）替代了 `fastmcp`，从而减轻了依赖负担。`transport` 参数现在接受 `Union[str, Dict[str, Any], Path]` 类型——不再接受 `ClientTransport` 和 `FastMCP` 实例。
 
-!!! note "MCP Client Decoupling"
-    Since **`toolregistry 0.5.0`**, the MCP integration uses the official [`mcp`](https://pypi.org/project/mcp/) SDK (`mcp>=1.0.0,<2.0.0`) instead of `fastmcp`. This results in a lighter dependency footprint. The `transport` parameter now accepts `Union[str, Dict[str, Any], Path]` — `ClientTransport` and `FastMCP` instances are no longer accepted.
+    公共 API（`register_from_mcp` / `register_from_mcp_async`）保持不变。
 
-    The public API (`register_from_mcp` / `register_from_mcp_async`) remains unchanged.
+!!! note "MCP 传输方式更新"
+    从 [`MCP 2025-03-26`](https://modelcontextprotocol.io/specification/2025-03-26/changelog) 开始，`http+sse` 传输方式已被 `streamable http` 取代。自 **`toolregistry 0.4.7`** 起，已支持该传输方式，并对旧版 `http+sse` 提供回退兼容。
 
-!!! note "MCP Transport Update"
-    Starting with [`MCP 2025-03-26`](https://modelcontextprotocol.io/specification/2025-03-26/changelog), `http+sse` transport has been replaced by `streamable http`. Since **`toolregistry 0.4.7`**, this transport is supported with fallback for legacy `http+sse`.
+    建议将你的 MCP 服务器升级为使用 `streamable http` 以获得最佳性能，因为未来版本可能会逐步淘汰 `http+sse`。
 
-    It's recommended to update your MCP servers to use `streamable http` for optimal performance, as future versions may phase out `http+sse`.
+## 用法
 
-## Usage
+### 注册（同步）
 
-### Registration (synchronous)
-
-To register MCP tools synchronously, use the `register_from_mcp` method with various transport options:
+要同步注册 MCP 工具，请使用 `register_from_mcp` 方法，支持多种传输选项：
 
 ```python
 from pathlib import Path
@@ -63,15 +60,15 @@ registry.register_from_mcp(transport)
 print(registry)  # Outputs registered tools
 ```
 
-!!! tip
-    `ToolRegistry.register_from_mcp` supports URL strings, script paths, and dict configurations, which are sufficient for most scenarios.
+!!! tip "提示"
+    `ToolRegistry.register_from_mcp` 支持 URL 字符串、脚本路径和字典配置，可以满足大多数使用场景。
 
-!!! tip
-    Emerging MCP hub services, commercial or self-hosted, simplify discovering and centralizing MCP servers. They’re ideal for avoiding stdio servers, reducing environment clutter, or enabling MCP host sharing.
+!!! tip "提示"
+    新兴的 MCP Hub 服务（无论是商业的还是自托管的）简化了 MCP 服务器的发现和集中管理。它们非常适合避免使用 stdio 服务器、减少环境负担，或实现 MCP 主机共享。
 
-### Calling MCP Tools (synchronous)
+### 调用 MCP 工具（同步）
 
-Registered tools can be invoked synchronously using subscript notation access, callable methods, or `.run()` methods:
+已注册的工具可以通过下标访问、可调用方法或 `.run()` 方法进行同步调用：
 
 ```python
 # Calling a tool using subscript notation
@@ -89,17 +86,17 @@ result = add_tool.run({"a": 5, "b": 6})
 print(result)  # Output: 11
 ```
 
-## Sync vs Async Usability
+## 同步与异步的适用场景
 
-MCP integration supports both synchronous and asynchronous workflows, catering to varied developer needs. While MCP clients are inherently asynchronous, the integration provides both synchronous and asynchronous interfaces for convenience:
+MCP 集成同时支持同步和异步工作流，以满足不同开发者的需求。虽然 MCP 客户端本质上是异步的，但集成提供了同步和异步两种接口以方便使用：
 
-- **Synchronous**: Best suited for single-threaded environments or simple scripts. It wraps the inherently asynchronous workflows into a synchronous interface for ease of use.
+- **同步**：最适合单线程环境或简单脚本。它将本质上异步的工作流封装为同步接口，便于使用。
 
-- **Asynchronous**: Ideal for event-driven frameworks or scenarios requiring concurrent communication with multiple servers, ensuring non-blocking operations and scalability.
+- **异步**：适用于事件驱动框架或需要与多个服务器并发通信的场景，确保非阻塞操作和可扩展性。
 
-### Asynchronous Registration of MCP Tools
+### 异步注册 MCP 工具
 
-For asynchronous environments, use the `register_from_mcp_async` method:
+在异步环境中，使用 `register_from_mcp_async` 方法：
 
 ```python
 import asyncio
@@ -114,9 +111,9 @@ async def async_register():
 asyncio.run(async_register())
 ```
 
-### Asynchronous Tool Calls
+### 异步调用工具
 
-Tools can also be invoked asynchronously using their `__call__()` or `arun()` methods:
+工具也可以通过其 `__call__()` 或 `arun()` 方法进行异步调用：
 
 ```python
 import asyncio
@@ -135,16 +132,16 @@ asyncio.run(call_async_add_func())
 asyncio.run(call_async_add_tool())
 ```
 
-## Persistent Connections
+## 持久连接
 
-???+ note "Changelog"
-    New in version: 0.7.0
+???+ note "变更日志"
+    新增于版本：0.7.0
 
-By default, MCP connections are now **persistent** — the connection to the MCP server stays open across multiple tool calls, avoiding repeated handshake overhead. This is managed by `MCPConnectionManager` internally.
+默认情况下，MCP 连接现在是**持久的**——与 MCP 服务器的连接在多次工具调用之间保持打开状态，避免了重复握手的开销。这由内部的 `MCPConnectionManager` 管理。
 
-### Context Manager Usage
+### 上下文管理器用法
 
-Use `ToolRegistry` as a context manager to ensure connections are properly closed:
+使用 `ToolRegistry` 作为上下文管理器可确保连接被正确关闭：
 
 ```python
 from toolregistry import ToolRegistry
@@ -162,9 +159,9 @@ async with ToolRegistry() as registry:
 # Connections are automatically closed on exit
 ```
 
-### Explicit Cleanup
+### 显式清理
 
-You can also close connections explicitly:
+你也可以显式关闭连接：
 
 ```python
 registry = ToolRegistry()
@@ -176,19 +173,19 @@ registry.close()  # Close all persistent connections
 await registry.close_async()
 ```
 
-### Opting Out
+### 退出持久连接模式
 
-If you prefer per-call connections (the old behavior), pass `persistent=False` during registration:
+如果你倾向于每次调用都新建连接（旧行为），可以在注册时传递 `persistent=False`：
 
 ```python
 registry.register_from_mcp("http://localhost:8000/mcp", persistent=False)
 ```
 
-## Integrating MCP with OpenAI Client
+## 将 MCP 与 OpenAI 客户端集成
 
-Enhance OpenAI workflows by registering MCP tools in ToolRegistry, providing tool schemas for automated execution during chat completions.
+通过在 ToolRegistry 中注册 MCP 工具，可以增强 OpenAI 工作流，为聊天补全提供工具模式以实现自动化执行。
 
-### Setting Up OpenAI Client and MCP Tool Registration
+### 设置 OpenAI 客户端和 MCP 工具注册
 
 ```python
 import os
@@ -223,14 +220,14 @@ response = client.chat.completions.create(
 )
 ```
 
-### Executing Tool Calls and Feeding Results Back
+### 执行工具调用并回传结果
 
-If the model decides to use MCP tools, extract `tool_calls` and execute them automatically:
+如果模型决定使用 MCP 工具，提取 `tool_calls` 并自动执行：
 
 ```python
 if response.choices[0].message.tool_calls:
     tool_calls = response.choices[0].message.tool_calls
-    
+
     # Execute tool calls
     tool_responses = registry.execute_tool_calls(tool_calls)
 
@@ -246,6 +243,6 @@ if response.choices[0].message.tool_calls:
     print(second_response.choices[0].message.content)
 ```
 
-### Final Output
+### 最终输出
 
-The LLM will process results from MCP tools and respond accordingly, completing the query.
+LLM 将处理 MCP 工具返回的结果并相应地做出回复，完成查询。

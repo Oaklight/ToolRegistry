@@ -1,13 +1,10 @@
-# WebSearch + UnitConverter Example: Querying the Web for Information then Converting Units
+# WebSearch + UnitConverter 示例：网络查询信息并转换单位
 
-!!! warning "本页尚未翻译"
-    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+本示例演示了如何使用 ToolRegistry-Hub 中的 `WebSearch` 工具查询网络信息。我们将使用 `WebSearch` 工具搜索特定主题的信息，然后处理搜索结果。
 
-This example demonstrates how to use the `WebSearch` tool from the ToolRegistry-Hub to query the web for information. We will use the `WebSearch` tool to search for information about a specific topic and then process the results.
+在本示例中，我们将搜索上海的温度，然后使用 `UnitConverter` 工具将温度从摄氏度转换为华氏度。
 
-In this example, we will search for the temperature of Shanghai and then convert the temperature from Celsius to Fahrenheit using the `UnitConverter` tool.
-
-## Cicada `MultiModalModel` example
+## Cicada `MultiModalModel` 示例
 
 ```python
 import argparse
@@ -80,7 +77,7 @@ print(response["content"])
 cprint(json.dumps(response, indent=2))
 ```
 
-## OpenAI client example
+## OpenAI 客户端示例
 
 ```python
 import argparse

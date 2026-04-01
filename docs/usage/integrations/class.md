@@ -1,20 +1,17 @@
-# Class-based Tools Usage Guide
+# 基于类的工具使用指南
 
-!!! warning "本页尚未翻译"
-    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+Hub 工具通过 `register_from_class` 方法注册到 ToolRegistry 中。开发者可以通过创建包含可复用方法的自定义工具类来扩展 ToolRegistry 的功能。
 
-Hub tools are registered to ToolRegistry using the `register_from_class` method. This allows developers to extend the functionality of ToolRegistry by creating custom tool classes with reusable methods.
+???+ note "API 变更"
+    在此前版本（0.4.12 之前），注册类的静态方法使用的是 `register_static_tools` 方法和 `StaticMethodIntegration` 概念。现在它们已被 `register_from_class` 取代。同样，`register_static_tools_async` 也已被替换。两个旧方法计划很快废弃，请尽快迁移至新接口。为了向后兼容，`register_static_tools` 仍作为 `register_from_class` 的别名保留。
 
-???+ note "API changes"
-    Previously (before 0.4.12), the method `register_static_tools` and the concept of `StaticMethodIntegration` were used for registering static methods from classes. These have now been replaced by `register_from_class`. Similarly, `register_static_tools_async` has also been replaced. Both old methods are planned to be deprecated soon, so please migrate to the new interfaces as soon as possible. For backward compatibility, `register_static_tools` remains as an alias to `register_from_class`.
+## 注册自定义类方法
 
-## Registering Custom Class Methods
+`ToolRegistry` 中的 `register_from_class` 方法允许你轻松注册自定义类中的方法，无论是静态方法还是实例方法。下面我们将分别介绍两种不同的使用场景：注册仅包含静态方法的类和注册基于实例的类。
 
-The `register_from_class` method in `ToolRegistry` allows you to easily register methods from custom classes, whether they are static methods or instance methods. Below, we explore two distinct use cases: registering classes with only static methods and registering instance-based classes.
+### 注册包含静态方法的类
 
-### Registering a Class with Static Methods
-
-Classes that exclusively use static methods can be registered directly without creating instances. Use the `with_namespace=True` argument to help organize tools under a namespace derived from the class name.
+仅使用静态方法的类可以直接注册，无需创建实例。使用 `with_namespace=True` 参数可以帮助将工具组织到以类名派生的命名空间下。
 
 ```python
 from toolregistry import ToolRegistry
@@ -35,9 +32,9 @@ print(registry.get_available_tools())
 print(registry["static_example.greet"]("Alice"))  # Hello, Alice!
 ```
 
-### Registering a Class with Instance Methods
+### 注册包含实例方法的类
 
-For classes utilizing instance methods, you need to create an instance and pass it to the registry along with the class definition. This ensures that the methods have access to instance-specific data.
+对于使用实例方法的类，你需要创建一个实例并将其与类定义一起传递给注册器。这样可以确保方法能够访问实例特有的数据。
 
 ```python
 from toolregistry import ToolRegistry
@@ -64,9 +61,9 @@ print(registry.get_available_tools())
 print(registry["instance_example.greet"]("Alice"))  # Hello, Alice! I'm Bob.
 ```
 
-### Additional Example: A Predefined Class from a Tool Hub
+### 附加示例：来自工具 Hub 的预定义类
 
-For predefined classes with pre-implemented functionalities (e.g., `BaseCalculator`, `Calculator`), registration is straightforward:
+对于具有预实现功能的预定义类（例如 `BaseCalculator`、`Calculator`），注册非常简单：
 
 ```python
 from toolregistry import ToolRegistry
@@ -76,11 +73,11 @@ registry = ToolRegistry()
 registry.register_from_class(BaseCalculator)  # Basic registration for methods of a class
 ```
 
-These examples highlight how to manage varying needs for class-based registrations, allowing users to adapt `ToolRegistry` for diverse scenarios.
+这些示例展示了如何管理不同的基于类的注册需求，使用户能够在多种场景下灵活使用 `ToolRegistry`。
 
-### Registering Inherited Methods with `traverse_mro`
+### 使用 `traverse_mro` 注册继承方法
 
-By default, `register_from_class()` traverses the MRO (Method Resolution Order) and registers both directly defined and inherited methods. This means inherited public methods from parent classes are automatically included.
+默认情况下，`register_from_class()` 会遍历 MRO（方法解析顺序），同时注册直接定义的方法和继承的方法。这意味着父类中的继承公共方法会被自动包含在内。
 
 ```python
 from toolregistry import ToolRegistry
@@ -116,25 +113,25 @@ print(registry2.get_available_tools())
 # Output: ['scientific_calculator-power']
 ```
 
-If you want to restrict registration to only methods defined directly on the class (excluding inherited ones), explicitly pass `traverse_mro=False`.
+如果你希望仅注册直接定义在该类上的方法（不包括继承的方法），请显式传递 `traverse_mro=False`。
 
-## `with_namespace` Option
+## `with_namespace` 选项
 
-Using `with_namespace=True` parameter adds the class name as a namespace prefix to tool names:
+使用 `with_namespace=True` 参数会将类名作为命名空间前缀添加到工具名称中：
 
 ```python
 registry.register_from_class(BaseCalculator, with_namespace=True)
 ```
 
-This will register tools with names like `base_calculator-add`, `base_calculator-subtract`, etc.
+这将注册名称类似 `base_calculator-add`、`base_calculator-subtract` 等的工具。
 
-**Advantages of using with_namespace**:
+**使用 with_namespace 的优势**：
 
-1. Avoids naming conflicts between methods with same names in different classes
-2. More clearly identifies tool source
-3. Maintains naming consistency
+1. 避免不同类中同名方法之间的命名冲突
+2. 更清晰地标识工具来源
+3. 保持命名一致性
 
-## Example Code
+## 示例代码
 
 ```python
 from toolregistry import ToolRegistry

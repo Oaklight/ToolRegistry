@@ -1,18 +1,15 @@
-# Example Make and Use of Calculator OpenAPI Tool
+# 创建和使用 Calculator OpenAPI 工具示例
 
-!!! warning "本页尚未翻译"
-    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+本示例演示了如何：
 
-This example demonstrates how to:
+1. 使用 FastAPI 创建一个简单的计算器 API。该 API 提供加、减、乘、除等基本算术运算。
+2. 将此 API 服务作为 `ToolRegistry` 工具供 LLM 使用，计算文件中各指标的平均值。
 
-1. Create a simple calculator API using FastAPI. The API provides basic arithmetic operations such as addition, subtraction, multiplication, and division.
-2. Use this API service as a `ToolRegistry` tool for LLMs to compute the average of metrics from a file.
+我们将复用之前计算器示例中的文件 [concurrent_raw_results.txt](concurrent_raw_results.txt)。
 
-We will reuse the file from previous calculator examples, [concurrent_raw_results.txt](concurrent_raw_results.txt).
+## 步骤一：创建计算器 API
 
-## Step 1: Create the Calculator API
-
-First, let's define a simple FastAPI server that provides basic math operations.
+首先定义一个简单的 FastAPI 服务器，提供基本的数学运算。
 
 ```python
 from fastapi import FastAPI, HTTPException
@@ -98,31 +95,31 @@ if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=port)
 ```
 
-To run the service, you can use the following command:
+可以使用以下命令运行服务：
 
 ```bash
 uvicorn openapi_calculator:app --reload --host 0.0.0.0 --port 8000
 ```
 
-or
+或
 
 ```bash
 python openapi_calculator.py
 ```
 
-## Step 2: Register and Use the OpenAPI Tool
+## 步骤二：注册和使用 OpenAPI 工具
 
-!!! note "API changes"
-    Previously, `register_from_openapi` requires `spec_url` and optional `base_url`. It was designed to be simple. Yet in practice, we found the need for customization in HTTP requests, for example many OpenAPI services requires authentication headers or custom timeouts. Thus we made the following changes:
-  
-    The `register_from_openapi` method new requires two parameters:
-  
-    - `client_config`: Configures the HTTP client (headers, auth, timeout, etc.) using a `toolregistry.openapi.HttpxClientConfig` object, allowing greater flexibility.
-    - `openapi_spec`: The OpenAPI specification loaded as `Dict[str, Any]` using functions like `load_openapi_spec` or `load_openapi_spec_async` from a file path or URL to the service or specification.
+!!! note "API 变更"
+    此前，`register_from_openapi` 需要 `spec_url` 和可选的 `base_url` 参数，设计上追求简洁。但在实践中，我们发现 HTTP 请求需要更多定制化能力，例如许多 OpenAPI 服务需要认证头或自定义超时。因此我们做了以下调整：
 
-We implement using both Cicada `MultiModalModel` and OpenAI client to showcase different ways to integrate with the tool registry.
+    `register_from_openapi` 方法现在需要两个参数：
 
-Example:
+    - `client_config`：使用 `toolregistry.openapi.HttpxClientConfig` 对象配置 HTTP 客户端（headers、auth、timeout 等），提供更大的灵活性。
+    - `openapi_spec`：使用 `load_openapi_spec` 或 `load_openapi_spec_async` 等函数从文件路径或服务/规范的 URL 加载的 OpenAPI 规范，类型为 `Dict[str, Any]`。
+
+我们分别使用 Cicada `MultiModalModel` 和 OpenAI 客户端来展示与工具注册表集成的不同方式。
+
+示例：
 
 ```python
 from toolregistry.openapi import HttpxClientConfig, load_openapi_spec
@@ -139,7 +136,7 @@ registry.register_from_openapi(
 )
 ```
 
-## Cicada `MultiModalModel` Example
+## Cicada `MultiModalModel` 示例
 
 ```python
 import json
@@ -190,7 +187,7 @@ response = llm.query(instruction, tools=tool_registry, stream=stream)
 cprint(json.dumps(response, indent=2))
 ```
 
-## OpenAI Client Example
+## OpenAI 客户端示例
 
 ```python
 import inspect

@@ -1,15 +1,12 @@
-# Example Make and Use of Calculator MCP Tool
+# 创建和使用 Calculator MCP 工具示例
 
-!!! warning "本页尚未翻译"
-    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+文件 [concurrent_raw_results.txt](concurrent_raw_results.txt) 包含了在开发 toolregistry 不同集成时进行并发工具调用基准测试的原始统计数据。
 
-The file [concurrent_raw_results.txt](concurrent_raw_results.txt) contains the raw statistics from the concurrent tool calls benchmark when developing different integrations of toolregistry.
+我们让 LLM 从该文件中计算各指标的平均值并返回结果。
 
-We ask LLM to compute the average of metrics from this file and report back with the results.
+## MCP 数学服务器示例
 
-## Example MCP Math Server
-
-First let's define a simple FastMCP server that provides some basic math operations.
+首先定义一个简单的 FastMCP 服务器，提供一些基本的数学运算。
 
 ```python
 """Math server using the `fastmcp` standalone library directly.
@@ -91,20 +88,20 @@ if __name__ == "__main__":
         )
 ```
 
-To run the server, we can use one of the following commands:
+可以使用以下命令运行服务器：
 
 ```bash
 python math_server.py --mode stdio
 python math_server.py --mode sse --port 8000
 ```
 
-Note, the current recommended network transport is streamable HTTP instead of SSE.
+注意，当前推荐的网络传输方式是 Streamable HTTP 而非 SSE。
 
-## How to Register and Use It
+## 注册和使用方法
 
-We will implement using Cicada `MultiModalModel` and OpenAI client to show case different ways to integrate with the tool registry.
+我们将分别使用 Cicada `MultiModalModel` 和 OpenAI 客户端来展示与工具注册表集成的不同方式。
 
-### Cicada `MultiModalModel` example
+### Cicada `MultiModalModel` 示例
 
 ```python
 import json
@@ -162,8 +159,8 @@ if __name__ == "__main__":
 
     # Example instruction to compute the averages
     instruction = f"""
-    I have a few test results from multiple runs. Please use the available tools to compute the averages of the metrics for each category. 
-    The input is as 
+    I have a few test results from multiple runs. Please use the available tools to compute the averages of the metrics for each category.
+    The input is as
     {input_content}
     """
 
@@ -172,7 +169,7 @@ if __name__ == "__main__":
     cprint(json.dumps(response, indent=2))
 ```
 
-### OpenAI client example
+### OpenAI 客户端示例
 
 ```python
 import argparse
@@ -239,7 +236,7 @@ messages = [
     {
         "role": "user",
         "content": f"""
-    I have a few test results from multiple runs. Please use the available tools to compute the averages of the metrics for each category. 
+    I have a few test results from multiple runs. Please use the available tools to compute the averages of the metrics for each category.
     The input is as {input_content}""",
     }
 ]

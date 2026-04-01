@@ -1,14 +1,11 @@
-# Google Gemini Integration
-
-!!! warning "本页尚未翻译"
-    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+# Google Gemini 集成
 
 ???+ note "Changelog"
     New in version: 0.7.0
 
-This guide shows how to use ToolRegistry with the [Google Gemini API](https://ai.google.dev/gemini-api/docs/function-calling). ToolRegistry generates Gemini-native function declarations and reconstructs `functionCall` / `functionResponse` messages for multi-turn conversations.
+本指南介绍如何将 ToolRegistry 与 [Google Gemini API](https://ai.google.dev/gemini-api/docs/function-calling) 配合使用。ToolRegistry 可以生成 Gemini 原生的函数声明，并重建 `functionCall` / `functionResponse` 消息以支持多轮对话。
 
-## Setup ToolRegistry
+## 设置 ToolRegistry
 
 ```python
 from toolregistry import ToolRegistry
@@ -26,13 +23,13 @@ def subtract(a: float, b: float) -> float:
     return a - b
 ```
 
-## Exposing Tool Schemas
+## 导出工具 Schema
 
 ```python
 schemas = registry.get_tools_json(api_format="gemini")
 ```
 
-This returns tools in Gemini's function declaration format:
+返回 Gemini 函数声明格式的工具定义：
 
 ```json
 [
@@ -51,7 +48,7 @@ This returns tools in Gemini's function declaration format:
 ]
 ```
 
-## Supply Query with Tool Schema
+## 使用工具 Schema 发送查询
 
 ```python
 import os
@@ -69,9 +66,9 @@ response = client.models.generate_content(
 )
 ```
 
-## Extract Tool Calls
+## 提取工具调用
 
-Gemini returns function calls as `functionCall` parts within the response:
+Gemini 在响应中以 `functionCall` 部件的形式返回函数调用：
 
 ```python
 tool_calls = [
@@ -80,7 +77,7 @@ tool_calls = [
 ]
 ```
 
-Example `functionCall` part (as dict):
+`functionCall` 部件示例（字典形式）：
 
 ```json
 {
@@ -91,17 +88,17 @@ Example `functionCall` part (as dict):
 }
 ```
 
-## Execute Tool Calls
+## 执行工具调用
 
-ToolRegistry handles Gemini `functionCall` parts natively:
+ToolRegistry 原生支持 Gemini 的 `functionCall` 部件：
 
 ```python
 tool_responses = registry.execute_tool_calls(tool_calls)
 ```
 
-## Feed Results Back to LLM
+## 将结果反馈给 LLM
 
-Reconstruct the conversation messages in Gemini format:
+以 Gemini 格式重建对话消息：
 
 ```python
 assistant_tool_messages = registry.recover_tool_call_assistant_message(
@@ -109,7 +106,7 @@ assistant_tool_messages = registry.recover_tool_call_assistant_message(
 )
 ```
 
-This produces Gemini-native message structure:
+生成 Gemini 原生的消息结构：
 
 ```json
 [
@@ -138,7 +135,7 @@ This produces Gemini-native message structure:
 ]
 ```
 
-Continue the conversation:
+继续对话：
 
 ```python
 from google.genai.types import Content, Part
@@ -167,7 +164,7 @@ second_response = client.models.generate_content(
 print(second_response.text)
 ```
 
-## Complete Python Script
+## 完整 Python 脚本
 
 ```python
 import json
@@ -235,7 +232,7 @@ if tool_calls:
     print(second_response.text)
 ```
 
-## See Also
+## 参见
 
-- [Gemini Function Calling Documentation](https://ai.google.dev/gemini-api/docs/function-calling)
-- [Architecture Overview](../../architecture/overview.md) — how ToolRegistry generates multi-provider schemas via llm-rosetta
+- [Gemini Function Calling 文档](https://ai.google.dev/gemini-api/docs/function-calling)
+- [架构概览](../../architecture/overview.md) -- ToolRegistry 如何通过 llm-rosetta 生成多供应商 Schema

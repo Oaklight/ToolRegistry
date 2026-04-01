@@ -1,62 +1,59 @@
-# MCP Integration
+# MCP 集成
 
-!!! warning "本页尚未翻译"
-    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+本节介绍 ToolRegistry 库的 Model Context Protocol (MCP) 集成功能。
 
-This section documents the Model Context Protocol (MCP) integration capabilities of the ToolRegistry library.
+## 架构概览
 
-## Architecture Overview
+MCP 集成实现了与 Model Context Protocol 服务器的无缝通信，使 LLM 应用能够使用外部 MCP 服务器提供的工具。该架构采用客户端-服务器通信模型：
 
-The MCP integration enables seamless communication with Model Context Protocol servers, allowing LLM applications to utilize tools provided by external MCP servers. The architecture follows a client-server communication model:
+### 核心组件
 
-### Core Components
+1. **MCPToolWrapper**：一个包装器类，提供与 MCP 服务器的同步和异步通信
 
-1. **MCPToolWrapper**: A wrapper class that provides both synchronous and asynchronous communication with MCP servers
+   - 通过 MCP 协议处理工具执行
+   - 支持多种内容类型（文本、图像、嵌入式资源）
+   - 管理客户端传输和通信生命周期
 
-   - Handles tool execution via MCP protocol
-   - Supports various content types (text, image, embedded resources)
-   - Manages client transport and communication lifecycle
+2. **MCPTool**：一个工具类，包装 MCP 工具规范
 
-2. **MCPTool**: A tool class that wraps MCP tool specifications
+   - 保留原始工具元数据和描述
+   - 将 MCP 模式转换为 ToolRegistry 格式
+   - 支持命名空间组织
 
-   - Preserves original tool metadata and descriptions
-   - Converts MCP schemas to ToolRegistry format
-   - Supports namespace organization
+3. **MCPIntegration**：主集成类，协调服务器通信
+   - 管理与 MCP 服务器的客户端连接
+   - 从服务器发现可用工具
+   - 为不同连接类型处理传输抽象
 
-3. **MCPIntegration**: The main integration class that orchestrates server communication
-   - Manages client connections to MCP servers
-   - Discovers available tools from servers
-   - Handles transport abstraction for different connection types
+### 通信架构
 
-### Communication Architecture
+- **传输层**：支持多种传输类型（HTTP、WebSocket、基于文件）
+- **协议层**：实现 MCP 规范用于工具发现和执行
+- **内容处理**：处理多种内容类型及后处理
 
-- **Transport Layer**: Supports multiple transport types (HTTP, WebSocket, file-based)
-- **Protocol Layer**: Implements MCP specification for tool discovery and execution
-- **Content Processing**: Handles multiple content types with post-processing
+### 主要特性
 
-### Key Features
+- 支持多种传输类型（URL、文件路径、服务器实例）
+- 从 MCP 服务器自动发现工具
+- 多格式内容支持（文本、图像、嵌入式资源）
+- 命名空间管理，用于工具组织
+- 健壮的错误处理和详细日志记录
+- 同步和异步两种操作模式
 
-- Support for various transport types (URL, file paths, server instances)
-- Automatic tool discovery from MCP servers
-- Multi-format content support (text, images, embedded resources)
-- Namespace management for tool organization
-- Robust error handling with detailed logging
-- Both synchronous and asynchronous operation modes
+### 传输支持
 
-### Transport Support
+该集成支持多种传输机制：
 
-The integration supports multiple transport mechanisms:
+- HTTP/HTTPS 端点（可流式 HTTP、SSE）
+- WebSocket 连接
+- 本地文件路径（Python 脚本、JavaScript 文件）
+- 基于字典的 stdio 配置
 
-- HTTP/HTTPS endpoints (streamable HTTP, SSE)
-- WebSocket connections
-- Local file paths (Python scripts, JavaScript files)
-- Dict-based stdio configurations
-
-## API Reference
+## API 参考
 
 ### MCPToolWrapper
 
-Wrapper class providing both async and sync versions of MCP tool calls.
+提供异步和同步版本的 MCP 工具调用的包装器类。
 
 ::: toolregistry.mcp.integration.MCPToolWrapper
     options:
@@ -67,7 +64,7 @@ Wrapper class providing both async and sync versions of MCP tool calls.
 
 ### MCPTool
 
-Wrapper class for MCP tools that preserves original function metadata.
+保留原始函数元数据的 MCP 工具包装器类。
 
 ::: toolregistry.mcp.integration.MCPTool
     options:
@@ -78,7 +75,7 @@ Wrapper class for MCP tools that preserves original function metadata.
 
 ### MCPIntegration
 
-Handles integration with MCP server for tool registration.
+处理与 MCP 服务器集成以进行工具注册的类。
 
 ::: toolregistry.mcp.integration.MCPIntegration
     options:
@@ -87,11 +84,11 @@ Handles integration with MCP server for tool registration.
         show_root_toc_entry: false
         merge_init_into_class: true
 
-## Module Utilities
+## 模块工具
 
 ### MCPClient
 
-Minimal MCP client adapter over the official `mcp` SDK. Supports stdio, SSE, streamable-http, and websocket transports.
+基于官方 `mcp` SDK 的最小 MCP 客户端适配器。支持 stdio、SSE、可流式 HTTP 和 WebSocket 传输。
 
 ::: toolregistry.mcp.client.MCPClient
     options:
@@ -100,9 +97,9 @@ Minimal MCP client adapter over the official `mcp` SDK. Supports stdio, SSE, str
         show_root_toc_entry: false
         merge_init_into_class: true
 
-### MCP Module
+### MCP 模块
 
-The main MCP integration module.
+MCP 集成主模块。
 
 ::: toolregistry.mcp
     options:

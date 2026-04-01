@@ -1,29 +1,26 @@
-# Integration Modules
+# 集成模块
 
-!!! warning "本页尚未翻译"
-    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+集成模块提供与各种框架和协议的兼容性，支持从外部来源注册工具。
 
-Integration modules provide compatibility with various frameworks and protocols, enabling tool registration from external sources.
+## 可用集成
 
-## Available Integrations
-
-| Module | Main Class | Wrapper | Reference |
+| 模块 | 主类 | 包装器 | 参考 |
 |--------|-----------|---------|-----------|
-| [OpenAPI](integrations/openapi.md) | `OpenAPIIntegration` | `OpenAPIToolWrapper` | REST API tool generation from OpenAPI specs |
-| [MCP](integrations/mcp.md) | `MCPIntegration` | `MCPToolWrapper` | Model Context Protocol server communication |
-| [LangChain](integrations/langchain.md) | `LangChainIntegration` | `LangChainToolWrapper` | LangChain BaseTool interoperability |
-| [Native](integrations/native.md) | `ClassToolIntegration` | — | Python class method registration |
+| [OpenAPI](integrations/openapi.md) | `OpenAPIIntegration` | `OpenAPIToolWrapper` | 从 OpenAPI 规范生成 REST API 工具 |
+| [MCP](integrations/mcp.md) | `MCPIntegration` | `MCPToolWrapper` | Model Context Protocol 服务器通信 |
+| [LangChain](integrations/langchain.md) | `LangChainIntegration` | `LangChainToolWrapper` | LangChain BaseTool 互操作 |
+| [Native](integrations/native.md) | `ClassToolIntegration` | — | Python 类方法注册 |
 
-## Common Patterns
+## 通用模式
 
-All integrations share these patterns:
+所有集成共享以下模式：
 
-- **Wrapper + Integration classes**: Wrappers handle execution; Integration classes orchestrate registration
-- **Async/sync support**: All integrations support both `register_from_*()` and `register_from_*_async()` methods
-- **Namespace support**: `False` (no prefix), `True` (auto-generated), or `str` (custom namespace)
-- **Error preservation**: Original framework exceptions are preserved with additional context
+- **Wrapper + Integration 类**：Wrapper 处理执行；Integration 类编排注册流程
+- **异步/同步支持**：所有集成均支持 `register_from_*()` 和 `register_from_*_async()` 方法
+- **命名空间支持**：`False`（无前缀）、`True`（自动生成）或 `str`（自定义命名空间）
+- **错误保留**：保留原始框架异常并附加额外上下文
 
-## See Also
+## 参见
 
-- [Tool Wrappers](wrappers.md) — Detailed wrapper class documentation
-- [Usage: Integrations](../usage/integrations/class.md) — Integration usage guides
+- [工具包装器](wrappers.md) — 包装器类的详细文档
+- [使用指南：集成](../usage/integrations/class.md) — 集成使用指南

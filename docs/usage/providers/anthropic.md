@@ -1,14 +1,11 @@
-# Anthropic Integration
-
-!!! warning "本页尚未翻译"
-    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+# Anthropic 集成
 
 ???+ note "Changelog"
     New in version: 0.7.0
 
-This guide shows how to use ToolRegistry with the [Anthropic API](https://docs.anthropic.com/en/docs/build-with-claude/tool-use) (Claude). ToolRegistry generates Anthropic-native tool schemas and reconstructs `tool_use` / `tool_result` messages for multi-turn conversations.
+本指南介绍如何将 ToolRegistry 与 [Anthropic API](https://docs.anthropic.com/en/docs/build-with-claude/tool-use)（Claude）配合使用。ToolRegistry 可以生成 Anthropic 原生的工具 Schema，并重建 `tool_use` / `tool_result` 消息以支持多轮对话。
 
-## Setup ToolRegistry
+## 设置 ToolRegistry
 
 ```python
 from toolregistry import ToolRegistry
@@ -26,13 +23,13 @@ def subtract(a: float, b: float) -> float:
     return a - b
 ```
 
-## Exposing Tool Schemas
+## 导出工具 Schema
 
 ```python
 schemas = registry.get_tools_json(api_format="anthropic")
 ```
 
-This returns tools in Anthropic's format:
+返回 Anthropic 格式的工具定义：
 
 ```json
 [
@@ -51,7 +48,7 @@ This returns tools in Anthropic's format:
 ]
 ```
 
-## Supply Query with Tool Schema
+## 使用工具 Schema 发送查询
 
 ```python
 import os
@@ -71,15 +68,15 @@ response = client.messages.create(
 )
 ```
 
-## Extract Tool Calls
+## 提取工具调用
 
-Anthropic returns tool use as `tool_use` content blocks:
+Anthropic 以 `tool_use` 内容块的形式返回工具调用：
 
 ```python
 tool_calls = [block for block in response.content if block.type == "tool_use"]
 ```
 
-Example `tool_use` block:
+`tool_use` 块示例：
 
 ```json
 {
@@ -90,23 +87,23 @@ Example `tool_use` block:
 }
 ```
 
-## Execute Tool Calls
+## 执行工具调用
 
-ToolRegistry handles Anthropic `tool_use` blocks natively:
+ToolRegistry 原生支持 Anthropic 的 `tool_use` 块：
 
 ```python
 tool_responses = registry.execute_tool_calls(tool_calls)
 ```
 
-Returns a dict mapping tool call IDs to results:
+返回一个字典，键为工具调用 ID，值为执行结果：
 
 ```json
 {"toolu_01A09q90qw90lq917835lq9": "12.0"}
 ```
 
-## Feed Results Back to LLM
+## 将结果反馈给 LLM
 
-Reconstruct the conversation messages in Anthropic format:
+以 Anthropic 格式重建对话消息：
 
 ```python
 assistant_tool_messages = registry.recover_tool_call_assistant_message(
@@ -114,7 +111,7 @@ assistant_tool_messages = registry.recover_tool_call_assistant_message(
 )
 ```
 
-This produces Anthropic-native message structure:
+生成 Anthropic 原生的消息结构：
 
 ```json
 [
@@ -142,7 +139,7 @@ This produces Anthropic-native message structure:
 ]
 ```
 
-Extend the conversation and get the final answer:
+将消息追加到对话中并获取最终答案：
 
 ```python
 messages.extend(assistant_tool_messages)
@@ -156,7 +153,7 @@ second_response = client.messages.create(
 print(second_response.content[0].text)
 ```
 
-## Complete Python Script
+## 完整 Python 脚本
 
 ```python
 import json
@@ -211,7 +208,7 @@ if tool_calls:
     print(second_response.content[0].text)
 ```
 
-## See Also
+## 参见
 
-- [Anthropic Tool Use Documentation](https://docs.anthropic.com/en/docs/build-with-claude/tool-use)
-- [Architecture Overview](../../architecture/overview.md) — how ToolRegistry generates multi-provider schemas via llm-rosetta
+- [Anthropic Tool Use 文档](https://docs.anthropic.com/en/docs/build-with-claude/tool-use)
+- [架构概览](../../architecture/overview.md) -- ToolRegistry 如何通过 llm-rosetta 生成多供应商 Schema

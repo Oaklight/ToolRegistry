@@ -1,53 +1,50 @@
 # OpenAPIToolWrapper
 
-!!! warning "本页尚未翻译"
-    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+提供同步和异步方法用于 OpenAPI 工具调用的包装器类。
 
-Wrapper class that provides both synchronous and asynchronous methods for OpenAPI tool calls.
+## 概览
 
-## Overview
+`OpenAPIToolWrapper` 是专门为 OpenAPI/Swagger REST API 设计的包装器，提供 ToolRegistry 与 RESTful 服务之间的无缝 HTTP 通信。它处理 HTTP 协议通信的复杂性，包括参数处理、方法处理和响应管理。
 
-`OpenAPIToolWrapper` serves as the specialized wrapper for OpenAPI/Swagger REST APIs, providing seamless HTTP communication between ToolRegistry and RESTful services. It handles the complexities of HTTP protocol communication, including parameter processing, method handling, and response management.
+## 主要特性
 
-## Key Features
+- **REST API 集成**：全面支持 RESTful API 操作
+- **HTTP 方法支持**：处理 GET、POST、PUT、DELETE 及其他 HTTP 方法
+- **参数处理**：自动处理查询参数和请求体
+- **HTTP 客户端集成**：使用 httpx 实现同步和异步 HTTP 操作
+- **错误处理**：全面的 HTTP 错误处理和状态码管理
+- **响应处理**：自动 JSON 响应解析和错误处理
 
-- **REST API Integration**: Full support for RESTful API operations
-- **HTTP Method Support**: Handles GET, POST, PUT, DELETE, and other HTTP methods
-- **Parameter Processing**: Automatic processing of query parameters and request bodies
-- **HTTP Client Integration**: Uses httpx for both synchronous and asynchronous HTTP operations
-- **Error Handling**: Comprehensive HTTP error handling with status code management
-- **Response Processing**: Automatic JSON response parsing and error handling
+## 架构
 
-## Architecture
+OpenAPIToolWrapper 通过 OpenAPI 特定功能扩展了 `BaseToolWrapper`：
 
-The OpenAPIToolWrapper extends `BaseToolWrapper` with OpenAPI-specific functionality:
+### 核心组件
 
-### Core Components
+1. **HTTP 客户端管理**：配置和管理 httpx 客户端实例
+2. **方法处理**：将请求路由到适当的 HTTP 方法
+3. **参数映射**：将参数处理为 HTTP 请求参数
+4. **响应处理**：处理 HTTP 响应和错误条件
 
-1. **HTTP Client Management**: Configures and manages httpx client instances
-2. **Method Handling**: Routes requests to appropriate HTTP methods
-3. **Parameter Mapping**: Processes arguments into HTTP request parameters
-4. **Response Processing**: Handles HTTP responses and error conditions
-
-### Request Flow
+### 请求流程
 
 ```
-Tool Call Request
+工具调用请求
     ↓
-Parameter Processing
+参数处理
     ↓
-HTTP Method Selection
+HTTP 方法选择
     ↓
-Request Construction
+请求构建
     ↓
-HTTP Execution
+HTTP 执行
     ↓
-Response Processing
+响应处理
     ↓
-Result Normalization
+结果规范化
 ```
 
-## API Reference
+## API 参考
 
 ::: toolregistry.openapi.integration.OpenAPIToolWrapper
     options:
@@ -56,9 +53,9 @@ Result Normalization
         show_root_toc_entry: false
         merge_init_into_class: true
 
-## Usage Examples
+## 使用示例
 
-### Basic OpenAPI Tool Wrapper
+### 基本 OpenAPI 工具包装器
 
 ```python
 from toolregistry.openapi.integration import OpenAPIToolWrapper
@@ -84,7 +81,7 @@ result = get_wrapper(user_id="123")  # Sync
 result = await get_wrapper(user_id="123")  # Async
 ```
 
-### POST Request with Body
+### 带请求体的 POST 请求
 
 ```python
 # Create wrapper for POST request
@@ -104,9 +101,9 @@ result = post_wrapper(
 )
 ```
 
-## HTTP Method Support
+## HTTP 方法支持
 
-### GET Requests
+### GET 请求
 
 ```python
 # Query parameters
@@ -119,7 +116,7 @@ wrapper = OpenAPIToolWrapper(
 result = wrapper(query="john", limit=10, offset=0)
 ```
 
-### POST/PUT Requests
+### POST/PUT 请求
 
 ```python
 # JSON body
@@ -132,7 +129,7 @@ wrapper = OpenAPIToolWrapper(
 result = wrapper(id="123", name="Jane Doe", email="jane@example.com")
 ```
 
-### DELETE Requests
+### DELETE 请求
 
 ```python
 # DELETE with path parameters
@@ -144,9 +141,9 @@ wrapper = OpenAPIToolWrapper(
 result = wrapper(id="123")
 ```
 
-## Configuration Patterns
+## 配置模式
 
-### Basic Configuration
+### 基本配置
 
 ```python
 client_config = HttpxClientConfig(
@@ -154,7 +151,7 @@ client_config = HttpxClientConfig(
 )
 ```
 
-### Authenticated Configuration
+### 认证配置
 
 ```python
 client_config = HttpxClientConfig(
@@ -166,7 +163,7 @@ client_config = HttpxClientConfig(
 )
 ```
 
-### Timeout Configuration
+### 超时配置
 
 ```python
 client_config = HttpxClientConfig(
@@ -175,11 +172,11 @@ client_config = HttpxClientConfig(
 )
 ```
 
-## Error Handling
+## 错误处理
 
-The wrapper provides comprehensive HTTP error handling:
+该包装器提供全面的 HTTP 错误处理：
 
-### HTTP Status Errors
+### HTTP 状态错误
 
 ```python
 try:
@@ -189,7 +186,7 @@ except httpx.HTTPStatusError as e:
     print(f"Response: {e.response.text}")
 ```
 
-### Network Errors
+### 网络错误
 
 ```python
 try:
@@ -198,7 +195,7 @@ except httpx.RequestError as e:
     print(f"Request failed: {e}")
 ```
 
-### Automatic Error Handling
+### 自动错误处理
 
 ```python
 # HTTP errors automatically raise exceptions
@@ -206,9 +203,9 @@ except httpx.RequestError as e:
 # Network issues trigger RequestError
 ```
 
-## Response Processing
+## 响应处理
 
-### JSON Responses
+### JSON 响应
 
 ```python
 # Automatic JSON parsing
@@ -219,15 +216,15 @@ result = wrapper()  # Returns parsed JSON object
 # Non-JSON-serializable content is converted to string
 ```
 
-### Content Types
+### 内容类型
 
-- **application/json**: Automatically parsed to Python objects
-- **text/plain**: Returns as string
-- **Other types**: Returns raw content or string representation
+- **application/json**：自动解析为 Python 对象
+- **text/plain**：返回字符串
+- **其他类型**：返回原始内容或字符串表示
 
-## Integration Patterns
+## 集成模式
 
-### With OpenAPI Integration
+### 与 OpenAPI 集成配合使用
 
 ```python
 from toolregistry import ToolRegistry
@@ -243,7 +240,7 @@ await openapi_integration.register_openapi_tools_async(
 )
 ```
 
-### Manual Wrapper Creation
+### 手动创建包装器
 
 ```python
 # Direct wrapper usage for specific endpoints
@@ -256,4 +253,4 @@ wrapper = OpenAPIToolWrapper(
 )
 ```
 
-The OpenAPIToolWrapper provides robust HTTP communication capabilities, making it ideal for integrating RESTful APIs into the ToolRegistry ecosystem while maintaining the standardized tool interface.
+OpenAPIToolWrapper 提供了强大的 HTTP 通信能力，使其成为将 RESTful API 集成到 ToolRegistry 生态系统的理想选择，同时保持标准化的工具接口。

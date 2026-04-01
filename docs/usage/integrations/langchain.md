@@ -1,51 +1,48 @@
-# LangChain Tool Usage Guide
+# LangChain 工具使用指南
 
-!!! warning "本页尚未翻译"
-    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+???+ note "变更日志"
+    新增于版本：0.4.9
 
-???+ note "Changelog"
-    New in version: 0.4.9
+LangChain 提供了各种预构建的工具包装器，但这些工具与其框架紧密耦合。这对于偏好使用 OpenAI 客户端或其他原生支持函数调用的框架的用户来说并不方便。为此，我们提供了一个 LangChain 工具的集成模块。
 
-LangChain provides various pre-built tool wrappers, but these tools are tightly coupled with its framework. This makes them inconvenient for users who prefer to use the OpenAI client or other frameworks that natively support function calling. To address this, we provide an integration module for LangChain tools.
+LangChain 集成模块使 ToolRegistry 能够支持基于 LangChain 的工具。通过该模块，你可以轻松注册和调用工具，同时受益于同步和异步两种调用模式，确保在不同环境中实现统一高效的执行。
 
-The LangChain integration module enables the ToolRegistry to support LangChain-based tools. With this module, you can easily register and invoke tools while benefiting from both synchronous and asynchronous calling modes, ensuring unified efficient execution across different environments.
+## 使用指南
 
-## Usage Guide
+要集成 LangChain，请确保已安装 [langchain] 依赖扩展（`pip install toolregistry[langchain]`）。按照以下步骤注册和使用工具：
 
-To integrate LangChain, ensure you have installed the [langchain] dependency extension (`pip install toolregistry[langchain]`). Follow these steps to register and use tools:
+1. **设置 LangChain 工具实例**
 
-1. **Setup LangChain Tool Instances**
+    任何兼容 `langchain_core.tools.BaseTool` 类型的工具都可以直接注册。
 
-    Any tool compatible with the `langchain_core.tools.BaseTool` type can be registered directly.
+    可以使用第三方库（例如 [langchain_community.tools](https://github.com/langchain-ai/langchain) 中的工具）来创建工具实例，也可以利用你现有的代码来构建 LangChain 工具。
 
-    Use third-party libraries, such as tools from [langchain_community.tools](https://github.com/langchain-ai/langchain), to create tool instances. Alternatively, leverage your existing code for building LangChain tools.
+2. **注册工具**
 
-2. **Register Tools**
-
-    Use the registry's `register_from_langchain` or `register_from_langchain_async` interface to register LangChain tools into the registry. Here is an example of registering a list of two tools: `ArxivQueryRun` and `PubmedQueryRun`.
+    使用注册器的 `register_from_langchain` 或 `register_from_langchain_async` 接口将 LangChain 工具注册到注册器中。以下是注册两个工具（`ArxivQueryRun` 和 `PubmedQueryRun`）的列表示例。
 
     ```python
     from langchain_community.tools import ArxivQueryRun, PubmedQueryRun
     from toolregistry import ToolRegistry
 
     registry = ToolRegistry()
-    
+
     registry.register_from_langchain([ArxivQueryRun(), PubmedQueryRun()])
     ```
 
-    You certainly can pass in a single tool instance if needed.
+    当然，你也可以传入单个工具实例。
 
     ```python
     registry.register_from_langchain(ArxivQueryRun())
     ```
 
-3. **Invoke Tools**
+3. **调用工具**
 
-    After registration, you can retrieve tool lists, obtain tool JSON schemas, or directly initiate calls. These operations are of no difference from those described in the previous sections (MCP, OpenAPI, Hubtools).
+    注册完成后，你可以获取工具列表、获取工具 JSON 模式，或直接发起调用。这些操作与前面章节（MCP、OpenAPI、Hub 工具）中描述的操作没有区别。
 
-## Example
+## 示例
 
-The following example, taken from `examples/langchain_related/openai_langchain_arxiv_example.py`, shows how to combine the OpenAI client with LangChain tools:
+以下示例取自 `examples/langchain_related/openai_langchain_arxiv_example.py`，展示了如何将 OpenAI 客户端与 LangChain 工具结合使用：
 
 ```python
 import os
@@ -108,7 +105,7 @@ if __name__ == "__main__":
             "content": f"I'm interested in {user_input}. Please find related papers on arXiv for me.",
         }
     ]
-    
+
     # Initiate chat completion request
     response = client.chat.completions.create(
         model=model_name,
@@ -117,18 +114,18 @@ if __name__ == "__main__":
         tool_choice="auto",
     )
     print(response)
-    
+
     # Process tool calls in a loop
     response = handle_tool_calls(response, messages)
-    
+
     # Output final response content
     if response.choices[0].message.content:
         print(response.choices[0].message.content)
 ```
 
-## Notes
+## 注意事项
 
-- Ensure the corresponding extension dependencies (e.g., langchain) are installed.
-- The `with_namespace` parameter allows flexible namespace configuration when registering tools to avoid naming conflicts from different sources.
+- 请确保已安装相应的扩展依赖（例如 langchain）。
+- `with_namespace` 参数允许在注册工具时灵活配置命名空间，以避免来自不同来源的命名冲突。
 
-The LangChain integration module enhances the Tool Registry's flexibility in supporting various tool sources, making it easier for developers to invoke different types of tools through a unified interface.
+LangChain 集成模块增强了 ToolRegistry 对各种工具来源的支持灵活性，使开发者能够通过统一的接口更轻松地调用不同类型的工具。

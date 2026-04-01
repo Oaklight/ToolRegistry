@@ -1,13 +1,10 @@
-# FileOps + Calculator Example: Read, Compute, and Write Back
+# FileOps + Calculator 示例：读取、计算并写回
 
-!!! warning "本页尚未翻译"
-    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+文件 [concurrent_raw_results.txt](concurrent_raw_results.txt) 包含了在开发 toolregistry 不同集成时进行并发工具调用基准测试的原始统计数据。
 
-The file [concurrent_raw_results.txt](concurrent_raw_results.txt) contains the raw statistics from the concurrent tool calls benchmark when developing different integrations of toolregistry.
+让我们利用它来测试 LLM 使用 ToolRegistry-Hub 中多个工具的能力。我们希望 LLM 读取文件、计算各指标的平均值，然后将结果写入新文件。我们将使用 ToolRegistry-Hub 中的 `Calculator` 和 `FileOps` 工具。
 
-Let's make use of it to test out LLM's ability to use multiple tools from the ToolRegistry-Hub. We want LLM to read the file, compute the averages of the metrics and then write the results to a new file. We will use the `Calculator` and `FileOps` tools from the ToolRegistry-Hub.
-
-## Cicada `MultiModalModel` Implementation
+## Cicada `MultiModalModel` 实现
 
 ```python
 import json
@@ -49,7 +46,7 @@ if os.path.exists(output_file):
 
 # Example instruction to compute the averages
 instruction = f"""
-I have a few test results from multiple runs. 
+I have a few test results from multiple runs.
 Please compute the averages of the metrics for each category. Attention to the EXEC_MODE, there are two different types. Compute average metrics separately. So there should be 8 results The input is at {input_file}. Write your output to {output_file}.
 """
 
@@ -58,7 +55,7 @@ response = llm.query(instruction, tools=tool_registry, stream=stream)
 cprint(json.dumps(response, indent=2))
 ```
 
-## OpenAI client example
+## OpenAI 客户端示例
 
 ```python
 import os
@@ -102,7 +99,7 @@ messages = [
     {
         "role": "user",
         "content": f"""
-I have a few test results from multiple runs. 
+I have a few test results from multiple runs.
 Please compute the averages of the metrics for each category. Attention to the EXEC_MODE, there are two different types. Compute average metrics separately. So there should be 8 results The input is at {input_file}. Write your output to {output_file}. Use your available tools at hand to do this.
 """,
     }

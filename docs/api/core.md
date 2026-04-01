@@ -1,21 +1,18 @@
-# Core Classes
+# 核心类
 
-!!! warning "本页尚未翻译"
-    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+核心类提供了 ToolRegistry 生态系统中工具管理、执行和集成的基础抽象。
 
-The core classes provide the fundamental abstractions for tool management, execution, and integration within the ToolRegistry ecosystem.
+## 组件
 
-## Components
-
-| Class | Description | Reference |
+| 类 | 描述 | 参考 |
 |-------|-------------|-----------|
-| [ToolRegistry](core/toolregistry.md) | Central orchestrator for tool registration, execution, and schema generation | Primary entry point |
-| [Tool](core/tool.md) | Represents an individual tool with metadata, parameters, and execution logic | Tool abstraction |
-| [Executor](core/executor.md) | Pluggable execution backends (thread/process) with cancellation and timeout | Execution engine |
-| [Events](events.md) | Change event types and callback mechanism for registry state changes | Event infrastructure |
-| [Permissions](permissions.md) | Rule-based authorization framework for controlling tool execution | Permission system |
+| [ToolRegistry](core/toolregistry.md) | 工具注册、执行和 Schema 生成的中央编排器 | 主入口 |
+| [Tool](core/tool.md) | 表示一个具有元数据、参数和执行逻辑的独立工具 | 工具抽象 |
+| [Executor](core/executor.md) | 可插拔的执行后端（线程/进程），支持取消和超时 | 执行引擎 |
+| [Events](events.md) | 变更事件类型和注册表状态变化的回调机制 | 事件基础设施 |
+| [Permissions](permissions.md) | 基于规则的授权框架，用于控制工具执行 | 权限系统 |
 
-## Architecture
+## 架构
 
 ```
 ToolRegistry (Orchestrator)
@@ -36,8 +33,8 @@ ToolRegistry (Orchestrator)
         └── Native Integration
 ```
 
-## See Also
+## 参见
 
-- [Helper Classes](helpers.md) — Parameter validation and utility functions
-- [Integration Modules](integrations.md) — Framework-specific integration classes
-- [Tool Wrappers](wrappers.md) — Adapter classes for external tool formats
+- [辅助类](helpers.md) — 参数验证和实用函数
+- [集成模块](integrations.md) — 框架特定的集成类
+- [工具包装器](wrappers.md) — 外部工具格式的适配器类

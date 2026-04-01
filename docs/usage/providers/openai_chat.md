@@ -1,13 +1,10 @@
-# OpenAI Chat Completion Integration
+# OpenAI Chat Completion 集成
 
-!!! warning "本页尚未翻译"
-    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+延续 [基础用法](../basics) 中的简单数学示例，本文介绍如何将 ToolRegistry 与 OpenAI Chat Completion API 配合使用。需要注意的是，你可以通过 OpenAI 客户端连接任何提供 OpenAI 兼容 API 的服务商。本指南以 DeepSeek 为例进行演示。
 
-Following our simple math example from the [Basic Usage](../basics), this document explains how to use a tool registry with the OpenAI Chat Completion API. Note that you can use the OpenAI client with any API provider that offers OpenAI-compatible APIs. In this guide, we'll use DeepSeek as an example.
+## 设置 ToolRegistry
 
-## Setup ToolRegistry
-
-We have a tool registry with two math functions:
+我们创建一个包含两个数学函数的工具注册表：
 
 ```python
 from toolregistry import ToolRegistry
@@ -27,14 +24,14 @@ def subtract(a: float, b: float) -> float:
     return a - b
 ```
 
-## Exposing Tool Schemas
+## 导出工具 Schema
 
 ```python
 schemas = registry.get_tools_json(api_format="openai") # since it was the only format for openai for a long time
 schemas = registry.get_tools_json(api_format="openai-chatcompletion") # to be explicit
 ```
 
-Either of the above will return the tool schemas in the format required by the OpenAI Chat Completion API. Here is the indented JSON output:
+以上两种写法均会返回符合 OpenAI Chat Completion API 要求的工具 Schema。格式化后的 JSON 输出如下：
 
 ```json
 [
@@ -91,9 +88,9 @@ Either of the above will return the tool schemas in the format required by the O
 ]
 ```
 
-## Supply Query with Tool Schema
+## 使用工具 Schema 发送查询
 
-Provide the tool JSON schema to the OpenAI client's chat completion interface:
+将工具 JSON Schema 提供给 OpenAI 客户端的 Chat Completion 接口：
 
 ```python
 import os
@@ -124,50 +121,50 @@ response = client.chat.completions.create(
 )
 ```
 
-## Extract Tool Calls
+## 提取工具调用
 
-If the model (LLM) decides to use a tool, it will return `tool_calls` as part of the response message:
+如果模型（LLM）决定使用工具，它会在响应消息中返回 `tool_calls`：
 
 ```python
 if response.choices[0].message.tool_calls:
     tool_calls = response.choices[0].message.tool_calls
 ```
 
-Example function call output:
+函数调用的输出示例：
 
 ```python
 [ChatCompletionMessageToolCall(id='call_egkg4evbb19d8012bex83v8a', function=Function(arguments='{"a":15,"b":3}', name='subtract'), type='function', index=0)]
 ```
 
-The `tool_calls` object is a `List` of `ChatCompletionMessageToolCall` objects. The following attributes are particularly useful:
+`tool_calls` 对象是一个 `ChatCompletionMessageToolCall` 的 `List`。以下属性尤为重要：
 
-- `id`: this is something we will need when feed result back to LLM
-- **`function`**: **this is the core, with arguments and name of target function**
-- `index`: less useful in non-stream mode, but if you stream the chat result, this is the key to put together complete tool_calls information.
+- `id`：在将结果反馈给 LLM 时需要用到
+- **`function`**：**核心字段，包含目标函数的参数和名称**
+- `index`：在非流式模式下用处不大，但在流式输出时，它是拼接完整 tool_calls 信息的关键
 
-## Execute Tool Calls
+## 执行工具调用
 
-Using the `ToolRegistry`, you can easily process results from **all** `tool_calls`. Note that sometimes the LLM may decide to call multiple tools simultaneously.
+使用 `ToolRegistry`，你可以轻松处理**所有** `tool_calls` 的执行结果。注意，有时 LLM 可能会同时调用多个工具。
 
 ```python
 # Execute tool calls
 tool_responses = registry.execute_tool_calls(tool_calls)
 ```
 
-The tool execution results from the registry are returned as a Python dictionary mapping `tool_call_id` to results:
+注册表返回的工具执行结果是一个 Python 字典，键为 `tool_call_id`，值为对应的结果：
 
 ```json
 { "call_0_bfa567b8-2f10-4113-953a-56e87b664e0f": 12 }
 ```
 
-## Feed Results back to LLM
+## 将结果反馈给 LLM
 
-After executing the tool calls, we still need to inform the LLM about the results before it can answer the original question.
+执行完工具调用后，我们还需要将结果告知 LLM，它才能回答原始问题。
 
-To maintain the tool-calling context for subsequent LLM interactions, we need to reconstruct both:
+为了在后续与 LLM 的交互中保持工具调用的上下文，我们需要重建两部分信息：
 
-1. The assistant's decision to make `tool_calls`
-2. The actual `tool_calls` results
+1. 助手决定发起 `tool_calls` 的消息
+2. 实际的 `tool_calls` 执行结果
 
 ```python
 # Construct assistant messages with results
@@ -200,7 +197,7 @@ assistant_tool_messages = registry.recover_tool_call_assistant_message(
 ]
 ```
 
-We then extend the previous messages sent to first LLM with these reconstructed messages.
+然后将这些重建的消息追加到之前发送给 LLM 的消息列表中。
 
 ```python
 messages.extend(assistant_tool_messages)
@@ -214,27 +211,27 @@ second_response = client.chat.completions.create(
 print(second_response.choices[0].message.content)
 ```
 
-## Final Result and Considerations
+## 最终结果与注意事项
 
-The LLM will return the final answer after processing the tool execution results:
+LLM 在处理完工具执行结果后，会返回最终答案：
 
 ```markdown
 You have **12 chestnuts** left after Joe ate 3.
 ```
 
-### Important Implementation Notes
+### 重要的实现说明
 
-The implementation should handle [consecutive function calls](../../examples/consecutive_tool_calls) as the conversation may require multiple rounds of tool calls, with each response from the LLM potentially triggering new tool calls.
+实现时应处理[连续函数调用](../../examples/consecutive_tool_calls)的情况，因为对话可能需要多轮工具调用，每次 LLM 的响应都可能触发新的工具调用。
 
-Error handling is crucial; always validate tool call arguments before execution, as the ToolRegistry does this for you. Handle cases where tools might fail or return errors, and consider timeout mechanisms for long-running operations.
+错误处理至关重要：在执行工具调用前，始终需要验证参数的合法性（ToolRegistry 已自动完成此操作）。需要处理工具可能失败或返回错误的情况，并考虑为长时间运行的操作添加超时机制。
 
-State management involves maintaining conversation history, including all tool calls and responses, tracking the sequence of tool executions for debugging, and considering conversation state persistence.
+状态管理涉及维护完整的对话历史（包括所有工具调用及其响应）、跟踪工具执行顺序以便调试，以及考虑对话状态的持久化。
 
-Performance considerations include minimizing unnecessary tool calls, caching frequent tool responses when appropriate, and monitoring and optimizing tool execution time.
+性能方面需要注意减少不必要的工具调用、在适当时缓存频繁的工具响应结果，以及监控和优化工具执行时间。
 
-## Complete Python Script
+## 完整 Python 脚本
 
-Here goes the complete script used in this demo.
+以下是本示例使用的完整脚本。
 
 ```python
 import json

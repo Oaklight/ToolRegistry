@@ -1,30 +1,27 @@
-# OpenAPI Tool Usage Guide
+# OpenAPI 工具使用指南
 
-!!! warning "本页尚未翻译"
-    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+???+ note "变更日志"
+    - API 更新于版本：0.4.12
+    - 新增于版本：0.4.0
 
-???+ note "Changelog"
-    - API updates in version: 0.4.12
-    - New in version: 0.4.0
+## 简介
 
-## Introduction
+本指南介绍如何将 OpenAPI 与 ToolRegistry 集成，使你能够基于 OpenAPI 规范注册和调用工具。指南以数学服务为例，提供了同步和异步注册方法的示例。
 
-This guide explains how to integrate OpenAPI with ToolRegistry, allowing you to register and call tools based on an OpenAPI specification. The guide provides examples for both synchronous and asynchronous registration methods, using a math service as a demonstration.
+## 版本 0.4.12 中的 API 变更
 
-## API Changes in version 0.4.12
+`register_from_openapi` 方法现在接受两个参数：
 
-The `register_from_openapi` method now accepts two parameters:
+- `client_config`：一个 `toolregistry.openapi.HttpxClientConfig` 对象，用于配置与 API 交互的 HTTP 客户端。你可以配置请求头、授权方式、超时时间和其他设置，比之前的版本提供了更大的灵活性。
+- `openapi_spec`：OpenAPI 规范，类型为 `Dict[str, Any]`，通过 `load_openapi_spec` 或 `load_openapi_spec_async` 等函数加载。这些函数接受 OpenAPI 规范的文件路径、URL 或基础 API 的 URL，并返回解析后的 OpenAPI 规范字典。
 
-- `client_config`: a `toolregistry.openapi.HttpxClientConfig` object that configures the HTTP client used to interact with the API. You can configure the headers, authorization, timeout, and other settings. Allowing greater flexibility than the previous version.
-- `openapi_spec`: The OpenAPI specification as `Dict[str, Any]`, loaded with a function like `load_openapi_spec` or `load_openapi_spec_async`. These functions accept a file path or a URL to the OpenAPI specification or a URL to the base api and return the parsed OpenAPI specification as a dictionary.
+你现在必须显式传递 `client_config` 和 `openapi_spec` 这两个参数。
 
-You must now explicitly pass both the `client_config` and `openapi_spec` arguments.
+## OpenAPI 工具注册
 
-## OpenAPI Tool Registration
+### 同步注册
 
-### Synchronous Registration
-
-You can register OpenAPI tools synchronously using the `register_from_openapi` method. For example:
+你可以使用 `register_from_openapi` 方法同步注册 OpenAPI 工具。例如：
 
 ```python
 import os
@@ -41,7 +38,7 @@ registry.register_from_openapi(client_config=client_config, openapi_spec=openapi
 print(registry)  # Output: A ToolRegistry object with the registered OpenAPI tools
 ```
 
-You should see a schema printed as follow. Here, we only display the first entry for clarity.
+你应该会看到如下输出的模式信息。这里为了简洁，只展示第一个条目。
 
 ```json
 [
@@ -70,9 +67,9 @@ You should see a schema printed as follow. Here, we only display the first entry
 ]
 ```
 
-### Asynchronous Registration
+### 异步注册
 
-In an asynchronous environment, use the `register_from_openapi_async` method to register tools:
+在异步环境中，使用 `register_from_openapi_async` 方法注册工具：
 
 ```python
 import asyncio
@@ -92,9 +89,9 @@ async def async_register():
 asyncio.run(async_register())
 ```
 
-### Httpx Client Configuration
+### Httpx 客户端配置
 
-In some cases, OpenAPI services may require specific configurations such as custom headers, timeouts, or SSL certificates. You can tune these settings with the `HttpxClientConfig` class. Here's an example of authorization bearer tokens in header.
+在某些情况下，OpenAPI 服务可能需要特定的配置，例如自定义请求头、超时时间或 SSL 证书。你可以通过 `HttpxClientConfig` 类来调整这些设置。以下是在请求头中使用 Bearer Token 授权的示例。
 
 ```python
 from toolregistry.openapi import HttpxClientConfig
@@ -108,7 +105,7 @@ client_config = HttpxClientConfig(
 )
 ```
 
-If nothing special is needed, you can create HttpxClientConfig with just the `base_url`:
+如果不需要特殊配置，只需使用 `base_url` 创建 HttpxClientConfig 即可：
 
 ```python
 from toolregistry.openapi import HttpxClientConfig
@@ -118,12 +115,12 @@ client_config = HttpxClientConfig(
 )
 ```
 
-### Load OpenAPI Specification
+### 加载 OpenAPI 规范
 
-When using the functions `load_openapi_spec` or `load_openapi_spec_async`, the following behaviors apply:
+使用 `load_openapi_spec` 或 `load_openapi_spec_async` 函数时，适用以下行为：
 
-1. **Base URL provided**: If you specify only a base URL (e.g., `http://localhost:8000`), the loader will attempt "best effort" auto-discovery to locate the OpenAPI specification file. It checks endpoints such as `http://<base_url>/openapi.json`, `http://<base_url>/swagger.json`, etc. If auto-discovery fails, ensure the base URL is accurate and the specification is accessible.
-2. **File path provided**: If you provide a file path (e.g., `./openapi_spec.json`), the function will load the OpenAPI specification directly from the file. Unlike simple direct load, the functionality includes unwinding `$ref` blocks commonly found in OpenAPI specifications. This ensures that any schema references are fully resolved within the returned dictionary.
+1. **提供基础 URL**：如果你只指定一个基础 URL（例如 `http://localhost:8000`），加载器将尝试"尽力"自动发现 OpenAPI 规范文件。它会检查诸如 `http://<base_url>/openapi.json`、`http://<base_url>/swagger.json` 等端点。如果自动发现失败，请确保基础 URL 正确且规范文件可访问。
+2. **提供文件路径**：如果你提供文件路径（例如 `./openapi_spec.json`），函数将直接从文件加载 OpenAPI 规范。与简单的直接加载不同，该功能包括展开 OpenAPI 规范中常见的 `$ref` 块。这确保了返回的字典中所有模式引用都已完全解析。
 
 ```python
 from toolregistry.openapi import load_openapi_spec
@@ -133,16 +130,16 @@ openapi_spec = load_openapi_spec("http://localhost:8000") # auto-discovery with 
 openapi_spec = load_openapi_spec("http://localhost:8000/openapi.json") # load from specification URL
 ```
 
-## Persistent Connections
+## 持久连接
 
-???+ note "Changelog"
-    New in version: 0.7.0
+???+ note "变更日志"
+    新增于版本：0.7.0
 
-By default, OpenAPI integrations now use **persistent HTTP connections** — the `httpx` client is reused across multiple tool calls, enabling connection pooling and reducing latency.
+默认情况下，OpenAPI 集成现在使用**持久 HTTP 连接**——`httpx` 客户端在多次工具调用之间被复用，从而实现连接池化并降低延迟。
 
-### Context Manager Usage
+### 上下文管理器用法
 
-Use `ToolRegistry` as a context manager to ensure HTTP clients are properly closed:
+使用 `ToolRegistry` 作为上下文管理器可确保 HTTP 客户端被正确关闭：
 
 ```python
 from toolregistry import ToolRegistry
@@ -156,7 +153,7 @@ with ToolRegistry() as registry:
 # HTTP clients are automatically closed on exit
 ```
 
-### Explicit Cleanup
+### 显式清理
 
 ```python
 registry = ToolRegistry()
@@ -168,9 +165,9 @@ registry.close()  # Close all persistent HTTP clients
 await registry.close_async()
 ```
 
-### Opting Out
+### 退出持久连接模式
 
-To create a fresh HTTP client per call (the old behavior), pass `persistent=False`:
+要每次调用时创建新的 HTTP 客户端（旧行为），请传递 `persistent=False`：
 
 ```python
 registry.register_from_openapi(
@@ -178,13 +175,13 @@ registry.register_from_openapi(
 )
 ```
 
-## Calling OpenAPI Tools
+## 调用 OpenAPI 工具
 
-Once the OpenAPI tools are registered, they support both synchronous and asynchronous invocation methods.
+OpenAPI 工具注册完成后，支持同步和异步两种调用方式。
 
-### Synchronous Calls
+### 同步调用
 
-Tools can be invoked directly as Python callables, or you can retrieve them using the `get_callable` or `get_tool` methods:
+工具可以作为 Python 可调用对象直接调用，也可以通过 `get_callable` 或 `get_tool` 方法获取后调用：
 
 ```python
 # Direct access using subscript notation
@@ -203,9 +200,9 @@ result = add_tool.run({"a": 5, "b": 6})
 print(result)  # Expected output: 11.0
 ```
 
-### Asynchronous Calls
+### 异步调用
 
-For asynchronous calls, you can use the callable's `__call__` or the tool object's `arun` methods:
+对于异步调用，可以使用可调用对象的 `__call__` 方法或工具对象的 `arun` 方法：
 
 ```python
 import asyncio
@@ -227,9 +224,9 @@ async def call_async_add_tool():
 asyncio.run(call_async_add_tool())
 ```
 
-## Integrating OpenAPI with the OpenAI Client
+## 将 OpenAPI 与 OpenAI 客户端集成
 
-You can integrate OpenAPI tool registration into an OpenAI-compatible API workflow. The updated example incorporates the new APIs:
+你可以将 OpenAPI 工具注册集成到 OpenAI 兼容的 API 工作流中。以下更新后的示例使用了新的 API：
 
 ```python
 from dotenv import load_dotenv
@@ -294,10 +291,10 @@ if response.choices[0].message.tool_calls:
     print(second_response.choices[0].message.content)
 ```
 
-## Notes
+## 注意事项
 
-1. OpenAPI tool registration supports both synchronous and asynchronous methods. Once tools are registered, they can be invoked as simple Python functions or as tool objects.
-2. During invocation, parameters are automatically converted based on the tool definition. For example, the `add_get` tool expects numeric inputs and returns a numeric result.
-3. The integration with the OpenAI client allows you to seamlessly incorporate tool execution into your chat workflows.
+1. OpenAPI 工具注册支持同步和异步两种方法。工具注册完成后，可以作为简单的 Python 函数或工具对象进行调用。
+2. 调用时，参数会根据工具定义自动转换。例如，`add_get` 工具期望数值输入并返回数值结果。
+3. 与 OpenAI 客户端的集成使你能够将工具执行无缝整合到聊天工作流中。
 
-Follow the examples above to efficiently integrate and utilize OpenAPI tools with ToolRegistry.
+按照上述示例即可高效地将 OpenAPI 工具与 ToolRegistry 集成并使用。

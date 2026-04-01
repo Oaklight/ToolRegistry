@@ -1,13 +1,10 @@
-# Type Definitions
+# 类型定义
 
-!!! warning "本页尚未翻译"
-    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+本节记录了 ToolRegistry 库中使用的类型定义，用于与各种 LLM 提供商的兼容。
 
-This section documents the type definitions used across the ToolRegistry library for compatibility with various LLM providers.
+## 通用类型
 
-## Common Types
-
-Universal type definitions used across the library.
+库中通用的类型定义。
 
 ::: toolregistry.types
     options:
@@ -19,9 +16,9 @@ Universal type definitions used across the library.
         show_source: false
         show_root_heading: true
 
-## OpenAI Types
+## OpenAI 类型
 
-Type definitions for OpenAI API compatibility.
+用于 OpenAI API 兼容的类型定义。
 
 ::: toolregistry.types.openai
     options:
@@ -38,18 +35,18 @@ Type definitions for OpenAI API compatibility.
         show_source: false
         show_root_heading: true
 
-## Anthropic Types
+## Anthropic 类型
 
-Type definitions for Anthropic API compatibility.
+用于 Anthropic API 兼容的类型定义。
 
 ::: toolregistry.types.anthropic
     options:
         show_source: false
         show_root_heading: true
 
-## Gemini Types
+## Gemini 类型
 
-Type definitions for Google Gemini API compatibility.
+用于 Google Gemini API 兼容的类型定义。
 
 ::: toolregistry.types.gemini
     options:

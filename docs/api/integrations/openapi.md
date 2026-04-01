@@ -1,52 +1,49 @@
-# OpenAPI Integration
+# OpenAPI 集成
 
-!!! warning "本页尚未翻译"
-    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+本节介绍 ToolRegistry 库的 OpenAPI/Swagger 集成功能。
 
-This section documents the OpenAPI/Swagger integration capabilities of the ToolRegistry library.
+## 架构概览
 
-## Architecture Overview
+OpenAPI 集成旨在基于 OpenAPI 规范自动发现和注册 REST API 端点为工具。该架构采用三层设计：
 
-The OpenAPI integration is designed to automatically discover and register REST API endpoints as tools based on OpenAPI specifications. The architecture follows a three-layer design:
+### 核心组件
 
-### Core Components
+1. **OpenAPIToolWrapper**：一个包装器类，提供同步和异步 HTTP 客户端方法用于 API 调用
 
-1. **OpenAPIToolWrapper**: A wrapper class that provides both synchronous and asynchronous HTTP client methods for API calls
+   - 处理 GET、POST、PUT、DELETE 请求
+   - 支持参数处理和验证
+   - 与 httpx 集成实现 HTTP 通信
 
-   - Handles GET, POST, PUT, DELETE requests
-   - Supports parameter processing and validation
-   - Integrates with httpx for HTTP communication
+2. **OpenAPITool**：一个工具类，保留从 OpenAPI 规范中提取的函数元数据
 
-2. **OpenAPITool**: A tool class that preserves function metadata extracted from OpenAPI specifications
+   - 从 OpenAPI 规范自动生成参数模式
+   - 规范化工具名称和描述
+   - 支持命名空间
 
-   - Automatically generates parameter schemas from OpenAPI specs
-   - Normalizes tool names and descriptions
-   - Maintains namespace support
+3. **OpenAPIIntegration**：主集成类，协调注册流程
+   - 解析 OpenAPI 规范
+   - 为每个端点创建工具实例
+   - 支持同步和异步注册
 
-3. **OpenAPIIntegration**: The main integration class that orchestrates the registration process
-   - Parses OpenAPI specifications
-   - Creates tool instances for each endpoint
-   - Supports both synchronous and asynchronous registration
+### 设计模式
 
-### Design Patterns
+- **工厂模式**：`OpenAPITool.from_openapi_spec()` 从规范创建工具实例
+- **包装器模式**：`OpenAPIToolWrapper` 为 HTTP 操作提供统一接口
+- **模板方法**：同步和异步版本遵循相似的模式，支持 async/await
 
-- **Factory Pattern**: `OpenAPITool.from_openapi_spec()` creates tool instances from specifications
-- **Wrapper Pattern**: `OpenAPIToolWrapper` provides a unified interface for HTTP operations
-- **Template Method**: Both sync and async versions follow similar patterns with async/await support
+### 主要特性
 
-### Key Features
+- 从 OpenAPI 模式自动提取参数
+- 支持查询参数、路径参数和请求体
+- 命名空间支持，用于工具组织
+- 完整的 async/await 兼容性
+- 自动 HTTP 状态错误处理
 
-- Automatic parameter extraction from OpenAPI schemas
-- Support for query parameters, path parameters, and request bodies
-- Namespace support for organizing tools
-- Full async/await compatibility
-- Automatic HTTP status error handling
-
-## API Reference
+## API 参考
 
 ### OpenAPIToolWrapper
 
-Wrapper class that provides both synchronous and asynchronous methods for OpenAPI tool calls.
+提供同步和异步方法用于 OpenAPI 工具调用的包装器类。
 
 ::: toolregistry.openapi.integration.OpenAPIToolWrapper
     options:
@@ -57,7 +54,7 @@ Wrapper class that provides both synchronous and asynchronous methods for OpenAP
 
 ### OpenAPITool
 
-Wrapper class for OpenAPI tools preserving function metadata.
+保留函数元数据的 OpenAPI 工具包装器类。
 
 ::: toolregistry.openapi.integration.OpenAPITool
     options:
@@ -68,7 +65,7 @@ Wrapper class for OpenAPI tools preserving function metadata.
 
 ### OpenAPIIntegration
 
-Handles integration with OpenAPI services for tool registration.
+处理与 OpenAPI 服务集成以进行工具注册的类。
 
 ::: toolregistry.openapi.integration.OpenAPIIntegration
     options:
@@ -77,11 +74,11 @@ Handles integration with OpenAPI services for tool registration.
         show_root_toc_entry: false
         merge_init_into_class: true
 
-## Module Utilities
+## 模块工具
 
-### OpenAPI Utils
+### OpenAPI 工具函数
 
-Utility functions for OpenAPI processing.
+用于 OpenAPI 处理的实用函数。
 
 ::: toolregistry.openapi.utils
     options:

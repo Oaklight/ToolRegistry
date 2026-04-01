@@ -1,13 +1,10 @@
-# OpenAI Response API Integration
+# OpenAI Response API 集成
 
-!!! warning "本页尚未翻译"
-    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+延续 [基础用法](../basics) 中的简单数学示例，本文介绍如何将 ToolRegistry 与 OpenAI Response API 配合使用。需要注意的是，你可以通过 OpenAI 客户端连接任何提供 OpenAI Response API 的服务商。本指南以 OpenAI 为例进行演示。
 
-Following our simple math example from the [Basic Usage](../basics), this document explains how to use a tool registry with the OpenAI Response API. Note that you could use the OpenAI client with any API provider that offers OpenAI-Response API. In this guide, we'll use OpenAI as an example.
+## 设置 ToolRegistry
 
-## Setup ToolRegistry
-
-We have a tool registry with two math functions:
+我们创建一个包含两个数学函数的工具注册表：
 
 ```python
 from toolregistry import ToolRegistry
@@ -27,13 +24,13 @@ def subtract(a: float, b: float) -> float:
     return a - b
 ```
 
-## Exposing Tool Schemas
+## 导出工具 Schema
 
 ```python
 schemas = registry.get_tools_json(api_format="openai-response") # available since v0.4.13
 ```
 
-Here is the pretty printed JSON schema:
+格式化后的 JSON Schema 如下：
 
 ```json
 [
@@ -88,14 +85,14 @@ Here is the pretty printed JSON schema:
 ]
 ```
 
-Note the difference:
+注意与 Chat Completion 格式的区别：
 
-- The `openai-response` function tool format exposes the function information (`name`, `description`, `parameters`) as top-level objects, instead of nested inside a `function` object.
-- There is a `strict` field that is set to `false`. Do NOT change this value, since in strict mode, all optional parameters will be required, which is not the desired behavior for automatic schema generation.
+- `openai-response` 格式将函数信息（`name`、`description`、`parameters`）作为顶层字段暴露，而非嵌套在 `function` 对象内部。
+- 包含一个 `strict` 字段，值为 `false`。请勿修改此值，因为在严格模式下，所有可选参数都会变为必填参数，这与自动 Schema 生成的预期行为不符。
 
-## Supply Query with Tool Schema
+## 使用工具 Schema 发送查询
 
-Provide the tool JSON schema and user query to the OpenAI client's completion interface:
+将工具 JSON Schema 和用户查询提供给 OpenAI 客户端的 Response 接口：
 
 ```python
 import os
@@ -128,9 +125,9 @@ response = client.responses.create(
 )
 ```
 
-## Extract Tool Calls
+## 提取工具调用
 
-If the model decides to use a tool, it will return a response type of `function_call`. Extract this information from the response:
+如果模型决定使用工具，它会返回类型为 `function_call` 的响应。从响应中提取该信息：
 
 ```python
 tool_calls = []
@@ -139,41 +136,41 @@ for each in response.output:
         tool_calls.append(each)
 ```
 
-Example function call output:
+函数调用的输出示例：
 
 ```python
 [ResponseFunctionToolCall(arguments='{"a":15,"b":3}', call_id='call_FbBTgiYFPuLwdk6jNW2JaNQh', name='subtract', type='function_call', id='fc_6855102fc05c819ba4583b9cb0b6b73b07c0143154471823', status='completed')]
 ```
 
-The `tool_calls` object is a `List` of `ResponseFunctionToolCall` objects. The following attributes are particularly useful:
+`tool_calls` 对象是一个 `ResponseFunctionToolCall` 的 `List`。以下属性尤为重要：
 
-- `call_id`: this is something we will need when feed result back to LLM
-- **`name`**: The name of the function to call
-- **`arguments`**: A dictionary of arguments to pass to the function
+- `call_id`：在将结果反馈给 LLM 时需要用到
+- **`name`**：要调用的函数名称
+- **`arguments`**：传递给函数的参数字典
 
-## Execute Tool Calls
+## 执行工具调用
 
-Using the `ToolRegistry`, you can easily process results from **all** `tool_calls`. Note that sometimes the LLM may decide to call multiple tools simultaneously.
+使用 `ToolRegistry`，你可以轻松处理**所有** `tool_calls` 的执行结果。注意，有时 LLM 可能会同时调用多个工具。
 
 ```python
 # Execute tool calls
 tool_responses = registry.execute_tool_calls(tool_calls)
 ```
 
-The tool execution results from the registry are returned as a Python dictionary mapping `tool_call_id` to results:
+注册表返回的工具执行结果是一个 Python 字典，键为 `tool_call_id`，值为对应的结果：
 
 ```json
 { "call_FbBTgiYFPuLwdk6jNW2JaNQh": 12 }
 ```
 
-## Feed Results back to LLM
+## 将结果反馈给 LLM
 
-After executing the function call, we need to provide the result back to the model in a new prompt:
+执行完函数调用后，我们需要在新的请求中将结果返回给模型。
 
-To maintain the tool-calling context for subsequent LLM interactions, we need to reconstruct both:
+为了在后续与 LLM 的交互中保持工具调用的上下文，我们需要重建两部分信息：
 
-1. The assistant's decision to make `tool_calls`
-2. The actual `tool_calls` results
+1. 助手决定发起 `tool_calls` 的消息
+2. 实际的 `tool_calls` 执行结果
 
 ```python
 # Construct assistant messages with results
@@ -200,7 +197,7 @@ assistant_tool_messages = registry.recover_tool_call_assistant_message(
 ]
 ```
 
-We then extend the previous messages sent to first LLM with these reconstructed messages.
+然后将这些重建的消息追加到之前发送给 LLM 的消息列表中。
 
 ```python
 messages.extend(assistant_tool_messages)
@@ -218,27 +215,27 @@ if response.output:
     print(response.output_text)
 ```
 
-## Final Result and Considerations
+## 最终结果与注意事项
 
-The LLM will return the final answer after processing the tool execution results:
+LLM 在处理完工具执行结果后，会返回最终答案：
 
 ```markdown
 You have **12 chestnuts** left after Joe ate 3.
 ```
 
-### Important Implementation Notes
+### 重要的实现说明
 
-The implementation should handle [consecutive function calls](../../examples/consecutive_tool_calls) as the conversation may require multiple rounds of tool calls, with each response from the LLM potentially triggering new tool calls.
+实现时应处理[连续函数调用](../../examples/consecutive_tool_calls)的情况，因为对话可能需要多轮工具调用，每次 LLM 的响应都可能触发新的工具调用。
 
-Error handling is crucial; always validate tool call arguments before execution, as the ToolRegistry does this for you. Handle cases where tools might fail or return errors, and consider timeout mechanisms for long-running operations.
+错误处理至关重要：在执行工具调用前，始终需要验证参数的合法性（ToolRegistry 已自动完成此操作）。需要处理工具可能失败或返回错误的情况，并考虑为长时间运行的操作添加超时机制。
 
-State management involves maintaining conversation history, including all tool calls and responses, tracking the sequence of tool executions for debugging, and considering conversation state persistence.
+状态管理涉及维护完整的对话历史（包括所有工具调用及其响应）、跟踪工具执行顺序以便调试，以及考虑对话状态的持久化。
 
-Performance considerations include minimizing unnecessary tool calls, caching frequent tool responses when appropriate, and monitoring and optimizing tool execution time.
+性能方面需要注意减少不必要的工具调用、在适当时缓存频繁的工具响应结果，以及监控和优化工具执行时间。
 
-## Complete Python Script
+## 完整 Python 脚本
 
-Here goes the complete script used in this demo.
+以下是本示例使用的完整脚本。
 
 ```python
 import json

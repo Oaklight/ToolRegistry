@@ -1,51 +1,48 @@
 # MCPToolWrapper
 
-!!! warning "本页尚未翻译"
-    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+提供异步和同步版本的 MCP (Model Context Protocol) 工具调用的包装器类。
 
-Wrapper class providing both async and sync versions of MCP (Model Context Protocol) tool calls.
+## 概览
 
-## Overview
+`MCPToolWrapper` 是专门为 Model Context Protocol (MCP) 服务器设计的包装器，提供 ToolRegistry 与基于 MCP 的工具之间的无缝通信。它处理 MCP 协议通信的复杂性，包括多种内容类型、传输管理和错误处理。
 
-`MCPToolWrapper` serves as the specialized wrapper for Model Context Protocol (MCP) servers, providing seamless communication between ToolRegistry and MCP-based tools. It handles the complexities of MCP protocol communication, including various content types, transport management, and error handling.
+## 主要特性
 
-## Key Features
+- **MCP 协议集成**：全面支持 Model Context Protocol 规范
+- **多传输支持**：处理不同的传输类型（HTTP、WebSocket、基于文件）
+- **内容类型处理**：支持文本、图像和嵌入式资源内容
+- **传输抽象**：透明管理 MCP 传输连接
+- **错误弹性**：全面的错误处理和详细日志记录
+- **异步/同步兼容**：同时支持异步和同步执行模式
 
-- **MCP Protocol Integration**: Full support for Model Context Protocol specification
-- **Multi-Transport Support**: Handles different transport types (HTTP, WebSocket, file-based)
-- **Content Type Handling**: Support for text, image, and embedded resource content
-- **Transport Abstraction**: Transparent management of MCP transport connections
-- **Error Resilience**: Comprehensive error handling with detailed logging
-- **Async/Sync Compatibility**: Both asynchronous and synchronous execution modes
+## 架构
 
-## Architecture
+MCPToolWrapper 通过 MCP 特定功能扩展了 `BaseToolWrapper`：
 
-The MCPToolWrapper extends `BaseToolWrapper` with MCP-specific functionality:
+### 核心组件
 
-### Core Components
+1. **传输管理**：处理 MCP 传输生命周期和通信
+2. **内容处理**：处理多种 MCP 内容类型（文本、图像、嵌入式）
+3. **协议处理**：管理 MCP 工具发现和执行
+4. **错误处理**：保留 MCP 错误并增强上下文信息
 
-1. **Transport Management**: Handles MCP transport lifecycle and communication
-2. **Content Processing**: Processes various MCP content types (text, image, embedded)
-3. **Protocol Handling**: Manages MCP tool discovery and execution
-4. **Error Handling**: Preserves MCP errors with enhanced context
-
-### Communication Flow
+### 通信流程
 
 ```
-Tool Call Request
+工具调用请求
     ↓
-Parameter Validation
+参数验证
     ↓
-MCP Client Communication
+MCP 客户端通信
     ↓
-Content Type Processing
+内容类型处理
     ↓
-Result Normalization
+结果规范化
     ↓
-ToolRegistry Response
+ToolRegistry 响应
 ```
 
-## API Reference
+## API 参考
 
 ::: toolregistry.mcp.integration.MCPToolWrapper
     options:
@@ -54,9 +51,9 @@ ToolRegistry Response
         show_root_toc_entry: false
         merge_init_into_class: true
 
-## Usage Examples
+## 使用示例
 
-### Basic MCP Tool Wrapper
+### 基本 MCP 工具包装器
 
 ```python
 from toolregistry.mcp.integration import MCPToolWrapper
@@ -73,7 +70,7 @@ result = wrapper(a=5, b=3, operation="add")  # Sync
 result = await wrapper(a=5, b=3, operation="add")  # Async
 ```
 
-### Content Type Processing
+### 内容类型处理
 
 ```python
 # Handle different MCP content types
@@ -89,11 +86,11 @@ result = wrapper(file_path="image.png")  # Returns {"type": "image", "data": ...
 result = wrapper(file_path="data.json")  # Returns parsed JSON or resource content
 ```
 
-## Content Type Support
+## 内容类型支持
 
-The wrapper handles multiple MCP content types:
+该包装器处理多种 MCP 内容类型：
 
-### Text Content
+### 文本内容
 
 ```python
 # Simple text response
@@ -102,7 +99,7 @@ The wrapper handles multiple MCP content types:
 }
 ```
 
-### Image Content
+### 图像内容
 
 ```python
 # Image response
@@ -115,7 +112,7 @@ The wrapper handles multiple MCP content types:
 }
 ```
 
-### Embedded Resources
+### 嵌入式资源
 
 ```python
 # Embedded text resource
@@ -133,9 +130,9 @@ The wrapper handles multiple MCP content types:
 }
 ```
 
-## Integration Patterns
+## 集成模式
 
-### With MCP Integration
+### 与 MCP 集成配合使用
 
 ```python
 from toolregistry import ToolRegistry
@@ -150,7 +147,7 @@ await mcp_integration.register_mcp_tools_async("ws://localhost:8000")
 # Tools are automatically wrapped with MCPToolWrapper
 ```
 
-### Transport Configuration
+### 传输配置
 
 ```python
 from toolregistry.mcp.integration import MCPToolWrapper
@@ -161,24 +158,24 @@ wrapper_http = MCPToolWrapper("http://localhost:8000/mcp", "remote_tool", params
 wrapper_file = MCPToolWrapper("./mcp_server.py", "local_tool", params=["input"])
 ```
 
-## Error Handling
+## 错误处理
 
-The wrapper provides comprehensive error handling:
+该包装器提供全面的错误处理：
 
-- **Connection Errors**: Network and transport-related failures
-- **Protocol Errors**: MCP specification compliance issues
-- **Content Type Errors**: Unsupported content type handling
-- **Tool Execution Errors**: Individual tool execution failures
+- **连接错误**：网络和传输相关的故障
+- **协议错误**：MCP 规范合规性问题
+- **内容类型错误**：不支持的内容类型处理
+- **工具执行错误**：单个工具执行失败
 
-All errors are logged with full stack traces for debugging while preserving the original exception behavior.
+所有错误都会记录完整的堆栈跟踪以便调试，同时保留原始异常行为。
 
-## Transport Support
+## 传输支持
 
-Supports multiple MCP transport mechanisms:
+支持多种 MCP 传输机制：
 
-- **WebSocket**: Real-time bidirectional communication
-- **HTTP**: Streamable HTTP and SSE-based communication
-- **File-based**: Local script execution (`.py`, `.js`)
-- **Dict config**: Stdio-based transport via command configuration
+- **WebSocket**：实时双向通信
+- **HTTP**：可流式 HTTP 和基于 SSE 的通信
+- **基于文件**：本地脚本执行（`.py`、`.js`）
+- **字典配置**：通过命令配置的基于 stdio 的传输
 
-This makes MCPToolWrapper a robust adapter for integrating MCP servers into the ToolRegistry ecosystem.
+这使得 MCPToolWrapper 成为将 MCP 服务器集成到 ToolRegistry 生态系统的强大适配器。

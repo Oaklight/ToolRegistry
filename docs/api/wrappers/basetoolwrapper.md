@@ -1,51 +1,48 @@
 # BaseToolWrapper
 
-!!! warning "本页尚未翻译"
-    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+ToolRegistry 生态系统中工具包装器的基类，提供同步和异步调用支持。
 
-Base class for tool wrappers that provide support for synchronous and asynchronous calls within the ToolRegistry ecosystem.
+## 概览
 
-## Overview
+`BaseToolWrapper` 作为 ToolRegistry 系统中所有工具包装器的基础抽象基类。它为工具执行提供了标准化接口，具备同步和异步能力，确保在不同工具类型和集成框架之间保持一致的行为。
 
-`BaseToolWrapper` serves as the foundational abstract base class for all tool wrappers in the ToolRegistry system. It provides a standardized interface for executing tools with both synchronous and asynchronous capabilities, ensuring consistent behavior across different tool types and integration frameworks.
+## 主要特性
 
-## Key Features
+- **抽象接口**：定义工具执行的核心契约
+- **双执行模式**：支持同步和异步工具执行
+- **自动模式检测**：根据运行时上下文自动选择适当的执行模式
+- **参数处理**：内置位置参数和关键字参数处理
+- **标准化元数据**：一致的工具名称和参数列表处理
 
-- **Abstract Interface**: Defines the core contract for tool execution
-- **Dual Execution Modes**: Support for both synchronous and asynchronous tool execution
-- **Automatic Mode Detection**: Automatically selects appropriate execution mode based on runtime context
-- **Parameter Processing**: Built-in argument processing for positional and keyword arguments
-- **Standardized Metadata**: Consistent handling of tool names and parameter lists
+## 架构
 
-## Architecture
+BaseToolWrapper 遵循模板方法模式，具有以下设计：
 
-The BaseToolWrapper follows the Template Method pattern with the following design:
+### 抽象方法
 
-### Abstract Methods
+1. **call_sync()**：子类必须实现，用于同步执行
+2. **call_async()**：子类必须实现，用于异步执行
 
-1. **call_sync()**: Must be implemented by subclasses for synchronous execution
-2. **call_async()**: Must be implemented by subclasses for asynchronous execution
+### 具体方法
 
-### Concrete Methods
+1. \***\*call**()\*\*：自动在同步和异步执行之间选择
+2. **\_process_args()**：处理和验证位置参数与关键字参数
 
-1. \***\*call**()\*\*: Automatically selects between sync and async execution
-2. **\_process_args()**: Processes and validates positional and keyword arguments
-
-### Execution Flow
+### 执行流程
 
 ```
-User calls wrapper()
+用户调用 wrapper()
     ↓
-Auto-detect execution context
+自动检测执行上下文
     ↓
-Call call_sync() or call_async()
+调用 call_sync() 或 call_async()
     ↓
-Execute underlying tool logic
+执行底层工具逻辑
     ↓
-Return result
+返回结果
 ```
 
-## API Reference
+## API 参考
 
 ::: toolregistry.tool_wrapper.BaseToolWrapper
     options:
@@ -54,9 +51,9 @@ Return result
         show_root_toc_entry: false
         merge_init_into_class: true
 
-## Usage Examples
+## 使用示例
 
-### Basic Wrapper Implementation
+### 基本包装器实现
 
 ```python
 from toolregistry.tool_wrapper import BaseToolWrapper
@@ -79,7 +76,7 @@ class CustomToolWrapper(BaseToolWrapper):
         return await self.tool_function(**processed_kwargs)
 ```
 
-### Usage with Custom Tool
+### 自定义工具的使用
 
 ```python
 def my_calculator(a: int, b: int) -> int:
@@ -98,11 +95,11 @@ result1 = wrapper(a=5, b=3)  # Sync execution
 result2 = await wrapper(a=5, b=3)  # Async execution
 ```
 
-## Parameter Processing
+## 参数处理
 
-The BaseToolWrapper provides sophisticated parameter processing:
+BaseToolWrapper 提供了完善的参数处理机制：
 
-### Argument Validation
+### 参数验证
 
 ```python
 # Positional arguments are mapped to parameter names
@@ -113,15 +110,15 @@ wrapper("value1", "value2")
 wrapper(param1="value1", param2="value2")
 ```
 
-### Error Handling
+### 错误处理
 
-- **Parameter Count Validation**: Ensures no more arguments than defined parameters
-- **Duplicate Argument Detection**: Prevents passing same parameter as both positional and keyword
-- **Missing Parameter Handling**: Allows optional parameters when not all are required
+- **参数数量验证**：确保传入的参数不超过已定义的参数数量
+- **重复参数检测**：防止同一参数同时作为位置参数和关键字参数传入
+- **缺失参数处理**：允许非必需参数缺失
 
-## Execution Context Detection
+## 执行上下文检测
 
-The wrapper automatically detects the appropriate execution mode:
+包装器自动检测适当的执行模式：
 
 ```python
 import asyncio
@@ -134,23 +131,23 @@ async def async_context():
     result = await wrapper(a=1, b=2)  # Calls call_async()
 ```
 
-## Subclassing Guidelines
+## 子类化指南
 
-When creating subclasses, implement these patterns:
+创建子类时，请实现以下模式：
 
-1. **Initialization**: Call `super().__init__()` with name and parameters
-2. **Sync Implementation**: Handle synchronous execution in `call_sync()`
-3. **Async Implementation**: Handle asynchronous execution in `call_async()`
-4. **Parameter Validation**: Use `_process_args()` for argument processing
-5. **Error Handling**: Preserve original exception behavior
+1. **初始化**：使用 name 和 parameters 调用 `super().__init__()`
+2. **同步实现**：在 `call_sync()` 中处理同步执行
+3. **异步实现**：在 `call_async()` 中处理异步执行
+4. **参数验证**：使用 `_process_args()` 进行参数处理
+5. **错误处理**：保留原始异常行为
 
-## Integration
+## 集成
 
-BaseToolWrapper is used by all integration modules:
+BaseToolWrapper 被所有集成模块使用：
 
-- **OpenAPI**: OpenAPIToolWrapper
-- **MCP**: MCPToolWrapper
-- **LangChain**: LangChainToolWrapper
-- **Native**: Native function wrappers
+- **OpenAPI**：OpenAPIToolWrapper
+- **MCP**：MCPToolWrapper
+- **LangChain**：LangChainToolWrapper
+- **原生**：原生函数包装器
 
-This ensures consistent execution semantics across all tool types within the ToolRegistry ecosystem.
+这确保了 ToolRegistry 生态系统中所有工具类型具有一致的执行语义。

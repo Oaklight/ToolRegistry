@@ -1,9 +1,6 @@
-# Register MCP Tools via Diverse Transports
+# 通过多种传输方式注册 MCP 工具
 
-!!! warning "本页尚未翻译"
-    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
-
-MCP protocol supports a variety of transports for communication. Below are examples of how to register tools using different types of transports.
+MCP 协议支持多种通信传输方式。以下示例展示了如何使用不同类型的传输方式注册工具。
 
 ```python
 from pathlib import Path

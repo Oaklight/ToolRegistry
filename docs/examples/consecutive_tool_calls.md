@@ -1,15 +1,12 @@
-# Consecutive Tool Calls
+# 连续工具调用
 
-!!! warning "本页尚未翻译"
-    本页内容尚未翻译为中文。以下为英文原文，中文翻译将在后续版本中提供。
+在实际的 AI Agent 开发中，LLM 连续使用多个工具来完成任务是很常见的场景。本示例演示了如何处理这种情况。
 
-In real agentic AI development, it's common to see LLM using multiple tools consecutively to accomplish a task. This example demonstrates how to handle such scenarios.
+我们让 LLM 查询某个地点的最新天气（模拟 API 调用），天气信息通常以摄氏度返回，然后让它将温度转换为华氏度。
 
-We ask LLM to query the latest weather of some location (mock API call), which is often in Celsius, and then ask it to convert the temperature to Fahrenheit.
+## OpenAI 客户端实现
 
-## OpenAI Client Implementation
-
-This example demonstrates integration with OpenAI's API. As we mentioned in previous article, we shall handle consecutive tool calls manually.
+本示例演示了与 OpenAI API 的集成。如前文所述，我们需要手动处理连续的工具调用。
 
 ```python
 import os
@@ -95,7 +92,7 @@ if response.choices[0].message.content:
     print(response.choices[0].message.content)
 ```
 
-response reads
+响应输出如下：
 
 ```python
 Tool calls: [ChatCompletionMessageToolCall(id='call_qcb10odnylzts5qhae9jvt7v', function=Function(arguments='{"location":"Shanghai"}', name='get_weather'), type='function', index=0)]
@@ -105,11 +102,11 @@ celsius=25.0
 The temperature in Shanghai is 77°F.
 ```
 
-## Cicada `MultiModalModel` Implementation
+## Cicada `MultiModalModel` 实现
 
-This example shows how to use ToolRegistry with the [Cicada](https://cicada.lab.oaklight.cn) `MultiModalModel`
+本示例展示了如何将 ToolRegistry 与 [Cicada](https://cicada.lab.oaklight.cn) 的 `MultiModalModel` 配合使用。
 
-One nice thing here is that it handles consecutive tool calls automatically.
+它的一个优点是可以自动处理连续的工具调用。
 
 ```python
 import os
@@ -151,7 +148,7 @@ print(response["content"])
 cprint(json.dumps(response,indent=2))
 ```
 
-response reads
+响应输出如下：
 
 ```python
 The current temperature in Shanghai is 77°F.
