@@ -278,6 +278,87 @@ class TestTool:
         assert "parameters" in model_dict
 
 
+class TestThinkAugmented:
+    """Test cases for think-augmented function calling."""
+
+    def test_think_property_in_schema(self, sample_tool):
+        """Test that thought property is injected into tool schema."""
+        assert "thought" in sample_tool.parameters["properties"]
+        thought = sample_tool.parameters["properties"]["thought"]
+        assert thought["type"] == "string"
+        assert "reasoning" in thought["description"]
+
+    def test_think_property_in_openai_format(self, sample_tool):
+        """Test that thought appears in OpenAI format schema."""
+        schema = sample_tool.get_json_schema("openai")
+        params = schema["function"]["parameters"]
+        assert "thought" in params["properties"]
+
+    def test_think_property_in_anthropic_format(self, sample_tool):
+        """Test that thought appears in Anthropic format schema."""
+        schema = sample_tool.get_json_schema("anthropic")
+        assert "thought" in schema["input_schema"]["properties"]
+
+    def test_think_property_in_gemini_format(self, sample_tool):
+        """Test that thought appears in Gemini format schema."""
+        schema = sample_tool.get_json_schema("gemini")
+        assert "thought" in schema["parameters"]["properties"]
+
+    def test_think_stripped_on_run(self, sample_tool):
+        """Test that thought is stripped before execution in run()."""
+        result = sample_tool.run(
+            {"a": 5, "b": 3, "thought": "I need to add these numbers"}
+        )
+        assert result == 8
+
+    @pytest.mark.asyncio
+    async def test_think_stripped_on_arun(self, async_sample_function):
+        """Test that thought is stripped before execution in arun()."""
+        tool = Tool.from_function(async_sample_function)
+        result = await tool.arun({"a": 10, "b": 20, "thought": "Adding asynchronously"})
+        assert result == 30
+
+    def test_think_no_override_existing(self):
+        """Test that native thought parameter is not overridden."""
+
+        def func_with_thought(thought: str, value: int) -> str:
+            """A function that uses thought as a real parameter."""
+            return f"{thought}: {value}"
+
+        tool = Tool.from_function(func_with_thought)
+        # thought should still be in schema (native)
+        assert "thought" in tool.parameters["properties"]
+        # Should NOT be stripped during execution
+        result = tool.run({"thought": "hello", "value": 42})
+        assert result == "hello: 42"
+
+    def test_think_manual_tool_creation(self):
+        """Test that manually created Tool also gets thought injected."""
+        tool = Tool(
+            name="manual_tool",
+            description="A manually created tool",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "x": {"type": "integer"},
+                },
+                "required": ["x"],
+            },
+            callable=lambda x: x * 2,
+        )
+        assert "thought" in tool.parameters["properties"]
+
+    def test_think_empty_schema_no_inject(self):
+        """Test that thought is not injected when schema has no properties."""
+        tool = Tool(
+            name="empty_tool",
+            description="Tool with empty schema",
+            parameters={},
+            callable=lambda: "ok",
+        )
+        assert "properties" not in tool.parameters
+
+
 class TestToolMetadataFields:
     """Test cases for ToolMetadata and ToolTag."""
 

@@ -304,6 +304,8 @@ class ToolRegistry(
                 function_name = tc.name
                 function_args = call_arguments.get(tc.id, {})
                 tool_obj = self.get_tool(function_name)
+                if tool_obj and not tool_obj._has_native_thought_param():
+                    function_args.pop("thought", None)
                 callable_func = tool_obj.callable if tool_obj else None
 
                 if callable_func is None:
