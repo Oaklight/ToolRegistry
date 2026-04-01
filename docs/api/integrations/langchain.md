@@ -58,33 +58,33 @@ The LangChain integration enables seamless interoperability between LangChain to
 Wrapper class providing both async and sync versions of LangChain tool calls.
 
 ::: toolregistry.langchain.integration.LangChainToolWrapper
-options:
-show_source: false
-show_root_heading: true
-show_root_toc_entry: false
-merge_init_into_class: true
+    options:
+        show_source: false
+        show_root_heading: true
+        show_root_toc_entry: false
+        merge_init_into_class: true
 
 ### LangChainTool
 
 Wrapper class for LangChain tools that preserves original function metadata.
 
 ::: toolregistry.langchain.integration.LangChainTool
-options:
-show_source: false
-show_root_heading: true
-show_root_toc_entry: false
-merge_init_into_class: true
+    options:
+        show_source: false
+        show_root_heading: true
+        show_root_toc_entry: false
+        merge_init_into_class: true
 
 ### LangChainIntegration
 
 Handles integration with LangChain tools for registration.
 
 ::: toolregistry.langchain.integration.LangChainIntegration
-options:
-show_source: false
-show_root_heading: true
-show_root_toc_entry: false
-merge_init_into_class: true
+    options:
+        show_source: false
+        show_root_heading: true
+        show_root_toc_entry: false
+        merge_init_into_class: true
 
 ## Module Overview
 
@@ -93,8 +93,8 @@ merge_init_into_class: true
 The main LangChain integration module.
 
 ::: toolregistry.langchain
-options:
-show_source: false
-show_root_heading: true
-show_root_toc_entry: false
-merge_init_into_class: true
+    options:
+        show_source: false
+        show_root_heading: true
+        show_root_toc_entry: false
+        merge_init_into_class: true

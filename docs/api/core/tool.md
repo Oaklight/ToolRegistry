@@ -45,11 +45,11 @@ The Tool class follows a data-transfer-object pattern with the following key com
 ## API Reference
 
 ::: toolregistry.Tool
-options:
-show_source: false
-show_root_heading: true
-show_root_toc_entry: false
-merge_init_into_class: true
+    options:
+        show_source: false
+        show_root_heading: true
+        show_root_toc_entry: false
+        merge_init_into_class: true
 
 ## Usage Examples
 

@@ -46,13 +46,13 @@ ToolRegistry 遵循注册表模式，具有以下核心职责：
 ## API 参考
 
 ::: toolregistry.ToolRegistry
-options:
-show_source: false
-show_root_heading: true
-show_root_toc_entry: false
-merge_init_into_class: true
-separate_signature: true
-show_signature_annotations: true
+    options:
+        show_source: false
+        show_root_heading: true
+        show_root_toc_entry: false
+        merge_init_into_class: true
+        separate_signature: true
+        show_signature_annotations: true
 
 ## 使用示例
 

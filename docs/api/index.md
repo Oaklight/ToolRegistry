@@ -1,77 +1,69 @@
 # API 参考
 
-本节提供 ToolRegistry 中所有类和方法的全面 API 文档，从源代码自动生成。
-
-## 概览
-
-ToolRegistry 库由几个主要组件组成：
-
-- **核心类**：基础类如 `ToolRegistry`、`Tool` 和 `BaseToolWrapper`
-- **工具包装器**：不同工具类型的专用包装器（MCP、OpenAPI、LangChain）
-- **模块和函数**：实用模块和辅助函数
-- **集成模块**：各种框架的兼容性模块
-- **类型定义**：LLM 提供者兼容性的类型定义
+ToolRegistry 中所有类和方法的全面 API 文档，从源代码自动生成。
 
 ## 核心类
 
 基础类和基本组件：
 
-- [`ToolRegistry`](core.md#toolregistry) - 中央注册表类
-- [`Tool`](core.md#tool) - 单个工具表示
-- [`ToolMetadata`](core.md#tool) - 行为和分类元数据
-- [`ToolTag`](core.md#tool) - 工具特征的预定义标签
-- [`BaseToolWrapper`](core.md#basetoolwrapper) - 基础包装器类
+- [**ToolRegistry**](core/toolregistry.md) — 工具管理的中央协调器
+- [**Tool**](core/tool.md) — 包含元数据和执行逻辑的单个工具
+- [**Executor**](core/executor.md) — 可插拔的执行后端（线程/进程）
+- [**Events**](events.md) — 变更事件类型和回调机制
+- [**Permissions**](permissions.md) — 基于规则的授权框架
 
-## 权限
-
-工具执行控制的授权框架：
-
-- [`PermissionPolicy`](permissions.md) - 可组合的基于规则的策略
-- [`PermissionRule`](permissions.md) - 匹配谓词与结果
-- [`PermissionHandler`](permissions.md) - ASK 结果的处理器协议
-- [`PermissionResult`](permissions.md) - 三态决策枚举（ALLOW、DENY、ASK）
-
-## 工具包装器
-
-不同工具类型的专用包装器类：
-
-- [`MCPToolWrapper`](wrappers.md#mcp-tool-wrapper) - MCP 服务器工具包装器
-- [`OpenAPIToolWrapper`](wrappers.md#openapi-tool-wrapper) - OpenAPI 工具包装器
-- [`LangChainToolWrapper`](wrappers.md#langchain-tool-wrapper) - LangChain 工具包装器
-
-## 模块和函数
-
-实用模块和辅助函数：
-
-- [`executor`](modules.md#executor-module) - 工具执行引擎
-- [`parameter_models`](modules.md#parameter-models) - 参数验证
-- [`utils`](modules.md#utilities) - 实用函数
+参见 [核心类概览](core.md) 了解架构图。
 
 ## 集成模块
 
-框架和协议兼容性：
+框架和协议兼容性，用于工具注册：
 
-- [`MCP 集成`](integrations.md#mcp-integration) - 模型上下文协议支持
-- [`OpenAPI 集成`](integrations.md#openapi-integration) - OpenAPI/Swagger 支持
-- [`LangChain 集成`](integrations.md#langchain-integration) - LangChain 兼容性
-- [`原生集成`](integrations.md#native-integration) - 直接 Python 集成
+- [**OpenAPI**](integrations/openapi.md) — 从 OpenAPI 规范生成 REST API 工具
+- [**MCP**](integrations/mcp.md) — 模型上下文协议服务器通信
+- [**LangChain**](integrations/langchain.md) — LangChain BaseTool 互操作性
+- [**Native**](integrations/native.md) — Python 类方法注册
+
+参见 [集成模块概览](integrations.md) 了解通用模式。
+
+## 工具包装器
+
+不同工具类型的适配器类：
+
+- [**BaseToolWrapper**](wrappers/basetoolwrapper.md) — 抽象基类
+- [**MCPToolWrapper**](wrappers/mcp.md) — MCP 服务器工具包装器
+- [**OpenAPIToolWrapper**](wrappers/openapi.md) — OpenAPI/REST 工具包装器
+- [**LangChainToolWrapper**](wrappers/langchain.md) — LangChain 工具包装器
+
+参见 [工具包装器概览](wrappers.md) 了解执行模型。
+
+## 辅助类
+
+支持工具：
+
+- [**参数模型与工具函数**](helpers.md) — 参数验证、工具名规范化、HTTP 客户端配置
 
 ## 类型定义
 
-LLM 提供者兼容性的类型定义：
+LLM 供应商兼容性类型：
 
-- [`通用类型`](types.md#common-types) - 通用类型定义
-- [`OpenAI 类型`](types.md#openai-types) - OpenAI API 兼容性
-- [`Anthropic 类型`](types.md#anthropic-types) - Anthropic API 兼容性
-- [`Gemini 类型`](types.md#gemini-types) - Google Gemini API 兼容性
+- [**类型**](types.md) — 通用、OpenAI、Anthropic 和 Gemini 类型定义
 
 ## 完整模块概览
 
-有关所有类和函数的完整概览：
-
 ::: toolregistry
-options:
-show_source: false
-show_root_heading: true
-show_root_toc_entry: true
-members: - ToolRegistry - Tool - executor - parameter_models - utils - hub - mcp - openapi - langchain - native - types
+    options:
+        show_source: false
+        show_root_heading: true
+        show_root_toc_entry: true
+        members:
+            - ToolRegistry
+            - Tool
+            - executor
+            - parameter_models
+            - utils
+            - hub
+            - mcp
+            - openapi
+            - langchain
+            - native
+            - types

@@ -48,11 +48,11 @@ Return result
 ## API Reference
 
 ::: toolregistry.tool_wrapper.BaseToolWrapper
-options:
-show_source: false
-show_root_heading: true
-show_root_toc_entry: false
-merge_init_into_class: true
+    options:
+        show_source: false
+        show_root_heading: true
+        show_root_toc_entry: false
+        merge_init_into_class: true
 
 ## Usage Examples
 
