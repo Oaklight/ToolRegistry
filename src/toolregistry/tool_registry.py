@@ -62,6 +62,7 @@ class ToolRegistry(
         name: str | None = None,
         *,
         default_max_result_size: int | None = None,
+        think_augment: bool = False,
     ) -> None:
         """Initialize an empty ToolRegistry.
 
@@ -74,6 +75,12 @@ class ToolRegistry(
             default_max_result_size: Default maximum result size in characters
                 for all tools. Individual tools can override this via
                 ``ToolMetadata.max_result_size``. None means no limit.
+            think_augment: Enable thought-augmented tool calling globally.
+                When ``True``, a ``thought`` property is included in
+                every tool's schema so LLMs can emit chain-of-thought
+                reasoning alongside tool calls.  Individual tools can
+                override this via ``ToolMetadata.think_augment``.
+                Defaults to ``False``.
 
         Notes:
             This class uses private attributes `_tools` and `_sub_registries` internally
@@ -88,6 +95,7 @@ class ToolRegistry(
         self._process_backend = ProcessPoolBackend()
         self._execution_mode: Literal["process", "thread"] = "process"
         self._default_max_result_size = default_max_result_size
+        self._think_augment = think_augment
 
     def __contains__(self, name: str) -> bool:
         """Check if a tool with the given name is registered.
@@ -160,6 +168,28 @@ class ToolRegistry(
 
     def __exit__(self, *exc) -> None:
         self.close()
+
+    # ============== Think-augment toggle ==============
+    def enable_think_augment(self) -> None:
+        """Enable thought-augmented tool calling globally.
+
+        When enabled, a ``thought`` property is included in every tool's
+        schema (via :meth:`get_schemas`) so that LLMs can emit
+        chain-of-thought reasoning alongside tool calls.  Individual
+        tools can still override this via ``ToolMetadata.think_augment``.
+
+        Reference: https://arxiv.org/abs/2601.18282
+        """
+        self._think_augment = True
+
+    def disable_think_augment(self) -> None:
+        """Disable thought-augmented tool calling globally.
+
+        When disabled, the ``thought`` property is stripped from tool
+        schemas produced by :meth:`get_schemas`, unless a tool explicitly
+        opts in via ``ToolMetadata.think_augment = True``.
+        """
+        self._think_augment = False
 
     # ============== Execution ==============
     def _finalize_result(self, result: Any, tool_name: str) -> str | list:
@@ -662,7 +692,14 @@ class ToolRegistry(
             if sort:
                 tools.sort(key=lambda t: t.name)
 
-        return [tool.get_json_schema(api_format) for tool in tools]
+        schemas = []
+        for tool in tools:
+            # Resolve effective think_augment: per-tool overrides registry
+            effective = tool.metadata.think_augment
+            if effective is None:
+                effective = self._think_augment
+            schemas.append(tool.get_json_schema(api_format, _think_augment=effective))
+        return schemas
 
     def get_tools_json(
         self,
