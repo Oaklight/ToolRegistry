@@ -126,14 +126,10 @@ def main():
     registry.register(local_divide)
     print(registry.list_tools())
     if FUNC:
-        target_func_name = [
-            name for name in registry.list_tools() if FUNC in name
-        ][0]
+        target_func_name = [name for name in registry.list_tools() if FUNC in name][0]
     else:
         target_func_name = None
-    tool_calls = generate_tool_calls(
-        N, registry.list_tools(), target_func_name
-    )
+    tool_calls = generate_tool_calls(N, registry.list_tools(), target_func_name)
 
     start_time = time.time()
     results = registry.execute_tool_calls(tool_calls, execution_mode=EXEC_MODE)
@@ -151,14 +147,10 @@ def main():
     registry.register_from_class(BaseCalculator, with_namespace=True)
     # print(registry.list_tools())
     if FUNC:
-        target_func_name = [
-            name for name in registry.list_tools() if FUNC in name
-        ][0]
+        target_func_name = [name for name in registry.list_tools() if FUNC in name][0]
     else:
         target_func_name = None
-    tool_calls = generate_tool_calls(
-        N, registry.list_tools(), target_func_name
-    )
+    tool_calls = generate_tool_calls(N, registry.list_tools(), target_func_name)
 
     start_time = time.time()
     results = registry.execute_tool_calls(tool_calls, execution_mode=EXEC_MODE)
@@ -180,14 +172,10 @@ def main():
     registry.register_from_openapi(client_config, openapi_spec, with_namespace=True)
     # print(registry.list_tools())
     if FUNC:
-        target_func_name = [
-            name for name in registry.list_tools() if FUNC in name
-        ][0]
+        target_func_name = [name for name in registry.list_tools() if FUNC in name][0]
     else:
         target_func_name = None
-    tool_calls = generate_tool_calls(
-        N, registry.list_tools(), target_func_name
-    )
+    tool_calls = generate_tool_calls(N, registry.list_tools(), target_func_name)
 
     start_time = time.time()
     results = registry.execute_tool_calls(tool_calls, execution_mode=EXEC_MODE)
@@ -205,14 +193,10 @@ def main():
     registry.register_from_mcp(f"http://localhost:{MCP_PORT}/sse", with_namespace=True)
     # print(registry.list_tools())
     if FUNC:
-        target_func_name = [
-            name for name in registry.list_tools() if FUNC in name
-        ][0]
+        target_func_name = [name for name in registry.list_tools() if FUNC in name][0]
     else:
         target_func_name = None
-    tool_calls = generate_tool_calls(
-        N, registry.list_tools(), target_func_name
-    )
+    tool_calls = generate_tool_calls(N, registry.list_tools(), target_func_name)
 
     start_time = time.time()
     results = registry.execute_tool_calls(tool_calls, execution_mode=EXEC_MODE)
