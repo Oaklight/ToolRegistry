@@ -274,3 +274,11 @@ if response.choices[0].message.tool_calls:
 
     # 打印最终响应
     print(second_response.choices[0].message.content)
+```
+
+## 参见
+
+- [OpenAI Chat Completion 集成](providers/openai_chat.md) -- OpenAI Chat Completion API 分步指南
+- [OpenAI Responses 集成](providers/openai_response.md) -- OpenAI Responses API 指南
+- [Anthropic 集成](providers/anthropic.md) -- Anthropic Claude 模型指南
+- [Gemini 集成](providers/gemini.md) -- Google Gemini 模型指南

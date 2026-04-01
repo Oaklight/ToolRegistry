@@ -166,3 +166,9 @@ print(mixed_registry.get_available_tools())  # 来自 mcp 注册表的工具
 ```python
 ['add_get', 'subtract_get', 'multiply_get', 'divide_get']
 ['add', 'subtract', 'multiply', 'divide']
+```
+
+## 参见
+
+- [核心类概览](../api/core.md) -- 架构图和组件关系
+- [ToolRegistry API 参考](../api/core/toolregistry.md) -- `merge()`、`spinoff()` 和命名空间相关方法

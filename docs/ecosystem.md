@@ -16,12 +16,13 @@ ToolRegistry 生态系统由三个互补的包组成，它们协同工作，为 
 
 ## 依赖关系图
 
-```text
-toolregistry          ← 核心：工具注册、模式生成、执行
-    ↑
-toolregistry-server   ← 服务器：OpenAPI 和 MCP 协议适配器
-    ↑
-toolregistry-hub      ← Hub：即用型工具实现
+```mermaid
+graph LR
+    Hub["toolregistry-hub<br/><i>即用型工具实现</i>"]
+    Server["toolregistry-server<br/><i>OpenAPI 和 MCP 协议适配器</i>"]
+    Core["toolregistry<br/><i>工具注册、模式生成、执行</i>"]
+
+    Hub --> Server --> Core
 ```
 
 ## 包详情

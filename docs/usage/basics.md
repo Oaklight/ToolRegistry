@@ -246,3 +246,9 @@ assistant_tool_messages = registry.recover_tool_call_assistant_message(
     "content": "12"
   }
 ]
+```
+
+## 参见
+
+- [LLM 函数调用](function_calling.md) -- 使用 LLM 提供者调用工具的端到端演练
+- [LLM 提供者集成](providers/openai_chat.md) -- 详细的提供者特定指南

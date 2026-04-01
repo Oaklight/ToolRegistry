@@ -205,21 +205,16 @@ print(result)  # Expected output: 11.0
 
 ### Asynchronous Calls
 
-For asynchronous calls, you can use the tool object's `__call__` or `arun` methods:
+For asynchronous calls, you can use the callable's `__call__` or the tool object's `arun` methods:
 
 ```python
 import asyncio
 
 async def call_async_add_func():
-    # Retrieve the tool callable for asynchronous invocation
-    add_func = registry.get_callable("add_get")
+    # Direct subscript access for asynchronous invocation
+    add_func = registry["add_get"]
     result = await add_func(7, 7)
     print(result)  # Expected output: 14.0
-
-    # Direct subscript access for asynchronous invocation
-    add_func2 = registry["add_get"]
-    result = await add_func2(7, 8)
-    print(result)  # Expected output: 15.0
 
 asyncio.run(call_async_add_func())
 

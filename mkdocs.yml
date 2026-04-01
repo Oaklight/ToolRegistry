@@ -145,6 +145,7 @@ nav:
       - 类型: api/types.md
   - 管理面板: admin-panel.md
   - 生态系统: ecosystem.md
+  - 迁移指南: migration.md
   - 更新日志: changelog.md
   - Hub 工具: https://toolregistry-hub.readthedocs.io/
   - Server: https://toolregistry-server.readthedocs.io/

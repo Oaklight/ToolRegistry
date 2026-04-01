@@ -366,3 +366,8 @@ registry.set_permission_handler(SimpleHandler())
 # search_db 将被允许（READ_ONLY 标签匹配 ALLOW_READONLY）
 # drop_table 将被上报给处理器（DESTRUCTIVE 标签匹配 ASK_DESTRUCTIVE）
 ```
+
+## 参见
+
+- [权限 API 参考](../api/permissions.md) -- `PermissionPolicy`、`PermissionRule`、`PermissionResult`、`PermissionHandler` 类详情
+- [执行模式](concurrency_modes.md) -- 通过 `ToolMetadata` 设置超时和并发安全性
