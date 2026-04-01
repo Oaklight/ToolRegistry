@@ -96,7 +96,7 @@ def content_blocks_to_text(blocks: list[ContentBlock]) -> str:
 
 def expand_content_blocks(
     tool_responses: dict[str, str | list],
-) -> tuple[dict[str, str], list[dict[str, Any]]]:
+) -> tuple[dict[str, str | list], list[dict[str, Any]]]:
     """Separate multimodal content from tool responses for uniform handling.
 
     For each tool response that contains content blocks (multimodal),
@@ -121,7 +121,7 @@ def expand_content_blocks(
         - **extra_user_content** -- List of content parts (dicts) for
           a user message.  Empty if no multimodal content was found.
     """
-    text_only: dict[str, str] = {}
+    text_only: dict[str, str | list] = {}
     extra_parts: list[dict[str, Any]] = []
 
     for call_id, result in tool_responses.items():
