@@ -147,7 +147,14 @@ nav:
           - LangChain ToolWrapper: api/wrappers/langchain.md
       - Helper Classes: api/helpers.md
       - Types: api/types.md
-  - Admin Panel: admin-panel.md
+  - Admin Panel:
+      - Overview: admin/index.md
+      - Configuration: admin/configuration.md
+      - Execution Logging: admin/execution-logging.md
+      - REST API: admin/rest-api.md
+      - Web UI Guide: admin/web-ui.md
+      - Security: admin/security.md
+      - Examples: admin/examples.md
   - Ecosystem: ecosystem.md
   - Migration: migration.md
   - Changelog: changelog.md
