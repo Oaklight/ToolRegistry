@@ -41,17 +41,18 @@ This page documents all notable changes to the ToolRegistry project since the fi
     - Add `ToolRegistry.close()` / `close_async()` for explicit resource cleanup
     - Add context manager support: `with ToolRegistry() as reg:` and `async with ToolRegistry() as reg:`
 
-- **ToolSearchTool for Dynamic Tool Discovery** ([#108](../../pull/108), [#114](../../pull/114))
-    - Add `ToolSearchTool` class for natural language tool search using BM25F multi-field scoring
+- **ToolDiscoveryTool for Progressive Tool Disclosure** ([#108](../../pull/108), [#114](../../pull/114), [#118](../../pull/118))
+    - Add `ToolDiscoveryTool` class with dual-mode discovery: exact name match (returns full schema) and BM25F fuzzy search
     - Vendor zerodep `SparseIndex` as `_sparse_search.py` (zero external dependencies)
     - Add `ToolMetadata.defer` field to mark tools for deferred loading (excluded from initial prompt)
     - Add `ToolMetadata.search_hint` field for free-form search keywords and synonyms
     - Index tool name, description, tags, parameter names, and search_hint with configurable field weights
-    - Add `enable_tool_search()` / `disable_tool_search()` to register `search_tools` as a first-class callable tool in the registry ([#114](../../pull/114))
-    - Add `include_deferred` parameter to `get_schemas()` — set to `False` to exclude deferred tools from initial schemas ([#114](../../pull/114))
-    - Search results for deferred tools now include the full tool `schema` so LLMs can call them immediately after discovery ([#114](../../pull/114))
-    - Auto-rebuild search index via ChangeCallback when tools are registered or unregistered ([#114](../../pull/114))
-    - Add `ToolRegistry(tool_search=True)` constructor parameter for convenience ([#114](../../pull/114))
+    - Add `enable_tool_discovery()` / `disable_tool_discovery()` to register `discover_tools` as a first-class callable tool in the registry
+    - Add `get_deferred_summaries()` to get lightweight name + first-sentence description for deferred tools (for system prompt injection)
+    - Add `include_deferred` parameter to `get_schemas()` — set to `False` to exclude deferred tools from initial schemas
+    - Discovery results for deferred tools include the full tool `schema` so LLMs can call them immediately after discovery
+    - Auto-rebuild discovery index via ChangeCallback when tools are registered or unregistered
+    - Add `ToolRegistry(tool_discovery=True)` constructor parameter for convenience
 
 - **Think-Augmented Function Calling** ([#49](../../pull/49))
     - Inject a `thought` string property into tool parameter schemas so LLMs can include chain-of-thought reasoning when calling tools
