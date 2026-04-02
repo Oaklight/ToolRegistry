@@ -24,7 +24,7 @@ from .permissions import (
 )
 from .tool import Tool, ToolMetadata, ToolTag
 from .tool_registry import ToolRegistry
-from .tool_search import ToolSearchTool
+from .tool_discovery import ToolDiscoveryTool
 
 __all__ = [
     "AdminInfo",
@@ -50,7 +50,7 @@ __all__ = [
     "Tool",
     "ToolMetadata",
     "ToolRegistry",
-    "ToolSearchTool",
+    "ToolDiscoveryTool",
     "ToolTag",
 ]
 
