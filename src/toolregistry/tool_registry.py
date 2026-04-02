@@ -24,7 +24,7 @@ from .types import (
 )
 
 from .events import ChangeCallback, ChangeEvent, ChangeEventType
-from .tool_search import TOOL_SEARCH_NAME, ToolSearchTool
+from .tool_discovery import TOOL_DISCOVERY_NAME, ToolDiscoveryTool
 
 from ._admin import AdminMixin
 from ._callbacks import ChangeCallbackMixin
@@ -66,7 +66,7 @@ class ToolRegistry(
         *,
         default_max_result_size: int | None = None,
         think_augment: bool = False,
-        tool_search: bool = False,
+        tool_discovery: bool = False,
     ) -> None:
         """Initialize an empty ToolRegistry.
 
@@ -85,10 +85,11 @@ class ToolRegistry(
                 reasoning alongside tool calls.  Individual tools can
                 override this via ``ToolMetadata.think_augment``.
                 Defaults to ``False``.
-            tool_search: Enable tool search on initialization.
-                When ``True``, :meth:`enable_tool_search` is called
-                automatically, registering a ``search_tools`` tool
-                that LLMs can use to discover other tools.
+            tool_discovery: Enable tool discovery on initialization.
+                When ``True``, :meth:`enable_tool_discovery` is called
+                automatically, registering a ``discover_tools`` tool
+                that LLMs can use to discover other tools by exact
+                name or natural language query.
                 Defaults to ``False``.
 
         Notes:
@@ -105,11 +106,11 @@ class ToolRegistry(
         self._execution_mode: Literal["process", "thread"] = "process"
         self._default_max_result_size = default_max_result_size
         self._think_augment = think_augment
-        self._tool_search: ToolSearchTool | None = None
-        self._tool_search_callback: ChangeCallback | None = None
+        self._tool_discovery: ToolDiscoveryTool | None = None
+        self._tool_discovery_callback: ChangeCallback | None = None
 
-        if tool_search:
-            self.enable_tool_search()
+        if tool_discovery:
+            self.enable_tool_discovery()
 
     def __contains__(self, name: str) -> bool:
         """Check if a tool with the given name is registered.
@@ -205,75 +206,76 @@ class ToolRegistry(
         """
         self._think_augment = False
 
-    # ============== Tool search toggle ==============
-    def enable_tool_search(
+    # ============== Tool discovery toggle ==============
+    def enable_tool_discovery(
         self,
         field_weights: dict[str, float] | None = None,
-    ) -> ToolSearchTool:
-        """Enable tool search and register a search tool into this registry.
+    ) -> ToolDiscoveryTool:
+        """Enable tool discovery and register a discovery tool.
 
-        Creates a :class:`ToolSearchTool`, registers its ``search`` method
-        as a callable tool named ``search_tools``, and subscribes to
-        registry change events for automatic index rebuilds.
+        Creates a :class:`ToolDiscoveryTool`, registers its
+        :meth:`~ToolDiscoveryTool.discover` method as a callable tool
+        named ``discover_tools``, and subscribes to registry change
+        events for automatic index rebuilds.
 
-        The search tool itself is never deferred (``defer=False``) so that
-        LLMs always see it in the initial schema.
+        The discovery tool itself is never deferred (``defer=False``)
+        so that LLMs always see it in the initial schema.
 
         Args:
             field_weights: Optional per-field BM25F boost weights.
 
         Returns:
-            The :class:`ToolSearchTool` instance.
+            The :class:`ToolDiscoveryTool` instance.
         """
         from .tool import Tool, ToolMetadata
 
-        if self._tool_search is not None:
-            return self._tool_search
+        if self._tool_discovery is not None:
+            return self._tool_discovery
 
-        searcher = ToolSearchTool(self, field_weights=field_weights)
+        discoverer = ToolDiscoveryTool(self, field_weights=field_weights)
 
-        search_tool = Tool.from_function(
-            searcher.search,
-            name=TOOL_SEARCH_NAME,
+        discovery_tool = Tool.from_function(
+            discoverer.discover,
+            name=TOOL_DISCOVERY_NAME,
             description=(
-                "Search registered tools by natural language query. "
-                "Use this to discover available tools when you need a "
-                "capability not visible in your current tool list. "
-                "Returns tool names, descriptions, and schemas for "
-                "deferred tools so you can call them."
+                "Discover registered tools by exact name or natural "
+                "language query. Use this to inspect a specific tool "
+                "by name (returns full schema) or to search for "
+                "relevant tools when you need a capability not "
+                "visible in your current tool list."
             ),
             metadata=ToolMetadata(defer=False),
         )
-        self.register(search_tool)
+        self.register(discovery_tool)
 
         def _on_registry_change(event: ChangeEvent) -> None:
             if event.event_type in {
                 ChangeEventType.REGISTER,
                 ChangeEventType.UNREGISTER,
             }:
-                if event.tool_name != TOOL_SEARCH_NAME:
-                    searcher.rebuild_index()
+                if event.tool_name != TOOL_DISCOVERY_NAME:
+                    discoverer.rebuild_index()
 
         self.on_change(_on_registry_change)
 
-        self._tool_search = searcher
-        self._tool_search_callback = _on_registry_change
-        return searcher
+        self._tool_discovery = discoverer
+        self._tool_discovery_callback = _on_registry_change
+        return discoverer
 
-    def disable_tool_search(self) -> None:
-        """Disable tool search and unregister the search tool."""
-        if self._tool_search is None:
+    def disable_tool_discovery(self) -> None:
+        """Disable tool discovery and unregister the discovery tool."""
+        if self._tool_discovery is None:
             return
 
-        # Remove the search tool from registry
-        self._tools.pop(TOOL_SEARCH_NAME, None)
+        # Remove the discovery tool from registry
+        self._tools.pop(TOOL_DISCOVERY_NAME, None)
 
         # Remove the change callback
-        if self._tool_search_callback is not None:
-            self.remove_on_change(self._tool_search_callback)
-            self._tool_search_callback = None
+        if self._tool_discovery_callback is not None:
+            self.remove_on_change(self._tool_discovery_callback)
+            self._tool_discovery_callback = None
 
-        self._tool_search = None
+        self._tool_discovery = None
 
     # ============== Execution ==============
     def _finalize_result(self, result: Any, tool_name: str) -> str | list:
@@ -750,6 +752,37 @@ class ToolRegistry(
                 }
             )
         return status_list
+
+    def get_deferred_summaries(self) -> list[dict[str, str | None]]:
+        """Get name and first-sentence description for deferred tools.
+
+        Useful for injecting into system prompts so the LLM knows which
+        additional tools are available via ``discover_tools``.
+
+        Only enabled tools with ``ToolMetadata.defer=True`` are included.
+
+        Returns:
+            List of dicts with keys:
+
+            - ``name`` (str): Tool name.
+            - ``description`` (str): First sentence of the tool description.
+            - ``namespace`` (str | None): Tool namespace, if any.
+        """
+
+        def _first_sentence(text: str) -> str:
+            line = text.split("\n")[0].strip()
+            dot = line.find(". ")
+            return line[: dot + 1] if dot != -1 else line
+
+        return [
+            {
+                "name": t.name,
+                "description": _first_sentence(t.description or ""),
+                "namespace": t.namespace,
+            }
+            for t in self._tools.values()
+            if t.metadata and t.metadata.defer and self.is_enabled(t.name)
+        ]
 
     def get_schemas(
         self,
