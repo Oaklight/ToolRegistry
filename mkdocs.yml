@@ -147,7 +147,14 @@ nav:
           - LangChain ToolWrapper: api/wrappers/langchain.md
       - 辅助类: api/helpers.md
       - 类型: api/types.md
-  - 管理面板: admin-panel.md
+  - 管理面板:
+      - 概览: admin/index.md
+      - 配置: admin/configuration.md
+      - 执行日志: admin/execution-logging.md
+      - REST API: admin/rest-api.md
+      - Web UI 指南: admin/web-ui.md
+      - 安全考虑: admin/security.md
+      - 示例: admin/examples.md
   - 生态系统: ecosystem.md
   - 迁移指南: migration.md
   - 更新日志: changelog.md
