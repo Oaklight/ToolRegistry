@@ -17,6 +17,9 @@ on:
         required: false
         default: ""
 
+permissions:
+  issues: write
+
 jobs:
   compat-test:
     runs-on: ubuntu-latest
@@ -41,6 +44,10 @@ jobs:
           if [ -z "$VERSION" ]; then
             pip install --upgrade llm-rosetta
           else
+            if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+'; then
+              echo "::error::Invalid version format: '$VERSION'"
+              exit 1
+            fi
             pip install "llm-rosetta==$VERSION"
           fi
           INSTALLED=$(pip show llm-rosetta | grep '^Version:' | awk '{print $2}')
