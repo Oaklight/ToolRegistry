@@ -5,19 +5,21 @@ import json
 import httpx
 import pytest
 
-from toolregistry import ToolRegistry
-from toolregistry.openapi.integration import (
+pytest.importorskip("jsonref")
+
+from toolregistry import ToolRegistry  # noqa: E402
+from toolregistry.openapi.integration import (  # noqa: E402
     OpenAPIIntegration,
     OpenAPITool,
     OpenAPIToolWrapper,
 )
-from toolregistry.openapi.utils import (
+from toolregistry.openapi.utils import (  # noqa: E402
     determine_urls,
     extract_base_url_from_specs,
     load_openapi_spec,
     load_openapi_spec_async,
 )
-from toolregistry.utils import HttpxClientConfig
+from toolregistry.utils import HttpxClientConfig  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
