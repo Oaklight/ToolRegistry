@@ -19,4 +19,4 @@ jobs:
           token: ${{ secrets.DISPATCH_TOKEN }}
           repository: ${{ matrix.repo }}
           event-type: upstream-release
-          client-payload: '{"version": "${{ github.event.release.tag_name }}"}'
+          client-payload: '{"version": "${{ github.event.release.tag_name }}", "package": "toolregistry"}'
