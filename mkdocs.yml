@@ -1,5 +1,5 @@
 site_name: ToolRegistry
-site_description: A Protocol-Agnostic Tool Management Library for OpenAI-Compatible LLM Applications
+site_description: A Protocol-Agnostic Tool Management Library for Function-Calling LLMs (OpenAI, Anthropic, Gemini, LangChain, MCP)
 site_author: Peng Ding
 site_url: https://toolregistry.readthedocs.io/en/
 repo_name: Oaklight/ToolRegistry
