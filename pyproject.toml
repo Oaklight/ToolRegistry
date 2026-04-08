@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "toolregistry"
 dynamic = ["version"]
 authors = [{ name = "Oaklight", email = "oaklight@gmx.com" }]
-description = "Lightweight Python library for LLM tool calling — register functions once, use with OpenAI, Anthropic, Gemini, LangChain, and MCP"
+description = "ToolRegistry: A Protocol-Agnostic Tool Management Library for Function-Calling LLMs (OpenAI, Anthropic, Gemini, LangChain, MCP)"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
