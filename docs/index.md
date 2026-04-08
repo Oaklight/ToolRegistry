@@ -5,7 +5,7 @@ hide:
   - navigation
 ---
 
-# ToolRegistry: 面向 OpenAI 兼容 LLM 应用的协议无关工具管理库
+# ToolRegistry：面向函数调用 LLM 的协议无关工具管理库
 
 欢迎来到 **ToolRegistry** 的官方文档，这是一个专为智能体 AI 和大型语言模型应用设计的 Python 库，用于注册、管理和执行工具（函数）。本文档按主题组织，帮助您快速找到并学习库的不同方面。
 

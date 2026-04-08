@@ -1,5 +1,5 @@
 site_name: ToolRegistry
-site_description: 面向 OpenAI 兼容 LLM 应用的协议无关工具管理库
+site_description: 面向函数调用 LLM 的协议无关工具管理库（OpenAI、Anthropic、Gemini、LangChain、MCP）
 site_author: Peng Ding
 site_url: https://toolregistry.readthedocs.io/zh-cn/
 repo_name: Oaklight/ToolRegistry
