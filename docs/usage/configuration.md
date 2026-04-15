@@ -175,6 +175,28 @@ enabled:
 
 命名空间匹配是层级式的：模式 `"web"` 匹配 `"web/brave_search"`。
 
+### 按源启用/禁用
+
+可以通过 `enabled: false` 临时禁用单个源，不受过滤模式影响：
+
+```yaml
+tools:
+  - type: python
+    class: toolregistry_hub.calculator.Calculator
+    namespace: calculator
+
+  - type: mcp
+    transport: sse
+    url: http://localhost:8080/sse
+    namespace: remote_mcp
+    enabled: false  # 临时禁用
+
+  - type: openapi
+    url: https://api.example.com/openapi.json
+    namespace: external_api
+    enabled: false  # 等 API 密钥配置好再启用
+```
+
 ## 解析类型
 
 `load_config()` 返回 `ToolConfig` 冻结 dataclass：
