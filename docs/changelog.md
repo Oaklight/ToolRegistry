@@ -14,6 +14,14 @@ This page documents all notable changes to the ToolRegistry project since the fi
 
 ### New Features
 
+- **Declarative Tool Config Loader** ([#120](../../issues/120), [#122](../../pull/122))
+    - Add `toolregistry.config` module for parsing JSONC/YAML config files into typed frozen dataclasses
+    - Support three tool source types: `python` (class/module), `mcp` (stdio/sse/streamable-http), `openapi` (with auth)
+    - Vendor `zerodep/jsonc` and `zerodep/yaml` into `_vendor/` package for zero external dependencies
+    - `transport: "http"` accepted as alias for `"streamable-http"`
+    - Backward-compatible with legacy `{"module": "x", "class": "Y"}` config format
+    - Denylist/allowlist mode with per-source enable/disable and `token_env` environment variable resolution
+
 - **Anthropic & Gemini Schema Format Support** ([#55](../../issues/55), [#88](../../pull/88))
     - Add `"anthropic"` and `"gemini"` as valid `api_format` values for `get_schemas()` and `get_json_schema()`
     - All schema conversion is powered by [llm-rosetta](https://pypi.org/project/llm-rosetta/), which also sanitizes JSON Schema keywords unsupported by each format

@@ -108,6 +108,7 @@ nav:
       - Result Size Management: usage/result_management.md
       - Permissions: usage/permissions.md
       - Message Building: usage/message_building.md
+      - Configuration: usage/configuration.md
       - Best Practices: usage/best_practices.md
       - LLM API Formats:
           - OpenAI Chat: usage/providers/openai_chat.md
