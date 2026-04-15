@@ -11,30 +11,28 @@ from typing import Any
 
 def _get_openai_chat_tool_ops() -> Any:
     """Lazily import OpenAIChatToolOps from llm-rosetta."""
-    from llm_rosetta.converters.openai_chat.tool_ops import OpenAIChatToolOps
+    from llm_rosetta.converters.openai_chat import OpenAIChatToolOps
 
     return OpenAIChatToolOps
 
 
 def _get_openai_responses_tool_ops() -> Any:
     """Lazily import OpenAIResponsesToolOps from llm-rosetta."""
-    from llm_rosetta.converters.openai_responses.tool_ops import (
-        OpenAIResponsesToolOps,
-    )
+    from llm_rosetta.converters.openai_responses import OpenAIResponsesToolOps
 
     return OpenAIResponsesToolOps
 
 
 def _get_anthropic_tool_ops() -> Any:
     """Lazily import AnthropicToolOps from llm-rosetta."""
-    from llm_rosetta.converters.anthropic.tool_ops import AnthropicToolOps
+    from llm_rosetta.converters.anthropic import AnthropicToolOps
 
     return AnthropicToolOps
 
 
 def _get_google_tool_ops() -> Any:
     """Lazily import GoogleGenAIToolOps from llm-rosetta."""
-    from llm_rosetta.converters.google_genai.tool_ops import GoogleGenAIToolOps
+    from llm_rosetta.converters.google_genai import GoogleGenAIToolOps
 
     return GoogleGenAIToolOps
 
