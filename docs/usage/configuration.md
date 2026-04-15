@@ -175,6 +175,28 @@ enabled:
 
 Namespace matching is hierarchical: pattern `"web"` matches `"web/brave_search"`.
 
+### Per-Source Enable/Disable
+
+Individual sources can be temporarily disabled with `enabled: false`, regardless of the filtering mode:
+
+```yaml
+tools:
+  - type: python
+    class: toolregistry_hub.calculator.Calculator
+    namespace: calculator
+
+  - type: mcp
+    transport: sse
+    url: http://localhost:8080/sse
+    namespace: remote_mcp
+    enabled: false  # temporarily disabled
+
+  - type: openapi
+    url: https://api.example.com/openapi.json
+    namespace: external_api
+    enabled: false  # skip until API key is configured
+```
+
 ## Parsed Types
 
 `load_config()` returns a `ToolConfig` frozen dataclass:
