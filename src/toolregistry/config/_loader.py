@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from ._types import (
     AuthConfig,
@@ -106,7 +106,7 @@ def _build_config(data: dict[str, Any], source: str) -> ToolConfig:
                 f"Tool entry at index {i} must be a mapping, "
                 f"got {type(entry).__name__}."
             )
-        tools.append(_build_tool_source(entry, i))
+        tools.append(_build_tool_source(cast(dict[str, Any], entry), i))
 
     return ToolConfig(
         mode=mode,
