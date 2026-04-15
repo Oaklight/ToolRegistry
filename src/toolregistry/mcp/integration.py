@@ -13,7 +13,7 @@ from mcp.types import (
 )
 from mcp.types import Tool as ToolSpec
 
-from .._structlog import get_logger
+from .._vendor.structlog import get_logger
 from ..tool import Tool, ToolMetadata
 from ..tool_registry import ToolRegistry
 from ..tool_wrapper import BaseToolWrapper

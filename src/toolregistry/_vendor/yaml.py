@@ -1,9 +1,9 @@
 # /// zerodep
-# version = "0.3.0"
+# version = "0.3.1"
 # deps = []
 # tier = "subsystem"
 # category = "data"
-# note = "Install/update via: https://zerodep.readthedocs.io/en/latest/guide/cli/"
+# note = "Install/update via `zerodep add yaml`"
 # ///
 
 """YAML parser and serializer (common subset) — zero dependencies, stdlib only, Python 3.10+.
@@ -299,78 +299,89 @@ class _Parser:
         self._advance()
         return self._parse_scalar_value(text)
 
-    def _is_mapping_line(self, text: str) -> bool:
-        """Check if a line represents a mapping key."""
-        # Must handle quoted keys with colons inside
-        i = 0
+    @staticmethod
+    def _skip_quoted_key(text: str) -> int:
+        """Return the index after the quoted prefix of *text*.
+
+        If *text* starts with a single- or double-quoted string the returned
+        index points just past the closing quote.  For unquoted text ``0`` is
+        returned so callers can scan from the beginning.
+
+        Returns ``-1`` when a single-quoted string has no closing quote (the
+        caller should treat this as "not a mapping line").
+        """
         if text.startswith("'"):
-            # Skip to closing single quote
-            i = text.find("'", 1)
-            if i < 0:
-                return False
-            i += 1
-        elif text.startswith('"'):
-            # Skip to closing double quote (handle escapes)
+            end = text.find("'", 1)
+            return -1 if end < 0 else end + 1
+        if text.startswith('"'):
             i = 1
             while i < len(text):
                 if text[i] == "\\" and i + 1 < len(text):
                     i += 2
                     continue
                 if text[i] == '"':
-                    i += 1
-                    break
+                    return i + 1
                 i += 1
+        return 0
 
-        # Look for ': ' or ':' at end after the key
+    @staticmethod
+    def _find_mapping_colon(text: str, start: int) -> int:
+        """Find the position of the mapping separator colon starting from *start*.
+
+        Returns the index of the ``:`` that acts as a mapping separator, or
+        ``-1`` if none is found.  A colon qualifies when it is either the last
+        character or is immediately followed by a space or tab.
+        """
+        i = start
         while i < len(text):
             if text[i] == ":":
-                if i + 1 == len(text):
-                    return True
-                if text[i + 1] == " " or text[i + 1] == "\t":
-                    return True
+                if i + 1 == len(text) or text[i + 1] in (" ", "\t"):
+                    return i
             i += 1
-        return False
+        return -1
+
+    def _is_mapping_line(self, text: str) -> bool:
+        """Check if a line represents a mapping key."""
+        i = self._skip_quoted_key(text)
+        if i < 0:
+            return False
+        return self._find_mapping_colon(text, i) >= 0
 
     def _split_mapping_line(self, text: str) -> tuple[str, str]:
         """Split a mapping line into key and value parts."""
-        i = 0
-        if text.startswith("'"):
-            i = text.find("'", 1)
-            if i < 0:
-                return text, ""
-            i += 1
-        elif text.startswith('"'):
-            i = 1
-            while i < len(text):
-                if text[i] == "\\" and i + 1 < len(text):
-                    i += 2
-                    continue
-                if text[i] == '"':
-                    i += 1
-                    break
-                i += 1
-
-        while i < len(text):
-            if text[i] == ":":
-                if i + 1 == len(text):
-                    return text[:i], ""
-                if text[i + 1] in (" ", "\t"):
-                    return text[:i], text[i + 2 :].strip()
-            i += 1
-        return text, ""
+        i = self._skip_quoted_key(text)
+        if i < 0:
+            return text, ""
+        colon = self._find_mapping_colon(text, i)
+        if colon < 0:
+            return text, ""
+        if colon + 1 == len(text):
+            return text[:colon], ""
+        return text[:colon], text[colon + 2 :].strip()
 
     # ── Block mapping ──
+
+    def _parse_inline_value(self, raw_value: str, lineno: int) -> Any:
+        """Parse an inline mapping or sequence value."""
+        if raw_value.startswith(("{", "[")):
+            return self._parse_flow_from_text(raw_value)
+        if raw_value.startswith(("|", ">")):
+            return self._parse_block_scalar_from_indicator(raw_value, lineno)
+        return self._parse_scalar_value(raw_value)
+
+    def _at_block_end(self, cur: _Line | None, indent: int) -> bool:
+        """Return True when the current line should stop a block collection."""
+        if cur is None or cur.indent < indent:
+            return True
+        return cur.text in ("---", "...") or cur.indent != indent
 
     def _parse_block_mapping(self, indent: int) -> dict:
         result: dict[Any, Any] = {}
         while True:
             cur = self._peek()
-            if cur is None or cur.indent < indent:
+            if self._at_block_end(cur, indent):
                 break
-            if cur.text in ("---", "..."):
-                break
-            if cur.indent != indent:
-                break
+            assert cur is not None  # guaranteed by _at_block_end
             if not self._is_mapping_line(cur.text):
                 break
 
@@ -379,21 +390,8 @@ class _Parser:
             key = self._parse_scalar_value(raw_key)
 
             if raw_value:
-                # Inline value
-                if raw_value.startswith("{"):
-                    # Need to parse as flow mapping from this text
-                    value = self._parse_flow_from_text(raw_value)
-                elif raw_value.startswith("["):
-                    value = self._parse_flow_from_text(raw_value)
-                elif raw_value.startswith("|") or raw_value.startswith(">"):
-                    # Block scalar indicator as inline value
-                    value = self._parse_block_scalar_from_indicator(
-                        raw_value, cur.lineno
-                    )
-                else:
-                    value = self._parse_scalar_value(raw_value)
+                value = self._parse_inline_value(raw_value, cur.lineno)
             else:
-                # Value on next line(s)
                 nxt = self._peek()
                 if nxt is None or nxt.indent <= indent or nxt.text in ("---", "..."):
                     value = None
@@ -404,75 +402,61 @@ class _Parser:
 
     # ── Block sequence ──
 
+    def _parse_sequence_mapping_item(
+        self, item_text: str, cur: _Line, indent: int
+    ) -> dict:
+        """Parse a mapping that starts on a sequence item line (``- key: val``)."""
+        raw_key, raw_value = self._split_mapping_line(item_text)
+        key = self._parse_scalar_value(raw_key)
+        mapping: dict[Any, Any] = {}
+
+        if raw_value:
+            mapping[key] = self._parse_inline_value(raw_value, cur.lineno)
+        else:
+            nxt = self._peek()
+            if (
+                nxt is not None
+                and nxt.indent > indent
+                and nxt.text not in ("---", "...")
+            ):
+                mapping[key] = self._parse_node(indent)
+            else:
+                mapping[key] = None
+
+        # Continue reading mapping entries at deeper indent
+        nxt = self._peek()
+        if nxt is not None and nxt.indent > indent and self._is_mapping_line(nxt.text):
+            rest = self._parse_block_mapping(nxt.indent)
+            mapping.update(rest)
+
+        return mapping
+
+    def _parse_sequence_item(self, item_text: str, cur: _Line, indent: int) -> Any:
+        """Parse the value part of a single sequence item."""
+        if not item_text:
+            nxt = self._peek()
+            if nxt is None or nxt.indent <= indent or nxt.text in ("---", "..."):
+                return None
+            return self._parse_node(indent)
+        if item_text.startswith(("{", "[")):
+            return self._parse_flow_from_text(item_text)
+        if self._is_mapping_line(item_text):
+            return self._parse_sequence_mapping_item(item_text, cur, indent)
+        return self._parse_scalar_value(item_text)
+
     def _parse_block_sequence(self, indent: int) -> list:
         result: list[Any] = []
         while True:
             cur = self._peek()
-            if cur is None or cur.indent < indent:
+            if self._at_block_end(cur, indent):
                 break
-            if cur.text in ("---", "..."):
-                break
-            if cur.indent != indent:
-                break
+            assert cur is not None
             if not (cur.text.startswith("- ") or cur.text == "-"):
                 break
 
             self._advance()
             item_text = cur.text[2:].strip() if cur.text.startswith("- ") else ""
-
-            if not item_text:
-                # Value on next line(s)
-                nxt = self._peek()
-                if nxt is None or nxt.indent <= indent or nxt.text in ("---", "..."):
-                    result.append(None)
-                else:
-                    result.append(self._parse_node(indent))
-            elif item_text.startswith("{"):
-                result.append(self._parse_flow_from_text(item_text))
-            elif item_text.startswith("["):
-                result.append(self._parse_flow_from_text(item_text))
-            elif self._is_mapping_line(item_text):
-                # Sequence of mappings: - key: value
-                # The mapping continues at indent+2
-                raw_key, raw_value = self._split_mapping_line(item_text)
-                key = self._parse_scalar_value(raw_key)
-                mapping: dict[Any, Any] = {}
-
-                if raw_value:
-                    if raw_value.startswith("{"):
-                        mapping[key] = self._parse_flow_from_text(raw_value)
-                    elif raw_value.startswith("["):
-                        mapping[key] = self._parse_flow_from_text(raw_value)
-                    elif raw_value.startswith("|") or raw_value.startswith(">"):
-                        mapping[key] = self._parse_block_scalar_from_indicator(
-                            raw_value, cur.lineno
-                        )
-                    else:
-                        mapping[key] = self._parse_scalar_value(raw_value)
-                else:
-                    nxt = self._peek()
-                    if (
-                        nxt is not None
-                        and nxt.indent > indent
-                        and nxt.text not in ("---", "...")
-                    ):
-                        mapping[key] = self._parse_node(indent)
-                    else:
-                        mapping[key] = None
-
-                # Continue reading mapping entries at deeper indent
-                nxt = self._peek()
-                if (
-                    nxt is not None
-                    and nxt.indent > indent
-                    and self._is_mapping_line(nxt.text)
-                ):
-                    rest = self._parse_block_mapping(nxt.indent)
-                    mapping.update(rest)
-
-                result.append(mapping)
-            else:
-                result.append(self._parse_scalar_value(item_text))
+            result.append(self._parse_sequence_item(item_text, cur, indent))
 
         return result
 
@@ -482,15 +466,17 @@ class _Parser:
         cur = self._advance()
         return self._parse_block_scalar_from_indicator(cur.text, cur.lineno)
 
-    def _parse_block_scalar_from_indicator(
-        self, indicator_line: str, lineno: int
-    ) -> str:
-        """Parse a | or > block scalar, reading content lines from raw_lines."""
-        indicator = indicator_line[0]
-        header = indicator_line[1:].strip()
+    @staticmethod
+    def _parse_chomping_indicator(header: str) -> tuple[str, int]:
+        """Parse the block scalar header for chomping mode and explicit indent.
 
-        # Parse chomping and explicit indent
-        chomp = "clip"  # default
+        Args:
+            header: The portion of the indicator line after ``|`` or ``>``.
+
+        Returns:
+            A ``(chomp, explicit_indent)`` tuple.
+        """
+        chomp = "clip"
         explicit_indent = 0
         for ch in header:
             if ch == "-":
@@ -499,78 +485,103 @@ class _Parser:
                 chomp = "keep"
             elif ch.isdigit():
                 explicit_indent = int(ch)
+        return chomp, explicit_indent
 
-        # Collect content lines from the raw text
-        # We need to find lines after the indicator in the raw text
+    def _collect_scalar_lines(self, raw_lineno: int, explicit_indent: int) -> list[str]:
+        """Collect raw content lines for a block scalar.
+
+        Args:
+            raw_lineno: 1-based line number of the indicator (content starts
+                on the *next* raw line).
+            explicit_indent: Explicit indentation width from the header, or
+                ``0`` to auto-detect.
+
+        Returns:
+            List of content lines with leading indentation stripped.
+        """
+        if raw_lineno >= len(self._raw_lines):
+            return []
+
+        content_indent = self._detect_scalar_indent(raw_lineno, explicit_indent)
+        if content_indent == 0:
+            return []
+
         content_lines: list[str] = []
-        raw_lineno = lineno  # lineno is 1-based index into raw_lines
+        for j in range(raw_lineno, len(self._raw_lines)):
+            raw = self._raw_lines[j]
+            if not raw.strip():
+                content_lines.append("")
+                continue
+            line_indent = len(raw) - len(raw.lstrip())
+            if line_indent < content_indent:
+                break
+            content_lines.append(raw[content_indent:])
+        return content_lines
 
-        if raw_lineno < len(self._raw_lines):
-            # Determine content indent from first non-empty content line
-            content_indent = 0
-            if explicit_indent > 0:
-                content_indent = explicit_indent
+    def _detect_scalar_indent(self, raw_lineno: int, explicit: int) -> int:
+        """Determine the content indentation for a block scalar."""
+        if explicit > 0:
+            return explicit
+        for j in range(raw_lineno, len(self._raw_lines)):
+            raw = self._raw_lines[j]
+            stripped = raw.lstrip()
+            if stripped and not stripped.startswith("#"):
+                return len(raw) - len(stripped)
+        return 0
+
+    @staticmethod
+    def _fold_lines(content_lines: list[str]) -> str:
+        """Fold content lines (``>`` mode): replace single newlines with spaces."""
+        parts: list[str] = []
+        for line in content_lines:
+            if not line:
+                parts.append("\n")
+            elif parts and parts[-1] != "\n" and not parts[-1].endswith("\n"):
+                parts.append(" " + line)
             else:
-                for j in range(raw_lineno, len(self._raw_lines)):
-                    raw = self._raw_lines[j]
-                    stripped = raw.lstrip()
-                    if stripped and not stripped.startswith("#"):
-                        content_indent = len(raw) - len(stripped)
-                        break
+                parts.append(line)
+        return "".join(parts)
 
-            if content_indent == 0:
-                # Could not determine indent, return empty
-                return ""
+    @staticmethod
+    def _apply_chomping(text: str, chomp: str) -> str:
+        """Apply the chomping rule (strip / keep / clip) to block scalar text."""
+        if chomp == "strip":
+            return text
+        if chomp == "keep":
+            return text + "\n"
+        # clip
+        return text + "\n" if text else ""
 
-            # Collect lines at or deeper than content_indent
-            for j in range(raw_lineno, len(self._raw_lines)):
-                raw = self._raw_lines[j]
-                if not raw.strip():
-                    # Empty line
-                    content_lines.append("")
-                    continue
-                line_indent = len(raw) - len(raw.lstrip())
-                if line_indent < content_indent:
-                    break
-                content_lines.append(raw[content_indent:])
+    def _parse_block_scalar_from_indicator(
+        self, indicator_line: str, lineno: int
+    ) -> str:
+        """Parse a | or > block scalar, reading content lines from raw_lines."""
+        indicator = indicator_line[0]
+        header = indicator_line[1:].strip()
+
+        chomp, explicit_indent = self._parse_chomping_indicator(header)
+        content_lines = self._collect_scalar_lines(lineno, explicit_indent)
 
         # Skip consumed content lines in the scanner
         while True:
             nxt = self._peek()
             if nxt is None:
                 break
-            # If the next scanned line is one we already consumed as block scalar content
             if nxt.lineno <= lineno + len(content_lines):
                 self._advance()
             else:
                 break
 
-        # Remove trailing empty lines for processing
+        # Remove trailing empty lines
         while content_lines and not content_lines[-1]:
             content_lines.pop()
 
         if indicator == "|":
-            # Literal: preserve line breaks
             text = "\n".join(content_lines)
         else:
-            # Folded: replace single newlines with spaces
-            parts: list[str] = []
-            for line in content_lines:
-                if not line:
-                    parts.append("\n")
-                elif parts and parts[-1] != "\n" and not parts[-1].endswith("\n"):
-                    parts.append(" " + line)
-                else:
-                    parts.append(line)
-            text = "".join(parts)
+            text = self._fold_lines(content_lines)
 
-        # Apply chomping
-        if chomp == "strip":
-            return text
-        elif chomp == "keep":
-            return text + "\n"
-        else:  # clip
-            return text + "\n" if text else ""
+        return self._apply_chomping(text, chomp)
 
     # ── Flow collections ──
 
@@ -837,6 +848,33 @@ class _Dumper:
         self._seen.discard(id(data))
         return "\n".join(lines)
 
+    def _represent_key_value_line(
+        self, key_str: str, val: Any, line_prefix: str, level: int
+    ) -> list[str]:
+        """Represent a single key-value pair for use inside a sequence item."""
+        if isinstance(val, (dict, list, tuple)) and val:
+            return [f"{line_prefix}{key_str}:", self._represent(val, level)]
+        v = self._represent(val, level)
+        return [f"{line_prefix}{key_str}: {v}"]
+
+    def _represent_dict_in_sequence(
+        self, item: dict, prefix: str, level: int
+    ) -> list[str]:
+        """Represent a dict that appears as a sequence item (``- key: val``)."""
+        keys = sorted(item.keys(), key=str) if self._sort_keys else list(item.keys())
+        first_key = keys[0]
+        k = self._represent_scalar(first_key)
+        lines = self._represent_key_value_line(
+            k, item[first_key], f"{prefix}- ", level + 2
+        )
+        inner_prefix = prefix + " " * self._indent
+        for rk in keys[1:]:
+            rk_s = self._represent_scalar(rk)
+            lines.extend(
+                self._represent_key_value_line(rk_s, item[rk], inner_prefix, level + 2)
+            )
+        return lines
+
     def _represent_sequence(self, data: list | tuple, level: int) -> str:
         if id(data) in self._seen:
             raise YAMLError("Circular reference detected")
@@ -854,34 +892,7 @@ class _Dumper:
         prefix = " " * (self._indent * level)
         for item in data:
             if isinstance(item, dict) and item:
-                # First key on the same line as -
-                keys = (
-                    sorted(item.keys(), key=str)
-                    if self._sort_keys
-                    else list(item.keys())
-                )
-                first_key = keys[0]
-                first_val = item[first_key]
-                k = self._represent_scalar(first_key)
-
-                if isinstance(first_val, (dict, list, tuple)) and first_val:
-                    lines.append(f"{prefix}- {k}:")
-                    lines.append(self._represent(first_val, level + 2))
-                else:
-                    v = self._represent(first_val, level + 2)
-                    lines.append(f"{prefix}- {k}: {v}")
-
-                # Remaining keys
-                for rk in keys[1:]:
-                    rv = item[rk]
-                    rk_s = self._represent_scalar(rk)
-                    inner_prefix = prefix + " " * self._indent
-                    if isinstance(rv, (dict, list, tuple)) and rv:
-                        lines.append(f"{inner_prefix}{rk_s}:")
-                        lines.append(self._represent(rv, level + 2))
-                    else:
-                        rv_s = self._represent(rv, level + 2)
-                        lines.append(f"{inner_prefix}{rk_s}: {rv_s}")
+                lines.extend(self._represent_dict_in_sequence(item, prefix, level))
             elif isinstance(item, (list, tuple)) and item:
                 lines.append(f"{prefix}-")
                 lines.append(self._represent_sequence(item, level + 1))

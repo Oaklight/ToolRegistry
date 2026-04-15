@@ -14,7 +14,7 @@ from __future__ import annotations
 import re
 from typing import Any, TYPE_CHECKING
 
-from ._sparse_search import SparseIndex
+from ._vendor.sparse_search import SparseIndex
 
 if TYPE_CHECKING:
     from .tool import Tool

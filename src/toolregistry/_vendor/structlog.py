@@ -3,6 +3,7 @@
 # deps = []
 # tier = "medium"
 # category = "utility"
+# note = "Install/update via `zerodep add structlog`"
 # ///
 
 """Zero-dependency structured logging with pretty console output.

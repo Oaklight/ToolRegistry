@@ -1,8 +1,9 @@
 # /// zerodep
-# version = "0.2.2"
+# version = "0.3.2"
 # deps = []
 # tier = "medium"
 # category = "utility"
+# note = "Install/update via `zerodep add sparse_search`"
 # ///
 """Zero-dependency sparse text search with BM25 family and TF-IDF ranking.
 
@@ -46,7 +47,7 @@ import statistics
 from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from collections.abc import Callable
 
 __all__ = [
@@ -568,95 +569,153 @@ class SparseIndex:
             return 0.0
         return math.log((n - df + 0.5) / (df + 0.5) + 1.0)
 
+    def _weighted_term_freq(
+        self,
+        field_tfs: dict[str, int],
+        field_weights: dict[str, float],
+    ) -> float:
+        """Compute BM25F weighted pseudo term frequency across fields."""
+        return sum(field_weights.get(fn, 1.0) * tf for fn, tf in field_tfs.items())
+
+    def _weighted_doc_length(
+        self,
+        doc: _DocRecord,
+        field_weights: dict[str, float],
+    ) -> float:
+        """Compute weighted document length across fields."""
+        return sum(
+            field_weights.get(fn, 1.0) * dl for fn, dl in doc.field_lengths.items()
+        )
+
+    def _weighted_avg_doc_length(self, field_weights: dict[str, float]) -> float:
+        """Compute weighted average document length across fields."""
+        avgdl = sum(w * self._avg_field_length(fn) for fn, w in field_weights.items())
+        return avgdl if avgdl != 0 else 1.0
+
+    def _bm25_tf_norm(
+        self,
+        weighted_tf: float,
+        weighted_dl: float,
+        weighted_avgdl: float,
+    ) -> float:
+        """Compute BM25/BM25+/BM25L TF normalization factor."""
+        k1, b, delta = self.k1, self.b, self.delta
+        if self.variant == "bm25l":
+            ctf = weighted_tf / (1.0 - b + b * weighted_dl / weighted_avgdl)
+            return ((k1 + 1.0) * (ctf + delta)) / (k1 + ctf + delta)
+        tf_norm = (weighted_tf * (k1 + 1.0)) / (
+            weighted_tf + k1 * (1.0 - b + b * weighted_dl / weighted_avgdl)
+        )
+        return tf_norm + delta
+
+    def _calibrate_bm25_scores(
+        self,
+        raw_scores: dict[str, float],
+        query_tokens: list[str],
+        field_weights: dict[str, float],
+    ) -> dict[str, float]:
+        """Convert raw BM25 scores to calibrated probabilities via Bayesian BM25."""
+        alpha = self._alpha
+        beta = self._beta
+        base_rate = self._base_rate
+        weighted_avgdl = self._weighted_avg_doc_length(field_weights)
+
+        calibrated: dict[str, float] = {}
+        for doc_id, raw_score in raw_scores.items():
+            doc = self._docs[doc_id]
+            total_tf = self._total_query_tf(doc_id, query_tokens, field_weights)
+            w_dl = self._weighted_doc_length(doc, field_weights)
+            doc_len_ratio = w_dl / weighted_avgdl
+            calibrated[doc_id] = _score_to_probability(
+                raw_score,
+                total_tf,
+                doc_len_ratio,
+                cast(float, alpha),
+                cast(float, beta),
+                base_rate,
+            )
+        return calibrated
+
+    def _total_query_tf(
+        self,
+        doc_id: str,
+        query_tokens: list[str],
+        field_weights: dict[str, float],
+    ) -> float:
+        """Sum weighted term frequencies for all query tokens in a document."""
+        total = 0.0
+        for token in query_tokens:
+            postings = self._index.get(token)
+            if postings is not None and doc_id in postings:
+                total += self._weighted_term_freq(postings[doc_id], field_weights)
+        return total
+
     def _score_bm25(self, query_tokens: list[str]) -> dict[str, float]:
         """Score documents using BM25 / BM25+ / BM25L / BM25F."""
         scores: dict[str, float] = defaultdict(float)
-        k1 = self.k1
-        b = self.b
-        delta = self.delta
         field_weights = self.field_weights or {"_default": 1.0}
-        is_bm25l = self.variant == "bm25l"
 
         for token in query_tokens:
             if token not in self._index:
                 continue
 
             idf = self._idf(token)
-            postings = self._index[token]
+            weighted_avgdl = self._weighted_avg_doc_length(field_weights)
 
-            for doc_id, field_tfs in postings.items():
-                # BM25F: weighted pseudo term frequency and document length
-                weighted_tf = 0.0
-                weighted_dl = 0.0
-
+            for doc_id, field_tfs in self._index[token].items():
                 doc = self._docs[doc_id]
-                for field_name, tf in field_tfs.items():
-                    w = field_weights.get(field_name, 1.0)
-                    weighted_tf += w * tf
-                    weighted_dl += w * doc.field_lengths.get(field_name, 0)
-
-                # Weighted average document length
-                weighted_avgdl = 0.0
-                for field_name, w in field_weights.items():
-                    weighted_avgdl += w * self._avg_field_length(field_name)
-
-                if weighted_avgdl == 0:
-                    weighted_avgdl = 1.0
-
-                if is_bm25l:
-                    # BM25L: adjusted TF normalization
-                    ctf = weighted_tf / (1.0 - b + b * weighted_dl / weighted_avgdl)
-                    tf_norm = ((k1 + 1.0) * (ctf + delta)) / (k1 + ctf + delta)
-                else:
-                    # BM25 / BM25+
-                    tf_norm = (weighted_tf * (k1 + 1.0)) / (
-                        weighted_tf + k1 * (1.0 - b + b * weighted_dl / weighted_avgdl)
-                    )
-                    tf_norm += delta
-
-                scores[doc_id] += idf * tf_norm
+                w_tf = self._weighted_term_freq(field_tfs, field_weights)
+                w_dl = self._weighted_doc_length(doc, field_weights)
+                scores[doc_id] += idf * self._bm25_tf_norm(w_tf, w_dl, weighted_avgdl)
 
         if not self.calibrated or self._alpha is None or self._beta is None:
             return dict(scores)
 
-        # Bayesian calibration: convert raw scores to probabilities
-        alpha = self._alpha
-        beta = self._beta
-        base_rate = self._base_rate
-        calibrated_scores: dict[str, float] = {}
-        for doc_id, raw_score in scores.items():
-            doc = self._docs[doc_id]
-            # Weighted TF across query tokens
-            total_tf = 0.0
-            for token in query_tokens:
-                if token in self._index and doc_id in self._index[token]:
-                    for fn, tf in self._index[token][doc_id].items():
-                        total_tf += field_weights.get(fn, 1.0) * tf
-            # Doc-length ratio
-            weighted_dl = sum(
-                field_weights.get(fn, 1.0) * dl for fn, dl in doc.field_lengths.items()
-            )
-            weighted_avgdl = (
-                sum(
-                    field_weights.get(fn, 1.0) * self._avg_field_length(fn)
-                    for fn in field_weights
-                )
-                or 1.0
-            )
-            doc_len_ratio = weighted_dl / weighted_avgdl
-
-            calibrated_scores[doc_id] = _score_to_probability(
-                raw_score,
-                total_tf,
-                doc_len_ratio,
-                alpha,
-                beta,
-                base_rate,
-            )
-
-        return calibrated_scores
+        return self._calibrate_bm25_scores(dict(scores), query_tokens, field_weights)
 
     # -- internal: TF-IDF scoring --------------------------------------------
+
+    def _tfidf_idf(self, term: str, n: int) -> float:
+        """Compute smoothed IDF for TF-IDF scoring."""
+        df = self._df.get(term, 0)
+        if df == 0:
+            return 0.0
+        return math.log(n / df) + 1.0
+
+    def _build_query_tfidf_vec(
+        self, query_tokens: list[str], n: int
+    ) -> dict[str, float]:
+        """Build TF-IDF weighted vector for query terms."""
+        query_tf: dict[str, int] = defaultdict(int)
+        for token in query_tokens:
+            query_tf[token] += 1
+
+        vec: dict[str, float] = {}
+        for term, tf in query_tf.items():
+            idf = self._tfidf_idf(term, n)
+            if idf > 0:
+                vec[term] = (1.0 + math.log(tf)) * idf
+        return vec
+
+    def _doc_tfidf_vec(
+        self,
+        doc_id: str,
+        n: int,
+        field_weights: dict[str, float],
+    ) -> dict[str, float]:
+        """Build TF-IDF weighted vector for a document."""
+        vec: dict[str, float] = {}
+        for term in self._doc_terms.get(doc_id, ()):
+            postings = self._index.get(term)
+            if postings is None or doc_id not in postings:
+                continue
+            w_tf = self._weighted_term_freq(postings[doc_id], field_weights)
+            if w_tf <= 0:
+                continue
+            idf = self._tfidf_idf(term, n)
+            if idf > 0:
+                vec[term] = (1.0 + math.log(w_tf)) * idf
+        return vec
 
     def _score_tfidf(self, query_tokens: list[str]) -> dict[str, float]:
         """Score documents using TF-IDF with cosine similarity."""
@@ -665,59 +724,25 @@ class SparseIndex:
             return {}
 
         field_weights = self.field_weights or {"_default": 1.0}
-
-        # Build query TF-IDF vector (term -> weight)
-        query_tf: dict[str, int] = defaultdict(int)
-        for token in query_tokens:
-            query_tf[token] += 1
-
-        query_vec: dict[str, float] = {}
-        for term, tf in query_tf.items():
-            df = self._df.get(term, 0)
-            if df == 0:
-                continue
-            idf = math.log(n / df) + 1.0  # smoothed IDF
-            query_vec[term] = (1.0 + math.log(tf)) * idf
-
+        query_vec = self._build_query_tfidf_vec(query_tokens, n)
         if not query_vec:
             return {}
 
         query_norm = math.sqrt(sum(v * v for v in query_vec.values()))
 
-        # Score each candidate document
-        scores: dict[str, float] = {}
+        # Collect candidate documents that contain at least one query term
         candidates: set[str] = set()
         for term in query_vec:
             if term in self._index:
                 candidates.update(self._index[term].keys())
 
+        scores: dict[str, float] = {}
         for doc_id in candidates:
-            dot_product = 0.0
-            doc_norm_sq = 0.0
-
-            # Collect all terms in this document for norm calculation
-            doc_terms: dict[str, float] = {}
-            for term in self._index:
-                if doc_id not in self._index[term]:
-                    continue
-
-                field_tfs = self._index[term][doc_id]
-                weighted_tf = sum(
-                    field_weights.get(fn, 1.0) * tf for fn, tf in field_tfs.items()
-                )
-                if weighted_tf <= 0:
-                    continue
-
-                df = self._df.get(term, 1)
-                idf = math.log(n / df) + 1.0
-                tfidf = (1.0 + math.log(weighted_tf)) * idf
-                doc_terms[term] = tfidf
-
-            for term, tfidf in doc_terms.items():
-                doc_norm_sq += tfidf * tfidf
-                if term in query_vec:
-                    dot_product += tfidf * query_vec[term]
-
+            doc_vec = self._doc_tfidf_vec(doc_id, n, field_weights)
+            dot_product = sum(
+                w * query_vec[t] for t, w in doc_vec.items() if t in query_vec
+            )
+            doc_norm_sq = sum(w * w for w in doc_vec.values())
             if doc_norm_sq > 0 and dot_product > 0:
                 scores[doc_id] = dot_product / (query_norm * math.sqrt(doc_norm_sq))
 

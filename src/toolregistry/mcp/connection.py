@@ -6,7 +6,7 @@ from typing import Any
 
 from mcp.types import CallToolResult
 
-from .._structlog import get_logger
+from .._vendor.structlog import get_logger
 from .client import MCPClient
 
 logger = get_logger()
