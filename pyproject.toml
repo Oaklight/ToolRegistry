@@ -38,7 +38,7 @@ dependencies = [
     "pydantic>=2.7.2,<3.0.0",
     "cloudpickle>=3.0.0",
     "httpx>=0.28.1",
-    "llm-rosetta>=0.2.6",
+    "llm-rosetta>=0.5.1,<0.6.0",
 ]
 
 [project.optional-dependencies]
