@@ -14,6 +14,14 @@ author: Oaklight
 
 ### 新特性
 
+- **声明式工具配置加载器**（[#120](../../issues/120)、[#122](../../pull/122)）
+    - 新增 `toolregistry.config` 模块，支持将 JSONC/YAML 配置文件解析为类型化的冻结 dataclass
+    - 支持三种工具源类型：`python`（类/模块）、`mcp`（stdio/sse/streamable-http）、`openapi`（含认证）
+    - 将 `zerodep/jsonc` 和 `zerodep/yaml` 作为 vendor 模块放入 `_vendor/` 包，保持零外部依赖
+    - `transport: "http"` 作为 `"streamable-http"` 的别名
+    - 向后兼容旧版 `{"module": "x", "class": "Y"}` 配置格式
+    - 支持 denylist/allowlist 模式、按源启用/禁用以及 `token_env` 环境变量解析
+
 - **Anthropic 与 Gemini 模式格式支持**（[#55](../../issues/55)、[#88](../../pull/88)）
     - 为 `get_schemas()` 和 `get_json_schema()` 添加 `"anthropic"` 和 `"gemini"` 作为有效的 `api_format` 值
     - 所有模式转换由 [llm-rosetta](https://pypi.org/project/llm-rosetta/) 驱动，同时清理各格式不支持的 JSON Schema 关键字

@@ -108,6 +108,7 @@ nav:
       - 结果大小管理: usage/result_management.md
       - 权限系统: usage/permissions.md
       - 消息构建: usage/message_building.md
+      - 声明式配置: usage/configuration.md
       - 最佳实践: usage/best_practices.md
       - LLM API 格式:
           - OpenAI Chat: usage/providers/openai_chat.md
