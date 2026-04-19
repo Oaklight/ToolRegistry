@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .admin import ExecutionLog
+    from ..admin import ExecutionLog
 
 
 class ExecutionLoggingMixin:
@@ -37,7 +37,7 @@ class ExecutionLoggingMixin:
             stats = log.get_stats()
             ```
         """
-        from .admin import ExecutionLog
+        from ..admin import ExecutionLog
 
         self._execution_log = ExecutionLog(max_entries=max_entries)
         return self._execution_log

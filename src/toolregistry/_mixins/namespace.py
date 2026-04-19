@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 from collections.abc import Callable
 
-from .tool import Tool
+from ..tool import Tool
 
 
 class NamespaceMixin:
@@ -87,7 +87,7 @@ class NamespaceMixin:
         Raises:
             TypeError: If other is not a ToolRegistry instance.
         """
-        from .tool_registry import ToolRegistry
+        from ..tool_registry import ToolRegistry
 
         if not isinstance(other, ToolRegistry):
             raise TypeError("Can only merge with another ToolRegistry instance.")
@@ -154,7 +154,7 @@ class NamespaceMixin:
             When `retain_namespace` is False, the `reduce_namespace` method is called
             to remove the namespace from tools in the current registry.
         """
-        from .tool_registry import ToolRegistry
+        from ..tool_registry import ToolRegistry
 
         # Filter tools with the specified prefix
         spun_off_tools = {

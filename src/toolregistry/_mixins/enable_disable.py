@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .events import ChangeEvent, ChangeEventType
+from ..events import ChangeEvent, ChangeEventType
 
 if TYPE_CHECKING:
-    from .tool import Tool
+    from ..tool import Tool
 
 
 class EnableDisableMixin:

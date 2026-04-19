@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import threading
 
-from .events import ChangeCallback, ChangeEvent
+from ..events import ChangeCallback, ChangeEvent
 
 logger = logging.getLogger(__name__)
 
