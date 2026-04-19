@@ -22,6 +22,27 @@ author: Oaklight
     - 向后兼容旧版 `{"module": "x", "class": "Y"}` 配置格式
     - 支持 denylist/allowlist 模式、按源启用/禁用以及 `token_env` 环境变量解析
 
+### 重构
+
+- **集成包结构重组**
+    - 将 `mcp/`、`openapi/`、`langchain/`、`native/` 集成包移至新的 `integrations/` 父包下
+    - 新的规范导入路径：`toolregistry.integrations.mcp`、`toolregistry.integrations.openapi`、`toolregistry.integrations.langchain`、`toolregistry.integrations.native`
+    - 旧导入路径（`toolregistry.mcp`、`toolregistry.openapi` 等）保留为弃用兼容层，会发出 `DeprecationWarning`；这些兼容层将在未来版本中移除
+    - 公开的 `ToolRegistry` API 方法（`register_from_mcp()`、`register_from_openapi()` 等）保持不变
+
+- **整合内部模块**
+    - 将 mixin 模块整合至 `_mixins/` 包
+    - 将零依赖 vendor 模块整合至 `_vendor/` 包
+    - 为 llm-rosetta ToolOps 使用子包级导入
+
+### 维护
+
+- 将 `llm-rosetta` 最低版本提升至 `>=0.5.1,<0.6.0`
+
+## [0.7.0] - 2026-04-06
+
+### 新特性
+
 - **Anthropic 与 Gemini 模式格式支持**（[#55](../../issues/55)、[#88](../../pull/88)）
     - 为 `get_schemas()` 和 `get_json_schema()` 添加 `"anthropic"` 和 `"gemini"` 作为有效的 `api_format` 值
     - 所有模式转换由 [llm-rosetta](https://pypi.org/project/llm-rosetta/) 驱动，同时清理各格式不支持的 JSON Schema 关键字
@@ -85,12 +106,6 @@ author: Oaklight
     - 此前 Gemini `functionResponse.name` 显示随机 UUID 而非函数名，原因是 `convert_tool_calls()` 被独立调用两次，每次生成不同的 ID
 
 ### 重构
-
-- **集成包结构重组**
-    - 将 `mcp/`、`openapi/`、`langchain/`、`native/` 集成包移至新的 `integrations/` 父包下
-    - 新的规范导入路径：`toolregistry.integrations.mcp`、`toolregistry.integrations.openapi`、`toolregistry.integrations.langchain`、`toolregistry.integrations.native`
-    - 旧导入路径（`toolregistry.mcp`、`toolregistry.openapi` 等）保留为弃用兼容层，会发出 `DeprecationWarning`；这些兼容层将在未来版本中移除
-    - 公开的 `ToolRegistry` API 方法（`register_from_mcp()`、`register_from_openapi()` 等）保持不变
 
 - **可插拔 Executor 后端架构**（[#78](../../issues/78)）
     - 将单体 `Executor` 类替换为可插拔的 `executor/` 包
