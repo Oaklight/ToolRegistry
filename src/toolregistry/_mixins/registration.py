@@ -318,7 +318,7 @@ class RegistrationMixin:
             static method handling capability.
         """
         namespace = _resolve_namespace_compat(namespace, kwargs)
-        from ..native import ClassToolIntegration
+        from ..integrations.native import ClassToolIntegration
 
         hub = ClassToolIntegration(
             cast("ToolRegistry", self), traverse_mro=traverse_mro
@@ -356,7 +356,7 @@ class RegistrationMixin:
             ```
         """
         namespace = _resolve_namespace_compat(namespace, kwargs)
-        from ..native import ClassToolIntegration
+        from ..integrations.native import ClassToolIntegration
 
         hub = ClassToolIntegration(
             cast("ToolRegistry", self), traverse_mro=traverse_mro
@@ -392,7 +392,7 @@ def _import_openapi_integration():
         OpenAPIIntegration: The imported OpenAPIIntegration class.
     """
     try:
-        from ..openapi import OpenAPIIntegration
+        from ..integrations.openapi import OpenAPIIntegration
 
         return OpenAPIIntegration
     except ImportError:
@@ -412,7 +412,7 @@ def _import_mcp_integration():
         MCPIntegration: The imported MCPIntegration class.
     """
     try:
-        from ..mcp import MCPIntegration
+        from ..integrations.mcp import MCPIntegration
 
         return MCPIntegration
     except ImportError:
@@ -432,7 +432,7 @@ def _import_langchain_integration():
         LangChainIntegration: The imported LangChainIntegration class.
     """
     try:
-        from ..langchain import LangChainIntegration
+        from ..integrations.langchain import LangChainIntegration
 
         return LangChainIntegration
     except ImportError:

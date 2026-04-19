@@ -15,7 +15,7 @@ from mcp.types import (  # noqa: E402
 )
 from mcp.types import Tool as MCPToolSpec  # noqa: E402
 
-from toolregistry.mcp.integration import MCPTool, MCPToolWrapper  # noqa: E402
+from toolregistry.integrations.mcp.integration import MCPTool, MCPToolWrapper  # noqa: E402
 
 
 # ---------------------------------------------------------------------------

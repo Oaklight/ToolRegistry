@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from toolregistry import ToolRegistry
-from toolregistry.mcp.connection import MCPConnectionManager
+from toolregistry.integrations.mcp.connection import MCPConnectionManager
 from toolregistry.utils import HttpxClientConfig
 
 _SERVER_SCRIPT = str(Path(__file__).parent / "_mcp_test_server.py")

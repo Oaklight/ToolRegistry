@@ -10,7 +10,7 @@ from langchain_core.tools import BaseTool as LCBaseTool  # noqa: E402
 from pydantic import BaseModel, Field  # noqa: E402
 
 from toolregistry import ToolRegistry  # noqa: E402
-from toolregistry.langchain.integration import (  # noqa: E402
+from toolregistry.integrations.langchain.integration import (  # noqa: E402
     LangChainIntegration,
     LangChainTool,
     LangChainToolWrapper,

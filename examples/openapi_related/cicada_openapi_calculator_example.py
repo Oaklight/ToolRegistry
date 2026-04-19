@@ -6,7 +6,7 @@ from cicada.core.utils import cprint
 from dotenv import load_dotenv
 
 from toolregistry import ToolRegistry
-from toolregistry.openapi import HttpxClientConfig, load_openapi_spec
+from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec
 
 load_dotenv()
 

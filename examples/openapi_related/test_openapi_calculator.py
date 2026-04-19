@@ -1,6 +1,6 @@
 import asyncio
 
-from toolregistry.openapi import HttpxClientConfig, load_openapi_spec
+from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec
 from toolregistry.tool_registry import ToolRegistry
 
 base_url = "http://localhost:8000"

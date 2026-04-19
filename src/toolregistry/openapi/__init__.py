@@ -1,13 +1,13 @@
-from ..utils import HttpxClientConfig
-from .integration import OpenAPIIntegration, OpenAPITool, OpenAPIToolWrapper
-from .utils import load_openapi_spec, load_openapi_spec_async
+"""Backward-compatibility shim. Use toolregistry.integrations.openapi instead."""
 
-__all__ = [
-    "OpenAPIIntegration",
-    "OpenAPITool",
-    "OpenAPIToolWrapper",
-    # Helpers and utilities for OpenAPI integration.
-    "HttpxClientConfig",
-    "load_openapi_spec",
-    "load_openapi_spec_async",
-]
+import warnings
+
+warnings.warn(
+    "Importing from 'toolregistry.openapi' is deprecated. "
+    "Use 'toolregistry.integrations.openapi' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+from toolregistry.integrations.openapi import *  # noqa: E402,F401,F403
+from toolregistry.integrations.openapi import __all__  # noqa: E402,F401

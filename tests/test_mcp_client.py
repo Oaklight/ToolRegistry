@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from toolregistry.mcp.client import MCPClient, _to_stdio_params
+from toolregistry.integrations.mcp.client import MCPClient, _to_stdio_params
 
 # Path to the lightweight test MCP server script
 _SERVER_SCRIPT = str(Path(__file__).parent / "_mcp_test_server.py")

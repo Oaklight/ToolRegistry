@@ -141,13 +141,13 @@ tools_json = registry.get_schemas()
 
 `register_from_openapi`方法现在接受两个参数：
 
-- `client_config`：一个`toolregistry.openapi.HttpxClientConfig`对象，用于配置与 API 交互的 HTTP 客户端。可以配置请求头、认证、超时等设置，提供比以前版本更大的灵活性。
+- `client_config`：一个`toolregistry.integrations.openapi.HttpxClientConfig`对象，用于配置与 API 交互的 HTTP 客户端。可以配置请求头、认证、超时等设置，提供比以前版本更大的灵活性。
 - `openapi_spec`：以`Dict[str, Any]`形式表示的 OpenAPI 规范，使用`load_openapi_spec`或`load_openapi_spec_async`等函数加载。这些函数支持通过文件路径或 URL 获取 OpenAPI 规范，或者通过 API 的基础 URL 获取，并返回解析后的 OpenAPI 规范字典。
 
 示例：
 
 ```python
-from toolregistry.openapi import HttpxClientConfig, load_openapi_spec
+from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec
 
 client_config = HttpxClientConfig(base_url="http://localhost:8000")
 openapi_spec = load_openapi_spec("./openapi_spec.json")

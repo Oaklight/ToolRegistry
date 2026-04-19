@@ -8,7 +8,7 @@ import time
 from typing import Any
 
 from toolregistry import ToolRegistry
-from toolregistry.openapi import HttpxClientConfig, load_openapi_spec
+from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec
 from toolregistry.types import (
     ChatCompletionMessageToolCall,
     Function,

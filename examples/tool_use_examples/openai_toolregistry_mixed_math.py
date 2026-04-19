@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from toolregistry import ToolRegistry
-from toolregistry.openapi import (
+from toolregistry.integrations.openapi import (
     HttpxClientConfig,
     load_openapi_spec_async,
 )

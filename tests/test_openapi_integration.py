@@ -8,12 +8,12 @@ import pytest
 pytest.importorskip("jsonref")
 
 from toolregistry import ToolRegistry  # noqa: E402
-from toolregistry.openapi.integration import (  # noqa: E402
+from toolregistry.integrations.openapi.integration import (  # noqa: E402
     OpenAPIIntegration,
     OpenAPITool,
     OpenAPIToolWrapper,
 )
-from toolregistry.openapi.utils import (  # noqa: E402
+from toolregistry.integrations.openapi.utils import (  # noqa: E402
     determine_urls,
     extract_base_url_from_specs,
     load_openapi_spec,

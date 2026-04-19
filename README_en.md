@@ -141,13 +141,13 @@ tools_json = registry.get_schemas()
 
 The `register_from_openapi` method now accepts two parameters:
 
-- `client_config`: a `toolregistry.openapi.HttpxClientConfig` object that configures the HTTP client used to interact with the API. You can configure the headers, authorization, timeout, and other settings. Allowing greater flexibility than the previous version.
+- `client_config`: a `toolregistry.integrations.openapi.HttpxClientConfig` object that configures the HTTP client used to interact with the API. You can configure the headers, authorization, timeout, and other settings. Allowing greater flexibility than the previous version.
 - `openapi_spec`: The OpenAPI specification as `Dict[str, Any]`, loaded with a function like `load_openapi_spec` or `load_openapi_spec_async`. These functions accept a file path or a URL to the OpenAPI specification or a URL to the base api and return the parsed OpenAPI specification as a dictionary.
 
 Example:
 
 ```python
-from toolregistry.openapi import HttpxClientConfig, load_openapi_spec
+from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec
 
 client_config = HttpxClientConfig(base_url="http://localhost:8000")
 openapi_spec = load_openapi_spec("./openapi_spec.json")

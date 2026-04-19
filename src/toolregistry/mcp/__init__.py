@@ -1,9 +1,13 @@
-from .connection import MCPConnectionManager
-from .integration import MCPIntegration, MCPTool, MCPToolWrapper
+"""Backward-compatibility shim. Use toolregistry.integrations.mcp instead."""
 
-__all__ = [
-    "MCPConnectionManager",
-    "MCPIntegration",
-    "MCPTool",
-    "MCPToolWrapper",
-]
+import warnings
+
+warnings.warn(
+    "Importing from 'toolregistry.mcp' is deprecated. "
+    "Use 'toolregistry.integrations.mcp' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+from toolregistry.integrations.mcp import *  # noqa: E402,F401,F403
+from toolregistry.integrations.mcp import __all__  # noqa: E402,F401
