@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .admin import AdminInfo, AdminServer
-    from .tool_registry import ToolRegistry
+    from ..admin import AdminInfo, AdminServer
+    from ..tool_registry import ToolRegistry
 
 
 class AdminMixin:
@@ -58,7 +58,7 @@ class AdminMixin:
 
         from typing import cast
 
-        from .admin import AdminServer
+        from ..admin import AdminServer
 
         self._admin_server = AdminServer(
             registry=cast("ToolRegistry", self),

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from .permissions import (
+from ..permissions import (
     AsyncPermissionHandler,
     PermissionHandler,
     PermissionPolicy,
@@ -14,8 +14,8 @@ from .permissions import (
 )
 
 if TYPE_CHECKING:
-    from .events import ChangeEvent
-    from .tool import Tool
+    from ..events import ChangeEvent
+    from ..tool import Tool
 
 
 class PermissionsMixin:
@@ -116,7 +116,7 @@ class PermissionsMixin:
         """
         import asyncio
 
-        from .events import ChangeEvent, ChangeEventType
+        from ..events import ChangeEvent, ChangeEventType
 
         policy = self._permission_policy
         if policy is None:
