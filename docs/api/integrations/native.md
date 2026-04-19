@@ -101,7 +101,7 @@ class DerivedTools(BaseTools):
 
 Handles integration with Python classes for method registration.
 
-::: toolregistry.native.integration.ClassToolIntegration
+::: toolregistry.integrations.native.integration.ClassToolIntegration
     options:
         show_source: false
         show_root_heading: true
@@ -114,7 +114,7 @@ Handles integration with Python classes for method registration.
 
 The main native integration module.
 
-::: toolregistry.native
+::: toolregistry.integrations.native
     options:
         show_source: false
         show_root_heading: true
@@ -125,7 +125,7 @@ The main native integration module.
 
 Utility functions for native integration.
 
-::: toolregistry.native.utils
+::: toolregistry.integrations.native.utils
     options:
         show_source: false
         show_root_heading: true

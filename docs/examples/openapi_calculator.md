@@ -114,7 +114,7 @@ python openapi_calculator.py
   
     The `register_from_openapi` method new requires two parameters:
   
-    - `client_config`: Configures the HTTP client (headers, auth, timeout, etc.) using a `toolregistry.openapi.HttpxClientConfig` object, allowing greater flexibility.
+    - `client_config`: Configures the HTTP client (headers, auth, timeout, etc.) using a `toolregistry.integrations.openapi.HttpxClientConfig` object, allowing greater flexibility.
     - `openapi_spec`: The OpenAPI specification loaded as `Dict[str, Any]` using functions like `load_openapi_spec` or `load_openapi_spec_async` from a file path or URL to the service or specification.
 
 We implement using both Cicada `MultiModalModel` and OpenAI client to showcase different ways to integrate with the tool registry.
@@ -122,7 +122,7 @@ We implement using both Cicada `MultiModalModel` and OpenAI client to showcase d
 Example:
 
 ```python
-from toolregistry.openapi import HttpxClientConfig, load_openapi_spec
+from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec
 
 client_config = HttpxClientConfig(base_url="http://localhost:8000")
 openapi_spec = load_openapi_spec("./openapi_spec.json") # specification at local path
@@ -144,7 +144,7 @@ import os
 from cicada.core.model import MultiModalModel
 from cicada.core.utils import cprint
 from dotenv import load_dotenv
-from toolregistry.openapi import HttpxClientConfig, load_openapi_spec
+from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec
 from toolregistry import ToolRegistry
 
 load_dotenv()
@@ -193,7 +193,7 @@ cprint(json.dumps(response, indent=2))
 import inspect
 import os
 from dotenv import load_dotenv
-from toolregistry.openapi import HttpxClientConfig, load_openapi_spec
+from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec
 from toolregistry import ToolRegistry
 from openai import OpenAI
 

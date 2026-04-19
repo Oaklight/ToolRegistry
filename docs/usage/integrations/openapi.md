@@ -12,7 +12,7 @@ This guide explains how to integrate OpenAPI with ToolRegistry, allowing you to 
 
 The `register_from_openapi` method now accepts two parameters:
 
-- `client_config`: a `toolregistry.openapi.HttpxClientConfig` object that configures the HTTP client used to interact with the API. You can configure the headers, authorization, timeout, and other settings. Allowing greater flexibility than the previous version.
+- `client_config`: a `toolregistry.integrations.openapi.HttpxClientConfig` object that configures the HTTP client used to interact with the API. You can configure the headers, authorization, timeout, and other settings. Allowing greater flexibility than the previous version.
 - `openapi_spec`: The OpenAPI specification as `Dict[str, Any]`, loaded with a function like `load_openapi_spec` or `load_openapi_spec_async`. These functions accept a file path or a URL to the OpenAPI specification or a URL to the base api and return the parsed OpenAPI specification as a dictionary.
 
 You must now explicitly pass both the `client_config` and `openapi_spec` arguments.
@@ -25,7 +25,7 @@ You can register OpenAPI tools synchronously using the `register_from_openapi` m
 
 ```python
 import os
-from toolregistry.openapi import HttpxClientConfig, load_openapi_spec
+from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec
 from toolregistry import ToolRegistry
 
 PORT = os.getenv("PORT", 8000)  # Default port is 8000; can be overridden by an environment variable
@@ -74,7 +74,7 @@ In an asynchronous environment, use the `register_from_openapi_async` method to 
 ```python
 import asyncio
 import os
-from toolregistry.openapi import HttpxClientConfig, load_openapi_spec_async
+from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec_async
 from toolregistry import ToolRegistry
 
 PORT = os.getenv("PORT", 8000)
@@ -94,7 +94,7 @@ asyncio.run(async_register())
 In some cases, OpenAPI services may require specific configurations such as custom headers, timeouts, or SSL certificates. You can tune these settings with the `HttpxClientConfig` class. Here's an example of authorization bearer tokens in header.
 
 ```python
-from toolregistry.openapi import HttpxClientConfig
+from toolregistry.integrations.openapi import HttpxClientConfig
 
 OPENAPI_SERVER_URL = os.getenv("OPENAPI_SERVER_URL", "http://localhost:8000")
 OPENAPI_BEARER_TOKENS = os.getenv("OPENAPI_BEARER_TOKENS", "your-api-token")
@@ -108,7 +108,7 @@ client_config = HttpxClientConfig(
 If nothing special is needed, you can create HttpxClientConfig with just the `base_url`:
 
 ```python
-from toolregistry.openapi import HttpxClientConfig
+from toolregistry.integrations.openapi import HttpxClientConfig
 
 client_config = HttpxClientConfig(
     base_url=OPENAPI_SERVER_URL,
@@ -123,7 +123,7 @@ When using the functions `load_openapi_spec` or `load_openapi_spec_async`, the f
 2. **File path provided**: If you provide a file path (e.g., `./openapi_spec.json`), the function will load the OpenAPI specification directly from the file. Unlike simple direct load, the functionality includes unwinding `$ref` blocks commonly found in OpenAPI specifications. This ensures that any schema references are fully resolved within the returned dictionary.
 
 ```python
-from toolregistry.openapi import load_openapi_spec
+from toolregistry.integrations.openapi import load_openapi_spec
 
 openapi_spec = load_openapi_spec("./openapi_spec.json") # Load from file
 openapi_spec = load_openapi_spec("http://localhost:8000") # auto-discovery with URL to service root
@@ -143,7 +143,7 @@ Use `ToolRegistry` as a context manager to ensure HTTP clients are properly clos
 
 ```python
 from toolregistry import ToolRegistry
-from toolregistry.openapi import HttpxClientConfig, load_openapi_spec
+from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec
 
 with ToolRegistry() as registry:
     client_config = HttpxClientConfig(base_url="http://localhost:8000")
@@ -230,7 +230,7 @@ You can integrate OpenAPI tool registration into an OpenAI-compatible API workfl
 
 ```python
 from dotenv import load_dotenv
-from toolregistry.openapi import HttpxClientConfig, load_openapi_spec
+from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec
 from toolregistry import ToolRegistry
 from openai import OpenAI
 import os

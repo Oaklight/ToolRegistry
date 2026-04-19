@@ -46,7 +46,7 @@ Result Normalization
 
 ## API Reference
 
-::: toolregistry.openapi.integration.OpenAPIToolWrapper
+::: toolregistry.integrations.openapi.integration.OpenAPIToolWrapper
     options:
         show_source: false
         show_root_heading: true
@@ -58,7 +58,7 @@ Result Normalization
 ### Basic OpenAPI Tool Wrapper
 
 ```python
-from toolregistry.openapi.integration import OpenAPIToolWrapper
+from toolregistry.integrations.openapi.integration import OpenAPIToolWrapper
 from toolregistry.utils import HttpxClientConfig
 
 # Configure HTTP client
@@ -228,7 +228,7 @@ result = wrapper()  # Returns parsed JSON object
 
 ```python
 from toolregistry import ToolRegistry
-from toolregistry.openapi import OpenAPIIntegration
+from toolregistry.integrations.openapi import OpenAPIIntegration
 
 registry = ToolRegistry()
 openapi_integration = OpenAPIIntegration(registry)

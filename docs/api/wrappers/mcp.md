@@ -44,7 +44,7 @@ ToolRegistry Response
 
 ## API Reference
 
-::: toolregistry.mcp.integration.MCPToolWrapper
+::: toolregistry.integrations.mcp.integration.MCPToolWrapper
     options:
         show_source: false
         show_root_heading: true
@@ -56,7 +56,7 @@ ToolRegistry Response
 ### Basic MCP Tool Wrapper
 
 ```python
-from toolregistry.mcp.integration import MCPToolWrapper
+from toolregistry.integrations.mcp.integration import MCPToolWrapper
 
 # Create wrapper for specific MCP tool
 wrapper = MCPToolWrapper(
@@ -136,7 +136,7 @@ The wrapper handles multiple MCP content types:
 
 ```python
 from toolregistry import ToolRegistry
-from toolregistry.mcp import MCPIntegration
+from toolregistry.integrations.mcp import MCPIntegration
 
 registry = ToolRegistry()
 mcp_integration = MCPIntegration(registry)
@@ -150,7 +150,7 @@ await mcp_integration.register_mcp_tools_async("ws://localhost:8000")
 ### Transport Configuration
 
 ```python
-from toolregistry.mcp.integration import MCPToolWrapper
+from toolregistry.integrations.mcp.integration import MCPToolWrapper
 
 # Different transport types (pass URL strings or file paths directly)
 wrapper_ws = MCPToolWrapper("ws://localhost:8000", "remote_tool", params=["input"])

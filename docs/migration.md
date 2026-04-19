@@ -2,6 +2,52 @@
 
 This guide covers breaking changes and migration steps between major ToolRegistry releases.
 
+## 0.7.x → 0.8.0
+
+### Integration Packages Moved Under `integrations/`
+
+All integration sub-packages (`mcp`, `openapi`, `langchain`, `native`) have been moved under a new `integrations/` parent package. This provides a clearer project structure as the number of integrations grows.
+
+**Before (0.7.x):**
+
+```python
+from toolregistry.mcp import MCPClient
+from toolregistry.openapi import OpenAPIIntegration
+from toolregistry.langchain import LangChainIntegration
+from toolregistry.native import NativeIntegration
+```
+
+**After (0.8.0):**
+
+```python
+from toolregistry.integrations.mcp import MCPClient
+from toolregistry.integrations.openapi import OpenAPIIntegration
+from toolregistry.integrations.langchain import LangChainIntegration
+from toolregistry.integrations.native import NativeIntegration
+```
+
+**Import path mapping:**
+
+| Old path (deprecated) | New canonical path |
+|---|---|
+| `toolregistry.mcp` | `toolregistry.integrations.mcp` |
+| `toolregistry.openapi` | `toolregistry.integrations.openapi` |
+| `toolregistry.langchain` | `toolregistry.integrations.langchain` |
+| `toolregistry.native` | `toolregistry.integrations.native` |
+
+**Backward compatibility:** The old import paths still work but emit a `DeprecationWarning`. They will be removed in a future release. Update your imports at your earliest convenience.
+
+```python
+# This still works in 0.8.0 but prints a DeprecationWarning:
+from toolregistry.mcp import MCPClient
+# DeprecationWarning: Importing from 'toolregistry.mcp' is deprecated.
+# Use 'toolregistry.integrations.mcp' instead.
+```
+
+**Public API unchanged:** The `ToolRegistry` convenience methods — `register_from_mcp()`, `register_from_openapi()`, `register_from_langchain()`, and `register_from_native()` — continue to work exactly as before with no code changes required.
+
+---
+
 ## 0.6.x → 0.7.0
 
 ### Executor Backend Architecture

@@ -55,7 +55,7 @@ The integration supports multiple transport mechanisms:
 
 Wrapper class providing both async and sync versions of MCP tool calls.
 
-::: toolregistry.mcp.integration.MCPToolWrapper
+::: toolregistry.integrations.mcp.integration.MCPToolWrapper
     options:
         show_source: false
         show_root_heading: true
@@ -66,7 +66,7 @@ Wrapper class providing both async and sync versions of MCP tool calls.
 
 Wrapper class for MCP tools that preserves original function metadata.
 
-::: toolregistry.mcp.integration.MCPTool
+::: toolregistry.integrations.mcp.integration.MCPTool
     options:
         show_source: false
         show_root_heading: true
@@ -77,7 +77,7 @@ Wrapper class for MCP tools that preserves original function metadata.
 
 Handles integration with MCP server for tool registration.
 
-::: toolregistry.mcp.integration.MCPIntegration
+::: toolregistry.integrations.mcp.integration.MCPIntegration
     options:
         show_source: false
         show_root_heading: true
@@ -90,7 +90,7 @@ Handles integration with MCP server for tool registration.
 
 Minimal MCP client adapter over the official `mcp` SDK. Supports stdio, SSE, streamable-http, and websocket transports.
 
-::: toolregistry.mcp.client.MCPClient
+::: toolregistry.integrations.mcp.client.MCPClient
     options:
         show_source: false
         show_root_heading: true
@@ -101,7 +101,7 @@ Minimal MCP client adapter over the official `mcp` SDK. Supports stdio, SSE, str
 
 The main MCP integration module.
 
-::: toolregistry.mcp
+::: toolregistry.integrations.mcp
     options:
         show_source: false
         show_root_heading: true

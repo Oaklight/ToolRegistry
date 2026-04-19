@@ -42,7 +42,7 @@ ToolRegistry Response
 
 ## API Reference
 
-::: toolregistry.langchain.integration.LangChainToolWrapper
+::: toolregistry.integrations.langchain.integration.LangChainToolWrapper
     options:
       show_source: false
       show_root_heading: true
@@ -55,7 +55,7 @@ ToolRegistry Response
 
 ```python
 from langchain_core.tools import BaseTool
-from toolregistry.langchain.integration import LangChainToolWrapper
+from toolregistry.integrations.langchain.integration import LangChainToolWrapper
 
 # Assume we have a LangChain tool
 langchain_tool = BaseTool(
@@ -167,7 +167,7 @@ result2 = await wrapper(arg="value")  # Async context → _arun()
 
 ```python
 from toolregistry import ToolRegistry
-from toolregistry.langchain import LangChainIntegration
+from toolregistry.integrations.langchain import LangChainIntegration
 
 registry = ToolRegistry()
 langchain_integration = LangChainIntegration(registry)

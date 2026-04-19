@@ -45,7 +45,7 @@ The OpenAPI integration is designed to automatically discover and register REST 
 
 Wrapper class that provides both synchronous and asynchronous methods for OpenAPI tool calls.
 
-::: toolregistry.openapi.integration.OpenAPIToolWrapper
+::: toolregistry.integrations.openapi.integration.OpenAPIToolWrapper
     options:
         show_source: false
         show_root_heading: true
@@ -56,7 +56,7 @@ Wrapper class that provides both synchronous and asynchronous methods for OpenAP
 
 Wrapper class for OpenAPI tools preserving function metadata.
 
-::: toolregistry.openapi.integration.OpenAPITool
+::: toolregistry.integrations.openapi.integration.OpenAPITool
     options:
         show_source: false
         show_root_heading: true
@@ -67,7 +67,7 @@ Wrapper class for OpenAPI tools preserving function metadata.
 
 Handles integration with OpenAPI services for tool registration.
 
-::: toolregistry.openapi.integration.OpenAPIIntegration
+::: toolregistry.integrations.openapi.integration.OpenAPIIntegration
     options:
         show_source: false
         show_root_heading: true
@@ -80,7 +80,7 @@ Handles integration with OpenAPI services for tool registration.
 
 Utility functions for OpenAPI processing.
 
-::: toolregistry.openapi.utils
+::: toolregistry.integrations.openapi.utils
     options:
         show_source: false
         show_root_heading: true

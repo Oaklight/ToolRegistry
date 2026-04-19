@@ -86,6 +86,12 @@ This page documents all notable changes to the ToolRegistry project since the fi
 
 ### Refactoring
 
+- **Integration Package Restructuring**
+    - Moved `mcp/`, `openapi/`, `langchain/`, `native/` integration packages under a new `integrations/` parent package
+    - New canonical import paths: `toolregistry.integrations.mcp`, `toolregistry.integrations.openapi`, `toolregistry.integrations.langchain`, `toolregistry.integrations.native`
+    - Old import paths (`toolregistry.mcp`, `toolregistry.openapi`, etc.) preserved as deprecation shims that emit `DeprecationWarning`; these shims will be removed in a future release
+    - Public `ToolRegistry` API methods (`register_from_mcp()`, `register_from_openapi()`, etc.) are unchanged
+
 - **Pluggable Executor Backend Architecture** ([#78](../../issues/78))
     - Replace monolithic `Executor` class with a pluggable `executor/` package
     - New `ExecutionBackend` Protocol and `ExecutionHandle` ABC for backend extensibility

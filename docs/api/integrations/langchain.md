@@ -54,7 +54,7 @@ The LangChain integration enables seamless interoperability between LangChain to
 
 Wrapper class providing both async and sync versions of LangChain tool calls.
 
-::: toolregistry.langchain.integration.LangChainToolWrapper
+::: toolregistry.integrations.langchain.integration.LangChainToolWrapper
     options:
         show_source: false
         show_root_heading: true
@@ -65,7 +65,7 @@ Wrapper class providing both async and sync versions of LangChain tool calls.
 
 Wrapper class for LangChain tools that preserves original function metadata.
 
-::: toolregistry.langchain.integration.LangChainTool
+::: toolregistry.integrations.langchain.integration.LangChainTool
     options:
         show_source: false
         show_root_heading: true
@@ -76,7 +76,7 @@ Wrapper class for LangChain tools that preserves original function metadata.
 
 Handles integration with LangChain tools for registration.
 
-::: toolregistry.langchain.integration.LangChainIntegration
+::: toolregistry.integrations.langchain.integration.LangChainIntegration
     options:
         show_source: false
         show_root_heading: true
@@ -89,7 +89,7 @@ Handles integration with LangChain tools for registration.
 
 The main LangChain integration module.
 
-::: toolregistry.langchain
+::: toolregistry.integrations.langchain
     options:
         show_source: false
         show_root_heading: true
