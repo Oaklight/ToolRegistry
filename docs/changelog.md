@@ -22,6 +22,27 @@ This page documents all notable changes to the ToolRegistry project since the fi
     - Backward-compatible with legacy `{"module": "x", "class": "Y"}` config format
     - Denylist/allowlist mode with per-source enable/disable and `token_env` environment variable resolution
 
+### Refactoring
+
+- **Integration Package Restructuring**
+    - Moved `mcp/`, `openapi/`, `langchain/`, `native/` integration packages under a new `integrations/` parent package
+    - New canonical import paths: `toolregistry.integrations.mcp`, `toolregistry.integrations.openapi`, `toolregistry.integrations.langchain`, `toolregistry.integrations.native`
+    - Old import paths (`toolregistry.mcp`, `toolregistry.openapi`, etc.) preserved as deprecation shims that emit `DeprecationWarning`; these shims will be removed in a future release
+    - Public `ToolRegistry` API methods (`register_from_mcp()`, `register_from_openapi()`, etc.) are unchanged
+
+- **Consolidate Internal Modules**
+    - Consolidate mixin modules into `_mixins/` package
+    - Consolidate zero-dependency vendored modules into `_vendor/` package
+    - Use subpackage-level imports for llm-rosetta ToolOps
+
+### Maintenance
+
+- Bump `llm-rosetta` minimum to `>=0.5.1,<0.6.0`
+
+## [0.7.0] - 2026-04-06
+
+### New Features
+
 - **Anthropic & Gemini Schema Format Support** ([#55](../../issues/55), [#88](../../pull/88))
     - Add `"anthropic"` and `"gemini"` as valid `api_format` values for `get_schemas()` and `get_json_schema()`
     - All schema conversion is powered by [llm-rosetta](https://pypi.org/project/llm-rosetta/), which also sanitizes JSON Schema keywords unsupported by each format
@@ -85,12 +106,6 @@ This page documents all notable changes to the ToolRegistry project since the fi
     - Previously, Gemini `functionResponse.name` showed a random UUID instead of the function name because `convert_tool_calls()` was called twice independently, generating different IDs each time
 
 ### Refactoring
-
-- **Integration Package Restructuring**
-    - Moved `mcp/`, `openapi/`, `langchain/`, `native/` integration packages under a new `integrations/` parent package
-    - New canonical import paths: `toolregistry.integrations.mcp`, `toolregistry.integrations.openapi`, `toolregistry.integrations.langchain`, `toolregistry.integrations.native`
-    - Old import paths (`toolregistry.mcp`, `toolregistry.openapi`, etc.) preserved as deprecation shims that emit `DeprecationWarning`; these shims will be removed in a future release
-    - Public `ToolRegistry` API methods (`register_from_mcp()`, `register_from_openapi()`, etc.) are unchanged
 
 - **Pluggable Executor Backend Architecture** ([#78](../../issues/78))
     - Replace monolithic `Executor` class with a pluggable `executor/` package
