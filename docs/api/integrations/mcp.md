@@ -55,7 +55,7 @@ MCP 集成实现了与 Model Context Protocol 服务器的无缝通信，使 LLM
 
 提供异步和同步版本的 MCP 工具调用的包装器类。
 
-::: toolregistry.mcp.integration.MCPToolWrapper
+::: toolregistry.integrations.mcp.integration.MCPToolWrapper
     options:
         show_source: false
         show_root_heading: true
@@ -66,7 +66,7 @@ MCP 集成实现了与 Model Context Protocol 服务器的无缝通信，使 LLM
 
 保留原始函数元数据的 MCP 工具包装器类。
 
-::: toolregistry.mcp.integration.MCPTool
+::: toolregistry.integrations.mcp.integration.MCPTool
     options:
         show_source: false
         show_root_heading: true
@@ -77,7 +77,7 @@ MCP 集成实现了与 Model Context Protocol 服务器的无缝通信，使 LLM
 
 处理与 MCP 服务器集成以进行工具注册的类。
 
-::: toolregistry.mcp.integration.MCPIntegration
+::: toolregistry.integrations.mcp.integration.MCPIntegration
     options:
         show_source: false
         show_root_heading: true
@@ -90,7 +90,7 @@ MCP 集成实现了与 Model Context Protocol 服务器的无缝通信，使 LLM
 
 基于官方 `mcp` SDK 的最小 MCP 客户端适配器。支持 stdio、SSE、可流式 HTTP 和 WebSocket 传输。
 
-::: toolregistry.mcp.client.MCPClient
+::: toolregistry.integrations.mcp.client.MCPClient
     options:
         show_source: false
         show_root_heading: true
@@ -101,7 +101,7 @@ MCP 集成实现了与 Model Context Protocol 服务器的无缝通信，使 LLM
 
 MCP 集成主模块。
 
-::: toolregistry.mcp
+::: toolregistry.integrations.mcp
     options:
         show_source: false
         show_root_heading: true

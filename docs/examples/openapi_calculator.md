@@ -114,7 +114,7 @@ python openapi_calculator.py
 
     `register_from_openapi` 方法现在需要两个参数：
 
-    - `client_config`：使用 `toolregistry.openapi.HttpxClientConfig` 对象配置 HTTP 客户端（headers、auth、timeout 等），提供更大的灵活性。
+    - `client_config`：使用 `toolregistry.integrations.openapi.HttpxClientConfig` 对象配置 HTTP 客户端（headers、auth、timeout 等），提供更大的灵活性。
     - `openapi_spec`：使用 `load_openapi_spec` 或 `load_openapi_spec_async` 等函数从文件路径或服务/规范的 URL 加载的 OpenAPI 规范，类型为 `Dict[str, Any]`。
 
 我们分别使用 Cicada `MultiModalModel` 和 OpenAI 客户端来展示与工具注册表集成的不同方式。
@@ -122,7 +122,7 @@ python openapi_calculator.py
 示例：
 
 ```python
-from toolregistry.openapi import HttpxClientConfig, load_openapi_spec
+from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec
 
 client_config = HttpxClientConfig(base_url="http://localhost:8000")
 openapi_spec = load_openapi_spec("./openapi_spec.json") # specification at local path
@@ -144,7 +144,7 @@ import os
 from cicada.core.model import MultiModalModel
 from cicada.core.utils import cprint
 from dotenv import load_dotenv
-from toolregistry.openapi import HttpxClientConfig, load_openapi_spec
+from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec
 from toolregistry import ToolRegistry
 
 load_dotenv()
@@ -193,7 +193,7 @@ cprint(json.dumps(response, indent=2))
 import inspect
 import os
 from dotenv import load_dotenv
-from toolregistry.openapi import HttpxClientConfig, load_openapi_spec
+from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec
 from toolregistry import ToolRegistry
 from openai import OpenAI
 

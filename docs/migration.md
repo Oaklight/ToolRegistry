@@ -2,6 +2,52 @@
 
 本指南涵盖 ToolRegistry 主要版本之间的破坏性变更和迁移步骤。
 
+## 0.7.x → 0.8.0
+
+### 集成包移至 `integrations/` 下
+
+所有集成子包（`mcp`、`openapi`、`langchain`、`native`）已移至新的 `integrations/` 父包下。随着集成数量的增长，这提供了更清晰的项目结构。
+
+**之前（0.7.x）：**
+
+```python
+from toolregistry.mcp import MCPClient
+from toolregistry.openapi import OpenAPIIntegration
+from toolregistry.langchain import LangChainIntegration
+from toolregistry.native import NativeIntegration
+```
+
+**之后（0.8.0）：**
+
+```python
+from toolregistry.integrations.mcp import MCPClient
+from toolregistry.integrations.openapi import OpenAPIIntegration
+from toolregistry.integrations.langchain import LangChainIntegration
+from toolregistry.integrations.native import NativeIntegration
+```
+
+**导入路径对照：**
+
+| 旧路径（已弃用） | 新的规范路径 |
+|---|---|
+| `toolregistry.mcp` | `toolregistry.integrations.mcp` |
+| `toolregistry.openapi` | `toolregistry.integrations.openapi` |
+| `toolregistry.langchain` | `toolregistry.integrations.langchain` |
+| `toolregistry.native` | `toolregistry.integrations.native` |
+
+**向后兼容：** 旧导入路径仍然有效，但会发出 `DeprecationWarning`。它们将在未来版本中移除。请尽早更新你的导入路径。
+
+```python
+# 这在 0.8.0 中仍然有效，但会打印 DeprecationWarning：
+from toolregistry.mcp import MCPClient
+# DeprecationWarning: Importing from 'toolregistry.mcp' is deprecated.
+# Use 'toolregistry.integrations.mcp' instead.
+```
+
+**公开 API 不变：** `ToolRegistry` 的便捷方法——`register_from_mcp()`、`register_from_openapi()`、`register_from_langchain()` 和 `register_from_native()`——继续正常工作，无需代码修改。
+
+---
+
 ## 0.6.x → 0.7.0
 
 ### 执行器后端架构

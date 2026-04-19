@@ -54,7 +54,7 @@ LangChain 集成实现了 LangChain 工具与 ToolRegistry 生态系统之间的
 
 提供异步和同步版本的 LangChain 工具调用的包装器类。
 
-::: toolregistry.langchain.integration.LangChainToolWrapper
+::: toolregistry.integrations.langchain.integration.LangChainToolWrapper
     options:
         show_source: false
         show_root_heading: true
@@ -65,7 +65,7 @@ LangChain 集成实现了 LangChain 工具与 ToolRegistry 生态系统之间的
 
 保留原始函数元数据的 LangChain 工具包装器类。
 
-::: toolregistry.langchain.integration.LangChainTool
+::: toolregistry.integrations.langchain.integration.LangChainTool
     options:
         show_source: false
         show_root_heading: true
@@ -76,7 +76,7 @@ LangChain 集成实现了 LangChain 工具与 ToolRegistry 生态系统之间的
 
 处理与 LangChain 工具集成以进行注册的类。
 
-::: toolregistry.langchain.integration.LangChainIntegration
+::: toolregistry.integrations.langchain.integration.LangChainIntegration
     options:
         show_source: false
         show_root_heading: true
@@ -89,7 +89,7 @@ LangChain 集成实现了 LangChain 工具与 ToolRegistry 生态系统之间的
 
 LangChain 集成主模块。
 
-::: toolregistry.langchain
+::: toolregistry.integrations.langchain
     options:
         show_source: false
         show_root_heading: true

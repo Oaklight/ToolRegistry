@@ -12,7 +12,7 @@
 
 `register_from_openapi` 方法现在接受两个参数：
 
-- `client_config`：一个 `toolregistry.openapi.HttpxClientConfig` 对象，用于配置与 API 交互的 HTTP 客户端。你可以配置请求头、授权方式、超时时间和其他设置，比之前的版本提供了更大的灵活性。
+- `client_config`：一个 `toolregistry.integrations.openapi.HttpxClientConfig` 对象，用于配置与 API 交互的 HTTP 客户端。你可以配置请求头、授权方式、超时时间和其他设置，比之前的版本提供了更大的灵活性。
 - `openapi_spec`：OpenAPI 规范，类型为 `Dict[str, Any]`，通过 `load_openapi_spec` 或 `load_openapi_spec_async` 等函数加载。这些函数接受 OpenAPI 规范的文件路径、URL 或基础 API 的 URL，并返回解析后的 OpenAPI 规范字典。
 
 你现在必须显式传递 `client_config` 和 `openapi_spec` 这两个参数。
@@ -25,7 +25,7 @@
 
 ```python
 import os
-from toolregistry.openapi import HttpxClientConfig, load_openapi_spec
+from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec
 from toolregistry import ToolRegistry
 
 PORT = os.getenv("PORT", 8000)  # Default port is 8000; can be overridden by an environment variable
@@ -74,7 +74,7 @@ print(registry)  # Output: A ToolRegistry object with the registered OpenAPI too
 ```python
 import asyncio
 import os
-from toolregistry.openapi import HttpxClientConfig, load_openapi_spec_async
+from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec_async
 from toolregistry import ToolRegistry
 
 PORT = os.getenv("PORT", 8000)
@@ -94,7 +94,7 @@ asyncio.run(async_register())
 在某些情况下，OpenAPI 服务可能需要特定的配置，例如自定义请求头、超时时间或 SSL 证书。你可以通过 `HttpxClientConfig` 类来调整这些设置。以下是在请求头中使用 Bearer Token 授权的示例。
 
 ```python
-from toolregistry.openapi import HttpxClientConfig
+from toolregistry.integrations.openapi import HttpxClientConfig
 
 OPENAPI_SERVER_URL = os.getenv("OPENAPI_SERVER_URL", "http://localhost:8000")
 OPENAPI_BEARER_TOKENS = os.getenv("OPENAPI_BEARER_TOKENS", "your-api-token")
@@ -108,7 +108,7 @@ client_config = HttpxClientConfig(
 如果不需要特殊配置，只需使用 `base_url` 创建 HttpxClientConfig 即可：
 
 ```python
-from toolregistry.openapi import HttpxClientConfig
+from toolregistry.integrations.openapi import HttpxClientConfig
 
 client_config = HttpxClientConfig(
     base_url=OPENAPI_SERVER_URL,
@@ -123,7 +123,7 @@ client_config = HttpxClientConfig(
 2. **提供文件路径**：如果你提供文件路径（例如 `./openapi_spec.json`），函数将直接从文件加载 OpenAPI 规范。与简单的直接加载不同，该功能包括展开 OpenAPI 规范中常见的 `$ref` 块。这确保了返回的字典中所有模式引用都已完全解析。
 
 ```python
-from toolregistry.openapi import load_openapi_spec
+from toolregistry.integrations.openapi import load_openapi_spec
 
 openapi_spec = load_openapi_spec("./openapi_spec.json") # Load from file
 openapi_spec = load_openapi_spec("http://localhost:8000") # auto-discovery with URL to service root
@@ -143,7 +143,7 @@ openapi_spec = load_openapi_spec("http://localhost:8000/openapi.json") # load fr
 
 ```python
 from toolregistry import ToolRegistry
-from toolregistry.openapi import HttpxClientConfig, load_openapi_spec
+from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec
 
 with ToolRegistry() as registry:
     client_config = HttpxClientConfig(base_url="http://localhost:8000")
@@ -230,7 +230,7 @@ asyncio.run(call_async_add_tool())
 
 ```python
 from dotenv import load_dotenv
-from toolregistry.openapi import HttpxClientConfig, load_openapi_spec
+from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec
 from toolregistry import ToolRegistry
 from openai import OpenAI
 import os

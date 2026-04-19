@@ -101,7 +101,7 @@ class DerivedTools(BaseTools):
 
 处理与 Python 类集成以进行方法注册的类。
 
-::: toolregistry.native.integration.ClassToolIntegration
+::: toolregistry.integrations.native.integration.ClassToolIntegration
     options:
         show_source: false
         show_root_heading: true
@@ -114,7 +114,7 @@ class DerivedTools(BaseTools):
 
 原生集成主模块。
 
-::: toolregistry.native
+::: toolregistry.integrations.native
     options:
         show_source: false
         show_root_heading: true
@@ -125,7 +125,7 @@ class DerivedTools(BaseTools):
 
 用于原生集成的实用函数。
 
-::: toolregistry.native.utils
+::: toolregistry.integrations.native.utils
     options:
         show_source: false
         show_root_heading: true

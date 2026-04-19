@@ -86,6 +86,12 @@ author: Oaklight
 
 ### 重构
 
+- **集成包结构重组**
+    - 将 `mcp/`、`openapi/`、`langchain/`、`native/` 集成包移至新的 `integrations/` 父包下
+    - 新的规范导入路径：`toolregistry.integrations.mcp`、`toolregistry.integrations.openapi`、`toolregistry.integrations.langchain`、`toolregistry.integrations.native`
+    - 旧导入路径（`toolregistry.mcp`、`toolregistry.openapi` 等）保留为弃用兼容层，会发出 `DeprecationWarning`；这些兼容层将在未来版本中移除
+    - 公开的 `ToolRegistry` API 方法（`register_from_mcp()`、`register_from_openapi()` 等）保持不变
+
 - **可插拔 Executor 后端架构**（[#78](../../issues/78)）
     - 将单体 `Executor` 类替换为可插拔的 `executor/` 包
     - 新增 `ExecutionBackend` Protocol 和 `ExecutionHandle` ABC，实现后端可扩展性
