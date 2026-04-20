@@ -175,12 +175,19 @@ class OpenAPITool(Tool):
             persistent=persistent,
         )
 
+        # Build source_detail from the base URL and endpoint path.
+        source_detail = f"{client_config.base_url}{path}"
+
         tool = cls(
             name=func_name,
             description=description,
             parameters=parameters,
             callable=wrapper,
-            metadata=ToolMetadata(is_async=False),
+            metadata=ToolMetadata(
+                is_async=False,
+                source="openapi",
+                source_detail=source_detail,
+            ),
         )
 
         if namespace:
