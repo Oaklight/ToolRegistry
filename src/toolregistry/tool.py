@@ -1,4 +1,5 @@
 import inspect
+import warnings
 from enum import Enum
 from typing import Any, Literal
 from collections.abc import Callable
@@ -296,7 +297,13 @@ class Tool(BaseModel):
         parameters_model = None
         try:
             parameters_model = _generate_parameters_model(func)
-        except Exception:
+        except Exception as e:
+            warnings.warn(
+                f"Failed to generate parameter model for '{func_name}': {e}. "
+                "The tool will be registered without parameter validation.",
+                UserWarning,
+                stacklevel=2,
+            )
             parameters_model = None
         parameters_schema = (
             parameters_model.model_json_schema() if parameters_model else {}

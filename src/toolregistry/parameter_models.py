@@ -1,4 +1,5 @@
 import inspect
+import warnings
 from typing import Any, get_type_hints
 from collections.abc import Callable
 
@@ -122,10 +123,25 @@ def _generate_parameters_model(func: Callable) -> type[ArgModelBase] | None:
             if param.name == "self":
                 continue
             # Skip *args and **kwargs — they are not individual named parameters
-            if param.kind in (
-                inspect.Parameter.VAR_POSITIONAL,
-                inspect.Parameter.VAR_KEYWORD,
-            ):
+            if param.kind == inspect.Parameter.VAR_POSITIONAL:
+                warnings.warn(
+                    f"Parameter '*{param.name}' (*args) in "
+                    f"'{getattr(func, '__name__', '<unknown>')}' is not "
+                    "representable in JSON Schema and will be excluded "
+                    "from the tool schema.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                continue
+            if param.kind == inspect.Parameter.VAR_KEYWORD:
+                warnings.warn(
+                    f"Parameter '**{param.name}' (**kwargs) in "
+                    f"'{getattr(func, '__name__', '<unknown>')}' is not "
+                    "representable in JSON Schema and will be excluded "
+                    "from the tool schema.",
+                    UserWarning,
+                    stacklevel=2,
+                )
                 continue
 
             annotation = _get_typed_annotation(param.annotation, globalns)
