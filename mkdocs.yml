@@ -51,6 +51,75 @@ plugins:
             merge_init_into_class: true
             separate_signature: true
             show_signature_annotations: true
+  - llmstxt:
+      full_output: llms-full.txt
+      sections:
+        Architecture:
+          - architecture/overview.md
+          - usage/concurrency_modes.md
+          - usage/namespace.md
+        Usage:
+          - usage/installation.md
+          - usage/basics.md
+          - usage/function_calling.md
+          - usage/integrations/class.md
+          - usage/integrations/hub.md
+          - usage/integrations/mcp.md
+          - usage/integrations/openapi.md
+          - usage/integrations/langchain.md
+          - usage/tool_discovery.md
+          - usage/think_augmented.md
+          - usage/result_management.md
+          - usage/permissions.md
+          - usage/message_building.md
+          - usage/configuration.md
+          - usage/best_practices.md
+          - usage/providers/openai_chat.md
+          - usage/providers/openai_response.md
+          - usage/providers/anthropic.md
+          - usage/providers/gemini.md
+        Examples:
+          - examples/index.md
+          - examples/consecutive_tool_calls.md
+          - examples/hub_calculator.md
+          - examples/hub_file_edit.md
+          - examples/hub_websearch.md
+          - examples/langchain_arxiv.md
+          - examples/mcp_calculator.md
+          - examples/mcp_diverse_transport.md
+          - examples/openapi_calculator.md
+        API Reference:
+          - api/index.md
+          - api/core.md
+          - api/core/toolregistry.md
+          - api/core/tool.md
+          - api/core/executor.md
+          - api/events.md
+          - api/permissions.md
+          - api/integrations.md
+          - api/integrations/openapi.md
+          - api/integrations/mcp.md
+          - api/integrations/langchain.md
+          - api/integrations/native.md
+          - api/wrappers.md
+          - api/wrappers/basetoolwrapper.md
+          - api/wrappers/mcp.md
+          - api/wrappers/openapi.md
+          - api/wrappers/langchain.md
+          - api/helpers.md
+          - api/types.md
+        Admin Panel:
+          - admin/index.md
+          - admin/configuration.md
+          - admin/execution-logging.md
+          - admin/rest-api.md
+          - admin/web-ui.md
+          - admin/security.md
+          - admin/examples.md
+        Other:
+          - ecosystem.md
+          - migration.md
+          - changelog.md
 
 markdown_extensions:
   - admonition
