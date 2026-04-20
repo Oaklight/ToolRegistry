@@ -64,15 +64,7 @@ class ClassToolIntegration:
             if _is_all_static_methods(cls_or_instance):
                 self._register_static_methods(cls_or_instance, resolved_ns)
             else:
-                try:
-                    instance = cls_or_instance()
-                except TypeError as e:
-                    raise TypeError(
-                        f"Try to register methods from class {cls_or_instance.__name__}. "
-                        "Found mixed static and instance methods. "
-                        "Attempted to instantiate the class, but failed without arguments. "
-                        "Please provide an instance of the class."
-                    ) from e
+                instance = self._instantiate_class(cls_or_instance)
                 self._register_instance_methods(instance, resolved_ns)
         else:
             self._register_instance_methods(cls_or_instance, resolved_ns)
@@ -98,6 +90,97 @@ class ClassToolIntegration:
         await loop.run_in_executor(
             None, self.register_class_methods, cls_or_instance, namespace
         )
+
+    @staticmethod
+    def _get_required_init_params(
+        cls: type,
+    ) -> list[inspect.Parameter]:
+        """Inspect ``__init__`` and return parameters that have no default value.
+
+        Parameters of kind ``VAR_POSITIONAL`` (``*args``) and
+        ``VAR_KEYWORD`` (``**kwargs``) are excluded because they do not
+        prevent zero-argument instantiation.
+
+        Args:
+            cls: The class to inspect.
+
+        Returns:
+            A list of ``inspect.Parameter`` objects that are required
+            (i.e. have no default and are not variadic).
+        """
+        try:
+            sig = inspect.signature(cls.__init__)
+        except (ValueError, TypeError):
+            return []
+
+        required: list[inspect.Parameter] = []
+        for name, param in sig.parameters.items():
+            if name == "self":
+                continue
+            if param.kind in (
+                inspect.Parameter.VAR_POSITIONAL,
+                inspect.Parameter.VAR_KEYWORD,
+            ):
+                continue
+            if param.default is inspect.Parameter.empty:
+                required.append(param)
+        return required
+
+    @staticmethod
+    def _format_param(param: inspect.Parameter) -> str:
+        """Format a single parameter as ``name: annotation`` or just ``name``.
+
+        Args:
+            param: The parameter to format.
+
+        Returns:
+            A human-readable string representation of the parameter.
+        """
+        if param.annotation is not inspect.Parameter.empty:
+            ann = (
+                param.annotation.__name__
+                if isinstance(param.annotation, type)
+                else str(param.annotation)
+            )
+            return f"{param.name}: {ann}"
+        return param.name
+
+    def _instantiate_class(self, cls: type) -> object:
+        """Attempt to instantiate *cls* with no arguments.
+
+        Before calling ``cls()``, this method inspects ``__init__`` for
+        required parameters.  If any are found, a ``TypeError`` is raised
+        immediately with a message that lists the missing parameters and
+        suggests passing a pre-constructed instance instead.
+
+        Args:
+            cls: The class to instantiate.
+
+        Returns:
+            An instance of *cls*.
+
+        Raises:
+            TypeError: If the class requires constructor arguments or if
+                zero-argument instantiation fails for another reason.
+        """
+        required_params = self._get_required_init_params(cls)
+        if required_params:
+            formatted = ", ".join(self._format_param(p) for p in required_params)
+            example_args = ", ".join(f"{p.name}=..." for p in required_params)
+            raise TypeError(
+                f"Class '{cls.__name__}' requires constructor arguments ({formatted}). "
+                f"Please instantiate it first: "
+                f"register_from_class({cls.__name__}({example_args}))"
+            )
+
+        try:
+            return cls()
+        except TypeError as e:
+            raise TypeError(
+                f"Failed to instantiate class '{cls.__name__}' with no arguments: {e}. "
+                f"Please pass a pre-constructed instance instead: "
+                f"register_from_class({cls.__name__}(...))"
+            ) from e
 
     def _collect_static_methods_from_mro(self, cls: type) -> dict:
         """Collect static methods by traversing the MRO, with subclass priority.
