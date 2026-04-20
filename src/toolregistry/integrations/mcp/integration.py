@@ -239,12 +239,25 @@ class MCPTool(Tool):
             ),
         )
 
+        # Build a human-readable source_detail from the transport config.
+        transport = connection.transport
+        if isinstance(transport, dict):
+            cmd = transport.get("command", "")
+            args = " ".join(transport.get("args", []))
+            source_detail = f"stdio:{cmd} {args}".strip()
+        else:
+            source_detail = str(transport)
+
         tool = cls(
             name=normalize_tool_name(name),
             description=description,
             parameters=input_schema,
             callable=wrapper,
-            metadata=ToolMetadata(is_async=False),
+            metadata=ToolMetadata(
+                is_async=False,
+                source="mcp",
+                source_detail=source_detail,
+            ),
         )
 
         if namespace:

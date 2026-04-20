@@ -106,12 +106,20 @@ class LangChainTool(Tool):
         input_schema = tool.input_schema.model_json_schema()
         del input_schema["description"]  # del it for the sake of consistency
 
+        # Use the fully-qualified class name as source_detail.
+        tool_cls = type(tool)
+        source_detail = f"{tool_cls.__module__}.{tool_cls.__qualname__}"
+
         tool_instance = cls(
             name=wrapper.name,
             description=wrapper.tool.description,
             parameters=input_schema,
             callable=wrapper,
-            metadata=ToolMetadata(is_async=False),
+            metadata=ToolMetadata(
+                is_async=False,
+                source="langchain",
+                source_detail=source_detail,
+            ),
         )
 
         if namespace:

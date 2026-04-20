@@ -57,6 +57,10 @@ class ToolMetadata(BaseModel):
             ``ToolRegistry.execute_tool_calls()``. None means no limit.
         tags: Predefined tags from ToolTag enum.
         custom_tags: User-defined free-form string tags.
+        source: Origin of the tool (e.g. ``"native"``, ``"mcp"``,
+            ``"openapi"``, ``"langchain"``).
+        source_detail: Extra detail about the tool's origin (e.g. a
+            transport URI, spec URL, or class name).
         extra: Arbitrary key-value pairs for application-specific use.
     """
 
@@ -68,6 +72,21 @@ class ToolMetadata(BaseModel):
 
     tags: set[ToolTag] = Field(default_factory=set)
     custom_tags: set[str] = Field(default_factory=set)
+
+    source: str = "native"
+    """Origin of the tool.
+
+    Indicates which integration registered the tool.  Standard values:
+    ``"native"``, ``"mcp"``, ``"openapi"``, ``"langchain"``.
+    """
+
+    source_detail: str = ""
+    """Extra detail about the tool's origin.
+
+    Free-form string providing additional context about where the tool
+    came from, e.g. a transport URI for MCP tools, a spec URL for
+    OpenAPI tools, or a class name for LangChain tools.
+    """
 
     extra: dict[str, Any] = Field(default_factory=dict)
 
