@@ -1,7 +1,7 @@
 site_name: ToolRegistry
 site_description: 面向函数调用 LLM 的协议无关工具管理库（OpenAI、Anthropic、Gemini、LangChain、MCP）
 site_author: Peng Ding
-site_url: https://toolregistry.readthedocs.io/zh-cn/
+site_url: https://toolregistry.readthedocs.io/zh-cn/latest
 repo_name: Oaklight/ToolRegistry
 repo_url: https://github.com/Oaklight/ToolRegistry
 copyright: Copyright &copy; 2024 Peng Ding
