@@ -8,6 +8,7 @@ copyright: Copyright &copy; 2024 Peng Ding
 
 theme:
   name: material
+  custom_dir: overrides
   language: en
   palette:
     - media: "(prefers-color-scheme)"
@@ -150,10 +151,10 @@ extra:
       link: https://pypi.org/project/toolregistry/
   alternate:
     - name: English
-      link: /en/
+      link: /en/latest/
       lang: en
     - name: 中文
-      link: /zh-cn/
+      link: /zh-cn/latest/
       lang: zh
 
 nav:
