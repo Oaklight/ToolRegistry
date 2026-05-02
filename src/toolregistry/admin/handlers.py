@@ -190,6 +190,40 @@ class AdminRequestHandler(BaseHTTPRequestHandler):
 
     # ============== Route Handlers ==============
 
+    def _evaluate_tool_permission(self, tool_name: str) -> dict[str, Any] | None:
+        """Evaluate permission for a tool against the current policy.
+
+        Args:
+            tool_name: Name of the tool to evaluate.
+
+        Returns:
+            Dict with result, rule_name, and reason, or None if no policy.
+        """
+        policy = self.registry.get_permission_policy()
+        if policy is None:
+            return None
+
+        tool = self.registry.get_tool(tool_name)
+        if tool is None:
+            return None
+
+        from ..permissions import PermissionResult, PermissionRule
+
+        result = policy.evaluate(tool, {})
+        if isinstance(result, PermissionRule):
+            return {
+                "result": result.result.value,
+                "rule_name": result.name,
+                "reason": result.reason,
+            }
+        elif isinstance(result, PermissionResult):
+            return {
+                "result": result.value,
+                "rule_name": None,
+                "reason": "Fallback policy",
+            }
+        return None
+
     def _handle_root(self) -> None:
         """Handle root path - serve UI or redirect."""
         if self.serve_ui:
@@ -226,6 +260,11 @@ class AdminRequestHandler(BaseHTTPRequestHandler):
     def _handle_get_tools(self) -> None:
         """Handle GET /api/tools - get all tools status."""
         tools_status = self.registry.get_tools_status()
+        # Enrich with permission evaluation
+        for tool_status in tools_status:
+            tool_status["permission"] = self._evaluate_tool_permission(
+                tool_status["name"]
+            )
         self._send_json_response({"tools": tools_status})
 
     def _handle_get_tool(self, tool_name: str) -> None:
@@ -250,6 +289,7 @@ class AdminRequestHandler(BaseHTTPRequestHandler):
             "enabled": enabled,
             "reason": reason,
             "schema": tool.get_schema(),
+            "permission": self._evaluate_tool_permission(tool_name),
             "metadata": {
                 "is_async": tool.metadata.is_async,
                 "is_concurrency_safe": tool.metadata.is_concurrency_safe,

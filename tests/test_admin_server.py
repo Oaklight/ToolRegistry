@@ -706,3 +706,78 @@ class TestAdminServerEnrichedAPI:
 
         assert data["rules"][1]["name"] == "deny_network"
         assert data["rules"][1]["result"] == "deny"
+
+    def test_get_tools_includes_permission(self, server_with_metadata) -> None:
+        """Test GET /api/tools includes permission evaluation for each tool."""
+        server, info, registry = server_with_metadata
+
+        # Without policy, permission should be None
+        status, data = self._request(f"{info.url}/api/tools")
+        assert status == 200
+        tools = {t["name"]: t for t in data["tools"]}
+        assert tools["math-add"]["permission"] is None
+
+        # Set a policy
+        policy = PermissionPolicy(
+            rules=[
+                PermissionRule(
+                    name="allow_readonly",
+                    match=lambda t, p: ToolTag.READ_ONLY in t.metadata.tags,
+                    result=PermissionResult.ALLOW,
+                    reason="Read-only tools are safe",
+                ),
+                PermissionRule(
+                    name="deny_network",
+                    match=lambda t, p: ToolTag.NETWORK in t.metadata.tags,
+                    result=PermissionResult.DENY,
+                    reason="Network tools need review",
+                ),
+            ],
+            fallback=PermissionResult.ASK,
+        )
+        registry.set_permission_policy(policy)
+
+        status, data = self._request(f"{info.url}/api/tools")
+        assert status == 200
+        tools = {t["name"]: t for t in data["tools"]}
+
+        # math-add has READ_ONLY tag → allow
+        add_perm = tools["math-add"]["permission"]
+        assert add_perm["result"] == "allow"
+        assert add_perm["rule_name"] == "allow_readonly"
+
+        # web-search has NETWORK tag → deny (first-match-wins, but also has no READ_ONLY)
+        search_perm = tools["web-search"]["permission"]
+        assert search_perm["result"] == "deny"
+        assert search_perm["rule_name"] == "deny_network"
+
+    def test_get_tool_detail_includes_permission(self, server_with_metadata) -> None:
+        """Test GET /api/tools/{name} includes permission evaluation."""
+        server, info, registry = server_with_metadata
+
+        # Set a policy
+        policy = PermissionPolicy(
+            rules=[
+                PermissionRule(
+                    name="allow_readonly",
+                    match=lambda t, p: ToolTag.READ_ONLY in t.metadata.tags,
+                    result=PermissionResult.ALLOW,
+                    reason="Read-only tools are safe",
+                ),
+            ],
+            fallback=PermissionResult.ASK,
+        )
+        registry.set_permission_policy(policy)
+
+        # math-add matches allow_readonly
+        status, data = self._request(f"{info.url}/api/tools/math-add")
+        assert status == 200
+        assert data["permission"]["result"] == "allow"
+        assert data["permission"]["rule_name"] == "allow_readonly"
+        assert data["permission"]["reason"] == "Read-only tools are safe"
+
+        # web-search doesn't match any rule → fallback (ask)
+        status, data = self._request(f"{info.url}/api/tools/web-search")
+        assert status == 200
+        assert data["permission"]["result"] == "ask"
+        assert data["permission"]["rule_name"] is None
