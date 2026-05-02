@@ -519,12 +519,14 @@
         /* ============== Search & Filters ============== */
         .search-bar {
             display: flex;
-            gap: 12px;
+            gap: 8px;
             margin-bottom: 16px;
+            align-items: center;
         }
 
         .search-input {
             flex: 1;
+            min-width: 140px;
             position: relative;
             display: flex;
             align-items: center;
@@ -551,10 +553,26 @@
             height: 14px;
         }
 
+        .search-bar .select {
+            width: auto;
+            flex: 0 0 auto;
+        }
+
         .filter-group {
             display: flex;
             gap: 8px;
-            flex-wrap: wrap;
+            align-items: center;
+            flex: 1;
+        }
+
+        .filter-group .input {
+            width: auto;
+            flex: 0 0 auto;
+        }
+
+        .filter-group .input[type="text"] {
+            flex: 1;
+            min-width: 120px;
         }
 
         /* ============== Stats Grid ============== */
@@ -908,15 +926,28 @@
             }
 
             .search-bar {
-                flex-direction: column;
+                flex-wrap: wrap;
+            }
+
+            .search-input {
+                width: 100%;
+                flex: 1 1 100%;
+            }
+
+            .search-bar .select {
+                flex: 1 1 auto;
+                min-width: 0;
             }
 
             .filter-group {
                 width: 100%;
+                flex-wrap: wrap;
             }
 
-            .filter-group .select {
-                flex: 1;
+            .filter-group .input {
+                flex: 1 1 auto;
+                width: auto;
+                min-width: 0;
             }
 
             th, td {
@@ -1016,7 +1047,7 @@
         .badge-tag-network    { background: rgba(59,130,246,0.10); color: #3B82F6; }
         .badge-tag-privileged { background: rgba(139,92,246,0.10); color: #8B5CF6; }
         .badge-tag-file_system{ background: rgba(20,184,166,0.10); color: #14B8A6; }
-        .badge-tag-custom     { background: var(--bg-primary);     color: var(--text-secondary); }
+        .badge-tag-custom     { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); }
 
         .badge-locality {
             display: inline-flex;
@@ -1268,7 +1299,7 @@
                         </div>
                         <div class="card-body no-padding">
                             <div class="search-bar" style="padding: 16px 16px 0;">
-                                <div class="search-input" style="flex: 1;">
+                                <div class="search-input">
                                     <span class="search-icon">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <circle cx="11" cy="11" r="8"></circle>
@@ -1277,25 +1308,23 @@
                                     </span>
                                     <input type="text" class="input" id="tool-search" placeholder="Search tools..." oninput="filterTools()">
                                 </div>
-                                <div class="filter-group">
-                                    <select class="input select" id="namespace-filter" onchange="filterTools()">
-                                        <option value="">All Namespaces</option>
-                                    </select>
-                                    <select class="input select" id="status-filter" onchange="filterTools()">
-                                        <option value="">All Status</option>
-                                        <option value="enabled">Enabled</option>
-                                        <option value="disabled">Disabled</option>
-                                    </select>
-                                    <select class="input select" id="tag-filter" onchange="filterTools()">
-                                        <option value="">All Tags</option>
-                                    </select>
-                                    <select class="input select" id="locality-filter" onchange="filterTools()">
-                                        <option value="">All Locality</option>
-                                        <option value="local">Local</option>
-                                        <option value="remote">Remote</option>
-                                        <option value="any">Any</option>
-                                    </select>
-                                </div>
+                                <select class="input select" id="namespace-filter" onchange="filterTools()">
+                                    <option value="">All Namespaces</option>
+                                </select>
+                                <select class="input select" id="status-filter" onchange="filterTools()">
+                                    <option value="">All Status</option>
+                                    <option value="enabled">Enabled</option>
+                                    <option value="disabled">Disabled</option>
+                                </select>
+                                <select class="input select" id="tag-filter" onchange="filterTools()">
+                                    <option value="">All Tags</option>
+                                </select>
+                                <select class="input select" id="locality-filter" onchange="filterTools()">
+                                    <option value="">All Locality</option>
+                                    <option value="local">Local</option>
+                                    <option value="remote">Remote</option>
+                                    <option value="any">Any</option>
+                                </select>
                             </div>
                             <div class="table-container">
                                 <table class="tools-table">
@@ -1303,12 +1332,13 @@
                                         <tr>
                                             <th class="col-chevron"></th>
                                             <th class="col-name">Name</th>
+                                            <th class="col-permission">Permission</th>
                                             <th class="col-enabled">Enabled</th>
                                             <th class="col-reason">Reason</th>
                                         </tr>
                                     </thead>
                                     <tbody id="tools-body">
-                                        <tr><td colspan="4" class="loading"><div class="spinner"></div>Loading...</td></tr>
+                                        <tr><td colspan="5" class="loading"><div class="spinner"></div>Loading...</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -1704,7 +1734,7 @@
             }
         }
 
-        // Tag color mapping for known tags
+        // Tag color mapping for known ToolTag values
         const TAG_CLASSES = {
             'read_only': 'badge-tag-read_only',
             'destructive': 'badge-tag-destructive',
@@ -1714,11 +1744,27 @@
             'file_system': 'badge-tag-file_system',
         };
 
+        function normalizeTagKey(tag) {
+            // Strip "ToolTag." prefix and lowercase for matching
+            const key = tag.replace(/^ToolTag\./i, '').toLowerCase();
+            return key;
+        }
+
         function renderTagBadges(tags) {
             if (!tags || tags.length === 0) return '';
-            return tags.map(tag => {
-                const cls = TAG_CLASSES[tag] || 'badge-tag-custom';
-                return `<span class="badge-tag ${cls}">${escapeHtml(tag)}</span>`;
+            // Sort: system tags first, then custom tags
+            const sorted = [...tags].sort((a, b) => {
+                const aIsSystem = !!TAG_CLASSES[normalizeTagKey(a)];
+                const bIsSystem = !!TAG_CLASSES[normalizeTagKey(b)];
+                if (aIsSystem && !bIsSystem) return -1;
+                if (!aIsSystem && bIsSystem) return 1;
+                return a.localeCompare(b);
+            });
+            return sorted.map(tag => {
+                const key = normalizeTagKey(tag);
+                const cls = TAG_CLASSES[key] || 'badge-tag-custom';
+                const label = TAG_CLASSES[key] ? key : tag;
+                return `<span class="badge-tag ${cls}">${escapeHtml(label)}</span>`;
             }).join('');
         }
 
@@ -1738,6 +1784,13 @@
                 icons += `<span class="meta-icon" title="Deferred">D</span>`;
             }
             return icons ? `<span class="tool-meta-icons">${icons}</span>` : '';
+        }
+
+        function renderPermissionBadge(perm) {
+            if (!perm) return '<span style="color: var(--border);">&mdash;</span>';
+            const cls = 'badge-' + perm.result;
+            const title = perm.rule_name ? `${perm.rule_name}: ${perm.reason}` : perm.reason;
+            return `<span class="${cls}" title="${escapeHtml(title)}">${perm.result}</span>`;
         }
 
         function renderTools(tools) {
@@ -1781,6 +1834,7 @@
                         <span style="font-weight: 500;">${escapeHtml(ns)}</span>
                         <span class="text-muted" style="margin-left: 8px; font-size: 0.6875rem;">${children.length} tool${children.length > 1 ? 's' : ''}</span>
                     </td>
+                    <td></td>
                     <td>
                         ${isDefault ? '' : `<label class="toggle-switch toggle-ns" title="${allEnabled ? 'Click to disable all' : 'Click to enable all'}" onclick="event.stopPropagation()">
                             <input type="checkbox" ${allEnabled ? 'checked' : ''}
@@ -1795,6 +1849,7 @@
                     const shortName = (!isDefault && tool.name.startsWith(ns + '-')) ? tool.name.slice(ns.length + 1) : tool.name;
                     const tagBadges = renderTagBadges(tool.tags);
                     const metaIcons = renderMetaIcons(tool);
+                    const permBadge = renderPermissionBadge(tool.permission);
                     html += `
                 <tr class="ns-child-row" data-ns-group="${nsId}">
                     <td></td>
@@ -1803,6 +1858,7 @@
                         <span class="tool-badges">${tagBadges}</span>
                         ${metaIcons}
                     </td>
+                    <td>${permBadge}</td>
                     <td>
                         <label class="toggle-switch" title="${tool.enabled ? 'Click to disable' : 'Click to enable'}">
                             <input type="checkbox" ${tool.enabled ? 'checked' : ''}
@@ -2254,9 +2310,15 @@
                 document.getElementById('detail-title').textContent = tool.name;
 
                 const meta = tool.metadata || {};
-                const tags = [...(meta.tags || []), ...(meta.custom_tags || [])];
+                const systemTags = (meta.tags || []);
+                const customTags = (meta.custom_tags || []);
 
                 let html = '';
+
+                const perm = tool.permission;
+                const permHtml = perm
+                    ? `<span class="badge-${perm.result}">${perm.result}</span>${perm.rule_name ? ` <span class="text-muted" style="font-size: 0.75rem;">(${escapeHtml(perm.rule_name)})</span>` : ''}`
+                    : '<span class="text-muted">No policy</span>';
 
                 // Basic info
                 html += `<div class="detail-section">
@@ -2266,8 +2328,10 @@
                         <div class="meta-item"><span class="meta-label">Namespace</span><span class="meta-value">${escapeHtml(tool.namespace || 'default')}</span></div>
                         <div class="meta-item"><span class="meta-label">Method Name</span><span class="meta-value">${escapeHtml(tool.method_name || tool.name)}</span></div>
                         <div class="meta-item"><span class="meta-label">Status</span><span class="meta-value">${tool.enabled ? '<span class="text-success">Enabled</span>' : '<span class="text-error">Disabled</span>'}</span></div>
+                        <div class="meta-item"><span class="meta-label">Permission</span><span class="meta-value">${permHtml}</span></div>
                     </div>
                     ${tool.reason ? `<div class="meta-item mt-2"><span class="meta-label">Disable Reason</span><span class="meta-value text-error">${escapeHtml(tool.reason)}</span></div>` : ''}
+                    ${perm && perm.reason ? `<div class="meta-item mt-2"><span class="meta-label">Permission Reason</span><span class="meta-value">${escapeHtml(perm.reason)}</span></div>` : ''}
                     <div class="mt-2"><span class="meta-label">Description</span><p style="font-size: 0.8125rem; margin-top: 4px;">${escapeHtml(tool.description || '')}</p></div>
                 </div>`;
 
@@ -2284,7 +2348,8 @@
                         <div class="meta-item"><span class="meta-label">Deferred</span><span class="meta-value">${meta.defer ? 'Yes' : 'No'}</span></div>
                         <div class="meta-item"><span class="meta-label">Search Hint</span><span class="meta-value">${escapeHtml(meta.search_hint) || '—'}</span></div>
                     </div>
-                    ${tags.length > 0 ? `<div class="mt-2"><span class="meta-label">Tags</span><div style="margin-top: 4px;">${renderTagBadges(tags)}</div></div>` : ''}
+                    ${systemTags.length > 0 ? `<div class="mt-2"><span class="meta-label">Tags</span><div style="margin-top: 4px;">${renderTagBadges(systemTags)}</div></div>` : ''}
+                    ${customTags.length > 0 ? `<div class="mt-2"><span class="meta-label">Custom Tags</span><div style="margin-top: 4px;">${renderTagBadges(customTags)}</div></div>` : ''}
                     ${meta.extra && Object.keys(meta.extra).length > 0 ? `<div class="mt-2"><span class="meta-label">Extra</span><pre style="margin-top: 4px; background: var(--bg-primary); padding: 8px; border-radius: var(--radius-sm); font-size: 0.75rem;">${escapeHtml(JSON.stringify(meta.extra, null, 2))}</pre></div>` : ''}
                 </div>`;
 
