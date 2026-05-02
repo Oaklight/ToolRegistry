@@ -11,6 +11,8 @@ import urllib.error
 import pytest
 
 from toolregistry import AdminInfo, AdminServer, TokenAuth, ToolRegistry
+from toolregistry.permissions import PermissionPolicy, PermissionResult, PermissionRule
+from toolregistry.tool import ToolTag
 
 
 class TestTokenAuth:
@@ -522,3 +524,185 @@ class TestAdminServerWithLogging:
         status, data = self._request(f"{info.url}/api/logs", method="DELETE")
         assert status == 200
         assert data["success"] is True
+
+
+class TestAdminServerEnrichedAPI:
+    """Tests for enriched API responses with metadata and permissions."""
+
+    @pytest.fixture
+    def server_with_metadata(self):
+        """Create a server with tools that have rich metadata."""
+        registry = ToolRegistry()
+
+        def add(a: int, b: int) -> int:
+            """Add two numbers."""
+            return a + b
+
+        def search(query: str) -> str:
+            """Search the web."""
+            return f"Results for {query}"
+
+        registry.register(add, namespace="math")
+        registry.register(search, namespace="web")
+
+        # Set metadata on tools
+        tool_add = registry.get_tool("math-add")
+        tool_add.metadata.tags = {ToolTag.READ_ONLY}
+        tool_add.metadata.locality = "local"
+        tool_add.metadata.timeout = 30.0
+        tool_add.metadata.think_augment = True
+
+        tool_search = registry.get_tool("web-search")
+        tool_search.metadata.tags = {ToolTag.NETWORK, ToolTag.SLOW}
+        tool_search.metadata.custom_tags = {"external"}
+        tool_search.metadata.locality = "remote"
+        tool_search.metadata.defer = True
+        tool_search.metadata.search_hint = "web query"
+
+        server = AdminServer(registry, port=18092)
+        info = server.start()
+        time.sleep(0.1)
+
+        yield server, info, registry
+
+        server.stop()
+
+    def _request(
+        self,
+        url: str,
+        method: str = "GET",
+        data: dict | None = None,
+    ) -> tuple[int, dict]:
+        """Make HTTP request and return status code and JSON response."""
+        headers = {"Content-Type": "application/json"}
+        body = json.dumps(data).encode() if data else None
+        req = urllib.request.Request(url, data=body, headers=headers, method=method)
+
+        try:
+            with urllib.request.urlopen(req, timeout=5) as response:
+                return response.status, json.loads(response.read().decode())
+        except urllib.error.HTTPError as e:
+            return e.code, json.loads(e.read().decode())
+
+    def test_get_tools_includes_metadata_fields(self, server_with_metadata) -> None:
+        """Test GET /api/tools includes tags, locality, is_async, think_augment, defer."""
+        server, info, registry = server_with_metadata
+        status, data = self._request(f"{info.url}/api/tools")
+
+        assert status == 200
+        tools = {t["name"]: t for t in data["tools"]}
+
+        add_tool = tools["math-add"]
+        assert add_tool["tags"] == ["read_only"]
+        assert add_tool["locality"] == "local"
+        assert add_tool["is_async"] is False
+        assert add_tool["think_augment"] is True
+        assert add_tool["defer"] is False
+
+        search_tool = tools["web-search"]
+        assert sorted(search_tool["tags"]) == ["external", "network", "slow"]
+        assert search_tool["locality"] == "remote"
+        assert search_tool["defer"] is True
+
+    def test_get_tool_detail_includes_full_metadata(self, server_with_metadata) -> None:
+        """Test GET /api/tools/{name} includes full metadata object."""
+        server, info, registry = server_with_metadata
+        status, data = self._request(f"{info.url}/api/tools/math-add")
+
+        assert status == 200
+        assert "metadata" in data
+
+        meta = data["metadata"]
+        assert meta["is_async"] is False
+        assert meta["is_concurrency_safe"] is True
+        assert meta["timeout"] == 30.0
+        assert meta["locality"] == "local"
+        assert meta["max_result_size"] is None
+        assert meta["tags"] == ["ToolTag.READ_ONLY"]
+        assert meta["custom_tags"] == []
+        assert meta["defer"] is False
+        assert meta["search_hint"] == ""
+        assert meta["think_augment"] is True
+        assert meta["extra"] == {}
+
+    def test_get_tool_detail_search_tool_metadata(self, server_with_metadata) -> None:
+        """Test GET /api/tools/{name} for tool with custom tags and defer."""
+        server, info, registry = server_with_metadata
+        status, data = self._request(f"{info.url}/api/tools/web-search")
+
+        assert status == 200
+        meta = data["metadata"]
+        assert meta["locality"] == "remote"
+        assert meta["defer"] is True
+        assert meta["search_hint"] == "web query"
+        assert "external" in meta["custom_tags"]
+        assert sorted(str(t) for t in meta["tags"]) == [
+            "ToolTag.NETWORK",
+            "ToolTag.SLOW",
+        ]
+
+    def test_get_namespaces_includes_tags(self, server_with_metadata) -> None:
+        """Test GET /api/namespaces includes tags and metadata counts."""
+        server, info, registry = server_with_metadata
+        status, data = self._request(f"{info.url}/api/namespaces")
+
+        assert status == 200
+        ns_map = {ns["name"]: ns for ns in data["namespaces"]}
+
+        math_ns = ns_map["math"]
+        assert "read_only" in math_ns["tags"]
+        assert math_ns["async_count"] == 0
+        assert math_ns["remote_count"] == 0
+
+        web_ns = ns_map["web"]
+        assert "network" in web_ns["tags"]
+        assert "external" in web_ns["tags"]
+        assert web_ns["remote_count"] == 1
+
+    def test_get_permissions_no_policy(self, server_with_metadata) -> None:
+        """Test GET /api/permissions when no policy is set."""
+        server, info, registry = server_with_metadata
+        status, data = self._request(f"{info.url}/api/permissions")
+
+        assert status == 200
+        assert data["has_policy"] is False
+        assert data["rules"] == []
+        assert data["has_handler"] is False
+
+    def test_get_permissions_with_policy(self, server_with_metadata) -> None:
+        """Test GET /api/permissions with a policy set."""
+        server, info, registry = server_with_metadata
+
+        policy = PermissionPolicy(
+            rules=[
+                PermissionRule(
+                    name="allow_readonly",
+                    match=lambda t, p: ToolTag.READ_ONLY in t.metadata.tags,
+                    result=PermissionResult.ALLOW,
+                    reason="Read-only tools are safe",
+                ),
+                PermissionRule(
+                    name="deny_network",
+                    match=lambda t, p: ToolTag.NETWORK in t.metadata.tags,
+                    result=PermissionResult.DENY,
+                    reason="Network tools need review",
+                ),
+            ],
+            fallback=PermissionResult.ASK,
+        )
+        registry.set_permission_policy(policy)
+
+        status, data = self._request(f"{info.url}/api/permissions")
+
+        assert status == 200
+        assert data["has_policy"] is True
+        assert data["fallback"] == "ask"
+        assert data["has_handler"] is False
+        assert len(data["rules"]) == 2
+
+        assert data["rules"][0]["name"] == "allow_readonly"
+        assert data["rules"][0]["result"] == "allow"
+        assert data["rules"][0]["reason"] == "Read-only tools are safe"
+
+        assert data["rules"][1]["name"] == "deny_network"
+        assert data["rules"][1]["result"] == "deny"
