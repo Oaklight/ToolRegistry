@@ -997,6 +997,206 @@
             white-space: nowrap;
             max-width: 200px;
         }
+
+        /* ============== Tag Badges ============== */
+        .badge-tag {
+            display: inline-flex;
+            align-items: center;
+            padding: 1px 6px;
+            font-size: 0.625rem;
+            font-weight: 500;
+            border-radius: 9999px;
+            margin-right: 3px;
+            letter-spacing: 0.02em;
+        }
+
+        .badge-tag-read_only  { background: rgba(61,139,95,0.10);  color: #3D8B5F; }
+        .badge-tag-destructive{ background: rgba(196,65,65,0.10);  color: #C44141; }
+        .badge-tag-slow       { background: rgba(194,146,46,0.10); color: #C2922E; }
+        .badge-tag-network    { background: rgba(59,130,246,0.10); color: #3B82F6; }
+        .badge-tag-privileged { background: rgba(139,92,246,0.10); color: #8B5CF6; }
+        .badge-tag-file_system{ background: rgba(20,184,166,0.10); color: #14B8A6; }
+        .badge-tag-custom     { background: var(--bg-primary);     color: var(--text-secondary); }
+
+        .badge-locality {
+            display: inline-flex;
+            align-items: center;
+            padding: 1px 6px;
+            font-size: 0.625rem;
+            font-weight: 500;
+            border-radius: 9999px;
+            margin-right: 3px;
+        }
+        .badge-locality-local  { background: rgba(61,139,95,0.08);  color: #3D8B5F; }
+        .badge-locality-remote { background: rgba(59,130,246,0.08); color: #3B82F6; }
+
+        .tool-meta-icons {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-left: 6px;
+        }
+
+        .meta-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            font-size: 0.6875rem;
+            border-radius: 4px;
+            background: var(--bg-primary);
+            color: var(--text-secondary);
+            cursor: default;
+        }
+
+        .tool-badges {
+            display: inline-flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 2px;
+            margin-left: 8px;
+        }
+
+        /* ============== Tool Detail Modal ============== */
+        .detail-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(27, 27, 24, 0.4);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: var(--transition);
+        }
+
+        .detail-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .detail-modal {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+            border: 1px solid var(--border);
+            width: 90%;
+            max-width: 640px;
+            max-height: 85vh;
+            overflow: auto;
+            transform: scale(0.97) translateY(8px);
+            transition: var(--transition);
+        }
+
+        .detail-overlay.active .detail-modal {
+            transform: scale(1) translateY(0);
+        }
+
+        .detail-section {
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .detail-section:last-child {
+            border-bottom: none;
+        }
+
+        .detail-section-title {
+            font-size: 0.6875rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+        }
+
+        .metadata-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px 24px;
+        }
+
+        .meta-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .meta-label {
+            font-size: 0.6875rem;
+            color: var(--text-secondary);
+        }
+
+        .meta-value {
+            font-size: 0.8125rem;
+            font-weight: 500;
+        }
+
+        .schema-toggle {
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .schema-toggle .expand-icon {
+            transition: transform 0.2s ease;
+        }
+
+        .schema-toggle.expanded .expand-icon {
+            transform: rotate(90deg);
+        }
+
+        .schema-content {
+            display: none;
+            margin-top: 10px;
+        }
+
+        .schema-content.visible {
+            display: block;
+        }
+
+        .ns-child-name-link {
+            cursor: pointer;
+            color: var(--text-primary);
+            transition: var(--transition);
+        }
+
+        .ns-child-name-link:hover {
+            color: var(--accent);
+        }
+
+        /* ============== Permissions ============== */
+        .perm-status-card {
+            display: flex;
+            gap: 24px;
+            margin-bottom: 20px;
+        }
+
+        .perm-status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8125rem;
+        }
+
+        .perm-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .perm-dot-active  { background: var(--success); }
+        .perm-dot-inactive { background: var(--text-secondary); }
+
+        .badge-allow { background: rgba(61,139,95,0.10);  color: #3D8B5F; }
+        .badge-deny  { background: rgba(196,65,65,0.10);  color: #C44141; }
+        .badge-ask   { background: rgba(194,146,46,0.10); color: #C2922E; }
     </style>
 </head>
 <body>
@@ -1037,6 +1237,7 @@
                 <button class="tab" data-tab="namespaces" onclick="switchTab('namespaces')">Namespaces</button>
                 <button class="tab" data-tab="logs" onclick="switchTab('logs')">Logs</button>
                 <button class="tab" data-tab="state" onclick="switchTab('state')">State</button>
+                <button class="tab" data-tab="permissions" onclick="switchTab('permissions')">Permissions</button>
             </div>
 
             <!-- Tools Tab -->
@@ -1085,6 +1286,15 @@
                                         <option value="enabled">Enabled</option>
                                         <option value="disabled">Disabled</option>
                                     </select>
+                                    <select class="input select" id="tag-filter" onchange="filterTools()">
+                                        <option value="">All Tags</option>
+                                    </select>
+                                    <select class="input select" id="locality-filter" onchange="filterTools()">
+                                        <option value="">All Locality</option>
+                                        <option value="local">Local</option>
+                                        <option value="remote">Remote</option>
+                                        <option value="any">Any</option>
+                                    </select>
                                 </div>
                             </div>
                             <div class="table-container">
@@ -1123,11 +1333,12 @@
                                         <th>Total Tools</th>
                                         <th>Enabled</th>
                                         <th>Disabled</th>
+                                        <th>Tags</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="namespaces-body">
-                                    <tr><td colspan="5" class="loading"><div class="spinner"></div>Loading...</td></tr>
+                                    <tr><td colspan="6" class="loading"><div class="spinner"></div>Loading...</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -1227,7 +1438,31 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Permissions Tab -->
+            <div id="tab-permissions" class="tab-content" style="display: none;">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Permission Policy</h2>
+                        <button class="btn btn-secondary btn-sm" onclick="refreshPermissions()">Refresh</button>
+                    </div>
+                    <div class="card-body" id="permissions-body">
+                        <div class="loading"><div class="spinner"></div>Loading...</div>
+                    </div>
+                </div>
+            </div>
         </main>
+    </div>
+
+    <!-- Tool Detail Modal -->
+    <div class="detail-overlay" id="detail-overlay" onclick="closeDetailModal(event)">
+        <div class="detail-modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3 class="modal-title" id="detail-title">Tool Details</h3>
+                <button class="modal-close" onclick="closeDetailModal()">&times;</button>
+            </div>
+            <div id="detail-body"></div>
+        </div>
     </div>
 
     <!-- Modal -->
@@ -1364,6 +1599,10 @@
                     body: JSON.stringify(state)
                 });
             }
+
+            async getPermissions() {
+                return this.request('/api/permissions');
+            }
         }
 
         const api = new AdminAPI(API_BASE, AUTH_TOKEN);
@@ -1446,6 +1685,8 @@
             } else if (tabName === 'logs') {
                 refreshLogs();
                 refreshLogStats();
+            } else if (tabName === 'permissions') {
+                refreshPermissions();
             }
         }
 
@@ -1461,6 +1702,42 @@
                 document.getElementById('tools-body').innerHTML =
                     `<tr><td colspan="4" class="empty-state"><div class="text-error">${e.message}</div></td></tr>`;
             }
+        }
+
+        // Tag color mapping for known tags
+        const TAG_CLASSES = {
+            'read_only': 'badge-tag-read_only',
+            'destructive': 'badge-tag-destructive',
+            'slow': 'badge-tag-slow',
+            'network': 'badge-tag-network',
+            'privileged': 'badge-tag-privileged',
+            'file_system': 'badge-tag-file_system',
+        };
+
+        function renderTagBadges(tags) {
+            if (!tags || tags.length === 0) return '';
+            return tags.map(tag => {
+                const cls = TAG_CLASSES[tag] || 'badge-tag-custom';
+                return `<span class="badge-tag ${cls}">${escapeHtml(tag)}</span>`;
+            }).join('');
+        }
+
+        function renderMetaIcons(tool) {
+            let icons = '';
+            if (tool.locality && tool.locality !== 'any') {
+                const cls = tool.locality === 'local' ? 'badge-locality-local' : 'badge-locality-remote';
+                icons += `<span class="badge-locality ${cls}" title="Locality: ${tool.locality}">${tool.locality}</span>`;
+            }
+            if (tool.think_augment === true) {
+                icons += `<span class="meta-icon" title="Think-augmented">T</span>`;
+            }
+            if (tool.is_async) {
+                icons += `<span class="meta-icon" title="Async">A</span>`;
+            }
+            if (tool.defer) {
+                icons += `<span class="meta-icon" title="Deferred">D</span>`;
+            }
+            return icons ? `<span class="tool-meta-icons">${icons}</span>` : '';
         }
 
         function renderTools(tools) {
@@ -1516,10 +1793,16 @@
 
                 children.forEach(tool => {
                     const shortName = (!isDefault && tool.name.startsWith(ns + '-')) ? tool.name.slice(ns.length + 1) : tool.name;
+                    const tagBadges = renderTagBadges(tool.tags);
+                    const metaIcons = renderMetaIcons(tool);
                     html += `
                 <tr class="ns-child-row" data-ns-group="${nsId}">
                     <td></td>
-                    <td><span class="ns-child-name">${escapeHtml(shortName)}</span></td>
+                    <td>
+                        <span class="ns-child-name-link" onclick="event.stopPropagation(); showToolDetailModal('${escapeHtml(tool.name)}')">${escapeHtml(shortName)}</span>
+                        <span class="tool-badges">${tagBadges}</span>
+                        ${metaIcons}
+                    </td>
                     <td>
                         <label class="toggle-switch" title="${tool.enabled ? 'Click to disable' : 'Click to enable'}">
                             <input type="checkbox" ${tool.enabled ? 'checked' : ''}
@@ -1588,6 +1871,8 @@
             const search = document.getElementById('tool-search').value.toLowerCase();
             const namespace = document.getElementById('namespace-filter').value;
             const status = document.getElementById('status-filter').value;
+            const tag = document.getElementById('tag-filter').value;
+            const locality = document.getElementById('locality-filter').value;
 
             const filtered = allTools.filter(tool => {
                 const matchSearch = tool.name.toLowerCase().includes(search);
@@ -1595,7 +1880,9 @@
                 const matchStatus = !status ||
                     (status === 'enabled' && tool.enabled) ||
                     (status === 'disabled' && !tool.enabled);
-                return matchSearch && matchNamespace && matchStatus;
+                const matchTag = !tag || (tool.tags && tool.tags.includes(tag));
+                const matchLocality = !locality || tool.locality === locality;
+                return matchSearch && matchNamespace && matchStatus && matchTag && matchLocality;
             });
 
             renderTools(filtered);
@@ -1614,6 +1901,14 @@
                 namespaces.map(ns => `<option value="${escapeHtml(ns)}">${escapeHtml(ns)}</option>`).join('');
 
             select.value = currentValue;
+
+            // Update tag filter
+            const allTags = [...new Set(tools.flatMap(t => t.tags || []))].sort();
+            const tagSelect = document.getElementById('tag-filter');
+            const currentTag = tagSelect.value;
+            tagSelect.innerHTML = '<option value="">All Tags</option>' +
+                allTags.map(tag => `<option value="${escapeHtml(tag)}">${escapeHtml(tag)}</option>`).join('');
+            tagSelect.value = currentTag;
         }
 
         function showDisableToolModal(name) {
@@ -1688,7 +1983,7 @@
 
             if (namespaces.length === 0) {
                 tbody.innerHTML = `
-                    <tr><td colspan="5" class="empty-state">
+                    <tr><td colspan="6" class="empty-state">
                         <div class="empty-state-icon">No namespaces</div>
                         <div class="empty-state-text">Namespaces will appear here once tools are registered.</div>
                     </td></tr>`;
@@ -1701,6 +1996,7 @@
                     <td>${ns.tool_count}</td>
                     <td><span class="text-success">${ns.enabled_count}</span></td>
                     <td><span class="text-error">${ns.disabled_count}</span></td>
+                    <td>${(ns.tags || []).length > 0 ? renderTagBadges(ns.tags) : '<span class="text-muted" style="font-size: 0.75rem;">&mdash;</span>'}</td>
                     <td>
                         ${ns.name === 'default' ? '<span class="text-muted" style="font-size: 0.75rem;">&mdash;</span>' : `<div style="display: flex; gap: 6px; flex-wrap: wrap;">
                             <button class="btn btn-success btn-sm" style="min-width: 90px; text-align: center;" onclick="enableNamespace('${escapeHtml(ns.name)}')">Enable All</button>
@@ -1951,6 +2247,140 @@
             event.target.value = '';
         }
 
+        // ============== Tool Detail Modal ==============
+        async function showToolDetailModal(toolName) {
+            try {
+                const tool = await api.getTool(toolName);
+                document.getElementById('detail-title').textContent = tool.name;
+
+                const meta = tool.metadata || {};
+                const tags = [...(meta.tags || []), ...(meta.custom_tags || [])];
+
+                let html = '';
+
+                // Basic info
+                html += `<div class="detail-section">
+                    <div class="detail-section-title">Basic Info</div>
+                    <div class="metadata-grid">
+                        <div class="meta-item"><span class="meta-label">Name</span><span class="meta-value">${escapeHtml(tool.name)}</span></div>
+                        <div class="meta-item"><span class="meta-label">Namespace</span><span class="meta-value">${escapeHtml(tool.namespace || 'default')}</span></div>
+                        <div class="meta-item"><span class="meta-label">Method Name</span><span class="meta-value">${escapeHtml(tool.method_name || tool.name)}</span></div>
+                        <div class="meta-item"><span class="meta-label">Status</span><span class="meta-value">${tool.enabled ? '<span class="text-success">Enabled</span>' : '<span class="text-error">Disabled</span>'}</span></div>
+                    </div>
+                    ${tool.reason ? `<div class="meta-item mt-2"><span class="meta-label">Disable Reason</span><span class="meta-value text-error">${escapeHtml(tool.reason)}</span></div>` : ''}
+                    <div class="mt-2"><span class="meta-label">Description</span><p style="font-size: 0.8125rem; margin-top: 4px;">${escapeHtml(tool.description || '')}</p></div>
+                </div>`;
+
+                // Metadata
+                html += `<div class="detail-section">
+                    <div class="detail-section-title">Metadata</div>
+                    <div class="metadata-grid">
+                        <div class="meta-item"><span class="meta-label">Locality</span><span class="meta-value">${meta.locality || 'any'}</span></div>
+                        <div class="meta-item"><span class="meta-label">Async</span><span class="meta-value">${meta.is_async ? 'Yes' : 'No'}</span></div>
+                        <div class="meta-item"><span class="meta-label">Concurrency Safe</span><span class="meta-value">${meta.is_concurrency_safe !== false ? 'Yes' : 'No'}</span></div>
+                        <div class="meta-item"><span class="meta-label">Think Augment</span><span class="meta-value">${meta.think_augment === true ? 'Enabled' : meta.think_augment === false ? 'Disabled' : 'Default'}</span></div>
+                        <div class="meta-item"><span class="meta-label">Timeout</span><span class="meta-value">${meta.timeout != null ? meta.timeout + 's' : 'None'}</span></div>
+                        <div class="meta-item"><span class="meta-label">Max Result Size</span><span class="meta-value">${meta.max_result_size != null ? meta.max_result_size + ' chars' : 'None'}</span></div>
+                        <div class="meta-item"><span class="meta-label">Deferred</span><span class="meta-value">${meta.defer ? 'Yes' : 'No'}</span></div>
+                        <div class="meta-item"><span class="meta-label">Search Hint</span><span class="meta-value">${escapeHtml(meta.search_hint) || '—'}</span></div>
+                    </div>
+                    ${tags.length > 0 ? `<div class="mt-2"><span class="meta-label">Tags</span><div style="margin-top: 4px;">${renderTagBadges(tags)}</div></div>` : ''}
+                    ${meta.extra && Object.keys(meta.extra).length > 0 ? `<div class="mt-2"><span class="meta-label">Extra</span><pre style="margin-top: 4px; background: var(--bg-primary); padding: 8px; border-radius: var(--radius-sm); font-size: 0.75rem;">${escapeHtml(JSON.stringify(meta.extra, null, 2))}</pre></div>` : ''}
+                </div>`;
+
+                // Schema (collapsible)
+                html += `<div class="detail-section">
+                    <div class="schema-toggle" onclick="this.classList.toggle('expanded'); this.nextElementSibling.classList.toggle('visible');">
+                        <span class="expand-icon">${SVG_CHEVRON}</span>
+                        <span class="detail-section-title" style="margin-bottom: 0;">Schema</span>
+                    </div>
+                    <div class="schema-content">
+                        <pre style="background: #1B1B18; color: #E8E5E0; padding: 12px; border-radius: var(--radius-sm); font-size: 0.75rem; overflow-x: auto; white-space: pre-wrap; font-family: 'SF Mono', 'Fira Code', monospace;">${escapeHtml(JSON.stringify(tool.schema, null, 2))}</pre>
+                    </div>
+                </div>`;
+
+                document.getElementById('detail-body').innerHTML = html;
+                document.getElementById('detail-overlay').classList.add('active');
+            } catch (e) {
+                showToast('Failed to load tool details: ' + e.message, 'error');
+            }
+        }
+
+        function closeDetailModal(event) {
+            if (event && event.target !== event.currentTarget) return;
+            document.getElementById('detail-overlay').classList.remove('active');
+        }
+
+        // ============== Permissions ==============
+        async function refreshPermissions() {
+            try {
+                const data = await api.getPermissions();
+                renderPermissions(data);
+            } catch (e) {
+                document.getElementById('permissions-body').innerHTML =
+                    `<div class="empty-state"><div class="text-error">${e.message}</div></div>`;
+            }
+        }
+
+        function renderPermissions(data) {
+            const body = document.getElementById('permissions-body');
+
+            if (!data.has_policy) {
+                body.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">No permission policy configured</div>
+                        <div class="empty-state-text">Set a policy via <code>registry.set_permission_policy()</code> to enable permission controls.</div>
+                    </div>`;
+                return;
+            }
+
+            let html = '';
+
+            // Status indicators
+            html += `<div class="perm-status-card">
+                <div class="perm-status-item">
+                    <span class="perm-dot perm-dot-active"></span>
+                    <span>Policy Active</span>
+                </div>
+                <div class="perm-status-item">
+                    <span class="perm-dot ${data.has_handler ? 'perm-dot-active' : 'perm-dot-inactive'}"></span>
+                    <span>Handler ${data.has_handler ? 'Registered' : 'Not Set'}</span>
+                </div>
+                <div class="perm-status-item">
+                    <span>Fallback:</span>
+                    <span class="badge badge-${data.fallback}">${data.fallback}</span>
+                </div>
+            </div>`;
+
+            // Rules table
+            if (data.rules.length > 0) {
+                html += `<div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Rule Name</th>
+                                <th>Result</th>
+                                <th>Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+
+                data.rules.forEach(rule => {
+                    html += `<tr>
+                        <td><span style="font-weight: 500;">${escapeHtml(rule.name)}</span></td>
+                        <td><span class="badge badge-${rule.result}">${rule.result}</span></td>
+                        <td class="text-muted" style="font-size: 0.8125rem;">${escapeHtml(rule.reason || '—')}</td>
+                    </tr>`;
+                });
+
+                html += `</tbody></table></div>`;
+            } else {
+                html += `<p class="text-muted" style="font-size: 0.8125rem;">No rules defined. All tool calls will use the fallback result.</p>`;
+            }
+
+            body.innerHTML = html;
+        }
+
         // ============== Utilities ==============
         function escapeHtml(str) {
             if (!str) return '';
@@ -1974,6 +2404,7 @@
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 closeModal();
+                closeDetailModal();
             }
         });
     </script>
