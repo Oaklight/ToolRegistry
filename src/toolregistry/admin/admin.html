@@ -1759,10 +1759,14 @@
             return key;
         }
 
-        function renderTagBadges(tags) {
+        function renderTagBadges(tags, systemOnly) {
             if (!tags || tags.length === 0) return '';
+            let filtered = tags;
+            if (systemOnly) {
+                filtered = tags.filter(tag => !!TAG_CLASSES[normalizeTagKey(tag)]);
+            }
             // Sort: system tags first, then custom tags
-            const sorted = [...tags].sort((a, b) => {
+            const sorted = [...filtered].sort((a, b) => {
                 const aIsSystem = !!TAG_CLASSES[normalizeTagKey(a)];
                 const bIsSystem = !!TAG_CLASSES[normalizeTagKey(b)];
                 if (aIsSystem && !bIsSystem) return -1;
@@ -1856,7 +1860,7 @@
 
                 children.forEach(tool => {
                     const shortName = (!isDefault && tool.name.startsWith(ns + '-')) ? tool.name.slice(ns.length + 1) : tool.name;
-                    const tagBadges = renderTagBadges(tool.tags);
+                    const tagBadges = renderTagBadges(tool.tags, true);
                     const metaIcons = renderMetaIcons(tool);
                     const permBadge = renderPermissionBadge(tool.permission);
                     html += `
