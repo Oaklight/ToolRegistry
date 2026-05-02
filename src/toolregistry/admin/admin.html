@@ -950,9 +950,22 @@
                 min-width: 0;
             }
 
+            .table-container {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .table-container table {
+                min-width: 500px;
+            }
+
             th, td {
                 padding: 8px 12px;
                 font-size: 0.75rem;
+            }
+
+            .col-reason {
+                display: none;
             }
 
             .btn {
@@ -1855,7 +1868,7 @@
                             <span class="toggle-slider"></span>
                         </label>`}
                     </td>
-                    <td></td>
+                    <td class="col-reason"></td>
                 </tr>`;
 
                 children.forEach(tool => {
@@ -1879,7 +1892,7 @@
                             <span class="toggle-slider"></span>
                         </label>
                     </td>
-                    <td><span class="col-reason-text" title="${escapeHtml(tool.reason || '')}">${tool.reason ? escapeHtml(tool.reason) : '<span style="color: var(--border);">&mdash;</span>'}</span></td>
+                    <td class="col-reason"><span class="col-reason-text" title="${escapeHtml(tool.reason || '')}">${tool.reason ? escapeHtml(tool.reason) : '<span style="color: var(--border);">&mdash;</span>'}</span></td>
                 </tr>`;
                 });
             });
