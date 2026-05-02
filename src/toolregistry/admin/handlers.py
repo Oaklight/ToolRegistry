@@ -73,6 +73,8 @@ class AdminRequestHandler(BaseHTTPRequestHandler):
             self._handle_get_log_stats()
         elif path == "/api/state":
             self._handle_export_state()
+        elif path == "/api/permissions":
+            self._handle_get_permissions()
         else:
             self._send_not_found()
 
@@ -216,6 +218,7 @@ class AdminRequestHandler(BaseHTTPRequestHandler):
                         "DELETE /api/logs",
                         "GET /api/state",
                         "POST /api/state",
+                        "GET /api/permissions",
                     ],
                 }
             )
@@ -247,6 +250,19 @@ class AdminRequestHandler(BaseHTTPRequestHandler):
             "enabled": enabled,
             "reason": reason,
             "schema": tool.get_schema(),
+            "metadata": {
+                "is_async": tool.metadata.is_async,
+                "is_concurrency_safe": tool.metadata.is_concurrency_safe,
+                "timeout": tool.metadata.timeout,
+                "locality": tool.metadata.locality,
+                "max_result_size": tool.metadata.max_result_size,
+                "tags": sorted(str(t) for t in tool.metadata.tags),
+                "custom_tags": sorted(tool.metadata.custom_tags),
+                "defer": tool.metadata.defer,
+                "search_hint": tool.metadata.search_hint,
+                "think_augment": tool.metadata.think_augment,
+                "extra": tool.metadata.extra,
+            },
         }
         self._send_json_response(tool_info)
 
@@ -307,12 +323,24 @@ class AdminRequestHandler(BaseHTTPRequestHandler):
                         "tool_count": 0,
                         "enabled_count": 0,
                         "disabled_count": 0,
+                        "async_count": 0,
+                        "remote_count": 0,
+                        "tags": set(),
                     }
                 namespaces[ns]["tool_count"] += 1
                 if self.registry.is_enabled(tool_name):
                     namespaces[ns]["enabled_count"] += 1
                 else:
                     namespaces[ns]["disabled_count"] += 1
+                if tool.metadata.is_async:
+                    namespaces[ns]["async_count"] += 1
+                if tool.metadata.locality == "remote":
+                    namespaces[ns]["remote_count"] += 1
+                namespaces[ns]["tags"].update(tool.metadata.all_tags)
+
+        # Convert sets to sorted lists for JSON serialization
+        for ns_data in namespaces.values():
+            ns_data["tags"] = sorted(ns_data["tags"])
 
         # Sort: "default" first, then alphabetical
         result = sorted(
@@ -476,6 +504,40 @@ class AdminRequestHandler(BaseHTTPRequestHandler):
 
         self._send_json_response(
             {"success": True, "message": "State restored successfully"}
+        )
+
+    def _handle_get_permissions(self) -> None:
+        """Handle GET /api/permissions - get permission policy info."""
+        policy = self.registry.get_permission_policy()
+        handler = self.registry.get_permission_handler()
+
+        if policy is None:
+            self._send_json_response(
+                {
+                    "has_policy": False,
+                    "fallback": self.registry.permission_fallback.value,
+                    "has_handler": handler is not None,
+                    "rules": [],
+                }
+            )
+            return
+
+        rules = [
+            {
+                "name": rule.name,
+                "result": rule.result.value,
+                "reason": rule.reason,
+            }
+            for rule in policy.rules
+        ]
+
+        self._send_json_response(
+            {
+                "has_policy": True,
+                "fallback": policy.fallback.value,
+                "has_handler": policy.handler is not None or handler is not None,
+                "rules": rules,
+            }
         )
 
     def _get_admin_ui_html(self) -> str:

@@ -717,15 +717,22 @@ class ToolRegistry(
     def get_tools_status(self) -> list[dict[str, Any]]:
         """Get status information for all registered tools.
 
-        Returns a list of dictionaries containing status information for each tool,
-        including whether it's enabled/disabled and the reason if disabled.
+        Returns a list of dictionaries containing status information for each
+        tool, including enable/disable state, metadata summary, and tags.
 
         Returns:
-            list[dict[str, Any]]: List of tool status dictionaries, each containing:
+            list[dict[str, Any]]: List of tool status dictionaries, each
+                containing:
+
                 - name (str): Tool name (with namespace prefix if applicable)
                 - enabled (bool): Whether the tool is currently enabled
                 - reason (str | None): Reason for disabling, if disabled
-                - namespace (str | None): Namespace the tool belongs to, if any
+                - namespace (str | None): Namespace the tool belongs to
+                - tags (list[str]): Sorted union of predefined and custom tags
+                - locality (str): ``"local"``, ``"remote"``, or ``"any"``
+                - is_async (bool): Whether the tool requires async execution
+                - think_augment (bool | None): Think-augmented calling setting
+                - defer (bool): Whether the tool is deferred from initial prompt
 
         Example:
             >>> registry = ToolRegistry()
@@ -737,7 +744,12 @@ class ToolRegistry(
                     "name": "my_tool",
                     "enabled": False,
                     "reason": "Under maintenance",
-                    "namespace": None
+                    "namespace": None,
+                    "tags": [],
+                    "locality": "any",
+                    "is_async": False,
+                    "think_augment": None,
+                    "defer": False
                 }
             ]
         """
@@ -745,12 +757,18 @@ class ToolRegistry(
         for tool_name, tool in self._tools.items():
             enabled = self.is_enabled(tool_name)
             reason = self.get_disable_reason(tool_name) if not enabled else None
+            meta = tool.metadata
             status_list.append(
                 {
                     "name": tool_name,
                     "enabled": enabled,
                     "reason": reason,
                     "namespace": tool.namespace,
+                    "tags": sorted(meta.all_tags),
+                    "locality": meta.locality,
+                    "is_async": meta.is_async,
+                    "think_augment": meta.think_augment,
+                    "defer": meta.defer,
                 }
             )
         return status_list
