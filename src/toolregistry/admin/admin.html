@@ -1084,14 +1084,15 @@
         .meta-icon {
             display: inline-flex;
             align-items: center;
-            justify-content: center;
-            width: 18px;
-            height: 18px;
-            font-size: 0.6875rem;
-            border-radius: 4px;
-            background: var(--bg-primary);
+            padding: 1px 6px;
+            font-size: 0.625rem;
+            font-weight: 500;
+            border-radius: 9999px;
+            background: transparent;
+            border: 1px solid var(--border);
             color: var(--text-secondary);
             cursor: default;
+            letter-spacing: 0.02em;
         }
 
         .tool-badges {
@@ -1801,13 +1802,13 @@
                 icons += `<span class="badge-locality ${cls}" title="Locality: ${tool.locality}">${tool.locality}</span>`;
             }
             if (tool.think_augment === true) {
-                icons += `<span class="meta-icon" title="Think-augmented">T</span>`;
+                icons += `<span class="meta-icon" title="Think-augmented">think</span>`;
             }
             if (tool.is_async) {
-                icons += `<span class="meta-icon" title="Async">A</span>`;
+                icons += `<span class="meta-icon" title="Async">async</span>`;
             }
             if (tool.defer) {
-                icons += `<span class="meta-icon" title="Deferred">D</span>`;
+                icons += `<span class="meta-icon" title="Deferred">defer</span>`;
             }
             return icons ? `<span class="tool-meta-icons">${icons}</span>` : '';
         }
