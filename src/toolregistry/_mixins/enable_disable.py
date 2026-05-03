@@ -87,3 +87,71 @@ class EnableDisableMixin:
         if tool and tool.namespace:
             return self._disabled.get(tool.namespace)
         return None
+
+    # Fields safe to update at runtime via update_tool_metadata()
+    _MUTABLE_METADATA_FIELDS: frozenset[str] = frozenset({"think_augment", "defer"})
+
+    def update_tool_metadata(self, tool_name: str, **kwargs: object) -> None:
+        """Update mutable metadata fields for a tool at runtime.
+
+        Only whitelisted fields (think_augment, defer) can be modified.
+
+        Args:
+            tool_name: The name of the tool to update.
+            **kwargs: Field-value pairs to update.
+
+        Raises:
+            KeyError: If the tool is not found.
+            ValueError: If an unknown or disallowed field is specified.
+        """
+        tool = self._tools.get(tool_name)
+        if tool is None:
+            raise KeyError(f"Tool not found: {tool_name}")
+        for key in kwargs:
+            if key not in self._MUTABLE_METADATA_FIELDS:
+                raise ValueError(
+                    f"Field '{key}' is not allowed. "
+                    f"Allowed fields: {sorted(self._MUTABLE_METADATA_FIELDS)}"
+                )
+        for key, value in kwargs.items():
+            setattr(tool.metadata, key, value)
+        self._emit_change(
+            ChangeEvent(
+                event_type=ChangeEventType.METADATA_UPDATE,
+                tool_name=tool_name,
+                metadata=dict(kwargs),
+            )
+        )
+
+    def update_namespace_metadata(self, namespace: str, **kwargs: object) -> None:
+        """Update mutable metadata fields for all tools in a namespace.
+
+        Only whitelisted fields (think_augment, defer) can be modified.
+
+        Args:
+            namespace: The namespace to update.
+            **kwargs: Field-value pairs to apply to all tools in the namespace.
+
+        Raises:
+            KeyError: If no tools are found in the namespace.
+            ValueError: If an unknown or disallowed field is specified.
+        """
+        tools = [t for t in self._tools.values() if t.namespace == namespace]
+        if not tools:
+            raise KeyError(f"Namespace not found: {namespace}")
+        for key in kwargs:
+            if key not in self._MUTABLE_METADATA_FIELDS:
+                raise ValueError(
+                    f"Field '{key}' is not allowed. "
+                    f"Allowed fields: {sorted(self._MUTABLE_METADATA_FIELDS)}"
+                )
+        for tool in tools:
+            for key, value in kwargs.items():
+                setattr(tool.metadata, key, value)
+            self._emit_change(
+                ChangeEvent(
+                    event_type=ChangeEventType.METADATA_UPDATE,
+                    tool_name=tool.name,
+                    metadata=dict(kwargs),
+                )
+            )
