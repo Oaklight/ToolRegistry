@@ -61,7 +61,7 @@ class AdminRequestHandler(BaseHTTPRequestHandler):
         elif path == "/api/tools":
             self._handle_get_tools()
         elif path.startswith("/api/tools/") and not path.endswith(
-            ("/enable", "/disable")
+            ("/enable", "/disable", "/metadata")
         ):
             tool_name = path[len("/api/tools/") :]
             self._handle_get_tool(urllib.parse.unquote(tool_name))
@@ -110,6 +110,28 @@ class AdminRequestHandler(BaseHTTPRequestHandler):
         else:
             self._send_not_found()
 
+    def do_PATCH(self) -> None:
+        """Handle PATCH requests for metadata updates."""
+        if self.auth and not self.auth.require_auth(self):
+            return
+
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+
+        content_length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(content_length) if content_length > 0 else b""
+
+        if path.startswith("/api/tools/") and path.endswith("/metadata"):
+            tool_name = path[len("/api/tools/") : -len("/metadata")]
+            self._handle_update_tool_metadata(urllib.parse.unquote(tool_name), body)
+        elif path.startswith("/api/namespaces/") and path.endswith("/metadata"):
+            namespace = path[len("/api/namespaces/") : -len("/metadata")]
+            self._handle_update_namespace_metadata(
+                urllib.parse.unquote(namespace), body
+            )
+        else:
+            self._send_not_found()
+
     def do_DELETE(self) -> None:
         """Handle DELETE requests."""
         # Check authentication if enabled
@@ -137,7 +159,9 @@ class AdminRequestHandler(BaseHTTPRequestHandler):
     def _send_cors_headers(self) -> None:
         """Send CORS headers for cross-origin requests."""
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+        self.send_header(
+            "Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS"
+        )
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
     def _send_json_response(
@@ -244,9 +268,11 @@ class AdminRequestHandler(BaseHTTPRequestHandler):
                         "GET /api/tools/{name}",
                         "POST /api/tools/{name}/enable",
                         "POST /api/tools/{name}/disable",
+                        "PATCH /api/tools/{name}/metadata",
                         "GET /api/namespaces",
                         "POST /api/namespaces/{ns}/enable",
                         "POST /api/namespaces/{ns}/disable",
+                        "PATCH /api/namespaces/{ns}/metadata",
                         "GET /api/logs",
                         "GET /api/logs/stats",
                         "DELETE /api/logs",
@@ -346,6 +372,96 @@ class AdminRequestHandler(BaseHTTPRequestHandler):
                 "success": True,
                 "message": f"Tool '{tool_name}' disabled",
                 "reason": reason,
+            }
+        )
+
+    def _handle_update_tool_metadata(self, tool_name: str, body: bytes) -> None:
+        """Handle PATCH /api/tools/{name}/metadata - update tool metadata.
+
+        Args:
+            tool_name: Name of the tool to update.
+            body: JSON body with metadata fields to update.
+        """
+        if not body:
+            self._send_error_response(400, "Bad Request", "Request body is required")
+            return
+
+        try:
+            data = json.loads(body)
+        except json.JSONDecodeError as e:
+            self._send_error_response(400, "Bad Request", f"Invalid JSON: {e}")
+            return
+
+        if not isinstance(data, dict) or not data:
+            self._send_error_response(
+                400, "Bad Request", "Body must be a non-empty JSON object"
+            )
+            return
+
+        try:
+            self.registry.update_tool_metadata(tool_name, **data)
+        except KeyError:
+            self._send_error_response(404, "Not Found", f"Tool not found: {tool_name}")
+            return
+        except ValueError as e:
+            self._send_error_response(400, "Bad Request", str(e))
+            return
+
+        self._send_json_response(
+            {
+                "success": True,
+                "message": f"Metadata updated for tool '{tool_name}'",
+                "updated": data,
+            }
+        )
+
+    def _handle_update_namespace_metadata(self, namespace: str, body: bytes) -> None:
+        """Handle PATCH /api/namespaces/{ns}/metadata - update namespace metadata.
+
+        Args:
+            namespace: Namespace to update.
+            body: JSON body with metadata fields to update.
+        """
+        if not body:
+            self._send_error_response(400, "Bad Request", "Request body is required")
+            return
+
+        try:
+            data = json.loads(body)
+        except json.JSONDecodeError as e:
+            self._send_error_response(400, "Bad Request", f"Invalid JSON: {e}")
+            return
+
+        if not isinstance(data, dict) or not data:
+            self._send_error_response(
+                400, "Bad Request", "Body must be a non-empty JSON object"
+            )
+            return
+
+        try:
+            self.registry.update_namespace_metadata(namespace, **data)
+        except KeyError:
+            self._send_error_response(
+                404, "Not Found", f"Namespace not found: {namespace}"
+            )
+            return
+        except ValueError as e:
+            self._send_error_response(400, "Bad Request", str(e))
+            return
+
+        # Count affected tools
+        tools_updated = sum(
+            1
+            for name in self.registry.list_tools(include_disabled=True)
+            if (t := self.registry.get_tool(name)) and t.namespace == namespace
+        )
+
+        self._send_json_response(
+            {
+                "success": True,
+                "message": f"Metadata updated for namespace '{namespace}'",
+                "tools_updated": tools_updated,
+                "updated": data,
             }
         )
 

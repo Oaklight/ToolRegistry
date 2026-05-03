@@ -336,6 +336,32 @@
             background: #2B8A7E;
         }
 
+        /* Metadata toggle: smaller size, indigo color */
+        .toggle-switch.toggle-meta {
+            width: 28px;
+            height: 16px;
+        }
+
+        .toggle-switch.toggle-meta .toggle-slider::before {
+            width: 12px;
+            height: 12px;
+        }
+
+        .toggle-switch.toggle-meta input:checked + .toggle-slider {
+            background: #6366F1;
+        }
+
+        .toggle-switch.toggle-meta input:checked + .toggle-slider::before {
+            transform: translateX(12px);
+        }
+
+        .toggle-meta-label {
+            font-size: 0.625rem;
+            color: var(--text-secondary);
+            margin-left: 2px;
+            cursor: default;
+        }
+
         /* ============== Tables ============== */
         .table-container {
             overflow-x: auto;
@@ -1625,6 +1651,20 @@
                 });
             }
 
+            async updateToolMetadata(name, metadata) {
+                return this.request('/api/tools/' + encodeURIComponent(name) + '/metadata', {
+                    method: 'PATCH',
+                    body: JSON.stringify(metadata)
+                });
+            }
+
+            async updateNamespaceMetadata(ns, metadata) {
+                return this.request('/api/namespaces/' + encodeURIComponent(ns) + '/metadata', {
+                    method: 'PATCH',
+                    body: JSON.stringify(metadata)
+                });
+            }
+
             async getLogs(params = {}) {
                 const query = new URLSearchParams();
                 if (params.limit) query.set('limit', params.limit);
@@ -1801,16 +1841,21 @@
                 const cls = tool.locality === 'local' ? 'badge-locality-local' : 'badge-locality-remote';
                 icons += `<span class="badge-locality ${cls}" title="Locality: ${tool.locality}">${tool.locality}</span>`;
             }
-            if (tool.think_augment === true) {
-                icons += `<span class="meta-icon" title="Think-augmented">think</span>`;
-            }
+            icons += renderMetaToggle(tool.name, 'think_augment', 'think', tool.think_augment);
             if (tool.is_async) {
                 icons += `<span class="meta-icon" title="Async">async</span>`;
             }
-            if (tool.defer) {
-                icons += `<span class="meta-icon" title="Deferred">defer</span>`;
-            }
+            icons += renderMetaToggle(tool.name, 'defer', 'defer', tool.defer);
             return icons ? `<span class="tool-meta-icons">${icons}</span>` : '';
+        }
+
+        function renderMetaToggle(toolName, field, label, checked) {
+            return `<label class="toggle-switch toggle-meta" title="${label}">
+                <input type="checkbox" ${checked ? 'checked' : ''}
+                    onclick="event.stopPropagation()"
+                    onchange="toggleToolMeta('${escapeHtml(toolName)}', '${field}', this.checked)">
+                <span class="toggle-slider"></span>
+            </label><span class="toggle-meta-label">${label}</span>`;
         }
 
         function renderPermissionBadge(perm) {
@@ -1852,6 +1897,10 @@
             nsKeys.forEach(ns => {
                 const children = nsMap[ns];
                 const allEnabled = children.every(t => t.enabled);
+                const allThink = children.every(t => t.think_augment);
+                const anyThink = children.some(t => t.think_augment);
+                const allDefer = children.every(t => t.defer);
+                const anyDefer = children.some(t => t.defer);
                 const nsId = 'ns-' + ns.replace(/[^a-zA-Z0-9_]/g, '_');
                 const isDefault = ns === 'default';
                 html += `
@@ -1861,7 +1910,18 @@
                         <span style="font-weight: 500;">${escapeHtml(ns)}</span>
                         <span class="text-muted" style="margin-left: 8px; font-size: 0.6875rem;">${children.length} tool${children.length > 1 ? 's' : ''}</span>
                     </td>
-                    <td></td>
+                    <td class="ns-meta-toggles" onclick="event.stopPropagation()">
+                        <label class="toggle-switch toggle-meta" title="Think-augmented (all)">
+                            <input type="checkbox" ${allThink ? 'checked' : ''}
+                                onchange="toggleNamespaceMeta('${escapeHtml(ns)}', 'think_augment', this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label><span class="toggle-meta-label">think</span>
+                        <label class="toggle-switch toggle-meta" title="Deferred (all)" style="margin-left: 6px;">
+                            <input type="checkbox" ${allDefer ? 'checked' : ''}
+                                onchange="toggleNamespaceMeta('${escapeHtml(ns)}', 'defer', this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label><span class="toggle-meta-label">defer</span>
+                    </td>
                     <td>
                         ${isDefault ? '' : `<label class="toggle-switch toggle-ns" title="${allEnabled ? 'Click to disable all' : 'Click to enable all'}" onclick="event.stopPropagation()">
                             <input type="checkbox" ${allEnabled ? 'checked' : ''}
@@ -2025,6 +2085,28 @@
                 await enableNamespace(ns);
             } else {
                 showDisableNamespaceModal(ns);
+            }
+        }
+
+        async function toggleToolMeta(name, field, value) {
+            try {
+                await api.updateToolMetadata(name, { [field]: value });
+                showToast(`${field} ${value ? 'enabled' : 'disabled'} for "${name}"`, 'success');
+                refreshTools();
+            } catch (e) {
+                showToast(e.message, 'error');
+                refreshTools();
+            }
+        }
+
+        async function toggleNamespaceMeta(ns, field, value) {
+            try {
+                await api.updateNamespaceMetadata(ns, { [field]: value });
+                showToast(`${field} ${value ? 'enabled' : 'disabled'} for namespace "${ns}"`, 'success');
+                refreshTools();
+            } catch (e) {
+                showToast(e.message, 'error');
+                refreshTools();
             }
         }
 
@@ -2369,10 +2451,10 @@
                         <div class="meta-item"><span class="meta-label">Locality</span><span class="meta-value">${meta.locality || 'any'}</span></div>
                         <div class="meta-item"><span class="meta-label">Async</span><span class="meta-value">${meta.is_async ? 'Yes' : 'No'}</span></div>
                         <div class="meta-item"><span class="meta-label">Concurrency Safe</span><span class="meta-value">${meta.is_concurrency_safe !== false ? 'Yes' : 'No'}</span></div>
-                        <div class="meta-item"><span class="meta-label">Think Augment</span><span class="meta-value">${meta.think_augment === true ? 'Enabled' : meta.think_augment === false ? 'Disabled' : 'Default'}</span></div>
+                        <div class="meta-item"><span class="meta-label">Think Augment</span><span class="meta-value"><label class="toggle-switch toggle-meta"><input type="checkbox" ${meta.think_augment ? 'checked' : ''} onchange="toggleToolMeta('${escapeHtml(tool.name)}', 'think_augment', this.checked)"><span class="toggle-slider"></span></label></span></div>
                         <div class="meta-item"><span class="meta-label">Timeout</span><span class="meta-value">${meta.timeout != null ? meta.timeout + 's' : 'None'}</span></div>
                         <div class="meta-item"><span class="meta-label">Max Result Size</span><span class="meta-value">${meta.max_result_size != null ? meta.max_result_size + ' chars' : 'None'}</span></div>
-                        <div class="meta-item"><span class="meta-label">Deferred</span><span class="meta-value">${meta.defer ? 'Yes' : 'No'}</span></div>
+                        <div class="meta-item"><span class="meta-label">Deferred</span><span class="meta-value"><label class="toggle-switch toggle-meta"><input type="checkbox" ${meta.defer ? 'checked' : ''} onchange="toggleToolMeta('${escapeHtml(tool.name)}', 'defer', this.checked)"><span class="toggle-slider"></span></label></span></div>
                         <div class="meta-item"><span class="meta-label">Search Hint</span><span class="meta-value">${escapeHtml(meta.search_hint) || '—'}</span></div>
                     </div>
                     ${systemTags.length > 0 ? `<div class="mt-2"><span class="meta-label">Tags</span><div style="margin-top: 4px;">${renderTagBadges(systemTags)}</div></div>` : ''}

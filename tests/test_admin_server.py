@@ -781,3 +781,157 @@ class TestAdminServerEnrichedAPI:
         assert status == 200
         assert data["permission"]["result"] == "ask"
         assert data["permission"]["rule_name"] is None
+
+
+class TestAdminServerMetadataUpdate:
+    """Tests for PATCH /api/tools/{name}/metadata and PATCH /api/namespaces/{ns}/metadata."""
+
+    @pytest.fixture
+    def server_with_tools(self):
+        """Create a server with tools for metadata update testing."""
+        registry = ToolRegistry()
+
+        def add(a: int, b: int) -> int:
+            """Add two numbers."""
+            return a + b
+
+        def multiply(a: int, b: int) -> int:
+            """Multiply two numbers."""
+            return a * b
+
+        def greet(name: str) -> str:
+            """Greet someone."""
+            return f"Hello, {name}!"
+
+        registry.register(add, namespace="math")
+        registry.register(multiply, namespace="math")
+        registry.register(greet)
+
+        server = AdminServer(registry, port=18093)
+        info = server.start()
+        time.sleep(0.1)
+
+        yield server, info, registry
+
+        server.stop()
+
+    def _request(
+        self,
+        url: str,
+        method: str = "GET",
+        data: dict | None = None,
+    ) -> tuple[int, dict]:
+        """Make HTTP request and return status code and JSON response."""
+        headers = {"Content-Type": "application/json"}
+        body = json.dumps(data).encode() if data else None
+        req = urllib.request.Request(url, data=body, headers=headers, method=method)
+
+        try:
+            with urllib.request.urlopen(req, timeout=5) as response:
+                return response.status, json.loads(response.read().decode())
+        except urllib.error.HTTPError as e:
+            return e.code, json.loads(e.read().decode())
+
+    def test_update_tool_think_augment(self, server_with_tools) -> None:
+        """Test PATCH /api/tools/{name}/metadata with think_augment."""
+        server, info, registry = server_with_tools
+
+        # Initially think_augment is None/False
+        tool = registry.get_tool("math-add")
+        assert not tool.metadata.think_augment
+
+        # Enable think_augment
+        status, data = self._request(
+            f"{info.url}/api/tools/math-add/metadata",
+            method="PATCH",
+            data={"think_augment": True},
+        )
+        assert status == 200
+        assert data["success"] is True
+        assert data["updated"] == {"think_augment": True}
+
+        # Verify the metadata was actually updated
+        assert tool.metadata.think_augment is True
+
+    def test_update_tool_defer(self, server_with_tools) -> None:
+        """Test PATCH /api/tools/{name}/metadata with defer."""
+        server, info, registry = server_with_tools
+
+        tool = registry.get_tool("greet")
+        assert tool.metadata.defer is False
+
+        status, data = self._request(
+            f"{info.url}/api/tools/greet/metadata",
+            method="PATCH",
+            data={"defer": True},
+        )
+        assert status == 200
+        assert data["success"] is True
+        assert tool.metadata.defer is True
+
+    def test_update_tool_invalid_field(self, server_with_tools) -> None:
+        """Test PATCH with disallowed field returns 400."""
+        server, info, registry = server_with_tools
+
+        status, data = self._request(
+            f"{info.url}/api/tools/math-add/metadata",
+            method="PATCH",
+            data={"is_async": True},
+        )
+        assert status == 400
+        assert "not allowed" in data["message"]
+
+    def test_update_tool_unknown_tool(self, server_with_tools) -> None:
+        """Test PATCH on nonexistent tool returns 404."""
+        server, info, registry = server_with_tools
+
+        status, data = self._request(
+            f"{info.url}/api/tools/nonexistent/metadata",
+            method="PATCH",
+            data={"think_augment": True},
+        )
+        assert status == 404
+
+    def test_update_tool_empty_body(self, server_with_tools) -> None:
+        """Test PATCH with empty body returns 400."""
+        server, info, registry = server_with_tools
+
+        status, data = self._request(
+            f"{info.url}/api/tools/math-add/metadata",
+            method="PATCH",
+            data={},
+        )
+        assert status == 400
+
+    def test_update_namespace_metadata(self, server_with_tools) -> None:
+        """Test PATCH /api/namespaces/{ns}/metadata updates all tools."""
+        server, info, registry = server_with_tools
+
+        tool_add = registry.get_tool("math-add")
+        tool_mul = registry.get_tool("math-multiply")
+        assert not tool_add.metadata.think_augment
+        assert not tool_mul.metadata.think_augment
+
+        status, data = self._request(
+            f"{info.url}/api/namespaces/math/metadata",
+            method="PATCH",
+            data={"think_augment": True},
+        )
+        assert status == 200
+        assert data["success"] is True
+        assert data["tools_updated"] == 2
+
+        # Both tools should be updated
+        assert tool_add.metadata.think_augment is True
+        assert tool_mul.metadata.think_augment is True
+
+    def test_update_namespace_unknown(self, server_with_tools) -> None:
+        """Test PATCH on nonexistent namespace returns 404."""
+        server, info, registry = server_with_tools
+
+        status, data = self._request(
+            f"{info.url}/api/namespaces/nonexistent/metadata",
+            method="PATCH",
+            data={"defer": True},
+        )
+        assert status == 404

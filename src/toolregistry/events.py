@@ -20,6 +20,7 @@ class ChangeEventType(str, Enum):
         DISABLE: A tool was disabled.
         REFRESH: A single tool was refreshed.
         REFRESH_ALL: All tools were refreshed/reloaded.
+        METADATA_UPDATE: A tool's metadata was updated at runtime.
     """
 
     REGISTER = "register"
@@ -30,6 +31,7 @@ class ChangeEventType(str, Enum):
     REFRESH_ALL = "refresh_all"
     PERMISSION_DENIED = "permission_denied"
     PERMISSION_ASKED = "permission_asked"
+    METADATA_UPDATE = "metadata_update"
 
 
 @dataclass(frozen=True)
