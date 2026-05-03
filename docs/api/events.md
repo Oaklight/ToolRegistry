@@ -27,6 +27,7 @@
 | `REFRESH_ALL` | 所有工具已刷新/重新加载（预留，暂未使用） |
 | `PERMISSION_DENIED` | 工具调用被权限策略拒绝 |
 | `PERMISSION_ASKED` | 工具调用被上报给权限处理器 |
+| `METADATA_UPDATE` | 工具的元数据在运行时被更新 |
 
 ### 示例
 
@@ -42,6 +43,8 @@ elif event.event_type == ChangeEventType.PERMISSION_DENIED:
     print(f"工具调用被拒绝：{event.tool_name}")
 elif event.event_type == ChangeEventType.PERMISSION_ASKED:
     print(f"工具调用被上报：{event.tool_name}")
+elif event.event_type == ChangeEventType.METADATA_UPDATE:
+    print(f"元数据已更新：{event.tool_name}，字段：{event.metadata}")
 ```
 
 ## ChangeEvent

@@ -20,6 +20,8 @@ curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8081/api/tools
 | `GET` | `/api/tools/{name}` | 获取单个工具详情 |
 | `POST` | `/api/tools/{name}/enable` | 启用工具 |
 | `POST` | `/api/tools/{name}/disable` | 禁用工具 |
+| `GET` | `/api/tools/{name}/permissions` | 评估工具的权限策略 |
+| `PATCH` | `/api/tools/{name}/metadata` | 更新工具元数据（`think_augment`、`defer`） |
 
 ### 命名空间
 
@@ -28,6 +30,7 @@ curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8081/api/tools
 | `GET` | `/api/namespaces` | 列出所有命名空间 |
 | `POST` | `/api/namespaces/{ns}/enable` | 启用命名空间中的所有工具 |
 | `POST` | `/api/namespaces/{ns}/disable` | 禁用命名空间中的所有工具 |
+| `PATCH` | `/api/namespaces/{ns}/metadata` | 更新命名空间中所有工具的元数据 |
 
 ### 执行日志
 
@@ -148,5 +151,40 @@ curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8081/api/tools
         "calculator_add": "维护中"
       },
       "tools": ["calculator_add", "calculator_subtract"]
+    }
+    ```
+
+=== "更新工具元数据"
+
+    ```bash
+    curl -X PATCH http://localhost:8081/api/tools/calculator_add/metadata \
+      -H "Content-Type: application/json" \
+      -d '{"think_augment": true}'
+    ```
+
+    响应：
+    ```json
+    {
+      "success": true,
+      "message": "Metadata updated for tool 'calculator_add'",
+      "updated": {"think_augment": true}
+    }
+    ```
+
+=== "更新命名空间元数据"
+
+    ```bash
+    curl -X PATCH http://localhost:8081/api/namespaces/calculator/metadata \
+      -H "Content-Type: application/json" \
+      -d '{"defer": true}'
+    ```
+
+    响应：
+    ```json
+    {
+      "success": true,
+      "message": "Metadata updated for namespace 'calculator'",
+      "tools_updated": 3,
+      "updated": {"defer": true}
     }
     ```

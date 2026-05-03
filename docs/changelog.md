@@ -14,6 +14,26 @@ author: Oaklight
 
 ### 新特性
 
+- **管理面板增强**（[#133](../../pull/133)）
+    - 丰富工具 API 响应，包含完整元数据：`ToolTag` 标签、`ToolMetadata` 字段（`is_async`、`timeout`、`locality`、`think_augment`、`defer` 等）以及权限评估结果
+    - 新增 `GET /api/tools/{name}/permissions` 端点，支持单个工具的权限策略评估
+    - 在 Web UI 中新增工具详情弹窗，支持标签页切换（Schema、Metadata、Permissions）
+    - 在工具行中添加系统 `ToolTag` 标签（彩色编码）和自定义标签
+    - 将单字母元数据图标（`T`、`D`）替换为完整词标签（`think`、`defer`、`async`、`local`/`remote`）
+    - 在工具面板中添加搜索和基于标签的过滤功能
+    - 改进移动端响应式布局，支持水平滚动，小视口下隐藏原因列
+    - 新增 7 个测试覆盖丰富 API 和权限端点
+
+- **think_augment 和 defer 运行时控制**（[#134](../../issues/134)、[#135](../../pull/135)）
+    - 为 `ToolRegistry` 新增 `update_tool_metadata(tool_name, **kwargs)` 和 `update_namespace_metadata(namespace, **kwargs)` 方法，支持运行时修改 `think_augment` 和 `defer` 字段
+    - 白名单机制：仅允许运行时修改 `think_augment` 和 `defer`（防止对执行关键字段的不安全修改）
+    - 新增 `PATCH /api/tools/{name}/metadata` 和 `PATCH /api/namespaces/{ns}/metadata` REST API 端点
+    - 在 Web UI 中为 `think_augment` 和 `defer` 添加交互式开关，支持工具级别和命名空间级别
+    - 命名空间级别的开关应用于命名空间内的所有工具
+    - 在 `ChangeEventType` 枚举中新增 `METADATA_UPDATE` 事件类型
+    - 三色开关方案：金色（启用/禁用）、青色（命名空间）、靛蓝色（元数据），提供视觉层次
+    - 新增 7 个测试覆盖元数据更新端点
+
 - **声明式工具配置加载器**（[#120](../../issues/120)、[#122](../../pull/122)）
     - 新增 `toolregistry.config` 模块，支持将 JSONC/YAML 配置文件解析为类型化的冻结 dataclass
     - 支持三种工具源类型：`python`（类/模块）、`mcp`（stdio/sse/streamable-http）、`openapi`（含认证）
@@ -34,6 +54,11 @@ author: Oaklight
     - 将 mixin 模块整合至 `_mixins/` 包
     - 将零依赖 vendor 模块整合至 `_vendor/` 包
     - 为 llm-rosetta ToolOps 使用子包级导入
+
+### 修复
+
+- **改进带必需构造参数类的错误消息**（[#127](../../issues/127)）
+    - 当 `register_from_class()` 用于构造函数需要参数的类时，提供更清晰的错误消息
 
 ### 维护
 

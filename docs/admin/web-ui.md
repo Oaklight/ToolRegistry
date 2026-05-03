@@ -15,11 +15,41 @@ Web UI 分为几个部分：
 
 - 点击工具旁边的开关来启用/禁用
 - 禁用的工具会显示原因（如果提供）
-- 点击工具名称查看完整 schema
+- 点击工具名称可在详情弹窗中查看完整 schema、元数据和权限信息
+- 使用搜索栏按名称搜索工具
+- 按 `ToolTag` 标签过滤工具（如 READ_ONLY、DESTRUCTIVE、NETWORK）
+
+### 元数据标签
+
+每个工具行显示元数据标签以便快速识别：
+
+- **ToolTag 标签**（彩色编码）：READ_ONLY、DESTRUCTIVE、NETWORK、FILE_SYSTEM、SLOW、PRIVILEGED
+- **位置标签**：`local` 或 `remote`（非 `any` 时显示）
+- **`think`**：表示已启用思维增强函数调用
+- **`defer`**：表示该工具为延迟加载（从初始提示中排除）
+- **`async`**：表示该工具为异步工具
+
+### 运行时元数据控制
+
+`think_augment` 和 `defer` 属性可直接从 UI 进行运行时切换：
+
+- **工具级开关**：每个工具行有小型靛蓝色开关，用于控制 `think` 和 `defer`
+- **命名空间级开关**：命名空间标题行包含开关，应用于命名空间内的所有工具
+- 更改立即生效，无需重启服务
+- 仅 `think_augment` 和 `defer` 可在运行时修改（其他元数据字段为只读，确保安全）
+
+### 工具详情弹窗
+
+点击工具名称可打开详情弹窗，包含三个标签页：
+
+- **Schema**：工具参数的完整 JSON Schema
+- **Metadata**：所有 `ToolMetadata` 字段，`think_augment` 和 `defer` 提供交互式开关
+- **Permissions**：权限评估结果，显示适用的规则和决策
 
 ## 命名空间管理
 
 - 一键启用/禁用命名空间中的所有工具
+- 为命名空间中的所有工具切换 `think_augment` 和 `defer`
 - 查看每个命名空间的工具数量
 - 查看启用/禁用分布
 
