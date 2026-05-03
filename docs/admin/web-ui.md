@@ -15,11 +15,41 @@ The web UI is organized into several sections:
 
 - Click the toggle switch next to a tool to enable/disable it
 - Disabled tools show the reason (if provided)
-- Click on a tool name to view its full schema
+- Click on a tool name to view its full schema, metadata, and permissions in a detail modal
+- Search tools by name using the search bar
+- Filter tools by `ToolTag` badges (e.g., READ_ONLY, DESTRUCTIVE, NETWORK)
+
+### Metadata Badges
+
+Each tool row displays metadata badges for quick identification:
+
+- **ToolTag badges** (color-coded): READ_ONLY, DESTRUCTIVE, NETWORK, FILE_SYSTEM, SLOW, PRIVILEGED
+- **Locality badge**: `local` or `remote` (shown when not `any`)
+- **`think`**: Indicates think-augmented function calling is enabled
+- **`defer`**: Indicates the tool is deferred (excluded from initial prompt)
+- **`async`**: Indicates the tool is asynchronous
+
+### Runtime Metadata Control
+
+The `think_augment` and `defer` properties can be toggled at runtime directly from the UI:
+
+- **Per-tool toggles**: Each tool row has small indigo toggle switches for `think` and `defer`
+- **Per-namespace toggles**: Namespace header rows include toggles that apply to all tools within the namespace
+- Changes take effect immediately without restarting the service
+- Only `think_augment` and `defer` are modifiable at runtime (other metadata fields are read-only for safety)
+
+### Tool Detail Modal
+
+Clicking a tool name opens a detail modal with three tabs:
+
+- **Schema**: Full JSON schema of the tool's parameters
+- **Metadata**: All `ToolMetadata` fields with interactive toggles for `think_augment` and `defer`
+- **Permissions**: Permission evaluation result showing applicable rules and decisions
 
 ## Namespace Management
 
 - Enable/disable all tools in a namespace with a single click
+- Toggle `think_augment` and `defer` for all tools in a namespace
 - View tool counts per namespace
 - See enabled/disabled breakdown
 

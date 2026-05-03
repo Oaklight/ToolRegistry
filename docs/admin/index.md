@@ -14,10 +14,12 @@ The Admin Panel is designed with the following principles:
 ### Key Features
 
 - Enable/disable tools and namespaces at runtime
-- View tool schemas and metadata
+- Toggle `think_augment` and `defer` metadata per tool or per namespace at runtime
+- View tool schemas, metadata, and permission evaluation results
+- Search and filter tools by name or ToolTag
 - Monitor execution logs with filtering and statistics
 - Export/import registry state
-- Web UI for visual management
+- Web UI for visual management with responsive layout
 
 ### Screenshots
 

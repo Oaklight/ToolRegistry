@@ -20,6 +20,8 @@ curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8081/api/tools
 | `GET` | `/api/tools/{name}` | Get single tool details |
 | `POST` | `/api/tools/{name}/enable` | Enable a tool |
 | `POST` | `/api/tools/{name}/disable` | Disable a tool |
+| `GET` | `/api/tools/{name}/permissions` | Evaluate permission policy for a tool |
+| `PATCH` | `/api/tools/{name}/metadata` | Update tool metadata (`think_augment`, `defer`) |
 
 ### Namespaces
 
@@ -28,6 +30,7 @@ curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8081/api/tools
 | `GET` | `/api/namespaces` | List all namespaces |
 | `POST` | `/api/namespaces/{ns}/enable` | Enable all tools in namespace |
 | `POST` | `/api/namespaces/{ns}/disable` | Disable all tools in namespace |
+| `PATCH` | `/api/namespaces/{ns}/metadata` | Update metadata for all tools in namespace |
 
 ### Execution Logs
 
@@ -148,5 +151,40 @@ curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8081/api/tools
         "calculator_add": "Under maintenance"
       },
       "tools": ["calculator_add", "calculator_subtract"]
+    }
+    ```
+
+=== "Update Tool Metadata"
+
+    ```bash
+    curl -X PATCH http://localhost:8081/api/tools/calculator_add/metadata \
+      -H "Content-Type: application/json" \
+      -d '{"think_augment": true}'
+    ```
+
+    Response:
+    ```json
+    {
+      "success": true,
+      "message": "Metadata updated for tool 'calculator_add'",
+      "updated": {"think_augment": true}
+    }
+    ```
+
+=== "Update Namespace Metadata"
+
+    ```bash
+    curl -X PATCH http://localhost:8081/api/namespaces/calculator/metadata \
+      -H "Content-Type: application/json" \
+      -d '{"defer": true}'
+    ```
+
+    Response:
+    ```json
+    {
+      "success": true,
+      "message": "Metadata updated for namespace 'calculator'",
+      "tools_updated": 3,
+      "updated": {"defer": true}
     }
     ```

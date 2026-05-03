@@ -14,6 +14,26 @@ This page documents all notable changes to the ToolRegistry project since the fi
 
 ### New Features
 
+- **Admin Panel Enrichment** ([#133](../../pull/133))
+    - Enrich tool API responses with full metadata: `ToolTag` badges, `ToolMetadata` fields (`is_async`, `timeout`, `locality`, `think_augment`, `defer`, etc.), and permission evaluation results
+    - Add `GET /api/tools/{name}/permissions` endpoint for per-tool permission policy evaluation
+    - Add tool detail modal in Web UI with tabbed view (Schema, Metadata, Permissions)
+    - Add system `ToolTag` badges (color-coded) and custom tag pills in tool rows
+    - Replace single-letter meta icons (`T`, `D`) with full-word badges (`think`, `defer`, `async`, `local`/`remote`)
+    - Add search and tag-based filtering in the tools panel
+    - Improve mobile responsive layout with horizontal scroll and hidden reason column on small viewports
+    - Add 7 new tests covering enriched API and permissions endpoint
+
+- **Runtime Control for think_augment and defer** ([#134](../../issues/134), [#135](../../pull/135))
+    - Add `update_tool_metadata(tool_name, **kwargs)` and `update_namespace_metadata(namespace, **kwargs)` methods to `ToolRegistry` for runtime mutation of `think_augment` and `defer` fields
+    - Whitelist approach: only `think_augment` and `defer` are allowed for runtime modification (prevents unsafe mutations of execution-critical fields)
+    - Add `PATCH /api/tools/{name}/metadata` and `PATCH /api/namespaces/{ns}/metadata` REST API endpoints
+    - Add interactive toggle switches in Web UI for `think_augment` and `defer` at both tool and namespace levels
+    - Namespace-level toggles apply to all tools within the namespace
+    - Add `METADATA_UPDATE` event type to `ChangeEventType` enum
+    - Three-color toggle scheme: gold (enable/disable), teal (namespace), indigo (metadata) for visual hierarchy
+    - Add 7 new tests for metadata update endpoints
+
 - **Declarative Tool Config Loader** ([#120](../../issues/120), [#122](../../pull/122))
     - Add `toolregistry.config` module for parsing JSONC/YAML config files into typed frozen dataclasses
     - Support three tool source types: `python` (class/module), `mcp` (stdio/sse/streamable-http), `openapi` (with auth)
@@ -34,6 +54,11 @@ This page documents all notable changes to the ToolRegistry project since the fi
     - Consolidate mixin modules into `_mixins/` package
     - Consolidate zero-dependency vendored modules into `_vendor/` package
     - Use subpackage-level imports for llm-rosetta ToolOps
+
+### Bug Fixes
+
+- **Improve error message for classes with required constructor args** ([#127](../../issues/127))
+    - Provide a clearer error message when `register_from_class()` is called with a class whose constructor requires arguments
 
 ### Maintenance
 
