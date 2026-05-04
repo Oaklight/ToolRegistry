@@ -75,6 +75,7 @@ Issues = "https://github.com/Oaklight/ToolRegistry/issues"
 
 [tool.ruff]
 target-version = "py310"
+exclude = ["src/toolregistry/_vendor"]
 
 [tool.ruff.lint]
 select = ["E", "F", "UP"]
@@ -85,9 +86,13 @@ python-version = "3.10"
 
 [tool.ty.src]
 include = ["src", "tests"]
+exclude = ["src/toolregistry/_vendor"]
 
 [tool.ty.rules]
 unresolved-import = "ignore"
+
+[tool.complexipy]
+exclude = ["_vendor"]
 
 [tool.setuptools.dynamic]
 version = { attr = "toolregistry.__version__" }

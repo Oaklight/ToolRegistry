@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING
 
 from .._vendor.httpserver import App
 from .auth import TokenAuth
-from .handlers import setup_routes
 
 if TYPE_CHECKING:
     from toolregistry import ToolRegistry
@@ -36,6 +35,20 @@ class AdminInfo:
     port: int
     url: str
     token: str | None
+
+
+class AdminApp(App):
+    """App subclass with typed admin-specific attributes.
+
+    Attributes:
+        registry: The ToolRegistry instance to manage.
+        auth: Optional TokenAuth instance for authentication.
+        serve_ui: Whether to serve the admin UI at root path.
+    """
+
+    registry: "ToolRegistry"
+    auth: TokenAuth | None
+    serve_ui: bool
 
 
 class AdminServer:
@@ -100,7 +113,7 @@ class AdminServer:
         else:
             self._auth = None
 
-        self._app: App | None = None
+        self._app: AdminApp | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
         self._started = threading.Event()
@@ -149,12 +162,14 @@ class AdminServer:
         self._port = actual_port
 
         # Create app and attach context
-        self._app = App()
-        self._app.registry = self._registry  # type: ignore[attr-defined]
-        self._app.auth = self._auth  # type: ignore[attr-defined]
-        self._app.serve_ui = self._serve_ui  # type: ignore[attr-defined]
+        self._app = AdminApp()
+        self._app.registry = self._registry
+        self._app.auth = self._auth
+        self._app.serve_ui = self._serve_ui
 
         # Register routes and middleware
+        from .handlers import setup_routes
+
         setup_routes(self._app)
 
         # Start server in background thread
@@ -203,6 +218,7 @@ class AdminServer:
         Replicates App._serve() logic but omits signal handler
         registration, which would fail in a non-main thread.
         """
+        assert self._app is not None
         app = self._app
         app._shutdown_event = asyncio.Event()
 
