@@ -9,14 +9,16 @@ import json
 import urllib.parse
 from dataclasses import asdict
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
-from .._vendor.httpserver import App, HTTPException, Request, Response
+from .._vendor.httpserver import HTTPException, Request, Response
 
 from .static import ADMIN_HTML
 
 if TYPE_CHECKING:
     from toolregistry import ToolRegistry
+
+    from .server import AdminApp
 
 
 # ============== CORS Constants ==============
@@ -26,6 +28,16 @@ _CORS_HEADERS = {
     "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
 }
+
+
+# ============== Request Helpers ==============
+
+
+def _app(request: Request) -> "AdminApp":
+    """Get the typed AdminApp from a request."""
+    from .server import AdminApp
+
+    return cast(AdminApp, request.app)
 
 
 # ============== Response Helpers ==============
@@ -134,12 +146,12 @@ def _evaluate_tool_permission(
 # ============== Route Setup ==============
 
 
-def setup_routes(app: App) -> None:
+def setup_routes(app: "AdminApp") -> None:
     """Register all middleware and routes on the app.
 
     Args:
-        app: The httpserver App instance. Must have ``registry``, ``auth``,
-            and ``serve_ui`` attributes attached before calling this.
+        app: The AdminApp instance with ``registry``, ``auth``,
+            and ``serve_ui`` attributes.
     """
 
     # -- Middleware --
@@ -154,7 +166,7 @@ def setup_routes(app: App) -> None:
     @app.before_request
     def auth_check(request: Request) -> Response | None:
         """Check authentication token if auth is enabled."""
-        auth = request.app.auth
+        auth = _app(request).auth
         if auth is None:
             return None
 
@@ -202,7 +214,7 @@ def setup_routes(app: App) -> None:
     @app.get("/")
     def handle_root(request: Request) -> Response:
         """Serve UI or API documentation."""
-        if request.app.serve_ui:
+        if _app(request).serve_ui:
             return Response(
                 body=ADMIN_HTML,
                 status_code=200,
@@ -235,7 +247,7 @@ def setup_routes(app: App) -> None:
     @app.get("/api/tools")
     def get_tools(request: Request) -> Response:
         """Get all tools status."""
-        registry = request.app.registry
+        registry = _app(request).registry
         tools_status = registry.get_tools_status()
         for tool_status in tools_status:
             tool_status["permission"] = _evaluate_tool_permission(
@@ -246,7 +258,7 @@ def setup_routes(app: App) -> None:
     @app.get("/api/tools/<name>")
     def get_tool(request: Request, name: str) -> Response:
         """Get single tool details."""
-        registry = request.app.registry
+        registry = _app(request).registry
         name = urllib.parse.unquote(name)
         tool = registry.get_tool(name)
         if tool is None:
@@ -283,7 +295,7 @@ def setup_routes(app: App) -> None:
     @app.post("/api/tools/<name>/enable")
     def enable_tool(request: Request, name: str) -> Response:
         """Enable a tool."""
-        registry = request.app.registry
+        registry = _app(request).registry
         name = urllib.parse.unquote(name)
         if name not in registry:
             return _error_response(404, "Not Found", f"Tool not found: {name}")
@@ -294,7 +306,7 @@ def setup_routes(app: App) -> None:
     @app.post("/api/tools/<name>/disable")
     def disable_tool(request: Request, name: str) -> Response:
         """Disable a tool."""
-        registry = request.app.registry
+        registry = _app(request).registry
         name = urllib.parse.unquote(name)
         if name not in registry:
             return _error_response(404, "Not Found", f"Tool not found: {name}")
@@ -319,7 +331,7 @@ def setup_routes(app: App) -> None:
     @app.patch("/api/tools/<name>/metadata")
     def update_tool_metadata(request: Request, name: str) -> Response:
         """Update tool metadata."""
-        registry = request.app.registry
+        registry = _app(request).registry
         name = urllib.parse.unquote(name)
 
         if not request.body:
@@ -353,7 +365,7 @@ def setup_routes(app: App) -> None:
     @app.get("/api/namespaces")
     def get_namespaces(request: Request) -> Response:
         """Get all namespaces."""
-        registry = request.app.registry
+        registry = _app(request).registry
         namespaces: dict[str, dict[str, Any]] = {}
         for tool_name in registry.list_tools(include_disabled=True):
             tool = registry.get_tool(tool_name)
@@ -392,7 +404,7 @@ def setup_routes(app: App) -> None:
     @app.post("/api/namespaces/<name>/enable")
     def enable_namespace(request: Request, name: str) -> Response:
         """Enable all tools in namespace."""
-        registry = request.app.registry
+        registry = _app(request).registry
         name = urllib.parse.unquote(name)
         registry.enable(name)
 
@@ -414,7 +426,7 @@ def setup_routes(app: App) -> None:
     @app.post("/api/namespaces/<name>/disable")
     def disable_namespace(request: Request, name: str) -> Response:
         """Disable all tools in namespace."""
-        registry = request.app.registry
+        registry = _app(request).registry
         name = urllib.parse.unquote(name)
 
         reason = ""
@@ -445,7 +457,7 @@ def setup_routes(app: App) -> None:
     @app.patch("/api/namespaces/<name>/metadata")
     def update_namespace_metadata(request: Request, name: str) -> Response:
         """Update namespace metadata."""
-        registry = request.app.registry
+        registry = _app(request).registry
         name = urllib.parse.unquote(name)
 
         if not request.body:
@@ -486,7 +498,7 @@ def setup_routes(app: App) -> None:
     @app.get("/api/logs")
     def get_logs(request: Request) -> Response:
         """Get execution logs."""
-        registry = request.app.registry
+        registry = _app(request).registry
         log = registry.get_execution_log()
         if log is None:
             return _error_response(
@@ -514,7 +526,7 @@ def setup_routes(app: App) -> None:
     @app.get("/api/logs/stats")
     def get_log_stats(request: Request) -> Response:
         """Get execution statistics."""
-        registry = request.app.registry
+        registry = _app(request).registry
         log = registry.get_execution_log()
         if log is None:
             return _error_response(
@@ -527,7 +539,7 @@ def setup_routes(app: App) -> None:
     @app.delete("/api/logs")
     def clear_logs(request: Request) -> Response:
         """Clear execution logs."""
-        registry = request.app.registry
+        registry = _app(request).registry
         log = registry.get_execution_log()
         if log is None:
             return _error_response(
@@ -542,7 +554,7 @@ def setup_routes(app: App) -> None:
     @app.get("/api/state")
     def export_state(request: Request) -> Response:
         """Export current state."""
-        registry = request.app.registry
+        registry = _app(request).registry
         state = {
             "disabled": dict(registry._disabled),
             "tools": registry.list_tools(include_disabled=True),
@@ -560,7 +572,7 @@ def setup_routes(app: App) -> None:
         except (json.JSONDecodeError, ValueError) as e:
             return _error_response(400, "Bad Request", f"Invalid JSON: {e}")
 
-        registry = request.app.registry
+        registry = _app(request).registry
         if "disabled" in state:
             registry._disabled.clear()
             for n, reason in state["disabled"].items():
@@ -573,7 +585,7 @@ def setup_routes(app: App) -> None:
     @app.get("/api/permissions")
     def get_permissions(request: Request) -> Response:
         """Get permission policy info."""
-        registry = request.app.registry
+        registry = _app(request).registry
         policy = registry.get_permission_policy()
         handler = registry.get_permission_handler()
 
