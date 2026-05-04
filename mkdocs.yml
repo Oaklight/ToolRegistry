@@ -55,11 +55,10 @@ plugins:
   - llmstxt:
       full_output: llms-full.txt
       sections:
-        Architecture:
+        Usage:
           - architecture/overview.md
           - usage/concurrency_modes.md
           - usage/namespace.md
-        Usage:
           - usage/installation.md
           - usage/basics.md
           - usage/function_calling.md
@@ -117,7 +116,7 @@ plugins:
           - admin/web-ui.md
           - admin/security.md
           - admin/examples.md
-        Other:
+        Resources:
           - ecosystem.md
           - migration.md
           - changelog.md
@@ -159,11 +158,11 @@ extra:
 
 nav:
   - Home: index.md
-  - Architecture:
-      - Overview: architecture/overview.md
-      - Execution Modes: usage/concurrency_modes.md
-      - Namespace: usage/namespace.md
   - Usage:
+      - Architecture:
+          - Overview: architecture/overview.md
+          - Execution Modes: usage/concurrency_modes.md
+          - Namespace: usage/namespace.md
       - Installation: usage/installation.md
       - Basic Usage: usage/basics.md
       - Function Calling: usage/function_calling.md
@@ -226,8 +225,9 @@ nav:
       - Web UI Guide: admin/web-ui.md
       - Security: admin/security.md
       - Examples: admin/examples.md
-  - Ecosystem: ecosystem.md
-  - Migration: migration.md
-  - Changelog: changelog.md
+  - Resources:
+      - Ecosystem: ecosystem.md
+      - Migration: migration.md
+      - Changelog: changelog.md
   - Hub Tools: https://toolregistry-hub.readthedocs.io/
   - Server: https://toolregistry-server.readthedocs.io/
