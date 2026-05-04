@@ -34,14 +34,6 @@ This page documents all notable changes to the ToolRegistry project since the fi
     - Three-color toggle scheme: gold (enable/disable), teal (namespace), indigo (metadata) for visual hierarchy
     - Add 7 new tests for metadata update endpoints
 
-- **Declarative Tool Config Loader** ([#120](../../issues/120), [#122](../../pull/122))
-    - Add `toolregistry.config` module for parsing JSONC/YAML config files into typed frozen dataclasses
-    - Support three tool source types: `python` (class/module), `mcp` (stdio/sse/streamable-http), `openapi` (with auth)
-    - Vendor `zerodep/jsonc` and `zerodep/yaml` into `_vendor/` package for zero external dependencies
-    - `transport: "http"` accepted as alias for `"streamable-http"`
-    - Backward-compatible with legacy `{"module": "x", "class": "Y"}` config format
-    - Denylist/allowlist mode with per-source enable/disable and `token_env` environment variable resolution
-
 ### Refactoring
 
 - **Admin Panel Async Migration** ([#136](../../pull/136))
@@ -52,6 +44,20 @@ This page documents all notable changes to the ToolRegistry project since the fi
     - Remove `AdminRequestHandler` class (internal implementation detail replaced by `setup_routes()`)
     - Simplify `TokenAuth` to pure token management — HTTP enforcement moved to middleware
     - Exclude `_vendor/` from ruff, ty, and complexipy checks in `pyproject.toml`
+
+## [0.8.0] - 2026-05-02
+
+### New Features
+
+- **Declarative Tool Config Loader** ([#120](../../issues/120), [#122](../../pull/122))
+    - Add `toolregistry.config` module for parsing JSONC/YAML config files into typed frozen dataclasses
+    - Support three tool source types: `python` (class/module), `mcp` (stdio/sse/streamable-http), `openapi` (with auth)
+    - Vendor `zerodep/jsonc` and `zerodep/yaml` into `_vendor/` package for zero external dependencies
+    - `transport: "http"` accepted as alias for `"streamable-http"`
+    - Backward-compatible with legacy `{"module": "x", "class": "Y"}` config format
+    - Denylist/allowlist mode with per-source enable/disable and `token_env` environment variable resolution
+
+### Refactoring
 
 - **Integration Package Restructuring**
     - Moved `mcp/`, `openapi/`, `langchain/`, `native/` integration packages under a new `integrations/` parent package
