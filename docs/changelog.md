@@ -34,14 +34,6 @@ author: Oaklight
     - 三色开关方案：金色（启用/禁用）、青色（命名空间）、靛蓝色（元数据），提供视觉层次
     - 新增 7 个测试覆盖元数据更新端点
 
-- **声明式工具配置加载器**（[#120](../../issues/120)、[#122](../../pull/122)）
-    - 新增 `toolregistry.config` 模块，支持将 JSONC/YAML 配置文件解析为类型化的冻结 dataclass
-    - 支持三种工具源类型：`python`（类/模块）、`mcp`（stdio/sse/streamable-http）、`openapi`（含认证）
-    - 将 `zerodep/jsonc` 和 `zerodep/yaml` 作为 vendor 模块放入 `_vendor/` 包，保持零外部依赖
-    - `transport: "http"` 作为 `"streamable-http"` 的别名
-    - 向后兼容旧版 `{"module": "x", "class": "Y"}` 配置格式
-    - 支持 denylist/allowlist 模式、按源启用/禁用以及 `token_env` 环境变量解析
-
 ### 重构
 
 - **管理面板异步化迁移**（[#136](../../pull/136)）
@@ -52,6 +44,20 @@ author: Oaklight
     - 移除 `AdminRequestHandler` 类（内部实现细节，替换为 `setup_routes()`）
     - 简化 `TokenAuth` 为纯令牌管理 — HTTP 认证逻辑移至中间件
     - 在 `pyproject.toml` 中将 `_vendor/` 排除出 ruff、ty 和 complexipy 检查
+
+## [0.8.0] - 2026-05-02
+
+### 新特性
+
+- **声明式工具配置加载器**（[#120](../../issues/120)、[#122](../../pull/122)）
+    - 新增 `toolregistry.config` 模块，支持将 JSONC/YAML 配置文件解析为类型化的冻结 dataclass
+    - 支持三种工具源类型：`python`（类/模块）、`mcp`（stdio/sse/streamable-http）、`openapi`（含认证）
+    - 将 `zerodep/jsonc` 和 `zerodep/yaml` 作为 vendor 模块放入 `_vendor/` 包，保持零外部依赖
+    - `transport: "http"` 作为 `"streamable-http"` 的别名
+    - 向后兼容旧版 `{"module": "x", "class": "Y"}` 配置格式
+    - 支持 denylist/allowlist 模式、按源启用/禁用以及 `token_env` 环境变量解析
+
+### 重构
 
 - **集成包结构重组**
     - 将 `mcp/`、`openapi/`、`langchain/`、`native/` 集成包移至新的 `integrations/` 父包下

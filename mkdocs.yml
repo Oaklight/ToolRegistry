@@ -119,6 +119,7 @@ plugins:
         资源:
           - ecosystem.md
           - migration.md
+        更新日志:
           - changelog.md
 
 markdown_extensions:
@@ -228,6 +229,6 @@ nav:
   - 资源:
       - 生态系统: ecosystem.md
       - 迁移指南: migration.md
-      - 更新日志: changelog.md
+  - 更新日志: changelog.md
   - Hub 工具: https://toolregistry-hub.readthedocs.io/
   - Server: https://toolregistry-server.readthedocs.io/
