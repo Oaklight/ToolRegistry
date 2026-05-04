@@ -1,18 +1,19 @@
 """HTTP server for admin panel.
 
 This module provides the AdminServer class for running the admin panel
-as a background HTTP server.
+as an async HTTP server in a background thread.
 """
 
+import asyncio
 import logging
 import socket
 import threading
 from dataclasses import dataclass
-from http.server import HTTPServer
 from typing import TYPE_CHECKING
 
+from .._vendor.httpserver import App
 from .auth import TokenAuth
-from .handlers import AdminRequestHandler
+from .handlers import setup_routes
 
 if TYPE_CHECKING:
     from toolregistry import ToolRegistry
@@ -40,8 +41,9 @@ class AdminInfo:
 class AdminServer:
     """Admin panel HTTP server.
 
-    This class manages an HTTP server that provides a REST API and optional
-    web UI for managing the ToolRegistry.
+    This class manages an async HTTP server that provides a REST API and
+    optional web UI for managing the ToolRegistry. The server runs in a
+    background thread with its own asyncio event loop.
 
     Attributes:
         registry: The ToolRegistry instance to manage.
@@ -98,7 +100,8 @@ class AdminServer:
         else:
             self._auth = None
 
-        self._server: HTTPServer | None = None
+        self._app: App | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
         self._started = threading.Event()
 
@@ -138,26 +141,23 @@ class AdminServer:
         Raises:
             RuntimeError: If the server is already running.
         """
-        if self._server is not None:
+        if self._app is not None:
             raise RuntimeError("Server is already running")
 
         # Find available port
         actual_port = self.find_available_port(self._host, self._port)
         self._port = actual_port
 
-        # Create handler class with registry and auth
-        handler_class = type(
-            "BoundAdminRequestHandler",
-            (AdminRequestHandler,),
-            {
-                "registry": self._registry,
-                "auth": self._auth,
-                "serve_ui": self._serve_ui,
-            },
-        )
+        # Create app and attach context
+        self._app = App()
+        self._app.registry = self._registry  # type: ignore[attr-defined]
+        self._app.auth = self._auth  # type: ignore[attr-defined]
+        self._app.serve_ui = self._serve_ui  # type: ignore[attr-defined]
 
-        # Create and start server
-        self._server = HTTPServer((self._host, self._port), handler_class)
+        # Register routes and middleware
+        setup_routes(self._app)
+
+        # Start server in background thread
         self._thread = threading.Thread(target=self._run_server, daemon=True)
         self._thread.start()
 
@@ -184,26 +184,67 @@ class AdminServer:
         return info
 
     def _run_server(self) -> None:
-        """Run the server (called in background thread)."""
+        """Run the async server in a background thread.
+
+        Creates a new asyncio event loop and runs the server coroutine.
+        The loop is cleaned up when the server shuts down.
+        """
+        self._loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self._loop)
+        try:
+            self._loop.run_until_complete(self._async_serve())
+        finally:
+            self._loop.close()
+            self._loop = None
+
+    async def _async_serve(self) -> None:
+        """Async server coroutine.
+
+        Replicates App._serve() logic but omits signal handler
+        registration, which would fail in a non-main thread.
+        """
+        app = self._app
+        app._shutdown_event = asyncio.Event()
+
+        server = await asyncio.start_server(
+            app._handle_connection,
+            self._host,
+            self._port,
+        )
+
+        app._server = server
+        addrs = (
+            server.sockets[0].getsockname()
+            if server.sockets
+            else (self._host, self._port)
+        )
+        app.host = addrs[0]
+        app.port = addrs[1]
+
+        # Signal that the server is ready
         self._started.set()
-        if self._server:
-            self._server.serve_forever()
+
+        async with server:
+            await app._shutdown_event.wait()
 
     def stop(self) -> None:
         """Stop the server.
 
         This method is safe to call even if the server is not running.
+        Uses ``loop.call_soon_threadsafe`` to safely trigger the asyncio
+        shutdown event from the main thread.
         """
-        if self._server is not None:
-            self._server.shutdown()
-            self._server.server_close()
-            self._server = None
-            self._started.clear()
-            logger.info("Admin server stopped")
+        if self._app is not None and self._loop is not None:
+            if self._app._shutdown_event is not None:
+                self._loop.call_soon_threadsafe(self._app._shutdown_event.set)
 
         if self._thread is not None:
             self._thread.join(timeout=5.0)
             self._thread = None
+
+        self._app = None
+        self._started.clear()
+        logger.info("Admin server stopped")
 
     def is_running(self) -> bool:
         """Check if server is running.
@@ -211,7 +252,7 @@ class AdminServer:
         Returns:
             True if the server is running, False otherwise.
         """
-        return self._server is not None and self._started.is_set()
+        return self._app is not None and self._started.is_set()
 
     def get_info(self) -> AdminInfo | None:
         """Get server info if running.
