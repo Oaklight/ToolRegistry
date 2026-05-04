@@ -44,6 +44,15 @@ This page documents all notable changes to the ToolRegistry project since the fi
 
 ### Refactoring
 
+- **Admin Panel Async Migration** ([#136](../../pull/136))
+    - Migrate admin panel from stdlib `http.server` to zerodep's async `httpserver` module (vendored via `zerodep add httpserver`)
+    - Replace `BaseHTTPRequestHandler` with decorator-based routing (`@app.get`, `@app.post`, `@app.patch`, `@app.delete`)
+    - Unify authentication and CORS handling via `before_request`/`after_request` middleware
+    - Run `asyncio.new_event_loop()` in background thread instead of `HTTPServer.serve_forever()`
+    - Remove `AdminRequestHandler` class (internal implementation detail replaced by `setup_routes()`)
+    - Simplify `TokenAuth` to pure token management — HTTP enforcement moved to middleware
+    - Exclude `_vendor/` from ruff, ty, and complexipy checks in `pyproject.toml`
+
 - **Integration Package Restructuring**
     - Moved `mcp/`, `openapi/`, `langchain/`, `native/` integration packages under a new `integrations/` parent package
     - New canonical import paths: `toolregistry.integrations.mcp`, `toolregistry.integrations.openapi`, `toolregistry.integrations.langchain`, `toolregistry.integrations.native`

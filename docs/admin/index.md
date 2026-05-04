@@ -6,7 +6,7 @@ The Admin Panel provides a built-in HTTP server for managing and monitoring your
 
 The Admin Panel is designed with the following principles:
 
-- **Minimalism**: Zero external dependencies - uses only Python's standard library (`http.server`)
+- **Minimalism**: Zero external dependencies - uses a vendored async HTTP server (`zerodep/httpserver`)
 - **Zero Configuration**: Works out of the box with sensible defaults
 - **Universality**: Compatible with any HTTP client or browser
 - **Security**: Built-in token authentication for remote access
