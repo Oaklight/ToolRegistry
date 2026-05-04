@@ -44,6 +44,15 @@ author: Oaklight
 
 ### 重构
 
+- **管理面板异步化迁移**（[#136](../../pull/136)）
+    - 将管理面板从标准库 `http.server` 迁移至 zerodep 的异步 `httpserver` 模块（通过 `zerodep add httpserver` 引入）
+    - 将 `BaseHTTPRequestHandler` 替换为装饰器路由（`@app.get`、`@app.post`、`@app.patch`、`@app.delete`）
+    - 通过 `before_request`/`after_request` 中间件统一处理认证和 CORS
+    - 在后台线程中运行 `asyncio.new_event_loop()` 替代 `HTTPServer.serve_forever()`
+    - 移除 `AdminRequestHandler` 类（内部实现细节，替换为 `setup_routes()`）
+    - 简化 `TokenAuth` 为纯令牌管理 — HTTP 认证逻辑移至中间件
+    - 在 `pyproject.toml` 中将 `_vendor/` 排除出 ruff、ty 和 complexipy 检查
+
 - **集成包结构重组**
     - 将 `mcp/`、`openapi/`、`langchain/`、`native/` 集成包移至新的 `integrations/` 父包下
     - 新的规范导入路径：`toolregistry.integrations.mcp`、`toolregistry.integrations.openapi`、`toolregistry.integrations.langchain`、`toolregistry.integrations.native`
