@@ -1,6 +1,5 @@
 from .admin import (
     AdminInfo,
-    AdminRequestHandler,
     AdminServer,
     ExecutionLog,
     ExecutionLogEntry,
@@ -28,7 +27,6 @@ from .tool_discovery import ToolDiscoveryTool
 
 __all__ = [
     "AdminInfo",
-    "AdminRequestHandler",
     "AdminServer",
     "AsyncPermissionHandler",
     "ChangeCallback",
