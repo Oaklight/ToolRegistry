@@ -733,6 +733,8 @@ class ToolRegistry(
                 - is_async (bool): Whether the tool requires async execution
                 - think_augment (bool | None): Think-augmented calling setting
                 - defer (bool): Whether the tool is deferred from initial prompt
+                - has_native_thought (bool): Whether the function natively
+                  declares a ``thought`` parameter
 
         Example:
             >>> registry = ToolRegistry()
@@ -749,7 +751,8 @@ class ToolRegistry(
                     "locality": "any",
                     "is_async": False,
                     "think_augment": None,
-                    "defer": False
+                    "defer": False,
+                    "has_native_thought": False
                 }
             ]
         """
@@ -769,6 +772,7 @@ class ToolRegistry(
                     "is_async": meta.is_async,
                     "think_augment": meta.think_augment,
                     "defer": meta.defer,
+                    "has_native_thought": tool._has_native_thought_param(),
                 }
             )
         return status_list
