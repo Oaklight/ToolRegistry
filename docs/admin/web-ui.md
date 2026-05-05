@@ -25,16 +25,15 @@ Each tool row displays metadata badges for quick identification:
 
 - **ToolTag badges** (color-coded): READ_ONLY, DESTRUCTIVE, NETWORK, FILE_SYSTEM, SLOW, PRIVILEGED
 - **Locality badge**: `local` or `remote` (shown when not `any`)
-- **`think`**: Indicates think-augmented function calling is enabled
-- **`defer`**: Indicates the tool is deferred (excluded from initial prompt)
 - **`async`**: Indicates the tool is asynchronous
 
 ### Runtime Metadata Control
 
 The `think_augment` and `defer` properties can be toggled at runtime directly from the UI:
 
-- **Per-tool toggles**: Each tool row has small indigo toggle switches for `think` and `defer`
-- **Per-namespace toggles**: Namespace header rows include toggles that apply to all tools within the namespace
+- **Per-tool checkboxes**: Each tool row has dedicated Think and Defer columns with checkboxes
+- **Per-namespace checkboxes**: Namespace header rows include checkboxes that apply to all tools within the namespace
+- Tools with a native `thought` parameter have their Think checkbox grayed out (the parameter is always passed through)
 - Changes take effect immediately without restarting the service
 - Only `think_augment` and `defer` are modifiable at runtime (other metadata fields are read-only for safety)
 

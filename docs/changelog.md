@@ -28,10 +28,10 @@ This page documents all notable changes to the ToolRegistry project since the fi
     - Add `update_tool_metadata(tool_name, **kwargs)` and `update_namespace_metadata(namespace, **kwargs)` methods to `ToolRegistry` for runtime mutation of `think_augment` and `defer` fields
     - Whitelist approach: only `think_augment` and `defer` are allowed for runtime modification (prevents unsafe mutations of execution-critical fields)
     - Add `PATCH /api/tools/{name}/metadata` and `PATCH /api/namespaces/{ns}/metadata` REST API endpoints
-    - Add interactive toggle switches in Web UI for `think_augment` and `defer` at both tool and namespace levels
-    - Namespace-level toggles apply to all tools within the namespace
+    - Add interactive checkboxes in Web UI for `think_augment` and `defer` in dedicated columns at both tool and namespace levels
+    - Gray out Think checkbox for tools with native `thought` parameter; expose `has_native_thought` in `get_tools_status()` API
+    - Namespace-level checkboxes apply to all tools within the namespace
     - Add `METADATA_UPDATE` event type to `ChangeEventType` enum
-    - Three-color toggle scheme: gold (enable/disable), teal (namespace), indigo (metadata) for visual hierarchy
     - Add 7 new tests for metadata update endpoints
 
 - **Admin Panel i18n** ([#137](../../pull/137))
@@ -40,6 +40,7 @@ This page documents all notable changes to the ToolRegistry project since the fi
     - All static text uses `data-i18n` attributes; dynamic text uses `t(key, params)` translation function
     - Covers all tabs, table headers, buttons, filters, toast messages, modal dialogs, and empty states
     - Instant language switching with automatic re-rendering of the active tab
+    - Simplify connection status to dot-only indicator with hover tooltip
 
 ### Refactoring
 
