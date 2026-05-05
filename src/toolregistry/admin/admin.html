@@ -1265,6 +1265,21 @@
         .perm-dot-active  { background: var(--success); }
         .perm-dot-inactive { background: var(--text-secondary); }
 
+        .header-select {
+            padding: 4px 8px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 0.75rem;
+            font-family: inherit;
+            cursor: pointer;
+            outline: none;
+            transition: var(--transition);
+        }
+        .header-select:hover { border-color: var(--accent); }
+        .header-select:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-light); }
+
         .badge-allow, .badge-deny, .badge-ask {
             display: inline-flex;
             align-items: center;
@@ -1291,14 +1306,18 @@
                             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
                         </svg>
                     </div>
-                    <span>ToolRegistry Admin Panel</span>
+                    <span data-i18n="app.title">ToolRegistry Admin Panel</span>
                 </div>
                 <div class="header-actions">
+                    <select id="langSwitcher" class="header-select" onchange="setLang(this.value)">
+                        <option value="en">EN</option>
+                        <option value="zh">中文</option>
+                    </select>
                     <div class="status-indicator">
                         <span class="status-dot" id="status-dot"></span>
-                        <span id="status-text">Connected</span>
+                        <span id="status-text" data-i18n="status.connected">Connected</span>
                     </div>
-                    <button class="btn-refresh" onclick="refreshAll()" title="Refresh">
+                    <button class="btn-refresh" onclick="refreshAll()" title="Refresh" data-i18n-title="btn.refresh">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <polyline points="23 4 23 10 17 10"></polyline>
                             <polyline points="1 20 1 14 7 14"></polyline>
@@ -1313,11 +1332,11 @@
         <main class="main">
             <!-- Tabs -->
             <div class="tabs">
-                <button class="tab active" data-tab="tools" onclick="switchTab('tools')">Tools</button>
-                <button class="tab" data-tab="namespaces" onclick="switchTab('namespaces')">Namespaces</button>
-                <button class="tab" data-tab="logs" onclick="switchTab('logs')">Logs</button>
-                <button class="tab" data-tab="state" onclick="switchTab('state')">State</button>
-                <button class="tab" data-tab="permissions" onclick="switchTab('permissions')">Permissions</button>
+                <button class="tab active" data-tab="tools" onclick="switchTab('tools')" data-i18n="tab.tools">Tools</button>
+                <button class="tab" data-tab="namespaces" onclick="switchTab('namespaces')" data-i18n="tab.namespaces">Namespaces</button>
+                <button class="tab" data-tab="logs" onclick="switchTab('logs')" data-i18n="tab.logs">Logs</button>
+                <button class="tab" data-tab="state" onclick="switchTab('state')" data-i18n="tab.state">State</button>
+                <button class="tab" data-tab="permissions" onclick="switchTab('permissions')" data-i18n="tab.permissions">Permissions</button>
             </div>
 
             <!-- Tools Tab -->
@@ -1326,11 +1345,11 @@
                     <!-- Stats Card -->
                     <div class="card grid-full">
                         <div class="card-header">
-                            <h2 class="card-title">Overview</h2>
+                            <h2 class="card-title" data-i18n="section.overview">Overview</h2>
                         </div>
                         <div class="card-body" style="padding: 0;">
                             <div class="stats-grid" id="stats-grid">
-                                <div class="loading"><div class="spinner"></div>Loading...</div>
+                                <div class="loading"><div class="spinner"></div><span data-i18n="misc.loading">Loading...</span></div>
                             </div>
                         </div>
                     </div>
@@ -1338,12 +1357,12 @@
                     <!-- Tools Card -->
                     <div class="card grid-full">
                         <div class="card-header">
-                            <h2 class="card-title">Tools</h2>
+                            <h2 class="card-title" data-i18n="section.tools">Tools</h2>
                             <div class="flex gap-2">
                                 <button class="btn btn-secondary btn-sm" id="toggle-expand-btn" onclick="toggleAllGroups()" title="Expand all" style="width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center;">
                                     <svg id="toggle-expand-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3l4 4 4-4"/><path d="M4 9l4 4 4-4"/></svg>
                                 </button>
-                                <button class="btn btn-secondary btn-sm" onclick="refreshTools()">Refresh</button>
+                                <button class="btn btn-secondary btn-sm" onclick="refreshTools()" data-i18n="btn.refresh">Refresh</button>
                             </div>
                         </div>
                         <div class="card-body no-padding">
@@ -1355,24 +1374,24 @@
                                             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                                         </svg>
                                     </span>
-                                    <input type="text" class="input" id="tool-search" placeholder="Search tools..." oninput="filterTools()">
+                                    <input type="text" class="input" id="tool-search" placeholder="Search tools..." data-i18n-placeholder="label.searchTools" oninput="filterTools()">
                                 </div>
                                 <select class="input select" id="namespace-filter" onchange="filterTools()">
-                                    <option value="">All Namespaces</option>
+                                    <option value="" data-i18n="filter.allNamespaces">All Namespaces</option>
                                 </select>
                                 <select class="input select" id="status-filter" onchange="filterTools()">
-                                    <option value="">All Status</option>
-                                    <option value="enabled">Enabled</option>
-                                    <option value="disabled">Disabled</option>
+                                    <option value="" data-i18n="filter.allStatus">All Status</option>
+                                    <option value="enabled" data-i18n="filter.enabled">Enabled</option>
+                                    <option value="disabled" data-i18n="filter.disabled">Disabled</option>
                                 </select>
                                 <select class="input select" id="tag-filter" onchange="filterTools()">
-                                    <option value="">All Tags</option>
+                                    <option value="" data-i18n="filter.allTags">All Tags</option>
                                 </select>
                                 <select class="input select" id="locality-filter" onchange="filterTools()">
-                                    <option value="">All Locality</option>
-                                    <option value="local">Local</option>
-                                    <option value="remote">Remote</option>
-                                    <option value="any">Any</option>
+                                    <option value="" data-i18n="filter.allLocality">All Locality</option>
+                                    <option value="local" data-i18n="filter.local">Local</option>
+                                    <option value="remote" data-i18n="filter.remote">Remote</option>
+                                    <option value="any" data-i18n="filter.any">Any</option>
                                 </select>
                             </div>
                             <div class="table-container">
@@ -1380,14 +1399,14 @@
                                     <thead>
                                         <tr>
                                             <th class="col-chevron"></th>
-                                            <th class="col-name">Name</th>
-                                            <th class="col-permission">Permission</th>
-                                            <th class="col-enabled">Enabled</th>
-                                            <th class="col-reason">Reason</th>
+                                            <th class="col-name" data-i18n="col.name">Name</th>
+                                            <th class="col-permission" data-i18n="col.permission">Permission</th>
+                                            <th class="col-enabled" data-i18n="col.enabled">Enabled</th>
+                                            <th class="col-reason" data-i18n="col.reason">Reason</th>
                                         </tr>
                                     </thead>
                                     <tbody id="tools-body">
-                                        <tr><td colspan="5" class="loading"><div class="spinner"></div>Loading...</td></tr>
+                                        <tr><td colspan="5" class="loading"><div class="spinner"></div><span data-i18n="misc.loading">Loading...</span></td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -1400,24 +1419,24 @@
             <div id="tab-namespaces" class="tab-content" style="display: none;">
                 <div class="card">
                     <div class="card-header">
-                        <h2 class="card-title">Namespaces</h2>
-                        <button class="btn btn-secondary btn-sm" onclick="refreshNamespaces()">Refresh</button>
+                        <h2 class="card-title" data-i18n="tab.namespaces">Namespaces</h2>
+                        <button class="btn btn-secondary btn-sm" onclick="refreshNamespaces()" data-i18n="btn.refresh">Refresh</button>
                     </div>
                     <div class="card-body no-padding">
                         <div class="table-container">
                             <table>
                                 <thead>
                                     <tr>
-                                        <th>Namespace</th>
-                                        <th>Total Tools</th>
-                                        <th>Enabled</th>
-                                        <th>Disabled</th>
-                                        <th>Tags</th>
-                                        <th>Actions</th>
+                                        <th data-i18n="col.namespace">Namespace</th>
+                                        <th data-i18n="col.totalTools">Total Tools</th>
+                                        <th data-i18n="col.enabled">Enabled</th>
+                                        <th data-i18n="col.disabled">Disabled</th>
+                                        <th data-i18n="col.tags">Tags</th>
+                                        <th data-i18n="col.actions">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="namespaces-body">
-                                    <tr><td colspan="6" class="loading"><div class="spinner"></div>Loading...</td></tr>
+                                    <tr><td colspan="6" class="loading"><div class="spinner"></div><span data-i18n="misc.loading">Loading...</span></td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -1431,11 +1450,11 @@
                     <!-- Log Stats -->
                     <div class="card grid-full">
                         <div class="card-header">
-                            <h2 class="card-title">Execution Statistics</h2>
+                            <h2 class="card-title" data-i18n="section.execStats">Execution Statistics</h2>
                         </div>
                         <div class="card-body" style="padding: 0;">
                             <div class="stats-grid" id="log-stats-grid">
-                                <div class="loading"><div class="spinner"></div>Loading...</div>
+                                <div class="loading"><div class="spinner"></div><span data-i18n="misc.loading">Loading...</span></div>
                             </div>
                         </div>
                     </div>
@@ -1443,28 +1462,28 @@
                     <!-- Logs Table -->
                     <div class="card grid-full">
                         <div class="card-header">
-                            <h2 class="card-title">Execution Logs</h2>
+                            <h2 class="card-title" data-i18n="section.execLogs">Execution Logs</h2>
                             <div class="flex gap-2">
-                                <button class="btn btn-secondary btn-sm" onclick="refreshLogs()">Refresh</button>
-                                <button class="btn btn-danger btn-sm" onclick="confirmClearLogs()">Clear Logs</button>
+                                <button class="btn btn-secondary btn-sm" onclick="refreshLogs()" data-i18n="btn.refresh">Refresh</button>
+                                <button class="btn btn-danger btn-sm" onclick="confirmClearLogs()" data-i18n="btn.clearLogs">Clear Logs</button>
                             </div>
                         </div>
                         <div class="card-body no-padding">
                             <div class="search-bar" style="padding: 16px 16px 0;">
                                 <div class="filter-group" style="flex: 1;">
-                                    <input type="text" class="input" id="log-tool-filter" placeholder="Filter by tool..." style="flex: 1;">
+                                    <input type="text" class="input" id="log-tool-filter" placeholder="Filter by tool..." data-i18n-placeholder="label.filterByTool" style="flex: 1;">
                                     <select class="input select" id="log-status-filter">
-                                        <option value="">All Status</option>
-                                        <option value="success">Success</option>
-                                        <option value="error">Error</option>
-                                        <option value="disabled">Rejected</option>
+                                        <option value="" data-i18n="filter.allStatus">All Status</option>
+                                        <option value="success" data-i18n="log.success">Success</option>
+                                        <option value="error" data-i18n="log.error">Error</option>
+                                        <option value="disabled" data-i18n="log.rejected">Rejected</option>
                                     </select>
                                     <select class="input select" id="log-limit">
-                                        <option value="50">Last 50</option>
-                                        <option value="100" selected>Last 100</option>
-                                        <option value="500">Last 500</option>
+                                        <option value="50" data-i18n="log.last50">Last 50</option>
+                                        <option value="100" selected data-i18n="log.last100">Last 100</option>
+                                        <option value="500" data-i18n="log.last500">Last 500</option>
                                     </select>
-                                    <button class="btn btn-primary btn-sm" onclick="refreshLogs()">Apply</button>
+                                    <button class="btn btn-primary btn-sm" onclick="refreshLogs()" data-i18n="btn.apply">Apply</button>
                                 </div>
                             </div>
                             <div class="table-container">
@@ -1472,14 +1491,14 @@
                                     <thead>
                                         <tr>
                                             <th style="width: 36px;"></th>
-                                            <th>Timestamp</th>
-                                            <th>Tool</th>
-                                            <th>Status</th>
-                                            <th>Duration</th>
+                                            <th data-i18n="col.timestamp">Timestamp</th>
+                                            <th data-i18n="col.tool">Tool</th>
+                                            <th data-i18n="col.status">Status</th>
+                                            <th data-i18n="col.duration">Duration</th>
                                         </tr>
                                     </thead>
                                     <tbody id="logs-body">
-                                        <tr><td colspan="5" class="loading"><div class="spinner"></div>Loading...</td></tr>
+                                        <tr><td colspan="5" class="loading"><div class="spinner"></div><span data-i18n="misc.loading">Loading...</span></td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -1493,11 +1512,11 @@
                 <div class="grid">
                     <div class="card">
                         <div class="card-header">
-                            <h2 class="card-title">Export State</h2>
+                            <h2 class="card-title" data-i18n="section.exportState">Export State</h2>
                         </div>
                         <div class="card-body">
-                            <p class="text-muted mb-4" style="font-size: 0.8125rem;">Download the current state of disabled tools and namespaces as a JSON file.</p>
-                            <button class="btn btn-primary" onclick="exportState()">
+                            <p class="text-muted mb-4" style="font-size: 0.8125rem;" data-i18n="state.exportDesc">Download the current state of disabled tools and namespaces as a JSON file.</p>
+                            <button class="btn btn-primary" onclick="exportState()" data-i18n="btn.downloadState">
                                 Download State
                             </button>
                         </div>
@@ -1505,12 +1524,12 @@
 
                     <div class="card">
                         <div class="card-header">
-                            <h2 class="card-title">Import State</h2>
+                            <h2 class="card-title" data-i18n="section.importState">Import State</h2>
                         </div>
                         <div class="card-body">
-                            <p class="text-muted mb-4" style="font-size: 0.8125rem;">Upload a previously exported state file to restore disabled tools and namespaces.</p>
+                            <p class="text-muted mb-4" style="font-size: 0.8125rem;" data-i18n="state.importDesc">Upload a previously exported state file to restore disabled tools and namespaces.</p>
                             <input type="file" id="import-file" accept=".json" style="display: none;" onchange="handleImportFile(event)">
-                            <button class="btn btn-secondary" onclick="document.getElementById('import-file').click()">
+                            <button class="btn btn-secondary" onclick="document.getElementById('import-file').click()" data-i18n="btn.uploadState">
                                 Upload State
                             </button>
                         </div>
@@ -1522,11 +1541,11 @@
             <div id="tab-permissions" class="tab-content" style="display: none;">
                 <div class="card">
                     <div class="card-header">
-                        <h2 class="card-title">Permission Policy</h2>
-                        <button class="btn btn-secondary btn-sm" onclick="refreshPermissions()">Refresh</button>
+                        <h2 class="card-title" data-i18n="section.permPolicy">Permission Policy</h2>
+                        <button class="btn btn-secondary btn-sm" onclick="refreshPermissions()" data-i18n="btn.refresh">Refresh</button>
                     </div>
                     <div class="card-body" id="permissions-body">
-                        <div class="loading"><div class="spinner"></div>Loading...</div>
+                        <div class="loading"><div class="spinner"></div><span data-i18n="misc.loading">Loading...</span></div>
                     </div>
                 </div>
             </div>
@@ -1537,7 +1556,7 @@
     <div class="detail-overlay" id="detail-overlay" onclick="closeDetailModal(event)">
         <div class="detail-modal" onclick="event.stopPropagation()">
             <div class="modal-header">
-                <h3 class="modal-title" id="detail-title">Tool Details</h3>
+                <h3 class="modal-title" id="detail-title" data-i18n="modal.toolDetail">Tool Details</h3>
                 <button class="modal-close" onclick="closeDetailModal()">&times;</button>
             </div>
             <div id="detail-body"></div>
@@ -1555,8 +1574,8 @@
                 Modal content
             </div>
             <div class="modal-footer" id="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-                <button class="btn btn-primary" id="modal-confirm">Confirm</button>
+                <button class="btn btn-secondary" onclick="closeModal()" data-i18n="btn.cancel">Cancel</button>
+                <button class="btn btn-primary" id="modal-confirm" data-i18n="btn.confirm">Confirm</button>
             </div>
         </div>
     </div>
@@ -1573,6 +1592,212 @@
 
         // SVG icon helper
         const SVG_CHEVRON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>';
+
+        // ===================== i18n =====================
+        const I18N = {
+          en: {
+            'app.title':'ToolRegistry Admin Panel',
+            'status.connected':'Connected', 'status.disconnected':'Disconnected',
+            'tab.tools':'Tools', 'tab.namespaces':'Namespaces', 'tab.logs':'Logs',
+            'tab.state':'State', 'tab.permissions':'Permissions',
+            'section.overview':'Overview', 'section.tools':'Tools',
+            'section.execStats':'Execution Statistics', 'section.execLogs':'Execution Logs',
+            'section.exportState':'Export State', 'section.importState':'Import State',
+            'section.permPolicy':'Permission Policy',
+            'col.name':'Name', 'col.permission':'Permission', 'col.enabled':'Enabled',
+            'col.reason':'Reason', 'col.namespace':'Namespace', 'col.totalTools':'Total Tools',
+            'col.disabled':'Disabled', 'col.tags':'Tags', 'col.actions':'Actions',
+            'col.timestamp':'Timestamp', 'col.tool':'Tool', 'col.status':'Status',
+            'col.duration':'Duration', 'col.ruleName':'Rule Name', 'col.result':'Result',
+            'btn.refresh':'Refresh', 'btn.clearLogs':'Clear Logs', 'btn.apply':'Apply',
+            'btn.downloadState':'Download State', 'btn.uploadState':'Upload State',
+            'btn.cancel':'Cancel', 'btn.confirm':'Confirm',
+            'btn.enableAll':'Enable All', 'btn.disableAll':'Disable All',
+            'filter.allNamespaces':'All Namespaces', 'filter.allStatus':'All Status',
+            'filter.allTags':'All Tags', 'filter.allLocality':'All Locality',
+            'filter.enabled':'Enabled', 'filter.disabled':'Disabled',
+            'filter.local':'Local', 'filter.remote':'Remote', 'filter.any':'Any',
+            'label.searchTools':'Search tools...', 'label.filterByTool':'Filter by tool...',
+            'label.reasonOptional':'Reason (optional)', 'label.enterReason':'Enter reason for disabling...',
+            'toast.toolEnabled':'Tool "{name}" enabled', 'toast.toolDisabled':'Tool "{name}" disabled',
+            'toast.nsEnabled':'Namespace "{name}" enabled', 'toast.nsDisabled':'Namespace "{name}" disabled',
+            'toast.logsCleared':'Logs cleared successfully',
+            'toast.stateExported':'State exported successfully',
+            'toast.stateImported':'State imported successfully',
+            'toast.invalidJson':'Invalid JSON file',
+            'toast.metaUpdated':'{field} {state} for "{name}"',
+            'toast.nsMetaUpdated':'{field} {state} for namespace "{name}"',
+            'modal.disableTool':'Disable Tool', 'modal.disableNs':'Disable Namespace',
+            'modal.clearLogs':'Clear Logs', 'modal.importState':'Import State',
+            'modal.toolDetail':'Tool Details',
+            'modal.toolLabel':'Tool: ', 'modal.nsLabel':'Namespace: ',
+            'modal.disableNsHint':'This will disable all tools in this namespace.',
+            'confirm.clearLogs':'Are you sure you want to clear all execution logs?',
+            'confirm.clearLogsWarn':'This action cannot be undone.',
+            'confirm.importState':'Are you sure you want to import this state?',
+            'confirm.importOverwrite':'This will overwrite the current disabled tools/namespaces configuration.',
+            'confirm.disabledItems':'Disabled items: {count}',
+            'empty.tools':'No tools registered', 'empty.toolsHint':'Tools will appear here once registered.',
+            'empty.ns':'No namespaces', 'empty.nsHint':'Namespaces will appear here once tools are registered.',
+            'empty.logs':'No entries', 'empty.logsHint':'No log entries found',
+            'empty.permPolicy':'No permission policy configured',
+            'empty.permPolicyHint':'Set a policy via <code>registry.set_permission_policy()</code> to enable permission controls.',
+            'stat.totalTools':'Total Tools', 'stat.enabled':'Enabled', 'stat.disabled':'Disabled',
+            'stat.namespaces':'Namespaces', 'stat.totalEntries':'Total Entries',
+            'stat.successful':'Successful', 'stat.errors':'Errors', 'stat.rejected':'Rejected',
+            'stat.avgDuration':'Avg Duration', 'stat.loggingNotEnabled':'Logging not enabled',
+            'detail.basicInfo':'Basic Info', 'detail.metadata':'Metadata', 'detail.schema':'Schema',
+            'detail.name':'Name', 'detail.namespace':'Namespace', 'detail.methodName':'Method Name',
+            'detail.status':'Status', 'detail.permission':'Permission',
+            'detail.disableReason':'Disable Reason', 'detail.permReason':'Permission Reason',
+            'detail.description':'Description',
+            'detail.locality':'Locality', 'detail.async':'Async',
+            'detail.concurrencySafe':'Concurrency Safe', 'detail.thinkAugment':'Think Augment',
+            'detail.timeout':'Timeout', 'detail.maxResultSize':'Max Result Size',
+            'detail.deferred':'Deferred', 'detail.searchHint':'Search Hint',
+            'detail.tags':'Tags', 'detail.customTags':'Custom Tags', 'detail.extra':'Extra',
+            'detail.noPolicy':'No policy',
+            'meta.think':'think', 'meta.defer':'defer', 'meta.async':'async',
+            'meta.enabled':'enabled', 'meta.disabled':'disabled',
+            'meta.yes':'Yes', 'meta.no':'No',
+            'log.last50':'Last 50', 'log.last100':'Last 100', 'log.last500':'Last 500',
+            'log.success':'Success', 'log.error':'Error', 'log.rejected':'Rejected',
+            'log.arguments':'Arguments:', 'log.result':'Result:', 'log.errorLabel':'Error:',
+            'state.exportDesc':'Download the current state of disabled tools and namespaces as a JSON file.',
+            'state.importDesc':'Upload a previously exported state file to restore disabled tools and namespaces.',
+            'perm.policyActive':'Policy Active',
+            'perm.handlerRegistered':'Handler Registered', 'perm.handlerNotSet':'Handler Not Set',
+            'perm.fallback':'Fallback:',
+            'perm.noRules':'No rules defined. All tool calls will use the fallback result.',
+            'misc.loading':'Loading...', 'misc.enterToken':'Enter admin token:',
+            'misc.expandAll':'Expand all', 'misc.collapseAll':'Collapse all',
+            'misc.toolCount':'{count} tool', 'misc.toolCountPlural':'{count} tools',
+            'misc.clickToDisable':'Click to disable', 'misc.clickToEnable':'Click to enable',
+            'misc.clickToDisableAll':'Click to disable all', 'misc.clickToEnableAll':'Click to enable all',
+            'misc.thinkAugmentedAll':'Think-augmented (all)', 'misc.deferredAll':'Deferred (all)',
+            'toast.detailFailed':'Failed to load tool details: {error}',
+          },
+          zh: {
+            'app.title':'ToolRegistry \u7ba1\u7406\u9762\u677f',
+            'status.connected':'\u5df2\u8fde\u63a5', 'status.disconnected':'\u5df2\u65ad\u5f00',
+            'tab.tools':'\u5de5\u5177', 'tab.namespaces':'\u547d\u540d\u7a7a\u95f4', 'tab.logs':'\u65e5\u5fd7',
+            'tab.state':'\u72b6\u6001', 'tab.permissions':'\u6743\u9650',
+            'section.overview':'\u6982\u89c8', 'section.tools':'\u5de5\u5177',
+            'section.execStats':'\u6267\u884c\u7edf\u8ba1', 'section.execLogs':'\u6267\u884c\u65e5\u5fd7',
+            'section.exportState':'\u5bfc\u51fa\u72b6\u6001', 'section.importState':'\u5bfc\u5165\u72b6\u6001',
+            'section.permPolicy':'\u6743\u9650\u7b56\u7565',
+            'col.name':'\u540d\u79f0', 'col.permission':'\u6743\u9650', 'col.enabled':'\u542f\u7528',
+            'col.reason':'\u539f\u56e0', 'col.namespace':'\u547d\u540d\u7a7a\u95f4', 'col.totalTools':'\u5de5\u5177\u603b\u6570',
+            'col.disabled':'\u5df2\u7981\u7528', 'col.tags':'\u6807\u7b7e', 'col.actions':'\u64cd\u4f5c',
+            'col.timestamp':'\u65f6\u95f4\u6233', 'col.tool':'\u5de5\u5177', 'col.status':'\u72b6\u6001',
+            'col.duration':'\u8017\u65f6', 'col.ruleName':'\u89c4\u5219\u540d\u79f0', 'col.result':'\u7ed3\u679c',
+            'btn.refresh':'\u5237\u65b0', 'btn.clearLogs':'\u6e05\u9664\u65e5\u5fd7', 'btn.apply':'\u5e94\u7528',
+            'btn.downloadState':'\u4e0b\u8f7d\u72b6\u6001', 'btn.uploadState':'\u4e0a\u4f20\u72b6\u6001',
+            'btn.cancel':'\u53d6\u6d88', 'btn.confirm':'\u786e\u8ba4',
+            'btn.enableAll':'\u5168\u90e8\u542f\u7528', 'btn.disableAll':'\u5168\u90e8\u7981\u7528',
+            'filter.allNamespaces':'\u5168\u90e8\u547d\u540d\u7a7a\u95f4', 'filter.allStatus':'\u5168\u90e8\u72b6\u6001',
+            'filter.allTags':'\u5168\u90e8\u6807\u7b7e', 'filter.allLocality':'\u5168\u90e8\u4f4d\u7f6e',
+            'filter.enabled':'\u5df2\u542f\u7528', 'filter.disabled':'\u5df2\u7981\u7528',
+            'filter.local':'\u672c\u5730', 'filter.remote':'\u8fdc\u7a0b', 'filter.any':'\u4efb\u610f',
+            'label.searchTools':'\u641c\u7d22\u5de5\u5177...', 'label.filterByTool':'\u6309\u5de5\u5177\u7b5b\u9009...',
+            'label.reasonOptional':'\u539f\u56e0\uff08\u53ef\u9009\uff09', 'label.enterReason':'\u8f93\u5165\u7981\u7528\u539f\u56e0...',
+            'toast.toolEnabled':'\u5de5\u5177 "{name}" \u5df2\u542f\u7528', 'toast.toolDisabled':'\u5de5\u5177 "{name}" \u5df2\u7981\u7528',
+            'toast.nsEnabled':'\u547d\u540d\u7a7a\u95f4 "{name}" \u5df2\u542f\u7528', 'toast.nsDisabled':'\u547d\u540d\u7a7a\u95f4 "{name}" \u5df2\u7981\u7528',
+            'toast.logsCleared':'\u65e5\u5fd7\u5df2\u6e05\u9664',
+            'toast.stateExported':'\u72b6\u6001\u5df2\u5bfc\u51fa',
+            'toast.stateImported':'\u72b6\u6001\u5df2\u5bfc\u5165',
+            'toast.invalidJson':'\u65e0\u6548\u7684 JSON \u6587\u4ef6',
+            'toast.metaUpdated':'{field} \u5df2\u4e3a "{name}" {state}',
+            'toast.nsMetaUpdated':'{field} \u5df2\u4e3a\u547d\u540d\u7a7a\u95f4 "{name}" {state}',
+            'modal.disableTool':'\u7981\u7528\u5de5\u5177', 'modal.disableNs':'\u7981\u7528\u547d\u540d\u7a7a\u95f4',
+            'modal.clearLogs':'\u6e05\u9664\u65e5\u5fd7', 'modal.importState':'\u5bfc\u5165\u72b6\u6001',
+            'modal.toolDetail':'\u5de5\u5177\u8be6\u60c5',
+            'modal.toolLabel':'\u5de5\u5177\uff1a', 'modal.nsLabel':'\u547d\u540d\u7a7a\u95f4\uff1a',
+            'modal.disableNsHint':'\u8fd9\u5c06\u7981\u7528\u6b64\u547d\u540d\u7a7a\u95f4\u4e0b\u7684\u6240\u6709\u5de5\u5177\u3002',
+            'confirm.clearLogs':'\u786e\u5b9a\u8981\u6e05\u9664\u6240\u6709\u6267\u884c\u65e5\u5fd7\u5417\uff1f',
+            'confirm.clearLogsWarn':'\u6b64\u64cd\u4f5c\u4e0d\u53ef\u64a4\u9500\u3002',
+            'confirm.importState':'\u786e\u5b9a\u8981\u5bfc\u5165\u6b64\u72b6\u6001\u5417\uff1f',
+            'confirm.importOverwrite':'\u8fd9\u5c06\u8986\u76d6\u5f53\u524d\u7684\u5de5\u5177/\u547d\u540d\u7a7a\u95f4\u7981\u7528\u914d\u7f6e\u3002',
+            'confirm.disabledItems':'\u7981\u7528\u9879\u76ee\u6570\uff1a{count}',
+            'empty.tools':'\u6682\u65e0\u5df2\u6ce8\u518c\u5de5\u5177', 'empty.toolsHint':'\u5de5\u5177\u6ce8\u518c\u540e\u5c06\u663e\u793a\u5728\u6b64\u5904\u3002',
+            'empty.ns':'\u6682\u65e0\u547d\u540d\u7a7a\u95f4', 'empty.nsHint':'\u5de5\u5177\u6ce8\u518c\u540e\u547d\u540d\u7a7a\u95f4\u5c06\u663e\u793a\u5728\u6b64\u5904\u3002',
+            'empty.logs':'\u6682\u65e0\u6761\u76ee', 'empty.logsHint':'\u672a\u627e\u5230\u65e5\u5fd7\u6761\u76ee',
+            'empty.permPolicy':'\u672a\u914d\u7f6e\u6743\u9650\u7b56\u7565',
+            'empty.permPolicyHint':'\u901a\u8fc7 <code>registry.set_permission_policy()</code> \u8bbe\u7f6e\u7b56\u7565\u4ee5\u542f\u7528\u6743\u9650\u63a7\u5236\u3002',
+            'stat.totalTools':'\u5de5\u5177\u603b\u6570', 'stat.enabled':'\u5df2\u542f\u7528', 'stat.disabled':'\u5df2\u7981\u7528',
+            'stat.namespaces':'\u547d\u540d\u7a7a\u95f4', 'stat.totalEntries':'\u603b\u6761\u76ee\u6570',
+            'stat.successful':'\u6210\u529f', 'stat.errors':'\u9519\u8bef', 'stat.rejected':'\u5df2\u62d2\u7edd',
+            'stat.avgDuration':'\u5e73\u5747\u8017\u65f6', 'stat.loggingNotEnabled':'\u672a\u542f\u7528\u65e5\u5fd7',
+            'detail.basicInfo':'\u57fa\u672c\u4fe1\u606f', 'detail.metadata':'\u5143\u6570\u636e', 'detail.schema':'\u6a21\u5f0f',
+            'detail.name':'\u540d\u79f0', 'detail.namespace':'\u547d\u540d\u7a7a\u95f4', 'detail.methodName':'\u65b9\u6cd5\u540d',
+            'detail.status':'\u72b6\u6001', 'detail.permission':'\u6743\u9650',
+            'detail.disableReason':'\u7981\u7528\u539f\u56e0', 'detail.permReason':'\u6743\u9650\u539f\u56e0',
+            'detail.description':'\u63cf\u8ff0',
+            'detail.locality':'\u4f4d\u7f6e', 'detail.async':'\u5f02\u6b65',
+            'detail.concurrencySafe':'\u5e76\u53d1\u5b89\u5168', 'detail.thinkAugment':'\u601d\u8003\u589e\u5f3a',
+            'detail.timeout':'\u8d85\u65f6', 'detail.maxResultSize':'\u6700\u5927\u7ed3\u679c\u5927\u5c0f',
+            'detail.deferred':'\u5ef6\u8fdf\u6267\u884c', 'detail.searchHint':'\u641c\u7d22\u63d0\u793a',
+            'detail.tags':'\u6807\u7b7e', 'detail.customTags':'\u81ea\u5b9a\u4e49\u6807\u7b7e', 'detail.extra':'\u989d\u5916\u4fe1\u606f',
+            'detail.noPolicy':'\u65e0\u7b56\u7565',
+            'meta.think':'think', 'meta.defer':'defer', 'meta.async':'async',
+            'meta.enabled':'\u5df2\u542f\u7528', 'meta.disabled':'\u5df2\u7981\u7528',
+            'meta.yes':'\u662f', 'meta.no':'\u5426',
+            'log.last50':'\u6700\u8fd1 50', 'log.last100':'\u6700\u8fd1 100', 'log.last500':'\u6700\u8fd1 500',
+            'log.success':'\u6210\u529f', 'log.error':'\u9519\u8bef', 'log.rejected':'\u5df2\u62d2\u7edd',
+            'log.arguments':'\u53c2\u6570\uff1a', 'log.result':'\u7ed3\u679c\uff1a', 'log.errorLabel':'\u9519\u8bef\uff1a',
+            'state.exportDesc':'\u5c06\u5f53\u524d\u7981\u7528\u7684\u5de5\u5177\u548c\u547d\u540d\u7a7a\u95f4\u72b6\u6001\u4e0b\u8f7d\u4e3a JSON \u6587\u4ef6\u3002',
+            'state.importDesc':'\u4e0a\u4f20\u4e4b\u524d\u5bfc\u51fa\u7684\u72b6\u6001\u6587\u4ef6\u4ee5\u6062\u590d\u5de5\u5177\u548c\u547d\u540d\u7a7a\u95f4\u7684\u7981\u7528\u72b6\u6001\u3002',
+            'perm.policyActive':'\u7b56\u7565\u5df2\u6fc0\u6d3b',
+            'perm.handlerRegistered':'\u5904\u7406\u5668\u5df2\u6ce8\u518c', 'perm.handlerNotSet':'\u5904\u7406\u5668\u672a\u8bbe\u7f6e',
+            'perm.fallback':'\u56de\u9000\u7b56\u7565\uff1a',
+            'perm.noRules':'\u672a\u5b9a\u4e49\u89c4\u5219\u3002\u6240\u6709\u5de5\u5177\u8c03\u7528\u5c06\u4f7f\u7528\u56de\u9000\u7ed3\u679c\u3002',
+            'misc.loading':'\u52a0\u8f7d\u4e2d...', 'misc.enterToken':'\u8bf7\u8f93\u5165\u7ba1\u7406\u5458\u4ee4\u724c\uff1a',
+            'misc.expandAll':'\u5c55\u5f00\u5168\u90e8', 'misc.collapseAll':'\u6298\u53e0\u5168\u90e8',
+            'misc.toolCount':'{count} \u4e2a\u5de5\u5177', 'misc.toolCountPlural':'{count} \u4e2a\u5de5\u5177',
+            'misc.clickToDisable':'\u70b9\u51fb\u7981\u7528', 'misc.clickToEnable':'\u70b9\u51fb\u542f\u7528',
+            'misc.clickToDisableAll':'\u70b9\u51fb\u7981\u7528\u5168\u90e8', 'misc.clickToEnableAll':'\u70b9\u51fb\u542f\u7528\u5168\u90e8',
+            'misc.thinkAugmentedAll':'\u601d\u8003\u589e\u5f3a\uff08\u5168\u90e8\uff09', 'misc.deferredAll':'\u5ef6\u8fdf\u6267\u884c\uff08\u5168\u90e8\uff09',
+            'toast.detailFailed':'\u52a0\u8f7d\u5de5\u5177\u8be6\u60c5\u5931\u8d25\uff1a{error}',
+          },
+        };
+
+        let currentLang = localStorage.getItem('toolregistry-lang') || 'en';
+
+        function t(key, params) {
+            let s = (I18N[currentLang] && I18N[currentLang][key]) || I18N.en[key] || key;
+            if (params) {
+                for (const [k, v] of Object.entries(params)) s = s.replace(`{${k}}`, v);
+            }
+            return s;
+        }
+
+        function setLang(lang) {
+            currentLang = lang;
+            localStorage.setItem('toolregistry-lang', lang);
+            document.getElementById('langSwitcher').value = lang;
+            applyI18n();
+        }
+
+        function applyI18n() {
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                el.textContent = t(el.dataset.i18n);
+            });
+            document.querySelectorAll('[data-i18n-html]').forEach(el => {
+                el.innerHTML = t(el.dataset.i18nHtml);
+            });
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                el.placeholder = t(el.dataset.i18nPlaceholder);
+            });
+            document.querySelectorAll('[data-i18n-title]').forEach(el => {
+                el.title = t(el.dataset.i18nTitle);
+            });
+            // Re-render dynamic content for the active tab
+            const activeTab = document.querySelector('.tab.active')?.dataset.tab;
+            if (activeTab === 'tools') { refreshTools(); refreshStats(); }
+            else if (activeTab === 'namespaces') { refreshNamespaces(); }
+            else if (activeTab === 'logs') { refreshLogs(); refreshLogStats(); }
+            else if (activeTab === 'permissions') { refreshPermissions(); }
+        }
 
         // ============== API Client ==============
         class AdminAPI {
@@ -1594,7 +1819,7 @@
                 try {
                     const response = await fetch(this.baseUrl + path, options);
                     if (response.status === 401) {
-                        const token = prompt('Enter admin token:');
+                        const token = prompt(t('misc.enterToken'));
                         if (token) {
                             localStorage.setItem('admin_token', token);
                             this.token = token;
@@ -1706,10 +1931,10 @@
             const text = document.getElementById('status-text');
             if (connected) {
                 dot.classList.remove('disconnected');
-                text.textContent = 'Connected';
+                text.textContent = t('status.connected');
             } else {
                 dot.classList.add('disconnected');
-                text.textContent = 'Disconnected';
+                text.textContent = t('status.disconnected');
             }
         }
 
@@ -1871,8 +2096,8 @@
             if (tools.length === 0) {
                 tbody.innerHTML = `
                     <tr><td colspan="4" class="empty-state">
-                        <div class="empty-state-icon">No tools registered</div>
-                        <div class="empty-state-text">Tools will appear here once registered.</div>
+                        <div class="empty-state-icon">${t('empty.tools')}</div>
+                        <div class="empty-state-text">${t('empty.toolsHint')}</div>
                     </td></tr>`;
                 return;
             }
@@ -1908,22 +2133,22 @@
                     <td><span class="ns-chevron">${SVG_CHEVRON}</span></td>
                     <td>
                         <span style="font-weight: 500;">${escapeHtml(ns)}</span>
-                        <span class="text-muted" style="margin-left: 8px; font-size: 0.6875rem;">${children.length} tool${children.length > 1 ? 's' : ''}</span>
+                        <span class="text-muted" style="margin-left: 8px; font-size: 0.6875rem;">${children.length > 1 ? t('misc.toolCountPlural', {count: children.length}) : t('misc.toolCount', {count: children.length})}</span>
                     </td>
                     <td class="ns-meta-toggles" onclick="event.stopPropagation()">
-                        <label class="toggle-switch toggle-meta" title="Think-augmented (all)">
+                        <label class="toggle-switch toggle-meta" title="${t('misc.thinkAugmentedAll')}">
                             <input type="checkbox" ${allThink ? 'checked' : ''}
                                 onchange="toggleNamespaceMeta('${escapeHtml(ns)}', 'think_augment', this.checked)">
                             <span class="toggle-slider"></span>
-                        </label><span class="toggle-meta-label">think</span>
-                        <label class="toggle-switch toggle-meta" title="Deferred (all)" style="margin-left: 6px;">
+                        </label><span class="toggle-meta-label">${t('meta.think')}</span>
+                        <label class="toggle-switch toggle-meta" title="${t('misc.deferredAll')}" style="margin-left: 6px;">
                             <input type="checkbox" ${allDefer ? 'checked' : ''}
                                 onchange="toggleNamespaceMeta('${escapeHtml(ns)}', 'defer', this.checked)">
                             <span class="toggle-slider"></span>
-                        </label><span class="toggle-meta-label">defer</span>
+                        </label><span class="toggle-meta-label">${t('meta.defer')}</span>
                     </td>
                     <td>
-                        ${isDefault ? '' : `<label class="toggle-switch toggle-ns" title="${allEnabled ? 'Click to disable all' : 'Click to enable all'}" onclick="event.stopPropagation()">
+                        ${isDefault ? '' : `<label class="toggle-switch toggle-ns" title="${allEnabled ? t('misc.clickToDisableAll') : t('misc.clickToEnableAll')}" onclick="event.stopPropagation()">
                             <input type="checkbox" ${allEnabled ? 'checked' : ''}
                                 onchange="toggleNamespace('${escapeHtml(ns)}', this.checked)">
                             <span class="toggle-slider"></span>
@@ -1947,7 +2172,7 @@
                     </td>
                     <td>${permBadge}</td>
                     <td>
-                        <label class="toggle-switch" title="${tool.enabled ? 'Click to disable' : 'Click to enable'}">
+                        <label class="toggle-switch" title="${tool.enabled ? t('misc.clickToDisable') : t('misc.clickToEnable')}">
                             <input type="checkbox" ${tool.enabled ? 'checked' : ''}
                                 onchange="toggleTool('${escapeHtml(tool.name)}', this.checked)">
                             <span class="toggle-slider"></span>
@@ -2002,10 +2227,10 @@
             const icon = document.getElementById('toggle-expand-icon');
             if (!btn || !icon) return;
             if (_allExpanded) {
-                btn.title = 'Collapse all';
+                btn.title = t('misc.collapseAll');
                 icon.innerHTML = '<path d="M4 7l4-4 4 4"/><path d="M4 13l4-4 4 4"/>';
             } else {
-                btn.title = 'Expand all';
+                btn.title = t('misc.expandAll');
                 icon.innerHTML = '<path d="M4 3l4 4 4-4"/><path d="M4 9l4 4 4-4"/>';
             }
         }
@@ -2040,7 +2265,7 @@
             const select = document.getElementById('namespace-filter');
             const currentValue = select.value;
 
-            select.innerHTML = '<option value="">All Namespaces</option>' +
+            select.innerHTML = `<option value="">${t('filter.allNamespaces')}</option>` +
                 namespaces.map(ns => `<option value="${escapeHtml(ns)}">${escapeHtml(ns)}</option>`).join('');
 
             select.value = currentValue;
@@ -2049,19 +2274,19 @@
             const allTags = [...new Set(tools.flatMap(t => t.tags || []))].sort();
             const tagSelect = document.getElementById('tag-filter');
             const currentTag = tagSelect.value;
-            tagSelect.innerHTML = '<option value="">All Tags</option>' +
+            tagSelect.innerHTML = `<option value="">${t('filter.allTags')}</option>` +
                 allTags.map(tag => `<option value="${escapeHtml(tag)}">${escapeHtml(tag)}</option>`).join('');
             tagSelect.value = currentTag;
         }
 
         function showDisableToolModal(name) {
-            showModal('Disable Tool', `
+            showModal(t('modal.disableTool'), `
                 <div class="form-group">
-                    <label class="form-label">Tool: <strong>${escapeHtml(name)}</strong></label>
+                    <label class="form-label">${t('modal.toolLabel')}<strong>${escapeHtml(name)}</strong></label>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Reason (optional)</label>
-                    <input type="text" class="input" id="disable-reason" placeholder="Enter reason for disabling...">
+                    <label class="form-label">${t('label.reasonOptional')}</label>
+                    <input type="text" class="input" id="disable-reason" placeholder="${t('label.enterReason')}">
                 </div>
             `, async () => {
                 const reason = document.getElementById('disable-reason').value;
@@ -2091,7 +2316,7 @@
         async function toggleToolMeta(name, field, value) {
             try {
                 await api.updateToolMetadata(name, { [field]: value });
-                showToast(`${field} ${value ? 'enabled' : 'disabled'} for "${name}"`, 'success');
+                showToast(t('toast.metaUpdated', {field, name, state: value ? t('meta.enabled') : t('meta.disabled')}), 'success');
                 refreshTools();
             } catch (e) {
                 showToast(e.message, 'error');
@@ -2102,7 +2327,7 @@
         async function toggleNamespaceMeta(ns, field, value) {
             try {
                 await api.updateNamespaceMetadata(ns, { [field]: value });
-                showToast(`${field} ${value ? 'enabled' : 'disabled'} for namespace "${ns}"`, 'success');
+                showToast(t('toast.nsMetaUpdated', {field, name: ns, state: value ? t('meta.enabled') : t('meta.disabled')}), 'success');
                 refreshTools();
             } catch (e) {
                 showToast(e.message, 'error');
@@ -2113,7 +2338,7 @@
         async function enableTool(name) {
             try {
                 await api.enableTool(name);
-                showToast(`Tool "${name}" enabled`, 'success');
+                showToast(t('toast.toolEnabled', {name}), 'success');
                 refreshTools();
                 refreshStats();
             } catch (e) {
@@ -2124,7 +2349,7 @@
         async function disableTool(name, reason) {
             try {
                 await api.disableTool(name, reason);
-                showToast(`Tool "${name}" disabled`, 'success');
+                showToast(t('toast.toolDisabled', {name}), 'success');
                 refreshTools();
                 refreshStats();
             } catch (e) {
@@ -2149,8 +2374,8 @@
             if (namespaces.length === 0) {
                 tbody.innerHTML = `
                     <tr><td colspan="6" class="empty-state">
-                        <div class="empty-state-icon">No namespaces</div>
-                        <div class="empty-state-text">Namespaces will appear here once tools are registered.</div>
+                        <div class="empty-state-icon">${t('empty.ns')}</div>
+                        <div class="empty-state-text">${t('empty.nsHint')}</div>
                     </td></tr>`;
                 return;
             }
@@ -2164,8 +2389,8 @@
                     <td>${(ns.tags || []).length > 0 ? renderTagBadges(ns.tags) : '<span class="text-muted" style="font-size: 0.75rem;">&mdash;</span>'}</td>
                     <td>
                         ${ns.name === 'default' ? '<span class="text-muted" style="font-size: 0.75rem;">&mdash;</span>' : `<div style="display: flex; gap: 6px; flex-wrap: wrap;">
-                            <button class="btn btn-success btn-sm" style="min-width: 90px; text-align: center;" onclick="enableNamespace('${escapeHtml(ns.name)}')">Enable All</button>
-                            <button class="btn btn-danger btn-sm" style="min-width: 90px; text-align: center;" onclick="showDisableNamespaceModal('${escapeHtml(ns.name)}')">Disable All</button>
+                            <button class="btn btn-success btn-sm" style="min-width: 90px; text-align: center;" onclick="enableNamespace('${escapeHtml(ns.name)}')">${t('btn.enableAll')}</button>
+                            <button class="btn btn-danger btn-sm" style="min-width: 90px; text-align: center;" onclick="showDisableNamespaceModal('${escapeHtml(ns.name)}')">${t('btn.disableAll')}</button>
                         </div>`}
                     </td>
                 </tr>
@@ -2173,14 +2398,14 @@
         }
 
         function showDisableNamespaceModal(name) {
-            showModal('Disable Namespace', `
+            showModal(t('modal.disableNs'), `
                 <div class="form-group">
-                    <label class="form-label">Namespace: <strong>${escapeHtml(name)}</strong></label>
-                    <p class="text-muted text-sm mt-2">This will disable all tools in this namespace.</p>
+                    <label class="form-label">${t('modal.nsLabel')}<strong>${escapeHtml(name)}</strong></label>
+                    <p class="text-muted text-sm mt-2">${t('modal.disableNsHint')}</p>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Reason (optional)</label>
-                    <input type="text" class="input" id="disable-ns-reason" placeholder="Enter reason for disabling...">
+                    <label class="form-label">${t('label.reasonOptional')}</label>
+                    <input type="text" class="input" id="disable-ns-reason" placeholder="${t('label.enterReason')}">
                 </div>
             `, async () => {
                 const reason = document.getElementById('disable-ns-reason').value;
@@ -2193,7 +2418,7 @@
         async function enableNamespace(name) {
             try {
                 await api.enableNamespace(name);
-                showToast(`Namespace "${name}" enabled`, 'success');
+                showToast(t('toast.nsEnabled', {name}), 'success');
                 refreshNamespaces();
                 refreshTools();
                 refreshStats();
@@ -2205,7 +2430,7 @@
         async function disableNamespace(name, reason) {
             try {
                 await api.disableNamespace(name, reason);
-                showToast(`Namespace "${name}" disabled`, 'success');
+                showToast(t('toast.nsDisabled', {name}), 'success');
                 refreshNamespaces();
                 refreshTools();
                 refreshStats();
@@ -2226,19 +2451,19 @@
                 document.getElementById('stats-grid').innerHTML = `
                     <div class="stat-card">
                         <div class="stat-value">${tools.length}</div>
-                        <div class="stat-label">Total Tools</div>
+                        <div class="stat-label">${t('stat.totalTools')}</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-value text-success">${enabled}</div>
-                        <div class="stat-label">Enabled</div>
+                        <div class="stat-label">${t('stat.enabled')}</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-value text-error">${disabled}</div>
-                        <div class="stat-label">Disabled</div>
+                        <div class="stat-label">${t('stat.disabled')}</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-value">${namespaces}</div>
-                        <div class="stat-label">Namespaces</div>
+                        <div class="stat-label">${t('stat.namespaces')}</div>
                     </div>
                 `;
             } catch (e) {
@@ -2269,28 +2494,28 @@
                 document.getElementById('log-stats-grid').innerHTML = `
                     <div class="stat-card">
                         <div class="stat-value">${data.total_entries || 0}</div>
-                        <div class="stat-label">Total Entries</div>
+                        <div class="stat-label">${t('stat.totalEntries')}</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-value text-success">${data.by_status?.success || 0}</div>
-                        <div class="stat-label">Successful</div>
+                        <div class="stat-label">${t('stat.successful')}</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-value text-error">${data.by_status?.error || 0}</div>
-                        <div class="stat-label">Errors</div>
+                        <div class="stat-label">${t('stat.errors')}</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-value" style="color: var(--text-secondary);">${data.by_status?.disabled || 0}</div>
-                        <div class="stat-label">Rejected</div>
+                        <div class="stat-label">${t('stat.rejected')}</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-value">${(data.avg_duration_ms || 0).toFixed(2)}ms</div>
-                        <div class="stat-label">Avg Duration</div>
+                        <div class="stat-label">${t('stat.avgDuration')}</div>
                     </div>
                 `;
             } catch (e) {
                 document.getElementById('log-stats-grid').innerHTML =
-                    `<div class="stat-card"><div class="stat-label text-muted">Logging not enabled</div></div>`;
+                    `<div class="stat-card"><div class="stat-label text-muted">${t('stat.loggingNotEnabled')}</div></div>`;
             }
         }
 
@@ -2300,8 +2525,8 @@
             if (entries.length === 0) {
                 tbody.innerHTML = `
                     <tr><td colspan="5" class="empty-state">
-                        <div class="empty-state-icon">No entries</div>
-                        <div class="empty-state-text">No log entries found</div>
+                        <div class="empty-state-icon">${t('empty.logs')}</div>
+                        <div class="empty-state-text">${t('empty.logsHint')}</div>
                     </td></tr>`;
                 return;
             }
@@ -2324,14 +2549,14 @@
                     <tr>
                         <td colspan="5" style="padding: 0;">
                             <div class="log-details" id="log-details-${idx}">
-                                <div class="mb-2"><strong>Arguments:</strong></div>
+                                <div class="mb-2"><strong>${t('log.arguments')}</strong></div>
                                 <pre>${escapeHtml(JSON.stringify(entry.args || {}, null, 2))}</pre>
                                 ${entry.result !== undefined ? `
-                                    <div class="mb-2 mt-4"><strong>Result:</strong></div>
+                                    <div class="mb-2 mt-4"><strong>${t('log.result')}</strong></div>
                                     <pre>${escapeHtml(JSON.stringify(entry.result, null, 2))}</pre>
                                 ` : ''}
                                 ${entry.error ? `
-                                    <div class="mb-2 mt-4"><strong>Error:</strong></div>
+                                    <div class="mb-2 mt-4"><strong>${t('log.errorLabel')}</strong></div>
                                     <pre class="text-error">${escapeHtml(entry.error)}</pre>
                                 ` : ''}
                             </div>
@@ -2350,13 +2575,13 @@
         }
 
         function confirmClearLogs() {
-            showModal('Clear Logs', `
-                <p>Are you sure you want to clear all execution logs?</p>
-                <p class="text-muted text-sm mt-2">This action cannot be undone.</p>
+            showModal(t('modal.clearLogs'), `
+                <p>${t('confirm.clearLogs')}</p>
+                <p class="text-muted text-sm mt-2">${t('confirm.clearLogsWarn')}</p>
             `, async () => {
                 try {
                     await api.clearLogs();
-                    showToast('Logs cleared successfully', 'success');
+                    showToast(t('toast.logsCleared'), 'success');
                     refreshLogs();
                     refreshLogStats();
                 } catch (e) {
@@ -2376,7 +2601,7 @@
                 a.download = 'toolregistry-state-' + new Date().toISOString().slice(0, 10) + '.json';
                 a.click();
                 URL.revokeObjectURL(url);
-                showToast('State exported successfully', 'success');
+                showToast(t('toast.stateExported'), 'success');
             } catch (e) {
                 showToast(e.message, 'error');
             }
@@ -2390,23 +2615,23 @@
                 const text = await file.text();
                 const state = JSON.parse(text);
 
-                showModal('Import State', `
-                    <p>Are you sure you want to import this state?</p>
-                    <p class="text-muted text-sm mt-2">This will overwrite the current disabled tools/namespaces configuration.</p>
+                showModal(t('modal.importState'), `
+                    <p>${t('confirm.importState')}</p>
+                    <p class="text-muted text-sm mt-2">${t('confirm.importOverwrite')}</p>
                     <div class="mt-4">
-                        <strong>Disabled items:</strong> ${Object.keys(state.disabled || {}).length}
+                        <strong>${t('confirm.disabledItems', {count: Object.keys(state.disabled || {}).length})}</strong>
                     </div>
                 `, async () => {
                     try {
                         await api.importState(state);
-                        showToast('State imported successfully', 'success');
+                        showToast(t('toast.stateImported'), 'success');
                         refreshAll();
                     } catch (e) {
                         showToast(e.message, 'error');
                     }
                 });
             } catch (e) {
-                showToast('Invalid JSON file', 'error');
+                showToast(t('toast.invalidJson'), 'error');
             }
 
             event.target.value = '';
@@ -2427,46 +2652,46 @@
                 const perm = tool.permission;
                 const permHtml = perm
                     ? `<span class="badge-${perm.result}">${perm.result}</span>${perm.rule_name ? ` <span class="text-muted" style="font-size: 0.75rem;">(${escapeHtml(perm.rule_name)})</span>` : ''}`
-                    : '<span class="text-muted">No policy</span>';
+                    : `<span class="text-muted">${t('detail.noPolicy')}</span>`;
 
                 // Basic info
                 html += `<div class="detail-section">
-                    <div class="detail-section-title">Basic Info</div>
+                    <div class="detail-section-title">${t('detail.basicInfo')}</div>
                     <div class="metadata-grid">
-                        <div class="meta-item"><span class="meta-label">Name</span><span class="meta-value">${escapeHtml(tool.name)}</span></div>
-                        <div class="meta-item"><span class="meta-label">Namespace</span><span class="meta-value">${escapeHtml(tool.namespace || 'default')}</span></div>
-                        <div class="meta-item"><span class="meta-label">Method Name</span><span class="meta-value">${escapeHtml(tool.method_name || tool.name)}</span></div>
-                        <div class="meta-item"><span class="meta-label">Status</span><span class="meta-value">${tool.enabled ? '<span class="text-success">Enabled</span>' : '<span class="text-error">Disabled</span>'}</span></div>
-                        <div class="meta-item"><span class="meta-label">Permission</span><span class="meta-value">${permHtml}</span></div>
+                        <div class="meta-item"><span class="meta-label">${t('detail.name')}</span><span class="meta-value">${escapeHtml(tool.name)}</span></div>
+                        <div class="meta-item"><span class="meta-label">${t('detail.namespace')}</span><span class="meta-value">${escapeHtml(tool.namespace || 'default')}</span></div>
+                        <div class="meta-item"><span class="meta-label">${t('detail.methodName')}</span><span class="meta-value">${escapeHtml(tool.method_name || tool.name)}</span></div>
+                        <div class="meta-item"><span class="meta-label">${t('detail.status')}</span><span class="meta-value">${tool.enabled ? `<span class="text-success">${t('stat.enabled')}</span>` : `<span class="text-error">${t('stat.disabled')}</span>`}</span></div>
+                        <div class="meta-item"><span class="meta-label">${t('detail.permission')}</span><span class="meta-value">${permHtml}</span></div>
                     </div>
-                    ${tool.reason ? `<div class="meta-item mt-2"><span class="meta-label">Disable Reason</span><span class="meta-value text-error">${escapeHtml(tool.reason)}</span></div>` : ''}
-                    ${perm && perm.reason ? `<div class="meta-item mt-2"><span class="meta-label">Permission Reason</span><span class="meta-value">${escapeHtml(perm.reason)}</span></div>` : ''}
-                    <div class="mt-2"><span class="meta-label">Description</span><p style="font-size: 0.8125rem; margin-top: 4px;">${escapeHtml(tool.description || '')}</p></div>
+                    ${tool.reason ? `<div class="meta-item mt-2"><span class="meta-label">${t('detail.disableReason')}</span><span class="meta-value text-error">${escapeHtml(tool.reason)}</span></div>` : ''}
+                    ${perm && perm.reason ? `<div class="meta-item mt-2"><span class="meta-label">${t('detail.permReason')}</span><span class="meta-value">${escapeHtml(perm.reason)}</span></div>` : ''}
+                    <div class="mt-2"><span class="meta-label">${t('detail.description')}</span><p style="font-size: 0.8125rem; margin-top: 4px;">${escapeHtml(tool.description || '')}</p></div>
                 </div>`;
 
                 // Metadata
                 html += `<div class="detail-section">
-                    <div class="detail-section-title">Metadata</div>
+                    <div class="detail-section-title">${t('detail.metadata')}</div>
                     <div class="metadata-grid">
-                        <div class="meta-item"><span class="meta-label">Locality</span><span class="meta-value">${meta.locality || 'any'}</span></div>
-                        <div class="meta-item"><span class="meta-label">Async</span><span class="meta-value">${meta.is_async ? 'Yes' : 'No'}</span></div>
-                        <div class="meta-item"><span class="meta-label">Concurrency Safe</span><span class="meta-value">${meta.is_concurrency_safe !== false ? 'Yes' : 'No'}</span></div>
-                        <div class="meta-item"><span class="meta-label">Think Augment</span><span class="meta-value"><label class="toggle-switch toggle-meta"><input type="checkbox" ${meta.think_augment ? 'checked' : ''} onchange="toggleToolMeta('${escapeHtml(tool.name)}', 'think_augment', this.checked)"><span class="toggle-slider"></span></label></span></div>
-                        <div class="meta-item"><span class="meta-label">Timeout</span><span class="meta-value">${meta.timeout != null ? meta.timeout + 's' : 'None'}</span></div>
-                        <div class="meta-item"><span class="meta-label">Max Result Size</span><span class="meta-value">${meta.max_result_size != null ? meta.max_result_size + ' chars' : 'None'}</span></div>
-                        <div class="meta-item"><span class="meta-label">Deferred</span><span class="meta-value"><label class="toggle-switch toggle-meta"><input type="checkbox" ${meta.defer ? 'checked' : ''} onchange="toggleToolMeta('${escapeHtml(tool.name)}', 'defer', this.checked)"><span class="toggle-slider"></span></label></span></div>
-                        <div class="meta-item"><span class="meta-label">Search Hint</span><span class="meta-value">${escapeHtml(meta.search_hint) || '—'}</span></div>
+                        <div class="meta-item"><span class="meta-label">${t('detail.locality')}</span><span class="meta-value">${meta.locality || 'any'}</span></div>
+                        <div class="meta-item"><span class="meta-label">${t('detail.async')}</span><span class="meta-value">${meta.is_async ? t('meta.yes') : t('meta.no')}</span></div>
+                        <div class="meta-item"><span class="meta-label">${t('detail.concurrencySafe')}</span><span class="meta-value">${meta.is_concurrency_safe !== false ? t('meta.yes') : t('meta.no')}</span></div>
+                        <div class="meta-item"><span class="meta-label">${t('detail.thinkAugment')}</span><span class="meta-value"><label class="toggle-switch toggle-meta"><input type="checkbox" ${meta.think_augment ? 'checked' : ''} onchange="toggleToolMeta('${escapeHtml(tool.name)}', 'think_augment', this.checked)"><span class="toggle-slider"></span></label></span></div>
+                        <div class="meta-item"><span class="meta-label">${t('detail.timeout')}</span><span class="meta-value">${meta.timeout != null ? meta.timeout + 's' : 'None'}</span></div>
+                        <div class="meta-item"><span class="meta-label">${t('detail.maxResultSize')}</span><span class="meta-value">${meta.max_result_size != null ? meta.max_result_size + ' chars' : 'None'}</span></div>
+                        <div class="meta-item"><span class="meta-label">${t('detail.deferred')}</span><span class="meta-value"><label class="toggle-switch toggle-meta"><input type="checkbox" ${meta.defer ? 'checked' : ''} onchange="toggleToolMeta('${escapeHtml(tool.name)}', 'defer', this.checked)"><span class="toggle-slider"></span></label></span></div>
+                        <div class="meta-item"><span class="meta-label">${t('detail.searchHint')}</span><span class="meta-value">${escapeHtml(meta.search_hint) || '\u2014'}</span></div>
                     </div>
-                    ${systemTags.length > 0 ? `<div class="mt-2"><span class="meta-label">Tags</span><div style="margin-top: 4px;">${renderTagBadges(systemTags)}</div></div>` : ''}
-                    ${customTags.length > 0 ? `<div class="mt-2"><span class="meta-label">Custom Tags</span><div style="margin-top: 4px;">${renderTagBadges(customTags)}</div></div>` : ''}
-                    ${meta.extra && Object.keys(meta.extra).length > 0 ? `<div class="mt-2"><span class="meta-label">Extra</span><pre style="margin-top: 4px; background: var(--bg-primary); padding: 8px; border-radius: var(--radius-sm); font-size: 0.75rem;">${escapeHtml(JSON.stringify(meta.extra, null, 2))}</pre></div>` : ''}
+                    ${systemTags.length > 0 ? `<div class="mt-2"><span class="meta-label">${t('detail.tags')}</span><div style="margin-top: 4px;">${renderTagBadges(systemTags)}</div></div>` : ''}
+                    ${customTags.length > 0 ? `<div class="mt-2"><span class="meta-label">${t('detail.customTags')}</span><div style="margin-top: 4px;">${renderTagBadges(customTags)}</div></div>` : ''}
+                    ${meta.extra && Object.keys(meta.extra).length > 0 ? `<div class="mt-2"><span class="meta-label">${t('detail.extra')}</span><pre style="margin-top: 4px; background: var(--bg-primary); padding: 8px; border-radius: var(--radius-sm); font-size: 0.75rem;">${escapeHtml(JSON.stringify(meta.extra, null, 2))}</pre></div>` : ''}
                 </div>`;
 
                 // Schema (collapsible)
                 html += `<div class="detail-section">
                     <div class="schema-toggle" onclick="this.classList.toggle('expanded'); this.nextElementSibling.classList.toggle('visible');">
                         <span class="expand-icon">${SVG_CHEVRON}</span>
-                        <span class="detail-section-title" style="margin-bottom: 0;">Schema</span>
+                        <span class="detail-section-title" style="margin-bottom: 0;">${t('detail.schema')}</span>
                     </div>
                     <div class="schema-content">
                         <pre style="background: #1B1B18; color: #E8E5E0; padding: 12px; border-radius: var(--radius-sm); font-size: 0.75rem; overflow-x: auto; white-space: pre-wrap; font-family: 'SF Mono', 'Fira Code', monospace;">${escapeHtml(JSON.stringify(tool.schema, null, 2))}</pre>
@@ -2476,7 +2701,7 @@
                 document.getElementById('detail-body').innerHTML = html;
                 document.getElementById('detail-overlay').classList.add('active');
             } catch (e) {
-                showToast('Failed to load tool details: ' + e.message, 'error');
+                showToast(t('toast.detailFailed', {error: e.message}), 'error');
             }
         }
 
@@ -2502,8 +2727,8 @@
             if (!data.has_policy) {
                 body.innerHTML = `
                     <div class="empty-state">
-                        <div class="empty-state-icon">No permission policy configured</div>
-                        <div class="empty-state-text">Set a policy via <code>registry.set_permission_policy()</code> to enable permission controls.</div>
+                        <div class="empty-state-icon">${t('empty.permPolicy')}</div>
+                        <div class="empty-state-text">${t('empty.permPolicyHint')}</div>
                     </div>`;
                 return;
             }
@@ -2514,14 +2739,14 @@
             html += `<div class="perm-status-card">
                 <div class="perm-status-item">
                     <span class="perm-dot perm-dot-active"></span>
-                    <span>Policy Active</span>
+                    <span>${t('perm.policyActive')}</span>
                 </div>
                 <div class="perm-status-item">
                     <span class="perm-dot ${data.has_handler ? 'perm-dot-active' : 'perm-dot-inactive'}"></span>
-                    <span>Handler ${data.has_handler ? 'Registered' : 'Not Set'}</span>
+                    <span>${data.has_handler ? t('perm.handlerRegistered') : t('perm.handlerNotSet')}</span>
                 </div>
                 <div class="perm-status-item">
-                    <span>Fallback:</span>
+                    <span>${t('perm.fallback')}</span>
                     <span class="badge badge-${data.fallback}">${data.fallback}</span>
                 </div>
             </div>`;
@@ -2532,9 +2757,9 @@
                     <table>
                         <thead>
                             <tr>
-                                <th>Rule Name</th>
-                                <th>Result</th>
-                                <th>Reason</th>
+                                <th>${t('col.ruleName')}</th>
+                                <th>${t('col.result')}</th>
+                                <th>${t('col.reason')}</th>
                             </tr>
                         </thead>
                         <tbody>`;
@@ -2549,7 +2774,7 @@
 
                 html += `</tbody></table></div>`;
             } else {
-                html += `<p class="text-muted" style="font-size: 0.8125rem;">No rules defined. All tool calls will use the fallback result.</p>`;
+                html += `<p class="text-muted" style="font-size: 0.8125rem;">${t('perm.noRules')}</p>`;
             }
 
             body.innerHTML = html;
@@ -2570,6 +2795,8 @@
 
         // ============== Initialization ==============
         document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('langSwitcher').value = currentLang;
+            applyI18n();
             refreshTools();
             refreshStats();
         });
