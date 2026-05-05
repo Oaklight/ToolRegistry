@@ -34,6 +34,13 @@ This page documents all notable changes to the ToolRegistry project since the fi
     - Three-color toggle scheme: gold (enable/disable), teal (namespace), indigo (metadata) for visual hierarchy
     - Add 7 new tests for metadata update endpoints
 
+- **Admin Panel i18n** ([#137](../../pull/137))
+    - Add bilingual support (English / Chinese) to the admin Web UI
+    - Language switcher dropdown in the header with `localStorage` persistence
+    - All static text uses `data-i18n` attributes; dynamic text uses `t(key, params)` translation function
+    - Covers all tabs, table headers, buttons, filters, toast messages, modal dialogs, and empty states
+    - Instant language switching with automatic re-rendering of the active tab
+
 ### Refactoring
 
 - **Admin Panel Async Migration** ([#136](../../pull/136))

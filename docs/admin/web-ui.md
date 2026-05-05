@@ -65,3 +65,12 @@ Clicking a tool name opens a detail modal with three tabs:
 - Export current disabled state as JSON
 - Import previously exported state
 - Useful for backup/restore scenarios
+
+## Language Switching (i18n)
+
+The Web UI supports English and Chinese. A language switcher dropdown is located in the top-right corner of the header.
+
+- Select **EN** for English or **中文** for Chinese
+- The preference is persisted in `localStorage` and restored on next visit
+- All UI elements update immediately — tabs, table headers, buttons, filters, toast messages, modal dialogs, and empty states
+- Dynamic content (tool lists, log entries, statistics) is re-rendered in the selected language when switching

@@ -20,6 +20,7 @@ The Admin Panel is designed with the following principles:
 - Monitor execution logs with filtering and statistics
 - Export/import registry state
 - Web UI for visual management with responsive layout
+- Bilingual interface (English / Chinese) with instant language switching
 
 ### Screenshots
 
