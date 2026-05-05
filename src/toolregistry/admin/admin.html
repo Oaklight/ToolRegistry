@@ -109,9 +109,6 @@
         .status-indicator {
             display: flex;
             align-items: center;
-            gap: 6px;
-            font-size: 0.8125rem;
-            color: var(--text-secondary);
         }
 
         .status-dot {
@@ -336,30 +333,63 @@
             background: #2B8A7E;
         }
 
-        /* Metadata toggle: smaller size, indigo color */
-        .toggle-switch.toggle-meta {
-            width: 28px;
-            height: 16px;
+        /* Metadata checkbox: styled checkbox for think/defer */
+        .meta-checkbox {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            user-select: none;
         }
 
-        .toggle-switch.toggle-meta .toggle-slider::before {
-            width: 12px;
-            height: 12px;
+        .meta-checkbox input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 15px;
+            height: 15px;
+            border: 1.5px solid #C4C1BB;
+            border-radius: 3px;
+            background: #fff;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.15s ease;
+            flex-shrink: 0;
         }
 
-        .toggle-switch.toggle-meta input:checked + .toggle-slider {
+        .meta-checkbox input[type="checkbox"]:checked {
             background: #6366F1;
+            border-color: #6366F1;
         }
 
-        .toggle-switch.toggle-meta input:checked + .toggle-slider::before {
-            transform: translateX(12px);
+        .meta-checkbox input[type="checkbox"]:checked::after {
+            content: "";
+            position: absolute;
+            left: 4px;
+            top: 1px;
+            width: 5px;
+            height: 9px;
+            border: solid #fff;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
         }
 
-        .toggle-meta-label {
-            font-size: 0.625rem;
+        .meta-checkbox input[type="checkbox"]:hover {
+            border-color: #6366F1;
+        }
+
+        .meta-checkbox-label {
+            font-size: 0.6875rem;
             color: var(--text-secondary);
-            margin-left: 2px;
-            cursor: default;
+            cursor: pointer;
+        }
+
+        .meta-checkbox-disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .meta-checkbox-disabled input[type="checkbox"] {
+            cursor: not-allowed;
         }
 
         /* ============== Tables ============== */
@@ -397,10 +427,13 @@
         }
 
         /* Tools table column widths */
-        .tools-table .col-chevron { width: 40px; }
+        .tools-table .col-chevron { width: 36px; }
         .tools-table .col-name { width: auto; }
-        .tools-table .col-enabled { width: 80px; }
-        .tools-table .col-reason { width: 200px; max-width: 200px; }
+        .tools-table .col-think { width: 64px; text-align: center; }
+        .tools-table .col-defer { width: 64px; text-align: center; }
+        .tools-table .col-permission { width: 80px; }
+        .tools-table .col-enabled { width: 64px; text-align: center; }
+        .tools-table .col-reason { width: 140px; max-width: 140px; }
 
         .col-reason-text {
             font-size: 0.75rem;
@@ -410,7 +443,7 @@
             text-overflow: ellipsis;
             white-space: nowrap;
             display: block;
-            max-width: 180px;
+            max-width: 120px;
         }
 
         /* ============== Namespace Group Rows ============== */
@@ -990,7 +1023,7 @@
                 font-size: 0.75rem;
             }
 
-            .col-reason {
+            .col-reason, .col-think, .col-defer {
                 display: none;
             }
 
@@ -1313,9 +1346,8 @@
                         <option value="en">EN</option>
                         <option value="zh">中文</option>
                     </select>
-                    <div class="status-indicator">
+                    <div class="status-indicator" id="status-indicator" title="Connected" data-i18n-title="status.connected">
                         <span class="status-dot" id="status-dot"></span>
-                        <span id="status-text" data-i18n="status.connected">Connected</span>
                     </div>
                     <button class="btn-refresh" onclick="refreshAll()" title="Refresh" data-i18n-title="btn.refresh">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1400,13 +1432,15 @@
                                         <tr>
                                             <th class="col-chevron"></th>
                                             <th class="col-name" data-i18n="col.name">Name</th>
+                                            <th class="col-think" data-i18n="col.think">Think</th>
+                                            <th class="col-defer" data-i18n="col.defer">Defer</th>
                                             <th class="col-permission" data-i18n="col.permission">Permission</th>
                                             <th class="col-enabled" data-i18n="col.enabled">Enabled</th>
                                             <th class="col-reason" data-i18n="col.reason">Reason</th>
                                         </tr>
                                     </thead>
                                     <tbody id="tools-body">
-                                        <tr><td colspan="5" class="loading"><div class="spinner"></div><span data-i18n="misc.loading">Loading...</span></td></tr>
+                                        <tr><td colspan="7" class="loading"><div class="spinner"></div><span data-i18n="misc.loading">Loading...</span></td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -1605,7 +1639,7 @@
             'section.exportState':'Export State', 'section.importState':'Import State',
             'section.permPolicy':'Permission Policy',
             'col.name':'Name', 'col.permission':'Permission', 'col.enabled':'Enabled',
-            'col.reason':'Reason', 'col.namespace':'Namespace', 'col.totalTools':'Total Tools',
+            'col.reason':'Reason', 'col.think':'Think', 'col.defer':'Defer', 'col.namespace':'Namespace', 'col.totalTools':'Total Tools',
             'col.disabled':'Disabled', 'col.tags':'Tags', 'col.actions':'Actions',
             'col.timestamp':'Timestamp', 'col.tool':'Tool', 'col.status':'Status',
             'col.duration':'Duration', 'col.ruleName':'Rule Name', 'col.result':'Result',
@@ -1675,6 +1709,7 @@
             'misc.clickToDisable':'Click to disable', 'misc.clickToEnable':'Click to enable',
             'misc.clickToDisableAll':'Click to disable all', 'misc.clickToEnableAll':'Click to enable all',
             'misc.thinkAugmentedAll':'Think-augmented (all)', 'misc.deferredAll':'Deferred (all)',
+            'misc.nativeThought':'This tool natively declares a thought parameter',
             'toast.detailFailed':'Failed to load tool details: {error}',
           },
           zh: {
@@ -1687,7 +1722,7 @@
             'section.exportState':'\u5bfc\u51fa\u72b6\u6001', 'section.importState':'\u5bfc\u5165\u72b6\u6001',
             'section.permPolicy':'\u6743\u9650\u7b56\u7565',
             'col.name':'\u540d\u79f0', 'col.permission':'\u6743\u9650', 'col.enabled':'\u542f\u7528',
-            'col.reason':'\u539f\u56e0', 'col.namespace':'\u547d\u540d\u7a7a\u95f4', 'col.totalTools':'\u5de5\u5177\u603b\u6570',
+            'col.reason':'\u539f\u56e0', 'col.think':'\u601d\u8003', 'col.defer':'\u5ef6\u8fdf', 'col.namespace':'\u547d\u540d\u7a7a\u95f4', 'col.totalTools':'\u5de5\u5177\u603b\u6570',
             'col.disabled':'\u5df2\u7981\u7528', 'col.tags':'\u6807\u7b7e', 'col.actions':'\u64cd\u4f5c',
             'col.timestamp':'\u65f6\u95f4\u6233', 'col.tool':'\u5de5\u5177', 'col.status':'\u72b6\u6001',
             'col.duration':'\u8017\u65f6', 'col.ruleName':'\u89c4\u5219\u540d\u79f0', 'col.result':'\u7ed3\u679c',
@@ -1757,6 +1792,7 @@
             'misc.clickToDisable':'\u70b9\u51fb\u7981\u7528', 'misc.clickToEnable':'\u70b9\u51fb\u542f\u7528',
             'misc.clickToDisableAll':'\u70b9\u51fb\u7981\u7528\u5168\u90e8', 'misc.clickToEnableAll':'\u70b9\u51fb\u542f\u7528\u5168\u90e8',
             'misc.thinkAugmentedAll':'\u601d\u8003\u589e\u5f3a\uff08\u5168\u90e8\uff09', 'misc.deferredAll':'\u5ef6\u8fdf\u6267\u884c\uff08\u5168\u90e8\uff09',
+            'misc.nativeThought':'\u8be5\u5de5\u5177\u539f\u751f\u58f0\u660e\u4e86 thought \u53c2\u6570',
             'toast.detailFailed':'\u52a0\u8f7d\u5de5\u5177\u8be6\u60c5\u5931\u8d25\uff1a{error}',
           },
         };
@@ -1928,13 +1964,13 @@
         // ============== UI Helpers ==============
         function updateConnectionStatus(connected) {
             const dot = document.getElementById('status-dot');
-            const text = document.getElementById('status-text');
+            const indicator = document.getElementById('status-indicator');
             if (connected) {
                 dot.classList.remove('disconnected');
-                text.textContent = t('status.connected');
+                indicator.title = t('status.connected');
             } else {
                 dot.classList.add('disconnected');
-                text.textContent = t('status.disconnected');
+                indicator.title = t('status.disconnected');
             }
         }
 
@@ -2018,7 +2054,7 @@
                 updateNamespaceFilter(allTools);
             } catch (e) {
                 document.getElementById('tools-body').innerHTML =
-                    `<tr><td colspan="4" class="empty-state"><div class="text-error">${e.message}</div></td></tr>`;
+                    `<tr><td colspan="7" class="empty-state"><div class="text-error">${e.message}</div></td></tr>`;
             }
         }
 
@@ -2066,21 +2102,21 @@
                 const cls = tool.locality === 'local' ? 'badge-locality-local' : 'badge-locality-remote';
                 icons += `<span class="badge-locality ${cls}" title="Locality: ${tool.locality}">${tool.locality}</span>`;
             }
-            icons += renderMetaToggle(tool.name, 'think_augment', 'think', tool.think_augment);
             if (tool.is_async) {
                 icons += `<span class="meta-icon" title="Async">async</span>`;
             }
-            icons += renderMetaToggle(tool.name, 'defer', 'defer', tool.defer);
             return icons ? `<span class="tool-meta-icons">${icons}</span>` : '';
         }
 
-        function renderMetaToggle(toolName, field, label, checked) {
-            return `<label class="toggle-switch toggle-meta" title="${label}">
-                <input type="checkbox" ${checked ? 'checked' : ''}
+        function renderMetaToggle(toolName, field, checked, disabled) {
+            const dis = disabled ? 'disabled' : '';
+            const cls = disabled ? 'meta-checkbox meta-checkbox-disabled' : 'meta-checkbox';
+            const title = disabled ? t('misc.nativeThought') : '';
+            return `<label class="${cls}" style="justify-content: center;" ${title ? `title="${title}"` : ''}>
+                <input type="checkbox" ${checked ? 'checked' : ''} ${dis}
                     onclick="event.stopPropagation()"
                     onchange="toggleToolMeta('${escapeHtml(toolName)}', '${field}', this.checked)">
-                <span class="toggle-slider"></span>
-            </label><span class="toggle-meta-label">${label}</span>`;
+            </label>`;
         }
 
         function renderPermissionBadge(perm) {
@@ -2095,7 +2131,7 @@
 
             if (tools.length === 0) {
                 tbody.innerHTML = `
-                    <tr><td colspan="4" class="empty-state">
+                    <tr><td colspan="7" class="empty-state">
                         <div class="empty-state-icon">${t('empty.tools')}</div>
                         <div class="empty-state-text">${t('empty.toolsHint')}</div>
                     </td></tr>`;
@@ -2135,18 +2171,19 @@
                         <span style="font-weight: 500;">${escapeHtml(ns)}</span>
                         <span class="text-muted" style="margin-left: 8px; font-size: 0.6875rem;">${children.length > 1 ? t('misc.toolCountPlural', {count: children.length}) : t('misc.toolCount', {count: children.length})}</span>
                     </td>
-                    <td class="ns-meta-toggles" onclick="event.stopPropagation()">
-                        <label class="toggle-switch toggle-meta" title="${t('misc.thinkAugmentedAll')}">
+                    <td class="col-think" onclick="event.stopPropagation()">
+                        <label class="meta-checkbox" style="justify-content: center;" title="${t('misc.thinkAugmentedAll')}">
                             <input type="checkbox" ${allThink ? 'checked' : ''}
                                 onchange="toggleNamespaceMeta('${escapeHtml(ns)}', 'think_augment', this.checked)">
-                            <span class="toggle-slider"></span>
-                        </label><span class="toggle-meta-label">${t('meta.think')}</span>
-                        <label class="toggle-switch toggle-meta" title="${t('misc.deferredAll')}" style="margin-left: 6px;">
+                        </label>
+                    </td>
+                    <td class="col-defer" onclick="event.stopPropagation()">
+                        <label class="meta-checkbox" style="justify-content: center;" title="${t('misc.deferredAll')}">
                             <input type="checkbox" ${allDefer ? 'checked' : ''}
                                 onchange="toggleNamespaceMeta('${escapeHtml(ns)}', 'defer', this.checked)">
-                            <span class="toggle-slider"></span>
-                        </label><span class="toggle-meta-label">${t('meta.defer')}</span>
+                        </label>
                     </td>
+                    <td class="col-permission"></td>
                     <td>
                         ${isDefault ? '' : `<label class="toggle-switch toggle-ns" title="${allEnabled ? t('misc.clickToDisableAll') : t('misc.clickToEnableAll')}" onclick="event.stopPropagation()">
                             <input type="checkbox" ${allEnabled ? 'checked' : ''}
@@ -2170,6 +2207,8 @@
                         <span class="tool-badges">${tagBadges}</span>
                         ${metaIcons}
                     </td>
+                    <td class="col-think" onclick="event.stopPropagation()">${renderMetaToggle(tool.name, 'think_augment', tool.think_augment, tool.has_native_thought)}</td>
+                    <td class="col-defer" onclick="event.stopPropagation()">${renderMetaToggle(tool.name, 'defer', tool.defer, false)}</td>
                     <td>${permBadge}</td>
                     <td>
                         <label class="toggle-switch" title="${tool.enabled ? t('misc.clickToDisable') : t('misc.clickToEnable')}">
@@ -2676,10 +2715,10 @@
                         <div class="meta-item"><span class="meta-label">${t('detail.locality')}</span><span class="meta-value">${meta.locality || 'any'}</span></div>
                         <div class="meta-item"><span class="meta-label">${t('detail.async')}</span><span class="meta-value">${meta.is_async ? t('meta.yes') : t('meta.no')}</span></div>
                         <div class="meta-item"><span class="meta-label">${t('detail.concurrencySafe')}</span><span class="meta-value">${meta.is_concurrency_safe !== false ? t('meta.yes') : t('meta.no')}</span></div>
-                        <div class="meta-item"><span class="meta-label">${t('detail.thinkAugment')}</span><span class="meta-value"><label class="toggle-switch toggle-meta"><input type="checkbox" ${meta.think_augment ? 'checked' : ''} onchange="toggleToolMeta('${escapeHtml(tool.name)}', 'think_augment', this.checked)"><span class="toggle-slider"></span></label></span></div>
+                        <div class="meta-item"><span class="meta-label">${t('detail.thinkAugment')}</span><span class="meta-value"><label class="meta-checkbox"><input type="checkbox" ${meta.think_augment ? 'checked' : ''} onchange="toggleToolMeta('${escapeHtml(tool.name)}', 'think_augment', this.checked)"></label></span></div>
                         <div class="meta-item"><span class="meta-label">${t('detail.timeout')}</span><span class="meta-value">${meta.timeout != null ? meta.timeout + 's' : 'None'}</span></div>
                         <div class="meta-item"><span class="meta-label">${t('detail.maxResultSize')}</span><span class="meta-value">${meta.max_result_size != null ? meta.max_result_size + ' chars' : 'None'}</span></div>
-                        <div class="meta-item"><span class="meta-label">${t('detail.deferred')}</span><span class="meta-value"><label class="toggle-switch toggle-meta"><input type="checkbox" ${meta.defer ? 'checked' : ''} onchange="toggleToolMeta('${escapeHtml(tool.name)}', 'defer', this.checked)"><span class="toggle-slider"></span></label></span></div>
+                        <div class="meta-item"><span class="meta-label">${t('detail.deferred')}</span><span class="meta-value"><label class="meta-checkbox"><input type="checkbox" ${meta.defer ? 'checked' : ''} onchange="toggleToolMeta('${escapeHtml(tool.name)}', 'defer', this.checked)"></label></span></div>
                         <div class="meta-item"><span class="meta-label">${t('detail.searchHint')}</span><span class="meta-value">${escapeHtml(meta.search_hint) || '\u2014'}</span></div>
                     </div>
                     ${systemTags.length > 0 ? `<div class="mt-2"><span class="meta-label">${t('detail.tags')}</span><div style="margin-top: 4px;">${renderTagBadges(systemTags)}</div></div>` : ''}
