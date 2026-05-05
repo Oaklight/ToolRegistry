@@ -28,10 +28,10 @@ author: Oaklight
     - 为 `ToolRegistry` 新增 `update_tool_metadata(tool_name, **kwargs)` 和 `update_namespace_metadata(namespace, **kwargs)` 方法，支持运行时修改 `think_augment` 和 `defer` 字段
     - 白名单机制：仅允许运行时修改 `think_augment` 和 `defer`（防止对执行关键字段的不安全修改）
     - 新增 `PATCH /api/tools/{name}/metadata` 和 `PATCH /api/namespaces/{ns}/metadata` REST API 端点
-    - 在 Web UI 中为 `think_augment` 和 `defer` 添加交互式开关，支持工具级别和命名空间级别
-    - 命名空间级别的开关应用于命名空间内的所有工具
+    - 在 Web UI 中为 `think_augment` 和 `defer` 添加独立列的交互式复选框，支持工具级别和命名空间级别
+    - 原生声明了 `thought` 参数的工具，Think 复选框灰显；在 `get_tools_status()` API 中暴露 `has_native_thought` 字段
+    - 命名空间级别的复选框应用于命名空间内的所有工具
     - 在 `ChangeEventType` 枚举中新增 `METADATA_UPDATE` 事件类型
-    - 三色开关方案：金色（启用/禁用）、青色（命名空间）、靛蓝色（元数据），提供视觉层次
     - 新增 7 个测试覆盖元数据更新端点
 
 - **管理面板国际化（i18n）**（[#137](../../pull/137)）
@@ -40,6 +40,7 @@ author: Oaklight
     - 所有静态文本使用 `data-i18n` 属性；动态文本使用 `t(key, params)` 翻译函数
     - 覆盖所有标签页、表头、按钮、过滤器、提示消息、弹窗对话框和空状态
     - 即时语言切换，自动重新渲染当前活动标签页
+    - 连接状态简化为圆点指示器，悬停显示提示文字
 
 ### 重构
 
