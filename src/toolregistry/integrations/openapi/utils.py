@@ -10,6 +10,7 @@ from ..._vendor.httpclient import (
     Client,
     HttpClientError,
     HTTPError,
+    Response,
 )
 
 
@@ -111,6 +112,7 @@ async def load_openapi_spec_async(uri: str) -> dict[str, Any]:
             # timeout for network requests (e.g., 10 seconds)
             async with AsyncClient(timeout=10) as client:
                 response = await client.get(uri)
+                assert isinstance(response, Response)
                 response.raise_for_status()
                 openapi_spec_content = response.content
 
