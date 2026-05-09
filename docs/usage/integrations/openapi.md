@@ -12,7 +12,7 @@ This guide explains how to integrate OpenAPI with ToolRegistry, allowing you to 
 
 The `register_from_openapi` method now accepts two parameters:
 
-- `client_config`: a `toolregistry.integrations.openapi.HttpxClientConfig` object that configures the HTTP client used to interact with the API. You can configure the headers, authorization, timeout, and other settings. Allowing greater flexibility than the previous version.
+- `client_config`: a `toolregistry.integrations.openapi.HttpClientConfig` object that configures the HTTP client used to interact with the API. You can configure the headers, authorization, timeout, and other settings. Allowing greater flexibility than the previous version.
 - `openapi_spec`: The OpenAPI specification as `Dict[str, Any]`, loaded with a function like `load_openapi_spec` or `load_openapi_spec_async`. These functions accept a file path or a URL to the OpenAPI specification or a URL to the base api and return the parsed OpenAPI specification as a dictionary.
 
 You must now explicitly pass both the `client_config` and `openapi_spec` arguments.
@@ -25,12 +25,12 @@ You can register OpenAPI tools synchronously using the `register_from_openapi` m
 
 ```python
 import os
-from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec
+from toolregistry.integrations.openapi import HttpClientConfig, load_openapi_spec
 from toolregistry import ToolRegistry
 
 PORT = os.getenv("PORT", 8000)  # Default port is 8000; can be overridden by an environment variable
 registry = ToolRegistry()
-client_config = HttpxClientConfig(base_url=f"http://localhost:{PORT}")
+client_config = HttpClientConfig(base_url=f"http://localhost:{PORT}")
 openapi_spec = load_openapi_spec("http://localhost:{PORT}")  # Auto-discovery of OpenAPI spec
 
 # Synchronously register OpenAPI tools
@@ -74,12 +74,12 @@ In an asynchronous environment, use the `register_from_openapi_async` method to 
 ```python
 import asyncio
 import os
-from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec_async
+from toolregistry.integrations.openapi import HttpClientConfig, load_openapi_spec_async
 from toolregistry import ToolRegistry
 
 PORT = os.getenv("PORT", 8000)
 registry = ToolRegistry()
-client_config = HttpxClientConfig(base_url=f"http://localhost:{PORT}")
+client_config = HttpClientConfig(base_url=f"http://localhost:{PORT}")
 
 async def async_register():
     openapi_spec = await load_openapi_spec_async("http://localhost:{PORT}")  # Auto-discovery of OpenAPI spec
@@ -89,28 +89,28 @@ async def async_register():
 asyncio.run(async_register())
 ```
 
-### Httpx Client Configuration
+### HTTP Client Configuration
 
-In some cases, OpenAPI services may require specific configurations such as custom headers, timeouts, or SSL certificates. You can tune these settings with the `HttpxClientConfig` class. Here's an example of authorization bearer tokens in header.
+In some cases, OpenAPI services may require specific configurations such as custom headers, timeouts, or SSL certificates. You can tune these settings with the `HttpClientConfig` class. Here's an example of authorization bearer tokens in header.
 
 ```python
-from toolregistry.integrations.openapi import HttpxClientConfig
+from toolregistry.integrations.openapi import HttpClientConfig
 
 OPENAPI_SERVER_URL = os.getenv("OPENAPI_SERVER_URL", "http://localhost:8000")
 OPENAPI_BEARER_TOKENS = os.getenv("OPENAPI_BEARER_TOKENS", "your-api-token")
 
-client_config = HttpxClientConfig(
+client_config = HttpClientConfig(
     base_url=OPENAPI_SERVER_URL,
     headers={"Authorization": f"Bearer {OPENAPI_BEARER_TOKENS}"}, # this sets the Bearer token
 )
 ```
 
-If nothing special is needed, you can create HttpxClientConfig with just the `base_url`:
+If nothing special is needed, you can create HttpClientConfig with just the `base_url`:
 
 ```python
-from toolregistry.integrations.openapi import HttpxClientConfig
+from toolregistry.integrations.openapi import HttpClientConfig
 
-client_config = HttpxClientConfig(
+client_config = HttpClientConfig(
     base_url=OPENAPI_SERVER_URL,
 )
 ```
@@ -135,7 +135,7 @@ openapi_spec = load_openapi_spec("http://localhost:8000/openapi.json") # load fr
 ???+ note "Changelog"
     New in version: 0.7.0
 
-By default, OpenAPI integrations now use **persistent HTTP connections** — the `httpx` client is reused across multiple tool calls, enabling connection pooling and reducing latency.
+By default, OpenAPI integrations now use **persistent HTTP connections** — the HTTP client is reused across multiple tool calls, enabling connection pooling and reducing latency.
 
 ### Context Manager Usage
 
@@ -143,14 +143,14 @@ Use `ToolRegistry` as a context manager to ensure HTTP clients are properly clos
 
 ```python
 from toolregistry import ToolRegistry
-from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec
+from toolregistry.integrations.openapi import HttpClientConfig, load_openapi_spec
 
 with ToolRegistry() as registry:
-    client_config = HttpxClientConfig(base_url="http://localhost:8000")
+    client_config = HttpClientConfig(base_url="http://localhost:8000")
     openapi_spec = load_openapi_spec("http://localhost:8000")
     registry.register_from_openapi(client_config=client_config, openapi_spec=openapi_spec)
     result = registry["add_get"](1, 2)
-# HTTP clients are automatically closed on exit
+# HTTP connections are automatically closed on exit
 ```
 
 ### Explicit Cleanup
@@ -159,7 +159,7 @@ with ToolRegistry() as registry:
 registry = ToolRegistry()
 registry.register_from_openapi(client_config=client_config, openapi_spec=openapi_spec)
 # ... use tools ...
-registry.close()  # Close all persistent HTTP clients
+registry.close()  # Close all persistent HTTP connections
 
 # Or in async code:
 await registry.close_async()
@@ -167,7 +167,7 @@ await registry.close_async()
 
 ### Opting Out
 
-To create a fresh HTTP client per call (the old behavior), pass `persistent=False`:
+To create a fresh HTTP connection per call (the old behavior), pass `persistent=False`:
 
 ```python
 registry.register_from_openapi(
@@ -230,7 +230,7 @@ You can integrate OpenAPI tool registration into an OpenAI-compatible API workfl
 
 ```python
 from dotenv import load_dotenv
-from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec
+from toolregistry.integrations.openapi import HttpClientConfig, load_openapi_spec
 from toolregistry import ToolRegistry
 from openai import OpenAI
 import os
@@ -240,7 +240,7 @@ load_dotenv()
 PORT = os.getenv("PORT", 8000)  # default port 8000, change via environment variable
 
 registry = ToolRegistry()
-client_config = HttpxClientConfig(base_url=f"http://localhost:{PORT}")
+client_config = HttpClientConfig(base_url=f"http://localhost:{PORT}")
 openapi_spec = load_openapi_spec(f"http://localhost:{PORT}")
 registry.register_from_openapi(client_config=client_config, openapi_spec=openapi_spec)
 

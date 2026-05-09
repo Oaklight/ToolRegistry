@@ -11,7 +11,7 @@ Wrapper class that provides both synchronous and asynchronous methods for OpenAP
 - **REST API Integration**: Full support for RESTful API operations
 - **HTTP Method Support**: Handles GET, POST, PUT, DELETE, and other HTTP methods
 - **Parameter Processing**: Automatic processing of query parameters and request bodies
-- **HTTP Client Integration**: Uses httpx for both synchronous and asynchronous HTTP operations
+- **HTTP Client Integration**: Uses a built-in HTTP client for both synchronous and asynchronous HTTP operations
 - **Error Handling**: Comprehensive HTTP error handling with status code management
 - **Response Processing**: Automatic JSON response parsing and error handling
 
@@ -21,7 +21,7 @@ The OpenAPIToolWrapper extends `BaseToolWrapper` with OpenAPI-specific functiona
 
 ### Core Components
 
-1. **HTTP Client Management**: Configures and manages httpx client instances
+1. **HTTP Client Management**: Configures and manages HTTP client instances
 2. **Method Handling**: Routes requests to appropriate HTTP methods
 3. **Parameter Mapping**: Processes arguments into HTTP request parameters
 4. **Response Processing**: Handles HTTP responses and error conditions
@@ -59,10 +59,10 @@ Result Normalization
 
 ```python
 from toolregistry.integrations.openapi.integration import OpenAPIToolWrapper
-from toolregistry.utils import HttpxClientConfig
+from toolregistry.integrations.openapi import HttpClientConfig
 
 # Configure HTTP client
-client_config = HttpxClientConfig(
+client_config = HttpClientConfig(
     base_url="https://api.example.com",
     headers={"Authorization": "Bearer token"}
 )
@@ -146,7 +146,7 @@ result = wrapper(id="123")
 ### Basic Configuration
 
 ```python
-client_config = HttpxClientConfig(
+client_config = HttpClientConfig(
     base_url="https://api.example.com"
 )
 ```
@@ -154,7 +154,7 @@ client_config = HttpxClientConfig(
 ### Authenticated Configuration
 
 ```python
-client_config = HttpxClientConfig(
+client_config = HttpClientConfig(
     base_url="https://api.example.com",
     headers={
         "Authorization": "Bearer your-token",
@@ -166,7 +166,7 @@ client_config = HttpxClientConfig(
 ### Timeout Configuration
 
 ```python
-client_config = HttpxClientConfig(
+client_config = HttpClientConfig(
     base_url="https://api.example.com",
     timeout=30.0
 )
@@ -181,9 +181,8 @@ The wrapper provides comprehensive HTTP error handling:
 ```python
 try:
     result = wrapper(user_id="999")  # User not found
-except httpx.HTTPStatusError as e:
-    print(f"HTTP Error: {e.response.status_code}")
-    print(f"Response: {e.response.text}")
+except Exception as e:
+    print(f"HTTP Error: {e}")
 ```
 
 ### Network Errors
@@ -191,7 +190,7 @@ except httpx.HTTPStatusError as e:
 ```python
 try:
     result = wrapper(param="value")
-except httpx.RequestError as e:
+except Exception as e:
     print(f"Request failed: {e}")
 ```
 
@@ -199,8 +198,8 @@ except httpx.RequestError as e:
 
 ```python
 # HTTP errors automatically raise exceptions
-# 4xx and 5xx status codes trigger HTTPStatusError
-# Network issues trigger RequestError
+# 4xx and 5xx status codes trigger HTTP error exceptions
+# Network issues trigger connection error exceptions
 ```
 
 ## Response Processing

@@ -12,7 +12,7 @@ The OpenAPI integration is designed to automatically discover and register REST 
 
    - Handles GET, POST, PUT, DELETE requests
    - Supports parameter processing and validation
-   - Integrates with httpx for HTTP communication
+   - Integrates with a built-in HTTP client for HTTP communication
 
 2. **OpenAPITool**: A tool class that preserves function metadata extracted from OpenAPI specifications
 

@@ -2,6 +2,40 @@
 
 This guide covers breaking changes and migration steps between major ToolRegistry releases.
 
+## 0.8.x → Next
+
+### `HttpxClientConfig` Renamed to `HttpClientConfig`
+
+The `HttpxClientConfig` class has been renamed to `HttpClientConfig` to reflect the removal of httpx as a core dependency. The old name is preserved as a deprecated alias.
+
+**Before:**
+
+```python
+from toolregistry.integrations.openapi import HttpxClientConfig
+client_config = HttpxClientConfig(base_url="http://localhost:8000")
+```
+
+**After:**
+
+```python
+from toolregistry.integrations.openapi import HttpClientConfig
+client_config = HttpClientConfig(base_url="http://localhost:8000")
+```
+
+The old import still works but emits a `DeprecationWarning`. Update at your earliest convenience.
+
+### httpx Moved to Optional Dependency
+
+`httpx` is no longer a core dependency. It has been moved to the `[mcp]` optional extras group. If you use MCP integration, install with:
+
+```bash
+pip install toolregistry[mcp]
+```
+
+Core OpenAPI functionality now uses a built-in HTTP client internally.
+
+---
+
 ## 0.7.x → 0.8.0
 
 ### Integration Packages Moved Under `integrations/`

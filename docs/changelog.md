@@ -44,6 +44,12 @@ This page documents all notable changes to the ToolRegistry project since the fi
 
 ### Refactoring
 
+- **Remove httpx Core Dependency** ([#139](../../pull/139))
+    - Replace `httpx` with zero-dependency vendored HTTP client for core OpenAPI functionality
+    - Rename `HttpxClientConfig` → `HttpClientConfig` (old name preserved as deprecated alias with `DeprecationWarning`)
+    - Move `httpx` from core `dependencies` to `[mcp]` optional extras (MCP integration still requires it)
+    - No changes to public API behavior — `HttpClientConfig` accepts the same constructor arguments
+
 - **Admin Panel Async Migration** ([#136](../../pull/136))
     - Migrate admin panel from stdlib `http.server` to zerodep's async `httpserver` module (vendored via `zerodep add httpserver`)
     - Replace `BaseHTTPRequestHandler` with decorator-based routing (`@app.get`, `@app.post`, `@app.patch`, `@app.delete`)

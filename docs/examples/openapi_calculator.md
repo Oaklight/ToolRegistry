@@ -114,7 +114,7 @@ python openapi_calculator.py
   
     The `register_from_openapi` method new requires two parameters:
   
-    - `client_config`: Configures the HTTP client (headers, auth, timeout, etc.) using a `toolregistry.integrations.openapi.HttpxClientConfig` object, allowing greater flexibility.
+    - `client_config`: Configures the HTTP client (headers, auth, timeout, etc.) using an `HttpClientConfig` object, allowing greater flexibility.
     - `openapi_spec`: The OpenAPI specification loaded as `Dict[str, Any]` using functions like `load_openapi_spec` or `load_openapi_spec_async` from a file path or URL to the service or specification.
 
 We implement using both Cicada `MultiModalModel` and OpenAI client to showcase different ways to integrate with the tool registry.
@@ -122,9 +122,9 @@ We implement using both Cicada `MultiModalModel` and OpenAI client to showcase d
 Example:
 
 ```python
-from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec
+from toolregistry.integrations.openapi import HttpClientConfig, load_openapi_spec
 
-client_config = HttpxClientConfig(base_url="http://localhost:8000")
+client_config = HttpClientConfig(base_url="http://localhost:8000")
 openapi_spec = load_openapi_spec("./openapi_spec.json") # specification at local path
 openapi_spec = load_openapi_spec("http://localhost:8000") # URL to service root
 openapi_spec = load_openapi_spec("http://localhost:8000/openapi.json") # URL to specification
@@ -144,7 +144,7 @@ import os
 from cicada.core.model import MultiModalModel
 from cicada.core.utils import cprint
 from dotenv import load_dotenv
-from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec
+from toolregistry.integrations.openapi import HttpClientConfig, load_openapi_spec
 from toolregistry import ToolRegistry
 
 load_dotenv()
@@ -165,7 +165,7 @@ llm = MultiModalModel(
 # Initialize tool registry
 tool_registry = ToolRegistry()
 
-client_config = HttpxClientConfig(base_url="http://localhost:8000")
+client_config = HttpClientConfig(base_url="http://localhost:8000")
 openapi_spec = load_openapi_spec("http://localhost:8000")
 tool_registry.register_from_openapi(client_config, openapi_spec)
 
@@ -193,7 +193,7 @@ cprint(json.dumps(response, indent=2))
 import inspect
 import os
 from dotenv import load_dotenv
-from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec
+from toolregistry.integrations.openapi import HttpClientConfig, load_openapi_spec
 from toolregistry import ToolRegistry
 from openai import OpenAI
 
@@ -208,7 +208,7 @@ BASE_URL = os.getenv("BASE_URL", "https://api.deepseek.com/")
 # Initialize tool registry
 tool_registry = ToolRegistry()
 
-client_config = HttpxClientConfig(base_url="http://localhost:8000")
+client_config = HttpClientConfig(base_url="http://localhost:8000")
 openapi_spec = load_openapi_spec("http://localhost:8000")
 tool_registry.register_from_openapi(client_config, openapi_spec)
 
