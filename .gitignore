@@ -184,3 +184,10 @@ docs/source/paper_draft/
 # Documentation worktrees
 docs_en/
 docs_zh/
+
+# Playwright MCP cache
+.playwright-mcp/
+
+# Temporary test artifacts
+test.db
+*.png
