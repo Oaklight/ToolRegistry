@@ -44,6 +44,12 @@ author: Oaklight
 
 ### 重构
 
+- **移除 httpx 核心依赖** ([#139](../../pull/139))
+    - 使用零依赖的内置 HTTP 客户端替代 `httpx`，用于核心 OpenAPI 功能
+    - `HttpxClientConfig` 重命名为 `HttpClientConfig`（旧名保留为弃用别名，使用时会发出 `DeprecationWarning`）
+    - 将 `httpx` 从核心 `dependencies` 移至 `[mcp]` 可选依赖（MCP 集成仍需要 httpx）
+    - 公开 API 行为不变——`HttpClientConfig` 接受相同的构造函数参数
+
 - **管理面板异步化迁移**（[#136](../../pull/136)）
     - 将管理面板从标准库 `http.server` 迁移至 zerodep 的异步 `httpserver` 模块（通过 `zerodep add httpserver` 引入）
     - 将 `BaseHTTPRequestHandler` 替换为装饰器路由（`@app.get`、`@app.post`、`@app.patch`、`@app.delete`）

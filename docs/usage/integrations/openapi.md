@@ -12,7 +12,7 @@
 
 `register_from_openapi` 方法现在接受两个参数：
 
-- `client_config`：一个 `toolregistry.integrations.openapi.HttpxClientConfig` 对象，用于配置与 API 交互的 HTTP 客户端。你可以配置请求头、授权方式、超时时间和其他设置，比之前的版本提供了更大的灵活性。
+- `client_config`：一个 `toolregistry.integrations.openapi.HttpClientConfig` 对象，用于配置与 API 交互的 HTTP 客户端。你可以配置请求头、授权方式、超时时间和其他设置，比之前的版本提供了更大的灵活性。
 - `openapi_spec`：OpenAPI 规范，类型为 `Dict[str, Any]`，通过 `load_openapi_spec` 或 `load_openapi_spec_async` 等函数加载。这些函数接受 OpenAPI 规范的文件路径、URL 或基础 API 的 URL，并返回解析后的 OpenAPI 规范字典。
 
 你现在必须显式传递 `client_config` 和 `openapi_spec` 这两个参数。
@@ -25,12 +25,12 @@
 
 ```python
 import os
-from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec
+from toolregistry.integrations.openapi import HttpClientConfig, load_openapi_spec
 from toolregistry import ToolRegistry
 
 PORT = os.getenv("PORT", 8000)  # Default port is 8000; can be overridden by an environment variable
 registry = ToolRegistry()
-client_config = HttpxClientConfig(base_url=f"http://localhost:{PORT}")
+client_config = HttpClientConfig(base_url=f"http://localhost:{PORT}")
 openapi_spec = load_openapi_spec("http://localhost:{PORT}")  # Auto-discovery of OpenAPI spec
 
 # Synchronously register OpenAPI tools
@@ -74,12 +74,12 @@ print(registry)  # Output: A ToolRegistry object with the registered OpenAPI too
 ```python
 import asyncio
 import os
-from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec_async
+from toolregistry.integrations.openapi import HttpClientConfig, load_openapi_spec_async
 from toolregistry import ToolRegistry
 
 PORT = os.getenv("PORT", 8000)
 registry = ToolRegistry()
-client_config = HttpxClientConfig(base_url=f"http://localhost:{PORT}")
+client_config = HttpClientConfig(base_url=f"http://localhost:{PORT}")
 
 async def async_register():
     openapi_spec = await load_openapi_spec_async("http://localhost:{PORT}")  # Auto-discovery of OpenAPI spec
@@ -89,28 +89,28 @@ async def async_register():
 asyncio.run(async_register())
 ```
 
-### Httpx 客户端配置
+### HTTP 客户端配置
 
-在某些情况下，OpenAPI 服务可能需要特定的配置，例如自定义请求头、超时时间或 SSL 证书。你可以通过 `HttpxClientConfig` 类来调整这些设置。以下是在请求头中使用 Bearer Token 授权的示例。
+在某些情况下，OpenAPI 服务可能需要特定的配置，例如自定义请求头、超时时间或 SSL 证书。你可以通过 `HttpClientConfig` 类来调整这些设置。以下是在请求头中使用 Bearer Token 授权的示例。
 
 ```python
-from toolregistry.integrations.openapi import HttpxClientConfig
+from toolregistry.integrations.openapi import HttpClientConfig
 
 OPENAPI_SERVER_URL = os.getenv("OPENAPI_SERVER_URL", "http://localhost:8000")
 OPENAPI_BEARER_TOKENS = os.getenv("OPENAPI_BEARER_TOKENS", "your-api-token")
 
-client_config = HttpxClientConfig(
+client_config = HttpClientConfig(
     base_url=OPENAPI_SERVER_URL,
     headers={"Authorization": f"Bearer {OPENAPI_BEARER_TOKENS}"}, # this sets the Bearer token
 )
 ```
 
-如果不需要特殊配置，只需使用 `base_url` 创建 HttpxClientConfig 即可：
+如果不需要特殊配置，只需使用 `base_url` 创建 HttpClientConfig 即可：
 
 ```python
-from toolregistry.integrations.openapi import HttpxClientConfig
+from toolregistry.integrations.openapi import HttpClientConfig
 
-client_config = HttpxClientConfig(
+client_config = HttpClientConfig(
     base_url=OPENAPI_SERVER_URL,
 )
 ```
@@ -135,7 +135,7 @@ openapi_spec = load_openapi_spec("http://localhost:8000/openapi.json") # load fr
 ???+ note "变更日志"
     新增于版本：0.7.0
 
-默认情况下，OpenAPI 集成现在使用**持久 HTTP 连接**——`httpx` 客户端在多次工具调用之间被复用，从而实现连接池化并降低延迟。
+默认情况下，OpenAPI 集成现在使用**持久 HTTP 连接**——HTTP 客户端在多次工具调用之间被复用，从而实现连接池化并降低延迟。
 
 ### 上下文管理器用法
 
@@ -143,14 +143,15 @@ openapi_spec = load_openapi_spec("http://localhost:8000/openapi.json") # load fr
 
 ```python
 from toolregistry import ToolRegistry
-from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec
+from toolregistry.integrations.openapi import HttpClientConfig, load_openapi_spec
 
 with ToolRegistry() as registry:
-    client_config = HttpxClientConfig(base_url="http://localhost:8000")
+    client_config = HttpClientConfig(base_url="http://localhost:8000")
     openapi_spec = load_openapi_spec("http://localhost:8000")
     registry.register_from_openapi(client_config=client_config, openapi_spec=openapi_spec)
     result = registry["add_get"](1, 2)
 # HTTP clients are automatically closed on exit
+```
 ```
 
 ### 显式清理
@@ -230,7 +231,7 @@ asyncio.run(call_async_add_tool())
 
 ```python
 from dotenv import load_dotenv
-from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec
+from toolregistry.integrations.openapi import HttpClientConfig, load_openapi_spec
 from toolregistry import ToolRegistry
 from openai import OpenAI
 import os
@@ -240,7 +241,7 @@ load_dotenv()
 PORT = os.getenv("PORT", 8000)  # default port 8000, change via environment variable
 
 registry = ToolRegistry()
-client_config = HttpxClientConfig(base_url=f"http://localhost:{PORT}")
+client_config = HttpClientConfig(base_url=f"http://localhost:{PORT}")
 openapi_spec = load_openapi_spec(f"http://localhost:{PORT}")
 registry.register_from_openapi(client_config=client_config, openapi_spec=openapi_spec)
 

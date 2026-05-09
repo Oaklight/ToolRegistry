@@ -11,7 +11,7 @@
 - **REST API 集成**：全面支持 RESTful API 操作
 - **HTTP 方法支持**：处理 GET、POST、PUT、DELETE 及其他 HTTP 方法
 - **参数处理**：自动处理查询参数和请求体
-- **HTTP 客户端集成**：使用 httpx 实现同步和异步 HTTP 操作
+- **HTTP 客户端集成**：使用内置 HTTP 客户端实现同步和异步 HTTP 操作
 - **错误处理**：全面的 HTTP 错误处理和状态码管理
 - **响应处理**：自动 JSON 响应解析和错误处理
 
@@ -21,7 +21,7 @@ OpenAPIToolWrapper 通过 OpenAPI 特定功能扩展了 `BaseToolWrapper`：
 
 ### 核心组件
 
-1. **HTTP 客户端管理**：配置和管理 httpx 客户端实例
+1. **HTTP 客户端管理**：配置和管理 HTTP 客户端实例
 2. **方法处理**：将请求路由到适当的 HTTP 方法
 3. **参数映射**：将参数处理为 HTTP 请求参数
 4. **响应处理**：处理 HTTP 响应和错误条件
@@ -59,10 +59,10 @@ HTTP 执行
 
 ```python
 from toolregistry.integrations.openapi.integration import OpenAPIToolWrapper
-from toolregistry.utils import HttpxClientConfig
+from toolregistry.utils import HttpClientConfig
 
 # Configure HTTP client
-client_config = HttpxClientConfig(
+client_config = HttpClientConfig(
     base_url="https://api.example.com",
     headers={"Authorization": "Bearer token"}
 )
@@ -146,7 +146,7 @@ result = wrapper(id="123")
 ### 基本配置
 
 ```python
-client_config = HttpxClientConfig(
+client_config = HttpClientConfig(
     base_url="https://api.example.com"
 )
 ```
@@ -154,7 +154,7 @@ client_config = HttpxClientConfig(
 ### 认证配置
 
 ```python
-client_config = HttpxClientConfig(
+client_config = HttpClientConfig(
     base_url="https://api.example.com",
     headers={
         "Authorization": "Bearer your-token",
@@ -166,7 +166,7 @@ client_config = HttpxClientConfig(
 ### 超时配置
 
 ```python
-client_config = HttpxClientConfig(
+client_config = HttpClientConfig(
     base_url="https://api.example.com",
     timeout=30.0
 )
@@ -181,9 +181,8 @@ client_config = HttpxClientConfig(
 ```python
 try:
     result = wrapper(user_id="999")  # User not found
-except httpx.HTTPStatusError as e:
-    print(f"HTTP Error: {e.response.status_code}")
-    print(f"Response: {e.response.text}")
+except Exception as e:
+    print(f"HTTP Error: {e}")
 ```
 
 ### 网络错误
@@ -191,7 +190,7 @@ except httpx.HTTPStatusError as e:
 ```python
 try:
     result = wrapper(param="value")
-except httpx.RequestError as e:
+except Exception as e:
     print(f"Request failed: {e}")
 ```
 
@@ -199,8 +198,8 @@ except httpx.RequestError as e:
 
 ```python
 # HTTP errors automatically raise exceptions
-# 4xx and 5xx status codes trigger HTTPStatusError
-# Network issues trigger RequestError
+# 4xx and 5xx status codes trigger HttpStatusError
+# Network issues trigger HttpConnectionError
 ```
 
 ## 响应处理

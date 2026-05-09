@@ -2,6 +2,40 @@
 
 本指南涵盖 ToolRegistry 主要版本之间的破坏性变更和迁移步骤。
 
+## 0.8.x → 下一版本
+
+### `HttpxClientConfig` 重命名为 `HttpClientConfig`
+
+`HttpxClientConfig` 类已重命名为 `HttpClientConfig`，以反映核心库不再依赖 httpx。旧名称保留为弃用别名。
+
+**之前：**
+
+```python
+from toolregistry.integrations.openapi import HttpxClientConfig
+client_config = HttpxClientConfig(base_url="http://localhost:8000")
+```
+
+**之后：**
+
+```python
+from toolregistry.integrations.openapi import HttpClientConfig
+client_config = HttpClientConfig(base_url="http://localhost:8000")
+```
+
+旧的导入方式仍然有效，但会发出 `DeprecationWarning`。请尽快更新。
+
+### httpx 移至可选依赖
+
+`httpx` 不再是核心依赖，已移至 `[mcp]` 可选依赖组。如果使用 MCP 集成，请安装：
+
+```bash
+pip install toolregistry[mcp]
+```
+
+核心 OpenAPI 功能现在使用内置的零依赖 HTTP 客户端。
+
+---
+
 ## 0.7.x → 0.8.0
 
 ### 集成包移至 `integrations/` 下
