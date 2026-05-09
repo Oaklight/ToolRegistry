@@ -1,12 +1,12 @@
 import asyncio
 
-from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec
+from toolregistry.integrations.openapi import HttpClientConfig, load_openapi_spec
 from toolregistry.tool_registry import ToolRegistry
 
 base_url = "http://localhost:8000"
 openapi_spec = load_openapi_spec(base_url)
 
-client_config = HttpxClientConfig(base_url=base_url)
+client_config = HttpClientConfig(base_url=base_url)
 
 # Initialize the ToolRegistry and register OpenAPI tools synchronously
 registry = ToolRegistry()

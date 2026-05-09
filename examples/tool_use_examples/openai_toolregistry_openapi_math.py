@@ -7,7 +7,7 @@ from openai import OpenAI
 
 from toolregistry import ToolRegistry
 from toolregistry.integrations.openapi import (
-    HttpxClientConfig,
+    HttpClientConfig,
     load_openapi_spec,
     load_openapi_spec_async,
 )
@@ -24,7 +24,7 @@ registry = ToolRegistry()
 
 spec_url = f"http://localhost:{PORT}"
 
-client_config = HttpxClientConfig(base_url=spec_url)
+client_config = HttpClientConfig(base_url=spec_url)
 openapi_spec = load_openapi_spec(spec_url)
 
 registry.register_from_openapi(client_config, openapi_spec, namespace=True)
@@ -32,7 +32,7 @@ pprint(registry)
 
 
 async def async_register():
-    client_config = HttpxClientConfig(base_url=spec_url)
+    client_config = HttpClientConfig(base_url=spec_url)
     openapi_spec = await load_openapi_spec_async(spec_url)
 
     await registry.register_from_openapi_async(

@@ -4,14 +4,14 @@ from typing import Any
 from ...tool import Tool, ToolMetadata
 from ...tool_registry import ToolRegistry
 from ...tool_wrapper import BaseToolWrapper
-from ...utils import HttpxClientConfig, normalize_tool_name
+from ...utils import HttpClientConfig, normalize_tool_name
 
 
 class OpenAPIToolWrapper(BaseToolWrapper):
     """Wrapper class that provides both synchronous and asynchronous methods for OpenAPI tool calls.
 
     Args:
-        client_config (HttpxClientConfig): Configuration for the HTTP client.
+        client_config (HttpClientConfig): Configuration for the HTTP client.
         name (str): The name of the tool.
         method (str): The HTTP method (e.g., "get", "post").
         path (str): The API endpoint path.
@@ -21,7 +21,7 @@ class OpenAPIToolWrapper(BaseToolWrapper):
 
     def __init__(
         self,
-        client_config: HttpxClientConfig,
+        client_config: HttpClientConfig,
         name: str,
         method: str,
         path: str,
@@ -111,7 +111,7 @@ class OpenAPITool(Tool):
     @classmethod
     def from_openapi_spec(
         cls,
-        client_config: HttpxClientConfig,
+        client_config: HttpClientConfig,
         path: str,
         method: str,
         spec: dict[str, Any],
@@ -121,7 +121,7 @@ class OpenAPITool(Tool):
         """Create an OpenAPITool instance from an OpenAPI specification.
 
         Args:
-            client_config (HttpxClientConfig): Configuration for HTTP client.
+            client_config (HttpClientConfig): Configuration for HTTP client.
             path (str): API endpoint path.
             method (str): HTTP method.
             spec (Dict[str, Any]): The OpenAPI operation specification.
@@ -198,11 +198,11 @@ class OpenAPIIntegration:
 
     def __init__(self, registry: ToolRegistry) -> None:
         self.registry: ToolRegistry = registry
-        self._client_configs: list[HttpxClientConfig] = []
+        self._client_configs: list[HttpClientConfig] = []
 
     async def register_openapi_tools_async(
         self,
-        client_config: HttpxClientConfig,
+        client_config: HttpClientConfig,
         openapi_spec: dict[str, Any],
         namespace: bool | str = False,
         persistent: bool = True,
@@ -210,7 +210,7 @@ class OpenAPIIntegration:
         """Asynchronously register all tools defined in an OpenAPI specification.
 
         Args:
-            client_config (HttpxClientConfig): Configuration for the HTTP client.
+            client_config (HttpClientConfig): Configuration for the HTTP client.
             openapi_spec (Dict[str, Any]): The OpenAPI specification dictionary.
             namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
                 - If ``False``, no namespace is used.
@@ -254,7 +254,7 @@ class OpenAPIIntegration:
 
     def register_openapi_tools(
         self,
-        client_config: HttpxClientConfig,
+        client_config: HttpClientConfig,
         openapi_spec: dict[str, Any],
         namespace: bool | str = False,
         persistent: bool = True,
@@ -262,7 +262,7 @@ class OpenAPIIntegration:
         """Synchronously register all tools defined in an OpenAPI specification.
 
         Args:
-            client_config (HttpxClientConfig): Configuration for the HTTP client.
+            client_config (HttpClientConfig): Configuration for the HTTP client.
             openapi_spec (Dict[str, Any]): The OpenAPI specification dictionary.
             namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
                 - If ``False``, no namespace is used.

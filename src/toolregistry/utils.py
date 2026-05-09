@@ -1,81 +1,179 @@
 import re
-from typing import Literal, overload
+import warnings
+from typing import Any, Literal, overload
 
-import httpx
+from ._vendor.httpclient import AsyncClient, Client
 
 
-class HttpxClientConfig:
+class _BaseUrlClient:
+    """Sync HTTP client wrapper that prepends base_url to relative URLs."""
+
+    def __init__(self, client: Client, base_url: str) -> None:
+        self._client = client
+        self._base_url = base_url
+
+    def _url(self, path: str) -> str:
+        if path.startswith(("http://", "https://")):
+            return path
+        return self._base_url + path
+
+    def get(self, url: str, **kwargs: Any) -> Any:
+        return self._client.get(self._url(url), **kwargs)
+
+    def request(self, method: str, url: str, **kwargs: Any) -> Any:
+        return self._client.request(method, self._url(url), **kwargs)
+
+    def post(self, url: str, **kwargs: Any) -> Any:
+        return self._client.post(self._url(url), **kwargs)
+
+    def put(self, url: str, **kwargs: Any) -> Any:
+        return self._client.put(self._url(url), **kwargs)
+
+    def patch(self, url: str, **kwargs: Any) -> Any:
+        return self._client.patch(self._url(url), **kwargs)
+
+    def delete(self, url: str, **kwargs: Any) -> Any:
+        return self._client.delete(self._url(url), **kwargs)
+
+    def close(self) -> None:
+        self._client.close()
+
+    def __enter__(self) -> "_BaseUrlClient":
+        return self
+
+    def __exit__(self, *args: Any) -> None:
+        self.close()
+
+
+class _BaseUrlAsyncClient:
+    """Async HTTP client wrapper that prepends base_url to relative URLs."""
+
+    def __init__(self, client: AsyncClient, base_url: str) -> None:
+        self._client = client
+        self._base_url = base_url
+
+    def _url(self, path: str) -> str:
+        if path.startswith(("http://", "https://")):
+            return path
+        return self._base_url + path
+
+    async def get(self, url: str, **kwargs: Any) -> Any:
+        return await self._client.get(self._url(url), **kwargs)
+
+    async def request(self, method: str, url: str, **kwargs: Any) -> Any:
+        return await self._client.request(method, self._url(url), **kwargs)
+
+    async def post(self, url: str, **kwargs: Any) -> Any:
+        return await self._client.post(self._url(url), **kwargs)
+
+    async def put(self, url: str, **kwargs: Any) -> Any:
+        return await self._client.put(self._url(url), **kwargs)
+
+    async def patch(self, url: str, **kwargs: Any) -> Any:
+        return await self._client.patch(self._url(url), **kwargs)
+
+    async def delete(self, url: str, **kwargs: Any) -> Any:
+        return await self._client.delete(self._url(url), **kwargs)
+
+    async def aclose(self) -> None:
+        await self._client.aclose()
+
+    async def __aenter__(self) -> "_BaseUrlAsyncClient":
+        return self
+
+    async def __aexit__(self, *args: Any) -> None:
+        await self.aclose()
+
+
+class HttpClientConfig:
+    """Container for HTTP client configuration.
+
+    Creates zero-dependency HTTP clients with base URL support,
+    connection pooling, and both sync/async interfaces.
+
+    Args:
+        base_url: The base URL for the API. This is required.
+        headers: Custom request headers. Default is None.
+        timeout: Request timeout in seconds. Default is 10.0.
+        auth: Basic authentication credentials (username, password). Default is None.
+        **extra_options: Additional client parameters (e.g. verify, proxy, pool_size).
+    """
+
+    # Known parameters that map directly to Client/AsyncClient constructor
+    _KNOWN_CLIENT_PARAMS = {"verify", "proxy", "pool_size", "max_redirects"}
+
     def __init__(
         self,
         base_url: str,
         headers: dict[str, str] | None = None,
         timeout: float = 10.0,
         auth: tuple[str, str] | None = None,
-        **extra_options,
+        **extra_options: Any,
     ):
-        """
-        Container for httpx client configuration.
-
-        Args:
-            base_url (str): The base URL for the API. This is required.
-            headers (Optional[Dict[str, str]]): Custom request headers. Default is None.
-            timeout (float): Request timeout in seconds. Default is 10.0.
-            auth (Optional[Tuple[str, str]]): Basic authentication credentials (username, password). Default is None.
-            extra_options (Any): Additional httpx client parameters.
-        """
         self.base_url = base_url.rstrip("/")
         self.headers = headers or {}
         self.timeout = timeout
         self.auth = auth
         self.extra_options = extra_options
-        self._sync_client: httpx.Client | None = None
-        self._async_client: httpx.AsyncClient | None = None
+        self._sync_client: _BaseUrlClient | None = None
+        self._async_client: _BaseUrlAsyncClient | None = None
+
+    def _client_kwargs(self) -> dict[str, Any]:
+        """Build kwargs dict for Client/AsyncClient constructor."""
+        kwargs: dict[str, Any] = {
+            "headers": self.headers,
+            "timeout": self.timeout,
+            "auth": self.auth,
+        }
+        for key in self._KNOWN_CLIENT_PARAMS:
+            if key in self.extra_options:
+                kwargs[key] = self.extra_options[key]
+        return kwargs
 
     @overload
-    def to_client(self, use_async: Literal[False]) -> httpx.Client: ...
+    def to_client(self, use_async: Literal[False]) -> _BaseUrlClient: ...
 
     @overload
-    def to_client(self, use_async: Literal[True]) -> httpx.AsyncClient: ...
+    def to_client(self, use_async: Literal[True]) -> _BaseUrlAsyncClient: ...
 
     def to_client(self, use_async: bool = False):
-        """
-        Creates an httpx client instance.
+        """Create a new HTTP client instance.
 
         Args:
-            use_async (bool): Whether to create an asynchronous client. Default is False.
+            use_async: Whether to create an asynchronous client. Default is False.
 
         Returns:
-            Union[httpx.Client, httpx.AsyncClient]: An instance of httpx.Client or httpx.AsyncClient.
+            A _BaseUrlClient or _BaseUrlAsyncClient wrapping the underlying
+            zero-dependency client with base URL support.
         """
         return self._make_client(use_async=use_async)
 
     def _make_client(self, use_async: bool = False):
-        """Create a new httpx client instance.
+        """Create a new HTTP client instance.
 
         Args:
-            use_async (bool): Whether to create an asynchronous client.
+            use_async: Whether to create an asynchronous client.
 
         Returns:
-            Union[httpx.Client, httpx.AsyncClient]: A new client instance.
+            A _BaseUrlClient or _BaseUrlAsyncClient instance.
         """
-        client_class = httpx.AsyncClient if use_async else httpx.Client
-        return client_class(
-            base_url=self.base_url,
-            headers=self.headers,
-            timeout=self.timeout,
-            auth=self.auth,
-            **self.extra_options,
-        )
+        kwargs = self._client_kwargs()
+        if use_async:
+            raw = AsyncClient(**kwargs)
+            return _BaseUrlAsyncClient(raw, self.base_url)
+        else:
+            raw = Client(**kwargs)
+            return _BaseUrlClient(raw, self.base_url)
 
     @overload
     def get_persistent_client(
         self, use_async: Literal[False] = False
-    ) -> httpx.Client: ...
+    ) -> _BaseUrlClient: ...
 
     @overload
     def get_persistent_client(
         self, use_async: Literal[True] = ...
-    ) -> httpx.AsyncClient: ...
+    ) -> _BaseUrlAsyncClient: ...
 
     def get_persistent_client(self, use_async: bool = False):
         """Get or create a persistent client instance.
@@ -84,10 +182,10 @@ class HttpxClientConfig:
         multiple calls, enabling HTTP connection pooling.
 
         Args:
-            use_async (bool): Whether to return an async client.
+            use_async: Whether to return an async client.
 
         Returns:
-            Union[httpx.Client, httpx.AsyncClient]: A persistent client instance.
+            A persistent _BaseUrlClient or _BaseUrlAsyncClient instance.
         """
         if use_async:
             if self._async_client is None:
@@ -116,6 +214,21 @@ class HttpxClientConfig:
         if self._sync_client:
             self._sync_client.close()
             self._sync_client = None
+
+
+def HttpxClientConfig(*args: Any, **kwargs: Any) -> HttpClientConfig:
+    """Deprecated alias for HttpClientConfig.
+
+    .. deprecated::
+        Use ``HttpClientConfig`` instead. ``HttpxClientConfig`` will be
+        removed in a future release.
+    """
+    warnings.warn(
+        "HttpxClientConfig is deprecated, use HttpClientConfig instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return HttpClientConfig(*args, **kwargs)
 
 
 def normalize_tool_name(name: str) -> str:

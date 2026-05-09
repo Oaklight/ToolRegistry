@@ -9,7 +9,7 @@ from collections.abc import Callable
 
 from ..events import ChangeEvent, ChangeEventType
 from ..tool import Tool
-from ..utils import HttpxClientConfig, normalize_tool_name
+from ..utils import HttpClientConfig, normalize_tool_name
 
 if TYPE_CHECKING:
     from ..tool_registry import ToolRegistry
@@ -171,7 +171,7 @@ class RegistrationMixin:
 
     def register_from_openapi(
         self,
-        client: HttpxClientConfig,
+        client: HttpClientConfig,
         openapi_spec: dict[str, Any],
         namespace: bool | str = False,
         persistent: bool = True,
@@ -180,7 +180,7 @@ class RegistrationMixin:
         """Registers tools from OpenAPI specification synchronously.
 
         Args:
-            client (HttpxClientConfig): The httpx client config instance.
+            client (HttpClientConfig): The httpx client config instance.
             openapi_spec (Dict[str, Any]): Parsed OpenAPI specification dictionary.
             namespace (Union[bool, str]): Specifies namespace usage:
                 - ``False``: No namespace is applied.
@@ -201,7 +201,7 @@ class RegistrationMixin:
 
     async def register_from_openapi_async(
         self,
-        client: HttpxClientConfig,
+        client: HttpClientConfig,
         openapi_spec: dict[str, Any],
         namespace: bool | str = False,
         persistent: bool = True,
@@ -210,7 +210,7 @@ class RegistrationMixin:
         """Registers tools from OpenAPI specification asynchronously.
 
         Args:
-            client (HttpxClientConfig): The httpx client config instance.
+            client (HttpClientConfig): The httpx client config instance.
             openapi_spec (Dict[str, Any]): Parsed OpenAPI specification dictionary.
             namespace (Union[bool, str]): Specifies namespace usage:
                 - ``False``: No namespace is applied.

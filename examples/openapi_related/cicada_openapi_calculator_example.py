@@ -6,7 +6,7 @@ from cicada.core.utils import cprint
 from dotenv import load_dotenv
 
 from toolregistry import ToolRegistry
-from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec
+from toolregistry.integrations.openapi import HttpClientConfig, load_openapi_spec
 
 load_dotenv()
 
@@ -26,7 +26,7 @@ llm = MultiModalModel(
 )
 
 base_url = OPENAPI_SERVER_URL
-client_config = HttpxClientConfig(
+client_config = HttpClientConfig(
     base_url=base_url,
     headers={"Authorization": f"Bearer {OPENAPI_BEARER_TOKENS}"}
     if OPENAPI_BEARER_TOKENS

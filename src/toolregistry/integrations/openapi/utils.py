@@ -2,9 +2,15 @@ import asyncio
 from typing import Any
 from urllib.parse import urlparse
 
-import httpx
 import jsonref
 import yaml
+
+from ..._vendor.httpclient import (
+    AsyncClient,
+    Client,
+    HttpClientError,
+    HTTPError,
+)
 
 
 def extract_base_url_from_specs(openapi_spec: dict[str, Any]) -> str | None:
@@ -58,27 +64,27 @@ def determine_urls(url: str) -> dict[str, Any]:
             return {"found": True, "schema_url": base_url, "base_api_url": base_api_url}
 
     # Test appending endpoints to base URL
-    with httpx.Client(timeout=5.0) as client:
+    with Client(timeout=5.0) as client:
         for endpoint in common_endpoints:
             full_url = f"{base_url}{endpoint}"
             try:
                 response = client.get(full_url)
                 if response.status_code == 200:
-                    content_type = response.headers.get("Content-Type", "").lower()
+                    content_type = response.headers.get("content-type", "").lower()
                     if "json" in content_type or "yaml" in content_type:
                         return {
                             "found": True,
                             "schema_url": full_url,
                             "base_api_url": base_url,
                         }
-            except httpx.RequestError:
+            except HttpClientError:
                 continue
 
     return {"found": False, "base_api_url": base_url}
 
 
 async def load_openapi_spec_async(uri: str) -> dict[str, Any]:
-    """Async version of load_openapi_spec using httpx.AsyncClient.
+    """Async version of load_openapi_spec using AsyncClient.
 
     Args:
         uri (str): URL or file path pointing to an OpenAPI specification.
@@ -103,7 +109,7 @@ async def load_openapi_spec_async(uri: str) -> dict[str, Any]:
             uri = results["schema_url"] if results["found"] else uri
 
             # timeout for network requests (e.g., 10 seconds)
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with AsyncClient(timeout=10) as client:
                 response = await client.get(uri)
                 response.raise_for_status()
                 openapi_spec_content = response.content
@@ -121,12 +127,10 @@ async def load_openapi_spec_async(uri: str) -> dict[str, Any]:
 
     except yaml.YAMLError as e:
         raise ValueError(f"Failed to parse OpenAPI content: {e}")
-    except httpx.RequestError as e:
+    except HTTPError as e:
+        raise ValueError(f"HTTP error: {e.status_code} for {e.url}")
+    except HttpClientError as e:
         raise ValueError(f"Network error when fetching URI: {e}")
-    except httpx.HTTPStatusError as e:
-        raise ValueError(
-            f"HTTP error: {e.response.status_code} {e.response.reason_phrase}"
-        )
     except FileNotFoundError as e:
         raise FileNotFoundError(f"Invalid file path: {e}")
     except Exception as e:

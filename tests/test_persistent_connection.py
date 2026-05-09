@@ -1,6 +1,6 @@
 """Tests for persistent connection support in MCP and OpenAPI integrations.
 
-Covers MCPConnectionManager, HttpxClientConfig persistent clients,
+Covers MCPConnectionManager, HttpClientConfig persistent clients,
 ToolRegistry lifecycle (close / context manager), and backward compat.
 """
 
@@ -14,7 +14,7 @@ import pytest
 
 from toolregistry import ToolRegistry
 from toolregistry.integrations.mcp.connection import MCPConnectionManager
-from toolregistry.utils import HttpxClientConfig
+from toolregistry.utils import HttpClientConfig
 
 _SERVER_SCRIPT = str(Path(__file__).parent / "_mcp_test_server.py")
 
@@ -176,15 +176,15 @@ class TestMCPConnectionManagerHttp:
 
 
 # ---------------------------------------------------------------------------
-# HttpxClientConfig persistent client tests
+# HttpClientConfig persistent client tests
 # ---------------------------------------------------------------------------
 
 
-class TestHttpxClientConfigPersistent:
-    """Tests for HttpxClientConfig persistent client methods."""
+class TestHttpClientConfigPersistent:
+    """Tests for HttpClientConfig persistent client methods."""
 
     def test_get_persistent_client_sync(self):
-        config = HttpxClientConfig(base_url="http://localhost:9999")
+        config = HttpClientConfig(base_url="http://localhost:9999")
         client1 = config.get_persistent_client(use_async=False)
         client2 = config.get_persistent_client(use_async=False)
         assert client1 is client2
@@ -192,14 +192,14 @@ class TestHttpxClientConfigPersistent:
 
     @pytest.mark.asyncio
     async def test_get_persistent_client_async(self):
-        config = HttpxClientConfig(base_url="http://localhost:9999")
+        config = HttpClientConfig(base_url="http://localhost:9999")
         client1 = config.get_persistent_client(use_async=True)
         client2 = config.get_persistent_client(use_async=True)
         assert client1 is client2
         await config.close_async()
 
     def test_close_sync(self):
-        config = HttpxClientConfig(base_url="http://localhost:9999")
+        config = HttpClientConfig(base_url="http://localhost:9999")
         _ = config.get_persistent_client(use_async=False)
         assert config._sync_client is not None
         config.close()
@@ -207,7 +207,7 @@ class TestHttpxClientConfigPersistent:
 
     @pytest.mark.asyncio
     async def test_close_async(self):
-        config = HttpxClientConfig(base_url="http://localhost:9999")
+        config = HttpClientConfig(base_url="http://localhost:9999")
         _ = config.get_persistent_client(use_async=True)
         _ = config.get_persistent_client(use_async=False)
         assert config._async_client is not None
@@ -218,7 +218,7 @@ class TestHttpxClientConfigPersistent:
 
     def test_to_client_still_works(self):
         """to_client() should still create fresh clients (backward compat)."""
-        config = HttpxClientConfig(base_url="http://localhost:9999")
+        config = HttpClientConfig(base_url="http://localhost:9999")
         client1 = config.to_client(use_async=False)
         client2 = config.to_client(use_async=False)
         assert client1 is not client2

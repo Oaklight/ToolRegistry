@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from toolregistry import ToolRegistry
-from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec
+from toolregistry.integrations.openapi import HttpClientConfig, load_openapi_spec
 
 # Load environment variables from .env file
 load_dotenv()
@@ -70,7 +70,7 @@ messages = [
 ]
 if __name__ == "__main__":
     base_url = OPENAPI_SERVER_URL
-    client_config = HttpxClientConfig(
+    client_config = HttpClientConfig(
         base_url=base_url,
         headers={"Authorization": f"Bearer {OPENAPI_BEARER_TOKENS}"}
         if OPENAPI_BEARER_TOKENS

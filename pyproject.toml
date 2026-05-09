@@ -37,12 +37,11 @@ classifiers = [
 dependencies = [
     "pydantic>=2.7.2,<3.0.0",
     "cloudpickle>=3.0.0",
-    "httpx>=0.28.1",
     "llm-rosetta>=0.5.1,<0.6.0",
 ]
 
 [project.optional-dependencies]
-mcp = ["mcp>=1.0.0,<2.0.0"]
+mcp = ["mcp>=1.0.0,<2.0.0", "httpx>=0.28.1"]
 openapi = [
     "PyYAML>=6.0.2",  # safe load both json and yaml
     "jsonref>=1.1.0", # deref $ref in openapi spec
