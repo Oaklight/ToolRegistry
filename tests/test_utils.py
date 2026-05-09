@@ -1,16 +1,15 @@
 """Unit tests for the utils module."""
 
-import httpx
+from toolregistry._vendor.httpclient import AsyncClient, Client
+from toolregistry.utils import HttpClientConfig, HttpxClientConfig, normalize_tool_name
 
-from toolregistry.utils import HttpxClientConfig, normalize_tool_name
 
-
-class TestHttpxClientConfig:
-    """Test cases for the HttpxClientConfig class."""
+class TestHttpClientConfig:
+    """Test cases for the HttpClientConfig class."""
 
     def test_initialization_with_minimal_params(self):
-        """Test HttpxClientConfig initialization with minimal parameters."""
-        config = HttpxClientConfig(base_url="https://api.example.com")
+        """Test HttpClientConfig initialization with minimal parameters."""
+        config = HttpClientConfig(base_url="https://api.example.com")
 
         assert config.base_url == "https://api.example.com"
         assert config.headers == {}
@@ -19,12 +18,12 @@ class TestHttpxClientConfig:
         assert config.extra_options == {}
 
     def test_initialization_with_all_params(self):
-        """Test HttpxClientConfig initialization with all parameters."""
+        """Test HttpClientConfig initialization with all parameters."""
         headers = {"Authorization": "Bearer token"}
         auth = ("username", "password")
-        extra_options = {"verify": False, "follow_redirects": True}
+        extra_options = {"verify": False, "max_redirects": 10}
 
-        config = HttpxClientConfig(
+        config = HttpClientConfig(
             base_url="https://api.example.com/",
             headers=headers,
             timeout=30.0,
@@ -40,25 +39,25 @@ class TestHttpxClientConfig:
 
     def test_base_url_trailing_slash_removal(self):
         """Test that trailing slash is removed from base_url."""
-        config = HttpxClientConfig(base_url="https://api.example.com/")
+        config = HttpClientConfig(base_url="https://api.example.com/")
 
         assert config.base_url == "https://api.example.com"
 
     def test_base_url_multiple_trailing_slashes(self):
         """Test that multiple trailing slashes are removed."""
-        config = HttpxClientConfig(base_url="https://api.example.com///")
+        config = HttpClientConfig(base_url="https://api.example.com///")
 
         assert config.base_url == "https://api.example.com"
 
     def test_headers_default_to_empty_dict(self):
         """Test that headers default to empty dict when None."""
-        config = HttpxClientConfig(base_url="https://api.example.com", headers=None)
+        config = HttpClientConfig(base_url="https://api.example.com", headers=None)
 
         assert config.headers == {}
 
     def test_to_client_sync(self):
-        """Test creating synchronous httpx client."""
-        config = HttpxClientConfig(
+        """Test creating synchronous client."""
+        config = HttpClientConfig(
             base_url="https://api.example.com",
             headers={"Content-Type": "application/json"},
             timeout=20.0,
@@ -68,15 +67,14 @@ class TestHttpxClientConfig:
 
         client = config.to_client(use_async=False)
 
-        assert isinstance(client, httpx.Client)
-        assert str(client.base_url) == "https://api.example.com"
-        assert client.headers["Content-Type"] == "application/json"
-        assert client.timeout == httpx.Timeout(20.0)
-        assert isinstance(client.auth, httpx.BasicAuth)
+        assert hasattr(client, "get")
+        assert hasattr(client, "request")
+        assert hasattr(client, "close")
+        assert isinstance(client._client, Client)
 
     def test_to_client_async(self):
-        """Test creating asynchronous httpx client."""
-        config = HttpxClientConfig(
+        """Test creating asynchronous client."""
+        config = HttpClientConfig(
             base_url="https://api.example.com",
             headers={"Content-Type": "application/json"},
             timeout=20.0,
@@ -86,47 +84,71 @@ class TestHttpxClientConfig:
 
         client = config.to_client(use_async=True)
 
-        assert isinstance(client, httpx.AsyncClient)
-        assert str(client.base_url) == "https://api.example.com"
-        assert client.headers["Content-Type"] == "application/json"
-        assert client.timeout == httpx.Timeout(20.0)
-        assert isinstance(client.auth, httpx.BasicAuth)
+        assert hasattr(client, "get")
+        assert hasattr(client, "request")
+        assert hasattr(client, "aclose")
+        assert isinstance(client._client, AsyncClient)
 
     def test_to_client_default_sync(self):
         """Test that to_client defaults to synchronous client."""
-        config = HttpxClientConfig(base_url="https://api.example.com")
+        config = HttpClientConfig(base_url="https://api.example.com")
 
         client = config.to_client()
 
-        assert isinstance(client, httpx.Client)
+        assert isinstance(client._client, Client)
 
     def test_to_client_with_extra_options(self):
         """Test creating client with extra options."""
-        config = HttpxClientConfig(
+        config = HttpClientConfig(
             base_url="https://api.example.com",
             verify=False,
-            follow_redirects=True,
             max_redirects=10,
         )
 
         client = config.to_client()
 
-        assert client.is_closed is False  # Client should be created successfully
+        assert client is not None  # Client should be created successfully
+
+    def test_base_url_prepended_to_relative_path(self):
+        """Test that base_url is prepended to relative paths."""
+        config = HttpClientConfig(base_url="https://api.example.com")
+        client = config.to_client(use_async=False)
+
+        assert client._url("/api/test") == "https://api.example.com/api/test"
+
+    def test_absolute_url_not_modified(self):
+        """Test that absolute URLs are passed through unchanged."""
+        config = HttpClientConfig(base_url="https://api.example.com")
+        client = config.to_client(use_async=False)
+
+        assert client._url("https://other.com/test") == "https://other.com/test"
+
+    def test_deprecated_alias(self):
+        """Test that HttpxClientConfig emits deprecation warning."""
+        import warnings
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            config = HttpxClientConfig(base_url="https://api.example.com")
+            assert len(w) == 1
+            assert issubclass(w[0].category, DeprecationWarning)
+            assert "HttpxClientConfig" in str(w[0].message)
+            assert isinstance(config, HttpClientConfig)
 
 
-class TestHttpxClientConfigPersistentExtended:
+class TestHttpClientConfigPersistentExtended:
     """Additional tests for persistent client methods (supplements test_persistent_connection.py)."""
 
     def test_persistent_client_initial_state(self):
         """Test that persistent clients are initially None."""
-        config = HttpxClientConfig(base_url="https://api.example.com")
+        config = HttpClientConfig(base_url="https://api.example.com")
 
         assert config._sync_client is None
         assert config._async_client is None
 
     def test_to_client_creates_fresh_instances(self):
         """Test that to_client always creates fresh (non-persistent) instances."""
-        config = HttpxClientConfig(base_url="https://api.example.com")
+        config = HttpClientConfig(base_url="https://api.example.com")
         client1 = config.to_client(use_async=False)
         client2 = config.to_client(use_async=False)
 

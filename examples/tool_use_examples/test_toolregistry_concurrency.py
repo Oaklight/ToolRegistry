@@ -8,7 +8,7 @@ import time
 from typing import Any
 
 from toolregistry import ToolRegistry
-from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec
+from toolregistry.integrations.openapi import HttpClientConfig, load_openapi_spec
 from toolregistry.types import (
     ChatCompletionMessageToolCall,
     Function,
@@ -166,7 +166,7 @@ def main():
 
     OPENAPI_PORT = os.getenv("OPENAPI_PORT", 8000)
 
-    client_config = HttpxClientConfig(base_url=f"http://localhost:{OPENAPI_PORT}")
+    client_config = HttpClientConfig(base_url=f"http://localhost:{OPENAPI_PORT}")
     openapi_spec = load_openapi_spec(f"http://localhost:{OPENAPI_PORT}")
 
     registry.register_from_openapi(client_config, openapi_spec, namespace=True)

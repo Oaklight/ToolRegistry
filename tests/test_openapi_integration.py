@@ -1,13 +1,14 @@
 """Tests for OpenAPI integration module."""
 
 import json
+from urllib.parse import urlparse
 
-import httpx
 import pytest
 
 pytest.importorskip("jsonref")
 
 from toolregistry import ToolRegistry  # noqa: E402
+from toolregistry._vendor.httpclient import HTTPError, Response  # noqa: E402
 from toolregistry.integrations.openapi.integration import (  # noqa: E402
     OpenAPIIntegration,
     OpenAPITool,
@@ -19,7 +20,158 @@ from toolregistry.integrations.openapi.utils import (  # noqa: E402
     load_openapi_spec,
     load_openapi_spec_async,
 )
-from toolregistry.utils import HttpxClientConfig  # noqa: E402
+from toolregistry.utils import HttpClientConfig  # noqa: E402
+
+
+# ---------------------------------------------------------------------------
+# Mock helpers
+# ---------------------------------------------------------------------------
+
+
+class _MockRequest:
+    """Minimal request object for test handlers."""
+
+    def __init__(self, method: str, url: str, content: bytes = b"", params=None):
+        self.method = method
+        self.content = content
+        parsed = urlparse(url)
+        self.url = _MockUrl(url, parsed.path, params or {})
+
+
+class _MockUrl:
+    """Minimal URL object for test handlers."""
+
+    def __init__(self, full: str, path: str, params: dict):
+        self._full = full
+        self.path = path
+        self.params = params
+
+    def __str__(self):
+        return self._full
+
+
+def _mock_response(status_code: int, json_data=None, url: str = "") -> Response:
+    """Create a zerodep Response mimicking httpx.Response(status_code, json=...)."""
+    content = b""
+    headers: dict[str, str] = {}
+    if json_data is not None:
+        content = json.dumps(json_data).encode()
+        headers["content-type"] = "application/json"
+    return Response(status_code, headers, content, url)
+
+
+class _MockSyncClient:
+    """Mock sync client that dispatches to a handler function."""
+
+    def __init__(self, handler, base_url: str):
+        self._handler = handler
+        self._base_url = base_url
+
+    def _resolve(self, path: str) -> str:
+        if path.startswith(("http://", "https://")):
+            return path
+        return self._base_url + path
+
+    def _call(self, method: str, url: str, **kwargs) -> Response:
+        full_url = self._resolve(url)
+        content = b""
+        if "json" in kwargs:
+            content = json.dumps(kwargs["json"]).encode()
+        params = {}
+        if "params" in kwargs and kwargs["params"]:
+            params = {k: str(v) for k, v in kwargs["params"].items()}
+        req = _MockRequest(method, full_url, content, params)
+        return self._handler(req)
+
+    def get(self, url, **kwargs):
+        return self._call("GET", url, **kwargs)
+
+    def post(self, url, **kwargs):
+        return self._call("POST", url, **kwargs)
+
+    def put(self, url, **kwargs):
+        return self._call("PUT", url, **kwargs)
+
+    def delete(self, url, **kwargs):
+        return self._call("DELETE", url, **kwargs)
+
+    def request(self, method, url, **kwargs):
+        return self._call(method.upper(), url, **kwargs)
+
+    def close(self):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass
+
+
+class _MockAsyncClient:
+    """Mock async client that dispatches to a handler function."""
+
+    def __init__(self, handler, base_url: str):
+        self._handler = handler
+        self._base_url = base_url
+
+    def _resolve(self, path: str) -> str:
+        if path.startswith(("http://", "https://")):
+            return path
+        return self._base_url + path
+
+    async def _call(self, method: str, url: str, **kwargs) -> Response:
+        full_url = self._resolve(url)
+        content = b""
+        if "json" in kwargs:
+            content = json.dumps(kwargs["json"]).encode()
+        params = {}
+        if "params" in kwargs and kwargs["params"]:
+            params = {k: str(v) for k, v in kwargs["params"].items()}
+        req = _MockRequest(method, full_url, content, params)
+        return self._handler(req)
+
+    async def get(self, url, **kwargs):
+        return await self._call("GET", url, **kwargs)
+
+    async def post(self, url, **kwargs):
+        return await self._call("POST", url, **kwargs)
+
+    async def put(self, url, **kwargs):
+        return await self._call("PUT", url, **kwargs)
+
+    async def delete(self, url, **kwargs):
+        return await self._call("DELETE", url, **kwargs)
+
+    async def request(self, method, url, **kwargs):
+        return await self._call(method.upper(), url, **kwargs)
+
+    async def aclose(self):
+        pass
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        pass
+
+
+class _MockHttpClientConfig(HttpClientConfig):
+    """HttpClientConfig that returns mock clients using a handler function."""
+
+    def __init__(self, handler, base_url="http://test"):
+        super().__init__(base_url=base_url)
+        self._handler = handler
+
+    def _make_client(self, use_async=False):
+        if use_async:
+            return _MockAsyncClient(self._handler, self.base_url)
+        return _MockSyncClient(self._handler, self.base_url)
+
+
+def _make_config_with_mock(handler, base_url="http://test"):
+    """Create an HttpClientConfig backed by a mock handler."""
+    return _MockHttpClientConfig(handler, base_url=base_url)
 
 
 # ---------------------------------------------------------------------------
@@ -126,20 +278,6 @@ PETSTORE_SPEC = {
 }
 
 
-def _make_mock_transport(handler):
-    """Create a mock transport from a handler function."""
-    return httpx.MockTransport(handler)
-
-
-def _make_config_with_mock(handler, base_url="http://test"):
-    """Create an HttpxClientConfig backed by a mock transport."""
-    transport = _make_mock_transport(handler)
-    return HttpxClientConfig(
-        base_url=base_url,
-        transport=transport,
-    )
-
-
 # ===========================================================================
 # TestOpenAPIToolWrapper
 # ===========================================================================
@@ -151,9 +289,9 @@ class TestOpenAPIToolWrapper:
     def test_call_sync_get(self):
         """GET request returns JSON."""
 
-        def handler(request: httpx.Request) -> httpx.Response:
+        def handler(request):
             assert request.method == "GET"
-            return httpx.Response(200, json={"pets": []})
+            return _mock_response(200, {"pets": []})
 
         config = _make_config_with_mock(handler)
         wrapper = OpenAPIToolWrapper(
@@ -170,11 +308,11 @@ class TestOpenAPIToolWrapper:
     def test_call_sync_post(self):
         """POST request sends JSON body."""
 
-        def handler(request: httpx.Request) -> httpx.Response:
+        def handler(request):
             assert request.method == "POST"
             body = json.loads(request.content)
             assert body["name"] == "Fido"
-            return httpx.Response(201, json={"id": 1, "name": "Fido"})
+            return _mock_response(201, {"id": 1, "name": "Fido"})
 
         config = _make_config_with_mock(handler)
         wrapper = OpenAPIToolWrapper(
@@ -191,9 +329,9 @@ class TestOpenAPIToolWrapper:
     def test_call_sync_put(self):
         """PUT request sends JSON body."""
 
-        def handler(request: httpx.Request) -> httpx.Response:
+        def handler(request):
             assert request.method == "PUT"
-            return httpx.Response(200, json={"updated": True})
+            return _mock_response(200, {"updated": True})
 
         config = _make_config_with_mock(handler)
         wrapper = OpenAPIToolWrapper(
@@ -210,9 +348,9 @@ class TestOpenAPIToolWrapper:
     def test_call_sync_delete(self):
         """DELETE request works."""
 
-        def handler(request: httpx.Request) -> httpx.Response:
+        def handler(request):
             assert request.method == "DELETE"
-            return httpx.Response(200, json={"deleted": True})
+            return _mock_response(200, {"deleted": True})
 
         config = _make_config_with_mock(handler)
         wrapper = OpenAPIToolWrapper(
@@ -230,11 +368,10 @@ class TestOpenAPIToolWrapper:
     async def test_call_async_get(self):
         """Async GET request works."""
 
-        async def handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(200, json={"async": True})
+        def handler(request):
+            return _mock_response(200, {"async": True})
 
-        transport = httpx.MockTransport(handler)
-        config = HttpxClientConfig(base_url="http://test", transport=transport)
+        config = _make_config_with_mock(handler)
         wrapper = OpenAPIToolWrapper(
             client_config=config,
             name="list_pets",
@@ -250,12 +387,11 @@ class TestOpenAPIToolWrapper:
     async def test_call_async_post(self):
         """Async POST request sends JSON body."""
 
-        async def handler(request: httpx.Request) -> httpx.Response:
+        def handler(request):
             body = json.loads(request.content)
-            return httpx.Response(201, json={"name": body["name"]})
+            return _mock_response(201, {"name": body["name"]})
 
-        transport = httpx.MockTransport(handler)
-        config = HttpxClientConfig(base_url="http://test", transport=transport)
+        config = _make_config_with_mock(handler)
         wrapper = OpenAPIToolWrapper(
             client_config=config,
             name="create_pet",
@@ -268,10 +404,10 @@ class TestOpenAPIToolWrapper:
         assert result["name"] == "Buddy"
 
     def test_call_sync_http_error(self):
-        """HTTP error raises HTTPStatusError."""
+        """HTTP error raises HTTPError."""
 
-        def handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(404, json={"error": "not found"})
+        def handler(request):
+            return _mock_response(404, {"error": "not found"})
 
         config = _make_config_with_mock(handler)
         wrapper = OpenAPIToolWrapper(
@@ -282,14 +418,14 @@ class TestOpenAPIToolWrapper:
             params=None,
             persistent=True,
         )
-        with pytest.raises(httpx.HTTPStatusError):
+        with pytest.raises(HTTPError):
             wrapper.call_sync()
 
     def test_call_sync_server_error(self):
-        """500 error raises HTTPStatusError."""
+        """500 error raises HTTPError."""
 
-        def handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(500, json={"error": "internal"})
+        def handler(request):
+            return _mock_response(500, {"error": "internal"})
 
         config = _make_config_with_mock(handler)
         wrapper = OpenAPIToolWrapper(
@@ -300,14 +436,14 @@ class TestOpenAPIToolWrapper:
             params=None,
             persistent=True,
         )
-        with pytest.raises(httpx.HTTPStatusError):
+        with pytest.raises(HTTPError):
             wrapper.call_sync()
 
     def test_call_sync_no_name_raises(self):
         """Calling with empty name raises ValueError."""
 
-        def handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(200, json={})
+        def handler(request):
+            return _mock_response(200, {})
 
         config = _make_config_with_mock(handler)
         wrapper = OpenAPIToolWrapper(
@@ -324,8 +460,8 @@ class TestOpenAPIToolWrapper:
     def test_non_persistent_client(self):
         """Non-persistent mode creates a new client per call."""
 
-        def handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(200, json={"ok": True})
+        def handler(request):
+            return _mock_response(200, {"ok": True})
 
         config = _make_config_with_mock(handler)
         wrapper = OpenAPIToolWrapper(
@@ -343,9 +479,9 @@ class TestOpenAPIToolWrapper:
         """GET request passes kwargs as query params."""
         captured = {}
 
-        def handler(request: httpx.Request) -> httpx.Response:
+        def handler(request):
             captured["params"] = dict(request.url.params)
-            return httpx.Response(200, json={"ok": True})
+            return _mock_response(200, {"ok": True})
 
         config = _make_config_with_mock(handler)
         wrapper = OpenAPIToolWrapper(
@@ -362,9 +498,11 @@ class TestOpenAPIToolWrapper:
 
     def test_process_args_positional(self):
         """Positional args are mapped to param names."""
+        captured = {}
 
-        def handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(200, json=dict(request.url.params))
+        def handler(request):
+            captured["params"] = dict(request.url.params)
+            return _mock_response(200, captured["params"])
 
         config = _make_config_with_mock(handler)
         wrapper = OpenAPIToolWrapper(
@@ -388,7 +526,7 @@ class TestOpenAPITool:
     """Tests for OpenAPITool.from_openapi_spec()."""
 
     def _make_tool(self, path="/pets", method="get", spec=None, **kwargs):
-        config = HttpxClientConfig(base_url="http://test")
+        config = HttpClientConfig(base_url="http://test")
         if spec is None:
             spec = PETSTORE_SPEC["paths"]["/pets"]["get"]
         return OpenAPITool.from_openapi_spec(
@@ -467,8 +605,6 @@ class TestOpenAPITool:
         """Operation with no parameters has no user-defined properties."""
         spec = {"operationId": "health_check", "parameters": []}
         tool = self._make_tool(spec=spec)
-        # The tool may have injected params (e.g. 'thought' from think_augment)
-        # but should have no user-defined params from the spec
         assert tool.parameters["required"] == []
 
 
@@ -480,16 +616,13 @@ class TestOpenAPITool:
 class TestOpenAPIIntegration:
     """Tests for OpenAPIIntegration."""
 
+    def _ok_handler(self, request):
+        return _mock_response(200, {"ok": True})
+
     def test_register_tools_from_spec(self):
         """Registers all tools from an OpenAPI spec."""
         registry = ToolRegistry(name="test")
-
-        def handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(200, json={"ok": True})
-
-        config = HttpxClientConfig(
-            base_url="http://test", transport=httpx.MockTransport(handler)
-        )
+        config = _make_config_with_mock(self._ok_handler)
         integration = OpenAPIIntegration(registry)
         integration.register_openapi_tools(config, PETSTORE_SPEC)
 
@@ -503,10 +636,7 @@ class TestOpenAPIIntegration:
     def test_register_with_namespace_string(self):
         """Namespace string is applied to all tools."""
         registry = ToolRegistry(name="test")
-        config = HttpxClientConfig(
-            base_url="http://test",
-            transport=httpx.MockTransport(lambda r: httpx.Response(200, json={})),
-        )
+        config = _make_config_with_mock(self._ok_handler)
         integration = OpenAPIIntegration(registry)
         integration.register_openapi_tools(config, PETSTORE_SPEC, namespace="pet_api")
 
@@ -516,10 +646,7 @@ class TestOpenAPIIntegration:
     def test_register_with_namespace_true(self):
         """namespace=True derives from info.title."""
         registry = ToolRegistry(name="test")
-        config = HttpxClientConfig(
-            base_url="http://test",
-            transport=httpx.MockTransport(lambda r: httpx.Response(200, json={})),
-        )
+        config = _make_config_with_mock(self._ok_handler)
         integration = OpenAPIIntegration(registry)
         integration.register_openapi_tools(config, PETSTORE_SPEC, namespace=True)
 
@@ -530,10 +657,7 @@ class TestOpenAPIIntegration:
     def test_register_with_namespace_false(self):
         """namespace=False means no prefix."""
         registry = ToolRegistry(name="test")
-        config = HttpxClientConfig(
-            base_url="http://test",
-            transport=httpx.MockTransport(lambda r: httpx.Response(200, json={})),
-        )
+        config = _make_config_with_mock(self._ok_handler)
         integration = OpenAPIIntegration(registry)
         integration.register_openapi_tools(config, PETSTORE_SPEC, namespace=False)
 
@@ -554,10 +678,7 @@ class TestOpenAPIIntegration:
             },
         }
         registry = ToolRegistry(name="test")
-        config = HttpxClientConfig(
-            base_url="http://test",
-            transport=httpx.MockTransport(lambda r: httpx.Response(200, json={})),
-        )
+        config = _make_config_with_mock(self._ok_handler)
         integration = OpenAPIIntegration(registry)
         integration.register_openapi_tools(config, spec)
 
@@ -569,10 +690,7 @@ class TestOpenAPIIntegration:
     def test_close_cleans_up(self):
         """close() clears client configs."""
         registry = ToolRegistry(name="test")
-        config = HttpxClientConfig(
-            base_url="http://test",
-            transport=httpx.MockTransport(lambda r: httpx.Response(200, json={})),
-        )
+        config = _make_config_with_mock(self._ok_handler)
         integration = OpenAPIIntegration(registry)
         integration.register_openapi_tools(config, PETSTORE_SPEC)
         assert len(integration._client_configs) == 1
@@ -582,13 +700,7 @@ class TestOpenAPIIntegration:
     async def test_register_async(self):
         """Async registration works."""
         registry = ToolRegistry(name="test")
-
-        async def handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(200, json={"ok": True})
-
-        config = HttpxClientConfig(
-            base_url="http://test", transport=httpx.MockTransport(handler)
-        )
+        config = _make_config_with_mock(self._ok_handler)
         integration = OpenAPIIntegration(registry)
         await integration.register_openapi_tools_async(config, PETSTORE_SPEC)
 
@@ -599,10 +711,7 @@ class TestOpenAPIIntegration:
     async def test_close_async(self):
         """Async close works."""
         registry = ToolRegistry(name="test")
-        config = HttpxClientConfig(
-            base_url="http://test",
-            transport=httpx.MockTransport(lambda r: httpx.Response(200, json={})),
-        )
+        config = _make_config_with_mock(self._ok_handler)
         integration = OpenAPIIntegration(registry)
         await integration.register_openapi_tools_async(config, PETSTORE_SPEC)
         await integration.close_async()
@@ -620,15 +729,13 @@ class TestOpenAPIToolEndToEnd:
     def test_register_and_call_get(self):
         """Register tools and call a GET tool through the registry."""
 
-        def handler(request: httpx.Request) -> httpx.Response:
+        def handler(request):
             if request.url.path == "/pets":
-                return httpx.Response(200, json=[{"id": 1, "name": "Fido"}])
-            return httpx.Response(404)
+                return _mock_response(200, [{"id": 1, "name": "Fido"}])
+            return _mock_response(404)
 
         registry = ToolRegistry(name="test")
-        config = HttpxClientConfig(
-            base_url="http://test", transport=httpx.MockTransport(handler)
-        )
+        config = _make_config_with_mock(handler)
         integration = OpenAPIIntegration(registry)
         integration.register_openapi_tools(config, PETSTORE_SPEC)
 
@@ -641,16 +748,14 @@ class TestOpenAPIToolEndToEnd:
     def test_register_and_call_post(self):
         """Register tools and call a POST tool through the registry."""
 
-        def handler(request: httpx.Request) -> httpx.Response:
+        def handler(request):
             if request.method == "POST" and request.url.path == "/pets":
                 body = json.loads(request.content)
-                return httpx.Response(201, json={"id": 2, "name": body["name"]})
-            return httpx.Response(404)
+                return _mock_response(201, {"id": 2, "name": body["name"]})
+            return _mock_response(404)
 
         registry = ToolRegistry(name="test")
-        config = HttpxClientConfig(
-            base_url="http://test", transport=httpx.MockTransport(handler)
-        )
+        config = _make_config_with_mock(handler)
         integration = OpenAPIIntegration(registry)
         integration.register_openapi_tools(config, PETSTORE_SPEC)
 
@@ -663,13 +768,11 @@ class TestOpenAPIToolEndToEnd:
     async def test_register_and_call_async(self):
         """Register tools and call asynchronously through the registry."""
 
-        async def handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(200, json=[{"id": 1, "name": "Max"}])
+        def handler(request):
+            return _mock_response(200, [{"id": 1, "name": "Max"}])
 
         registry = ToolRegistry(name="test")
-        config = HttpxClientConfig(
-            base_url="http://test", transport=httpx.MockTransport(handler)
-        )
+        config = _make_config_with_mock(handler)
         integration = OpenAPIIntegration(registry)
         await integration.register_openapi_tools_async(config, PETSTORE_SPEC)
 
