@@ -44,6 +44,12 @@ author: Oaklight
 
 ### 重构
 
+- **移除 OpenAPI 的 PyYAML 和 jsonref 依赖**（[#140](../../pull/140)）
+    - 使用 zerodep 内置 YAML 解析器替代 OpenAPI 集成中的 `PyYAML`
+    - 使用 zerodep 内置 `jsonschema.resolve_refs()` 替代 `jsonref`，解引用 `$ref`
+    - 清空 `openapi` 可选依赖组中的所有外部依赖
+    - 引入 `zerodep/jsonschema` v0.2.0，支持完整的 JSON Pointer（RFC 6901）路径
+
 - **移除 httpx 核心依赖** ([#139](../../pull/139))
     - 使用零依赖的内置 HTTP 客户端替代 `httpx`，用于核心 OpenAPI 功能
     - `HttpxClientConfig` 重命名为 `HttpClientConfig`（旧名保留为弃用别名，使用时会发出 `DeprecationWarning`）
