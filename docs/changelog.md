@@ -44,6 +44,12 @@ This page documents all notable changes to the ToolRegistry project since the fi
 
 ### Refactoring
 
+- **Remove PyYAML and jsonref Dependencies from OpenAPI** ([#140](../../pull/140))
+    - Replace `PyYAML` with zerodep vendored YAML parser in OpenAPI integration
+    - Replace `jsonref` with zerodep vendored `jsonschema.resolve_refs()` for `$ref` resolution
+    - Remove all external dependencies from the `openapi` optional extra
+    - Vendor `zerodep/jsonschema` v0.2.0 with full JSON Pointer (RFC 6901) support
+
 - **Remove httpx Core Dependency** ([#139](../../pull/139))
     - Replace `httpx` with zero-dependency vendored HTTP client for core OpenAPI functionality
     - Rename `HttpxClientConfig` → `HttpClientConfig` (old name preserved as deprecated alias with `DeprecationWarning`)
