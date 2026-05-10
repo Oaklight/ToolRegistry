@@ -3,7 +3,9 @@ from typing import Any
 from urllib.parse import urlparse
 
 import jsonref
-import yaml
+
+from ..._vendor.yaml import YAMLError
+from ..._vendor.yaml import load as yaml_load
 
 from ..._vendor.httpclient import (
     AsyncClient,
@@ -119,7 +121,10 @@ async def load_openapi_spec_async(uri: str) -> dict[str, Any]:
         # Load and parse OpenAPI spec (CPU-bound operation)
         loop = asyncio.get_event_loop()
         openapi_spec_dict = await loop.run_in_executor(
-            None, lambda: jsonref.replace_refs(yaml.safe_load(openapi_spec_content))
+            None,
+            lambda: jsonref.replace_refs(
+                yaml_load(openapi_spec_content.decode("utf-8"))
+            ),
         )
 
         # Ensure return type matches Dict[str, Any]
@@ -127,7 +132,7 @@ async def load_openapi_spec_async(uri: str) -> dict[str, Any]:
             raise ValueError("OpenAPI spec must be a dictionary")
         return dict(openapi_spec_dict)  # Explicit type conversion
 
-    except yaml.YAMLError as e:
+    except YAMLError as e:
         raise ValueError(f"Failed to parse OpenAPI content: {e}")
     except HTTPError as e:
         raise ValueError(f"HTTP error: {e.status_code} for {e.url}")

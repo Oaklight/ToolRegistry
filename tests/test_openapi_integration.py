@@ -852,10 +852,10 @@ class TestLoadOpenapiSpec:
 
     def test_load_from_yaml_file(self, tmp_path):
         """Load spec from a YAML file."""
-        import yaml
+        from toolregistry._vendor.yaml import dump as yaml_dump
 
         spec_file = tmp_path / "spec.yaml"
-        spec_file.write_text(yaml.dump(PETSTORE_SPEC))
+        spec_file.write_text(yaml_dump(PETSTORE_SPEC))
         result = load_openapi_spec(str(spec_file))
         assert result["info"]["title"] == "Petstore"
 
