@@ -32,6 +32,9 @@ For OpenAPI/Swagger integration:
 pip install toolregistry[openapi]
 ```
 
+!!! note
+    Since v0.8.x, the `openapi` extra has no external dependencies — all functionality is provided by built-in vendored modules. The extra is kept for forward compatibility.
+
 ### LangChain Support
 
 For LangChain tool integration:

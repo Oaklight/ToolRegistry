@@ -34,6 +34,15 @@ pip install toolregistry[mcp]
 
 Core OpenAPI functionality now uses a built-in HTTP client internally.
 
+### PyYAML and jsonref Removed from OpenAPI Extra
+
+`PyYAML` and `jsonref` are no longer required for OpenAPI integration. They have been replaced by built-in vendored modules:
+
+- YAML parsing now uses `_vendor.yaml` (zerodep)
+- `$ref` resolution now uses `_vendor.jsonschema.resolve_refs()` (zerodep)
+
+The `openapi` optional extra is now empty — `pip install toolregistry[openapi]` is kept for forward compatibility but installs no additional packages. No code changes are needed; this only affects dependency footprint.
+
 ---
 
 ## 0.7.x → 0.8.0
