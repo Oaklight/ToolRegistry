@@ -2,8 +2,7 @@ import asyncio
 from typing import Any
 from urllib.parse import urlparse
 
-import jsonref
-
+from ..._vendor.jsonschema import resolve_refs
 from ..._vendor.yaml import YAMLError
 from ..._vendor.yaml import load as yaml_load
 
@@ -122,9 +121,7 @@ async def load_openapi_spec_async(uri: str) -> dict[str, Any]:
         loop = asyncio.get_event_loop()
         openapi_spec_dict = await loop.run_in_executor(
             None,
-            lambda: jsonref.replace_refs(
-                yaml_load(openapi_spec_content.decode("utf-8"))
-            ),
+            lambda: resolve_refs(yaml_load(openapi_spec_content.decode("utf-8"))),
         )
 
         # Ensure return type matches Dict[str, Any]

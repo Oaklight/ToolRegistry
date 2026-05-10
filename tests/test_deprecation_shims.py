@@ -103,10 +103,6 @@ class TestMCPShims:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.skipif(
-    not pytest.importorskip("jsonref", reason="openapi extra not installed"),
-    reason="openapi extra not installed",
-)
 class TestOpenAPIShims:
     def test_openapi_init(self):
         mod = _import_with_warning("toolregistry.openapi")

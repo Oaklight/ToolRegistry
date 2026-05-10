@@ -5,8 +5,6 @@ from urllib.parse import urlparse
 
 import pytest
 
-pytest.importorskip("jsonref")
-
 from toolregistry import ToolRegistry  # noqa: E402
 from toolregistry._vendor.httpclient import HTTPError, Response  # noqa: E402
 from toolregistry.integrations.openapi.integration import (  # noqa: E402
