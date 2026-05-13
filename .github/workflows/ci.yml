@@ -7,9 +7,29 @@ on:
     branches: [master]
 
 jobs:
-  lint-and-test:
+  lint:
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
 
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+
+      - name: Run pre-commit checks
+        uses: pre-commit/action@v3.0.1
+
+      - name: Install dependencies for ty
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Type check with ty
+        run: ty check src/
+
+  test:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
 
@@ -22,16 +42,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev,test,mcp]"
-          pip install ruff ty websockets
-
-      - name: Lint with ruff
-        run: ruff check
-
-      - name: Check formatting with ruff
-        run: ruff format --check
-
-      - name: Type check with ty
-        run: ty check src/
 
       - name: Run tests
         run: python -m pytest tests/ -v
