@@ -11,11 +11,25 @@ all: lint test build
 # Linting & Type Checking
 # ──────────────────────────────────────────────
 
-# Run ty type checker
+# Run all linting and type checking
 lint:
+	@echo "Running ruff check..."
+	ruff check
+	@echo "Running ruff format check..."
+	ruff format --check
 	@echo "Running ty check..."
-	ty check
-	@echo "Type check complete."
+	ty check src/
+	@echo "Running complexipy..."
+	complexipy .
+	@echo "All checks passed."
+
+# Auto-fix and format
+fmt:
+	@echo "Running ruff fix..."
+	ruff check --fix
+	@echo "Running ruff format..."
+	ruff format
+	@echo "Format complete."
 
 # ──────────────────────────────────────────────
 # Testing
@@ -54,7 +68,8 @@ help:
 	@echo "Available targets:"
 	@echo ""
 	@echo "Development:"
-	@echo "  lint    - Run ty type checker"
+	@echo "  lint    - Run ruff, ty, and complexipy checks"
+	@echo "  fmt     - Auto-fix and format with ruff"
 	@echo "  test    - Run tests with pytest"
 	@echo ""
 	@echo "Package targets:"
@@ -65,4 +80,4 @@ help:
 	@echo "Composite targets:"
 	@echo "  all     - Run lint, test, and build (default)"
 
-.PHONY: all lint test build push clean help
+.PHONY: all lint fmt test build push clean help
