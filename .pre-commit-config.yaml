@@ -6,16 +6,16 @@ repos:
         args: [--fix]
       - id: ruff-format
 
-  # TODO: enable after fixing existing type errors in tests/
-  # - repo: local
-  #   hooks:
-  #     - id: ty
-  #       name: ty check
-  #       entry: ty check src/
-  #       language: system
-  #       pass_filenames: false
-  #       require_serial: true
-  #       types: [python]
+  - repo: local
+    hooks:
+      - id: ty
+        name: ty check
+        description: Type check src/ with ty.
+        entry: ty check src/
+        language: system
+        pass_filenames: false
+        require_serial: true
+        types: [python]
 
   # TODO: enable after fixing existing complexity issues in src/
   # - repo: https://github.com/rohaquinlop/complexipy-pre-commit
