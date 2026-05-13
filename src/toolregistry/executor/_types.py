@@ -9,8 +9,8 @@ from typing import Any
 from collections.abc import Callable
 
 
-class ExecutionStatus(str, enum.Enum):
-    """Lifecycle status of a single execution."""
+class HandleStatus(str, enum.Enum):
+    """Lifecycle status of a single execution handle."""
 
     PENDING = "pending"
     RUNNING = "running"

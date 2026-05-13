@@ -15,7 +15,7 @@ import cloudpickle
 
 from ._helpers import make_sync_wrapper
 from ._protocol import ExecutionHandle
-from ._types import ExecutionStatus, ProgressReport
+from ._types import HandleStatus, ProgressReport
 
 
 def _process_worker(
@@ -69,17 +69,17 @@ class ProcessExecutionHandle(ExecutionHandle):
     def cancel(self) -> bool:
         return self._future.cancel()
 
-    def status(self) -> ExecutionStatus:
+    def status(self) -> HandleStatus:
         if self._future.cancelled():
-            return ExecutionStatus.CANCELLED
+            return HandleStatus.CANCELLED
         if self._future.running():
-            return ExecutionStatus.RUNNING
+            return HandleStatus.RUNNING
         if self._future.done():
             exc = self._future.exception(timeout=0)
             if exc is not None:
-                return ExecutionStatus.FAILED
-            return ExecutionStatus.COMPLETED
-        return ExecutionStatus.PENDING
+                return HandleStatus.FAILED
+            return HandleStatus.COMPLETED
+        return HandleStatus.PENDING
 
     def result(self, timeout: float | None = None) -> Any:
         effective_timeout = timeout if timeout is not None else self._timeout

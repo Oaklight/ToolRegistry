@@ -6,7 +6,7 @@ import abc
 from typing import Any, Protocol, runtime_checkable
 from collections.abc import Callable
 
-from ._types import ExecutionStatus, ProgressReport
+from ._types import HandleStatus, ProgressReport
 
 
 class ExecutionHandle(abc.ABC):
@@ -22,7 +22,7 @@ class ExecutionHandle(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def status(self) -> ExecutionStatus:
+    def status(self) -> HandleStatus:
         """Return the current execution status."""
         ...
 

@@ -5,21 +5,21 @@ import pytest
 from toolregistry.executor import (
     CancelledError,
     ExecutionContext,
-    ExecutionStatus,
+    HandleStatus,
     ProgressReport,
 )
 
 
-class TestExecutionStatus:
+class TestHandleStatus:
     def test_enum_values(self):
-        assert ExecutionStatus.PENDING == "pending"
-        assert ExecutionStatus.RUNNING == "running"
-        assert ExecutionStatus.COMPLETED == "completed"
-        assert ExecutionStatus.FAILED == "failed"
-        assert ExecutionStatus.CANCELLED == "cancelled"
+        assert HandleStatus.PENDING == "pending"
+        assert HandleStatus.RUNNING == "running"
+        assert HandleStatus.COMPLETED == "completed"
+        assert HandleStatus.FAILED == "failed"
+        assert HandleStatus.CANCELLED == "cancelled"
 
     def test_is_str_enum(self):
-        assert isinstance(ExecutionStatus.PENDING, str)
+        assert isinstance(HandleStatus.PENDING, str)
 
 
 class TestProgressReport:

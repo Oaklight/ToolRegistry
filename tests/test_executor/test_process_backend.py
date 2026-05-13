@@ -3,7 +3,7 @@
 import pytest
 
 from toolregistry.executor import (
-    ExecutionStatus,
+    HandleStatus,
     ProcessPoolBackend,
 )
 
@@ -24,7 +24,7 @@ class TestProcessPoolBackend:
         try:
             handle = backend.submit(_add, {"x": 3, "y": 4})
             assert handle.result(timeout=10) == 7
-            assert handle.status() == ExecutionStatus.COMPLETED
+            assert handle.status() == HandleStatus.COMPLETED
         finally:
             backend.shutdown()
 
@@ -46,7 +46,7 @@ class TestProcessPoolBackend:
             handle = backend.submit(_fail, {})
             with pytest.raises(ValueError, match="process boom"):
                 handle.result(timeout=10)
-            assert handle.status() == ExecutionStatus.FAILED
+            assert handle.status() == HandleStatus.FAILED
         finally:
             backend.shutdown()
 
