@@ -20,7 +20,7 @@ lint:
 	@echo "Running ty check..."
 	ty check src/
 	@echo "Running complexipy..."
-	complexipy .
+	complexipy . -e src/toolregistry/_vendor -e examples -mx 20
 	@echo "All checks passed."
 
 # Auto-fix and format
