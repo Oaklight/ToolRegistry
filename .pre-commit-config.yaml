@@ -22,8 +22,7 @@ repos:
     hooks:
       - id: complexipy
         pass_filenames: false
-        # TODO: remove file excludes after refactoring setup_routes and execute_tool_calls
+        # TODO: remove file exclude after refactoring setup_routes in handlers.py
         args: [., -e, src/toolregistry/_vendor, -e, examples,
                -e, src/toolregistry/admin/handlers.py,
-               -e, src/toolregistry/tool_registry.py,
                -mx, "20"]

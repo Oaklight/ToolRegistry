@@ -394,6 +394,174 @@ class ToolRegistry(
         )
         self.set_default_execution_mode(mode)
 
+    def _classify_tool_calls(
+        self,
+        generic_tool_calls: list[Any],
+    ) -> tuple[list[Any], dict[str, str | list], dict[str, float], dict[str, dict]]:
+        """Separate tool calls into enabled vs disabled/denied, logging rejections.
+
+        Args:
+            generic_tool_calls: Normalized tool call list.
+
+        Returns:
+            Tuple of (enabled_calls, tool_responses, call_start_times, call_arguments).
+        """
+        from .admin import ExecutionStatus
+
+        enabled_calls: list[Any] = []
+        tool_responses: dict[str, str | list] = {}
+        call_start_times: dict[str, float] = {}
+        call_arguments: dict[str, dict] = {}
+
+        for tc in generic_tool_calls:
+            if not self.is_enabled(tc.name):
+                reason = self.get_disable_reason(tc.name) or "Tool is disabled"
+                tool_responses[tc.id] = (
+                    f"Error: Tool '{tc.name}' is disabled. Reason: {reason}"
+                )
+                self._log_entry(
+                    tc.name,
+                    ExecutionStatus.DISABLED,
+                    0.0,
+                    {},
+                    error=f"Tool is disabled. Reason: {reason}",
+                )
+                continue
+
+            try:
+                args = json.loads(tc.arguments)
+            except (json.JSONDecodeError, TypeError):
+                args = {}
+
+            tool_obj = self.get_tool(tc.name)
+            decision = (
+                self._resolve_permission(tool_obj, args)
+                if tool_obj is not None
+                else PermissionResult.ALLOW
+            )
+
+            if decision == PermissionResult.DENY:
+                tool_responses[tc.id] = (
+                    f"Error: Tool '{tc.name}' denied by permission policy."
+                )
+                self._log_entry(
+                    tc.name,
+                    ExecutionStatus.ERROR,
+                    0.0,
+                    args,
+                    error="Denied by permission policy",
+                )
+            else:
+                enabled_calls.append(tc)
+                call_start_times[tc.id] = time.perf_counter()
+                call_arguments[tc.id] = args
+
+        return enabled_calls, tool_responses, call_start_times, call_arguments
+
+    def _log_entry(
+        self,
+        tool_name: str,
+        status: Any,
+        duration_ms: float,
+        arguments: dict,
+        *,
+        result: str | None = None,
+        error: str | None = None,
+    ) -> None:
+        """Append an entry to the execution log if logging is enabled.
+
+        Args:
+            tool_name: Name of the tool.
+            status: Execution status enum value.
+            duration_ms: Execution duration in milliseconds.
+            arguments: Tool call arguments.
+            result: Optional result string.
+            error: Optional error string.
+        """
+        if self._execution_log is None:
+            return
+        from .admin import ExecutionLogEntry
+
+        entry = ExecutionLogEntry.create(
+            tool_name=tool_name,
+            status=status,
+            duration_ms=duration_ms,
+            arguments=arguments,
+            result=result,
+            error=error,
+        )
+        self._execution_log.add(entry)
+
+    def _submit_tool_call(
+        self,
+        tc: Any,
+        backend: Any,
+        call_arguments: dict[str, dict],
+        mode: str,
+    ) -> Any | str:
+        """Submit a single tool call for execution.
+
+        Args:
+            tc: The tool call to submit.
+            backend: Execution backend (process or thread).
+            call_arguments: Map of call ID to parsed arguments.
+            mode: Current execution mode ("process" or "thread").
+
+        Returns:
+            An ExecutionHandle on success, or an error string on failure.
+        """
+        function_name = tc.name
+        function_args = call_arguments.get(tc.id, {})
+        tool_obj = self.get_tool(function_name)
+        if tool_obj and not tool_obj._has_native_thought_param():
+            function_args.pop("thought", None)
+        callable_func = tool_obj.callable if tool_obj else None
+
+        if callable_func is None:
+            return f"Error: Tool '{function_name}' not found or callable is None"
+
+        per_call_timeout = (
+            tool_obj.metadata.timeout if tool_obj and tool_obj.metadata else None
+        )
+
+        try:
+            return backend.submit(
+                callable_func,
+                function_args,
+                execution_id=tc.id,
+                timeout=per_call_timeout,
+            )
+        except Exception as e:
+            if mode == "process":
+                try:
+                    return self._thread_backend.submit(
+                        callable_func,
+                        function_args,
+                        execution_id=tc.id,
+                        timeout=per_call_timeout,
+                    )
+                except Exception as e2:
+                    return f"Error preparing tool call {function_name}: {e2!s}"
+            return f"Error preparing tool call {function_name}: {e!s}"
+
+    def _collect_handle_result(self, handle: Any, tool_name: str) -> str | list:
+        """Wait for a handle and return the finalized result or error string.
+
+        Args:
+            handle: An ExecutionHandle to collect.
+            tool_name: Name of the tool (for error messages and finalization).
+
+        Returns:
+            The finalized result string/list, or an error message.
+        """
+        try:
+            result = handle.result()
+            return self._finalize_result(result, tool_name)
+        except TimeoutError:
+            return f"Error: Tool '{tool_name}' timed out"
+        except Exception as e:
+            return f"Error executing {tool_name}: {e!s}"
+
     def execute_tool_calls(
         self,
         tool_calls: list[AnyToolCall],
@@ -413,183 +581,61 @@ class ToolRegistry(
             are ``str`` for normal results or ``list[ContentBlock]`` for
             multimodal results (e.g. images).
         """
-        from .admin import ExecutionLogEntry, ExecutionStatus
+        from .admin import ExecutionStatus
         from .executor import ExecutionHandle
 
         generic_tool_calls = convert_tool_calls(tool_calls)
+        enabled_calls, tool_responses, call_start_times, call_arguments = (
+            self._classify_tool_calls(generic_tool_calls)
+        )
 
-        # Separate enabled and disabled tool calls
-        enabled_calls = []
-        tool_responses: dict[str, str | list] = {}
-        # Track timing for each tool call
-        call_start_times: dict[str, float] = {}
-        call_arguments: dict[str, dict] = {}
+        if not enabled_calls:
+            return tool_responses
 
-        for tc in generic_tool_calls:
-            if not self.is_enabled(tc.name):
-                reason = self.get_disable_reason(tc.name) or "Tool is disabled"
-                tool_responses[tc.id] = (
-                    f"Error: Tool '{tc.name}' is disabled. Reason: {reason}"
+        mode = execution_mode or self._execution_mode
+        backend = self._thread_backend if mode == "thread" else self._process_backend
+
+        has_unsafe = any(
+            (tool_obj := self.get_tool(tc.name)) is not None
+            and not tool_obj.metadata.is_concurrency_safe
+            for tc in enabled_calls
+        )
+
+        handles: list[tuple[Any, ExecutionHandle]] = []
+
+        for tc in enabled_calls:
+            handle_or_error = self._submit_tool_call(tc, backend, call_arguments, mode)
+            if isinstance(handle_or_error, str):
+                tool_responses[tc.id] = handle_or_error
+                continue
+
+            if has_unsafe:
+                tool_responses[tc.id] = self._collect_handle_result(
+                    handle_or_error, tc.name
                 )
-                # Log disabled tool call
-                if self._execution_log is not None:
-                    try:
-                        args = json.loads(tc.arguments)
-                    except (json.JSONDecodeError, TypeError):
-                        args = {}
-                    entry = ExecutionLogEntry.create(
-                        tool_name=tc.name,
-                        status=ExecutionStatus.DISABLED,
-                        duration_ms=0.0,
-                        arguments=args,
-                        error=f"Tool is disabled. Reason: {reason}",
-                    )
-                    self._execution_log.add(entry)
             else:
-                # Parse arguments early for permission check
-                try:
-                    args = json.loads(tc.arguments)
-                except (json.JSONDecodeError, TypeError):
-                    args = {}
+                handles.append((tc, handle_or_error))
 
-                # Evaluate permission policy
-                tool_obj = self.get_tool(tc.name)
-                if tool_obj is not None:
-                    decision = self._resolve_permission(tool_obj, args)
-                else:
-                    decision = PermissionResult.ALLOW
+        for tc, handle in handles:
+            tool_responses[tc.id] = self._collect_handle_result(handle, tc.name)
 
-                if decision == PermissionResult.DENY:
-                    tool_responses[tc.id] = (
-                        f"Error: Tool '{tc.name}' denied by permission policy."
-                    )
-                    if self._execution_log is not None:
-                        entry = ExecutionLogEntry.create(
-                            tool_name=tc.name,
-                            status=ExecutionStatus.ERROR,
-                            duration_ms=0.0,
-                            arguments=args,
-                            error="Denied by permission policy",
-                        )
-                        self._execution_log.add(entry)
-                else:
-                    enabled_calls.append(tc)
-                    call_start_times[tc.id] = time.perf_counter()
-                    call_arguments[tc.id] = args
-
-        # Execute only enabled tool calls
-        if enabled_calls:
-            mode = execution_mode or self._execution_mode
-            backend = (
-                self._thread_backend if mode == "thread" else self._process_backend
-            )
-
-            # Check if any tool is not concurrency-safe
-            has_unsafe = any(
-                (tool_obj := self.get_tool(tc.name)) is not None
-                and not tool_obj.metadata.is_concurrency_safe
-                for tc in enabled_calls
-            )
-
-            handles: list[tuple[Any, ExecutionHandle]] = []
-
+        # Log executed tool calls
+        if self._execution_log is not None:
+            end_time = time.perf_counter()
             for tc in enabled_calls:
-                function_name = tc.name
-                function_args = call_arguments.get(tc.id, {})
-                tool_obj = self.get_tool(function_name)
-                if tool_obj and not tool_obj._has_native_thought_param():
-                    function_args.pop("thought", None)
-                callable_func = tool_obj.callable if tool_obj else None
-
-                if callable_func is None:
-                    tool_responses[tc.id] = (
-                        f"Error: Tool '{function_name}' not found or callable is None"
-                    )
-                    continue
-
-                per_call_timeout = (
-                    tool_obj.metadata.timeout
-                    if tool_obj and tool_obj.metadata
-                    else None
+                start_time = call_start_times.get(tc.id, end_time)
+                duration_ms = (end_time - start_time) * 1000
+                response = tool_responses.get(tc.id, "")
+                response_str = str(response)
+                is_error = response_str.startswith("Error")
+                self._log_entry(
+                    tc.name,
+                    ExecutionStatus.ERROR if is_error else ExecutionStatus.SUCCESS,
+                    duration_ms,
+                    call_arguments.get(tc.id, {}),
+                    result=None if is_error else response_str,
+                    error=response_str if is_error else None,
                 )
-
-                try:
-                    handle = backend.submit(
-                        callable_func,
-                        function_args,
-                        execution_id=tc.id,
-                        timeout=per_call_timeout,
-                    )
-                except Exception as e:
-                    # Fallback to thread backend on process serialization error
-                    if mode == "process":
-                        try:
-                            handle = self._thread_backend.submit(
-                                callable_func,
-                                function_args,
-                                execution_id=tc.id,
-                                timeout=per_call_timeout,
-                            )
-                        except Exception as e2:
-                            tool_responses[tc.id] = (
-                                f"Error preparing tool call {function_name}: {e2!s}"
-                            )
-                            continue
-                    else:
-                        tool_responses[tc.id] = (
-                            f"Error preparing tool call {function_name}: {e!s}"
-                        )
-                        continue
-
-                if has_unsafe:
-                    # Sequential execution: wait for result immediately
-                    try:
-                        result = handle.result()
-                        tool_responses[tc.id] = self._finalize_result(
-                            result, function_name
-                        )
-                    except TimeoutError:
-                        tool_responses[tc.id] = (
-                            f"Error: Tool '{function_name}' timed out"
-                        )
-                    except Exception as e:
-                        tool_responses[tc.id] = (
-                            f"Error executing {function_name}: {e!s}"
-                        )
-                else:
-                    handles.append((tc, handle))
-
-            # Collect results from parallel handles
-            for tc, handle in handles:
-                try:
-                    result = handle.result()
-                    tool_responses[tc.id] = self._finalize_result(result, tc.name)
-                except TimeoutError:
-                    tool_responses[tc.id] = f"Error: Tool '{tc.name}' timed out"
-                except Exception as e:
-                    tool_responses[tc.id] = f"Error executing {tc.name}: {e!s}"
-
-            # Log executed tool calls
-            if self._execution_log is not None:
-                end_time = time.perf_counter()
-                for tc in enabled_calls:
-                    start_time = call_start_times.get(tc.id, end_time)
-                    duration_ms = (end_time - start_time) * 1000
-                    response = tool_responses.get(tc.id, "")
-                    response_str = str(response)
-                    is_error = response_str.startswith("Error")
-
-                    entry = ExecutionLogEntry.create(
-                        tool_name=tc.name,
-                        status=ExecutionStatus.ERROR
-                        if is_error
-                        else ExecutionStatus.SUCCESS,
-                        duration_ms=duration_ms,
-                        arguments=call_arguments.get(tc.id, {}),
-                        result=None if is_error else response_str,
-                        error=response_str if is_error else None,
-                    )
-                    self._execution_log.add(entry)
 
         return tool_responses
 
