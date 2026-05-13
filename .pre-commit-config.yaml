@@ -17,9 +17,13 @@ repos:
         require_serial: true
         types: [python]
 
-  # TODO: enable after fixing existing complexity issues in src/
-  # - repo: https://github.com/rohaquinlop/complexipy-pre-commit
-  #   rev: v4.2.0
-  #   hooks:
-  #     - id: complexipy
-  #       exclude: (_vendor|examples)/
+  - repo: https://github.com/rohaquinlop/complexipy-pre-commit
+    rev: v4.2.0
+    hooks:
+      - id: complexipy
+        pass_filenames: false
+        # TODO: remove file excludes after refactoring setup_routes and execute_tool_calls
+        args: [., -e, src/toolregistry/_vendor, -e, examples,
+               -e, src/toolregistry/admin/handlers.py,
+               -e, src/toolregistry/tool_registry.py,
+               -mx, "20"]

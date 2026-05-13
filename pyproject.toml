@@ -88,7 +88,8 @@ exclude = ["src/toolregistry/_vendor"]
 unresolved-import = "ignore"
 
 [tool.complexipy]
-exclude = ["_vendor"]
+exclude = ["src/toolregistry/_vendor", "examples"]
+max-complexity-allowed = 20
 
 [tool.setuptools.dynamic]
 version = { attr = "toolregistry.__version__" }

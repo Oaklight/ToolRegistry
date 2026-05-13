@@ -3,7 +3,27 @@ import uuid
 import warnings
 from typing import Any, Literal
 
+from collections.abc import Callable
+
 from pydantic import BaseModel, ValidationError, field_serializer
+
+
+def _to_dict(obj: Any) -> Any:
+    """Convert a Pydantic model or similar object to a dict.
+
+    Args:
+        obj: Object to convert. Pydantic models, legacy models with
+            ``.dict()``, and plain dicts/values are all accepted.
+
+    Returns:
+        A dict representation, or the original object if no conversion
+        method is available.
+    """
+    if hasattr(obj, "model_dump"):
+        return obj.model_dump()
+    if hasattr(obj, "dict"):
+        return obj.dict()
+    return obj
 
 
 class ToolCall(BaseModel):
@@ -17,16 +37,144 @@ class ToolCall(BaseModel):
     """The type of the tool call. Either 'function' or 'custom'."""
 
     @classmethod
+    def _try_pydantic_formats(cls, tool_call_dict: dict) -> "ToolCall | None":
+        """Attempt Pydantic model validation against known formats.
+
+        Args:
+            tool_call_dict: Dict representation of a tool call.
+
+        Returns:
+            A ToolCall if validation succeeds, None otherwise.
+        """
+        from .openai.chat_completion import (
+            ChatCompletionMessageCustomToolCall,
+            ChatCompletionMessageFunctionToolCall,
+        )
+        from .openai.response import ResponseFunctionToolCall
+
+        validators: list[tuple[type[BaseModel], str, Callable[..., ToolCall]]] = [
+            (
+                ChatCompletionMessageFunctionToolCall,
+                "function",
+                lambda v: cls(
+                    id=v.id,
+                    name=v.function.name,
+                    arguments=v.function.arguments,
+                    type="function",
+                ),
+            ),
+            (
+                ChatCompletionMessageCustomToolCall,
+                "custom",
+                lambda v: cls(
+                    id=v.id,
+                    name=v.custom.name,
+                    arguments=v.custom.input,
+                    type="custom",
+                ),
+            ),
+            (
+                ResponseFunctionToolCall,
+                "function",
+                lambda v: cls(
+                    id=v.call_id,
+                    name=v.name,
+                    arguments=v.arguments,
+                    type="function",
+                ),
+            ),
+        ]
+        for model_cls, _, extractor in validators:
+            try:
+                validated = model_cls.model_validate(tool_call_dict)
+                return extractor(validated)
+            except (ValidationError, AttributeError, TypeError):
+                continue
+        return None
+
+    @classmethod
+    def _try_attribute_access(cls, tool_call: Any) -> "ToolCall | None":
+        """Fallback: build ToolCall via direct attribute access.
+
+        Args:
+            tool_call: Raw tool call object.
+
+        Returns:
+            A ToolCall if attributes match a known format, None otherwise.
+        """
+        try:
+            if hasattr(tool_call, "function") and hasattr(tool_call, "id"):
+                return cls(
+                    id=tool_call.id,
+                    name=tool_call.function.name,
+                    arguments=tool_call.function.arguments,
+                    type="function",
+                )
+            if hasattr(tool_call, "custom") and hasattr(tool_call, "id"):
+                return cls(
+                    id=tool_call.id,
+                    name=tool_call.custom.name,
+                    arguments=tool_call.custom.input,
+                    type="custom",
+                )
+            if hasattr(tool_call, "call_id") and hasattr(tool_call, "name"):
+                return cls(
+                    id=tool_call.call_id,
+                    name=tool_call.name,
+                    arguments=tool_call.arguments,
+                    type="function",
+                )
+        except AttributeError:
+            pass
+        return None
+
+    @classmethod
+    def _try_vendor_dict(cls, tool_call_dict: dict) -> "ToolCall | None":
+        """Try Anthropic tool_use or Gemini functionCall dict formats.
+
+        Args:
+            tool_call_dict: Dict representation of a tool call.
+
+        Returns:
+            A ToolCall if the dict matches a vendor format, None otherwise.
+        """
+        if not isinstance(tool_call_dict, dict):
+            return None
+
+        # Anthropic tool_use block
+        if tool_call_dict.get("type") in ("tool_use", "server_tool_use"):
+            return cls(
+                id=tool_call_dict.get("id", ""),
+                name=tool_call_dict.get("name", ""),
+                arguments=json.dumps(tool_call_dict.get("input", {})),
+                type="function",
+            )
+
+        # Gemini functionCall part
+        if "functionCall" in tool_call_dict or "function_call" in tool_call_dict:
+            fc = tool_call_dict.get("functionCall") or tool_call_dict.get(
+                "function_call"
+            )
+            if fc:
+                return cls(
+                    id=fc.get("id", uuid.uuid4().hex[:24]),
+                    name=fc.get("name", ""),
+                    arguments=json.dumps(fc.get("args", {})),
+                    type="function",
+                )
+
+        return None
+
+    @classmethod
     def from_tool_call(cls, tool_call: Any) -> "ToolCall":
         """Convert various tool call formats to ToolCall using Pydantic validation.
-
-        This method attempts to validate the input against known tool call formats
-        using Pydantic models, making it more robust than string-based type checking.
 
         Supports the following formats:
         - ChatCompletionMessageFunctionToolCall (function calls)
         - ChatCompletionMessageCustomToolCall (custom calls)
         - ResponseFunctionToolCall (response API format)
+        - Anthropic tool_use / server_tool_use blocks
+        - Gemini functionCall parts
         - Dictionary representations of the above
 
         Args:
@@ -38,133 +186,19 @@ class ToolCall(BaseModel):
         Raises:
             TypeError: If the tool call format is not supported
         """
-        from .openai.chat_completion import (
-            ChatCompletionMessageCustomToolCall,
-            ChatCompletionMessageFunctionToolCall,
-        )
-        from .openai.response import ResponseFunctionToolCall
+        tool_call_dict = _to_dict(tool_call)
 
-        # Try to validate as ChatCompletionMessageFunctionToolCall
-        try:
-            # Convert to dict if it's a Pydantic model or has model_dump
-            if hasattr(tool_call, "model_dump"):
-                tool_call_dict = tool_call.model_dump()
-            elif hasattr(tool_call, "dict"):
-                tool_call_dict = tool_call.dict()
-            else:
-                tool_call_dict = tool_call
+        result = cls._try_pydantic_formats(tool_call_dict)
+        if result is not None:
+            return result
 
-            validated_chat_call = ChatCompletionMessageFunctionToolCall.model_validate(
-                tool_call_dict
-            )
-            return cls(
-                id=validated_chat_call.id,
-                name=validated_chat_call.function.name,
-                arguments=validated_chat_call.function.arguments,
-                type="function",
-            )
-        except (ValidationError, AttributeError, TypeError):
-            pass
+        result = cls._try_attribute_access(tool_call)
+        if result is not None:
+            return result
 
-        # Try to validate as ChatCompletionMessageCustomToolCall
-        try:
-            # Convert to dict if it's a Pydantic model or has model_dump
-            if hasattr(tool_call, "model_dump"):
-                tool_call_dict = tool_call.model_dump()
-            elif hasattr(tool_call, "dict"):
-                tool_call_dict = tool_call.dict()
-            else:
-                tool_call_dict = tool_call
-
-            validated_custom_call = ChatCompletionMessageCustomToolCall.model_validate(
-                tool_call_dict
-            )
-            return cls(
-                id=validated_custom_call.id,
-                name=validated_custom_call.custom.name,
-                arguments=validated_custom_call.custom.input,
-                type="custom",
-            )
-        except (ValidationError, AttributeError, TypeError):
-            pass
-
-        # Try to validate as ResponseFunctionToolCall
-        try:
-            # Convert to dict if it's a Pydantic model or has model_dump
-            if hasattr(tool_call, "model_dump"):
-                tool_call_dict = tool_call.model_dump()
-            elif hasattr(tool_call, "dict"):
-                tool_call_dict = tool_call.dict()
-            else:
-                tool_call_dict = tool_call
-
-            validated_response_call = ResponseFunctionToolCall.model_validate(
-                tool_call_dict
-            )
-            return cls(
-                id=validated_response_call.call_id,
-                name=validated_response_call.name,
-                arguments=validated_response_call.arguments,
-                type="function",
-            )
-        except (ValidationError, AttributeError, TypeError):
-            pass
-
-        # If validation failed, try direct attribute access as fallback
-        try:
-            # Check for ChatCompletion format (has function attribute)
-            if hasattr(tool_call, "function") and hasattr(tool_call, "id"):
-                return cls(
-                    id=tool_call.id,
-                    name=tool_call.function.name,
-                    arguments=tool_call.function.arguments,
-                    type="function",
-                )
-            # Check for Custom format (has custom attribute)
-            elif hasattr(tool_call, "custom") and hasattr(tool_call, "id"):
-                return cls(
-                    id=tool_call.id,
-                    name=tool_call.custom.name,
-                    arguments=tool_call.custom.input,
-                    type="custom",
-                )
-            # Check for Response format (has call_id attribute)
-            elif hasattr(tool_call, "call_id") and hasattr(tool_call, "name"):
-                return cls(
-                    id=tool_call.call_id,
-                    name=tool_call.name,
-                    arguments=tool_call.arguments,
-                    type="function",
-                )
-        except AttributeError:
-            pass
-
-        # Try Anthropic tool_use block: {"type": "tool_use", "id": ..., "name": ..., "input": ...}
-        if isinstance(tool_call_dict, dict) and tool_call_dict.get("type") in (
-            "tool_use",
-            "server_tool_use",
-        ):
-            return cls(
-                id=tool_call_dict.get("id", ""),
-                name=tool_call_dict.get("name", ""),
-                arguments=json.dumps(tool_call_dict.get("input", {})),
-                type="function",
-            )
-
-        # Try Gemini functionCall part: {"functionCall": {"name": ..., "args": ...}}
-        if isinstance(tool_call_dict, dict) and (
-            "functionCall" in tool_call_dict or "function_call" in tool_call_dict
-        ):
-            fc = tool_call_dict.get("functionCall") or tool_call_dict.get(
-                "function_call"
-            )
-            if fc:
-                return cls(
-                    id=fc.get("id", uuid.uuid4().hex[:24]),
-                    name=fc.get("name", ""),
-                    arguments=json.dumps(fc.get("args", {})),
-                    type="function",
-                )
+        result = cls._try_vendor_dict(tool_call_dict)
+        if result is not None:
+            return result
 
         raise TypeError(
             f"Unsupported tool call format. Expected ChatCompletionMessageFunctionToolCall, "
@@ -236,6 +270,82 @@ def convert_tool_calls(tool_calls: list[Any]) -> list[ToolCall]:
     return [ToolCall.from_tool_call(tool_call) for tool_call in tool_calls]
 
 
+def _build_assistant_openai_chat(tool_calls: list[ToolCall]) -> list[dict[str, Any]]:
+    """Build assistant message in OpenAI chat completion format."""
+    from .openai.chat_completion import (
+        ChatCompletionMessage,
+        ChatCompletionMessageCustomToolCall,
+        ChatCompletionMessageFunctionToolCall,
+        Custom,
+        Function,
+    )
+
+    chat_tool_calls: list = []
+    for tc in tool_calls:
+        if not tc.name or not tc.arguments:
+            continue
+        if tc.type == "function":
+            chat_tool_calls.append(
+                ChatCompletionMessageFunctionToolCall(
+                    id=tc.id,
+                    function=Function(name=tc.name, arguments=tc.arguments),
+                )
+            )
+        elif tc.type == "custom":
+            chat_tool_calls.append(
+                ChatCompletionMessageCustomToolCall(
+                    id=tc.id,
+                    custom=Custom(name=tc.name, input=tc.arguments),
+                )
+            )
+    return [ChatCompletionMessage(tool_calls=chat_tool_calls).model_dump()]
+
+
+def _build_assistant_openai_response(
+    tool_calls: list[ToolCall],
+) -> list[dict[str, Any]]:
+    """Build assistant message in OpenAI response format."""
+    from .openai.response import ResponseFunctionToolCall
+
+    return [
+        ResponseFunctionToolCall(
+            call_id=tc.id,
+            name=tc.name,
+            arguments=tc.arguments,
+        ).model_dump()
+        for tc in tool_calls
+    ]
+
+
+def _build_assistant_anthropic(tool_calls: list[ToolCall]) -> list[dict[str, Any]]:
+    """Build assistant message in Anthropic format."""
+    content = []
+    for tc in tool_calls:
+        if not tc.name or not tc.arguments:
+            continue
+        content.append(
+            {
+                "type": "tool_use",
+                "id": tc.id,
+                "name": tc.name,
+                "input": json.loads(tc.arguments),
+            }
+        )
+    return [{"role": "assistant", "content": content}]
+
+
+def _build_assistant_gemini(tool_calls: list[ToolCall]) -> list[dict[str, Any]]:
+    """Build assistant message in Gemini format."""
+    parts = []
+    for tc in tool_calls:
+        if not tc.name or not tc.arguments:
+            continue
+        parts.append(
+            {"functionCall": {"name": tc.name, "args": json.loads(tc.arguments)}}
+        )
+    return [{"role": "model", "parts": parts}]
+
+
 def build_assistant_message(
     tool_calls: list[ToolCall],
     *,
@@ -260,92 +370,16 @@ def build_assistant_message(
         ValueError: If the API format is unsupported.
     """
     api_format = _normalize_api_format(api_format)
-    if api_format == "openai-chat":
-        from .openai.chat_completion import (
-            ChatCompletionMessage,
-            ChatCompletionMessageCustomToolCall,
-            ChatCompletionMessageFunctionToolCall,
-            Custom,
-            Function,
-        )
-
-        # Build tool calls based on their type
-        chat_tool_calls = []
-        for tool_call in tool_calls:
-            if not tool_call.name or not tool_call.arguments:
-                continue
-
-            if tool_call.type == "function":
-                chat_tool_calls.append(
-                    ChatCompletionMessageFunctionToolCall(
-                        id=tool_call.id,
-                        function=Function(
-                            name=tool_call.name,
-                            arguments=tool_call.arguments,
-                        ),
-                    )
-                )
-            elif tool_call.type == "custom":
-                chat_tool_calls.append(
-                    ChatCompletionMessageCustomToolCall(
-                        id=tool_call.id,
-                        custom=Custom(
-                            name=tool_call.name,
-                            input=tool_call.arguments,
-                        ),
-                    )
-                )
-
-        message = [ChatCompletionMessage(tool_calls=chat_tool_calls).model_dump()]
-
-        return message
-
-    elif api_format == "openai-response":
-        from .openai.response import ResponseFunctionToolCall
-
-        message = [
-            ResponseFunctionToolCall(
-                call_id=tool_call.id,
-                name=tool_call.name,
-                arguments=tool_call.arguments,
-            ).model_dump()
-            for tool_call in tool_calls
-        ]
-
-        return message
-
-    elif api_format == "anthropic":
-        content = []
-        for tc in tool_calls:
-            if not tc.name or not tc.arguments:
-                continue
-            content.append(
-                {
-                    "type": "tool_use",
-                    "id": tc.id,
-                    "name": tc.name,
-                    "input": json.loads(tc.arguments),
-                }
-            )
-        return [{"role": "assistant", "content": content}]
-
-    elif api_format == "gemini":
-        parts = []
-        for tc in tool_calls:
-            if not tc.name or not tc.arguments:
-                continue
-            parts.append(
-                {
-                    "functionCall": {
-                        "name": tc.name,
-                        "args": json.loads(tc.arguments),
-                    }
-                }
-            )
-        return [{"role": "model", "parts": parts}]
-
-    else:
+    builders: dict[str, Any] = {
+        "openai-chat": _build_assistant_openai_chat,
+        "openai-response": _build_assistant_openai_response,
+        "anthropic": _build_assistant_anthropic,
+        "gemini": _build_assistant_gemini,
+    }
+    builder = builders.get(api_format)
+    if builder is None:
         raise ValueError(f"Unsupported API format: {api_format}")
+    return builder(tool_calls)
 
 
 def build_tool_response(
