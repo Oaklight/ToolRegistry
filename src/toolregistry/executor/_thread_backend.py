@@ -14,7 +14,7 @@ from ._protocol import ExecutionHandle
 from ._types import (
     CancelledError,
     ExecutionContext,
-    ExecutionStatus,
+    HandleStatus,
     ProgressReport,
 )
 
@@ -49,19 +49,19 @@ class ThreadExecutionHandle(ExecutionHandle):
             self._ctx._request_cancel()
         return cancelled or (self._ctx is not None)
 
-    def status(self) -> ExecutionStatus:
+    def status(self) -> HandleStatus:
         if self._future.cancelled():
-            return ExecutionStatus.CANCELLED
+            return HandleStatus.CANCELLED
         if self._future.running():
-            return ExecutionStatus.RUNNING
+            return HandleStatus.RUNNING
         if self._future.done():
             exc = self._future.exception(timeout=0)
             if isinstance(exc, CancelledError):
-                return ExecutionStatus.CANCELLED
+                return HandleStatus.CANCELLED
             if exc is not None:
-                return ExecutionStatus.FAILED
-            return ExecutionStatus.COMPLETED
-        return ExecutionStatus.PENDING
+                return HandleStatus.FAILED
+            return HandleStatus.COMPLETED
+        return HandleStatus.PENDING
 
     def result(self, timeout: float | None = None) -> Any:
         effective_timeout = timeout if timeout is not None else self._timeout

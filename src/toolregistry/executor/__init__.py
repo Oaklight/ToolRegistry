@@ -10,7 +10,7 @@ from ._thread_backend import ThreadBackend
 from ._types import (
     CancelledError,
     ExecutionContext,
-    ExecutionStatus,
+    HandleStatus,
     ProgressReport,
 )
 
@@ -18,7 +18,7 @@ __all__ = [
     # Types
     "CancelledError",
     "ExecutionContext",
-    "ExecutionStatus",
+    "HandleStatus",
     "ProgressReport",
     # Protocol + ABC
     "ExecutionBackend",

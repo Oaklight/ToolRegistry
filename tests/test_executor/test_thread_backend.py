@@ -7,7 +7,7 @@ import pytest
 
 from toolregistry.executor import (
     ExecutionContext,
-    ExecutionStatus,
+    HandleStatus,
     ThreadBackend,
 )
 
@@ -22,7 +22,7 @@ class TestThreadBackend:
 
             handle = backend.submit(add, {"x": 3, "y": 4})
             assert handle.result() == 7
-            assert handle.status() == ExecutionStatus.COMPLETED
+            assert handle.status() == HandleStatus.COMPLETED
         finally:
             backend.shutdown()
 
@@ -79,7 +79,7 @@ class TestThreadBackend:
             handle = backend.submit(fail, {})
             with pytest.raises(ValueError, match="boom"):
                 handle.result(timeout=2)
-            assert handle.status() == ExecutionStatus.FAILED
+            assert handle.status() == HandleStatus.FAILED
         finally:
             backend.shutdown()
 
