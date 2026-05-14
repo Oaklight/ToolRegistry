@@ -10,6 +10,23 @@ author: Oaklight
 
 This page documents all notable changes to the ToolRegistry project since the first release.
 
+## [Unreleased]
+
+### Refactoring
+
+- **Separate Tool.run() exception handling from LLM error formatting** ([#129](../../issues/129), [#149](../../pull/149))
+    - Add `run_raw()` and `arun_raw()` methods that raise exceptions instead of catching them
+    - `run()` and `arun()` now emit `DeprecationWarning` when they catch an exception and return an error string; use `run_raw()`/`arun_raw()` for programmatic error handling
+    - Replace fragile `startswith("Error")` string-prefix error detection with type-safe `_ToolError` sentinel pattern in `execute_tool_calls()`
+    - Add `TOOL_ERROR` event to `ChangeEventType` for callback subscribers
+    - Add `TIMEOUT` status to `ExecutionStatus` enum (separate from `ERROR`)
+    - Add `exception_type` and `traceback` fields to `ExecutionLogEntry` for structured error logging
+
+### Tests
+
+- **Improve edge-case coverage for complex type JSON Schema generation** ([#128](../../issues/128), [#150](../../pull/150))
+    - Add 18 tests covering `Union`, `Literal`, `Annotated[T, Field(...)]`, nested `BaseModel`, `Enum` subclasses, `Optional[list[...]]`, default mutable values, `*args`/`**kwargs` warnings, required field tracking, and mixed complex scenarios
+
 ## [0.9.1] - 2026-05-14
 
 ### New Features

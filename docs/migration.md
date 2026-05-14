@@ -4,6 +4,34 @@ This guide covers breaking changes and migration steps between major ToolRegistr
 
 ## 0.8.x → Next
 
+### `Tool.run()` / `arun()` Error Swallowing Deprecated
+
+`Tool.run()` and `arun()` previously caught all exceptions and returned error strings like `"Error executing tool_name: ..."`. This behavior is now deprecated and emits a `DeprecationWarning`. In a future version, `run()` will also raise exceptions.
+
+**Before:**
+
+```python
+tool = registry.get_tool("divide")
+result = tool.run({"a": 10, "b": 0})
+# result == "Error executing divide: division by zero"
+# No exception raised, no warning
+```
+
+**After:**
+
+```python
+# Preferred: use run_raw() for programmatic error handling
+try:
+    result = tool.run_raw({"a": 10, "b": 0})
+except ZeroDivisionError:
+    print("Cannot divide by zero!")
+
+# Legacy: run() still works but emits DeprecationWarning on error
+result = tool.run({"a": 10, "b": 0})
+# DeprecationWarning: Tool.run() caught an exception and returned an error string.
+# This behavior is deprecated; use Tool.run_raw() for exceptions.
+```
+
 ### `HttpxClientConfig` Renamed to `HttpClientConfig`
 
 The `HttpxClientConfig` class has been renamed to `HttpClientConfig` to reflect the removal of httpx as a core dependency. The old name is preserved as a deprecated alias.

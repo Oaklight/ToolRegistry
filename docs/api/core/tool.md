@@ -170,6 +170,34 @@ async_tool = Tool(
 )
 ```
 
+### Executing Tools: `run_raw()` vs `run()`
+
+The `Tool` class provides two execution APIs:
+
+- **`run_raw(parameters)` / `arun_raw(parameters)`** — Validates parameters and executes the tool. Raises exceptions on failure, allowing programmatic callers to catch and handle errors.
+- **`run(parameters)` / `arun(parameters)`** *(deprecated error-swallowing behavior)* — Delegates to `run_raw()`/`arun_raw()` but catches exceptions and returns error strings like `"Error executing tool_name: ..."`. This behavior emits a `DeprecationWarning`; in a future version, `run()` will also raise.
+
+```python
+from toolregistry import Tool
+
+def divide(a: float, b: float) -> float:
+    """Divide a by b."""
+    return a / b
+
+tool = Tool.from_function(divide)
+
+# Preferred: use run_raw() for programmatic error handling
+try:
+    result = tool.run_raw({"a": 10, "b": 0})
+except ZeroDivisionError:
+    print("Cannot divide by zero!")
+
+# Legacy: run() catches exceptions and returns error strings (deprecated)
+result = tool.run({"a": 10, "b": 0})
+# result == "Error executing divide: division by zero"
+# ^ emits DeprecationWarning
+```
+
 ## Parameter Schema Format
 
 The Tool class uses JSON Schema format for parameter validation:

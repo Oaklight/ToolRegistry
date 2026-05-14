@@ -30,11 +30,13 @@ Each execution log entry contains:
 | `id` | `str` | Unique identifier (UUID) |
 | `tool_name` | `str` | Name of the executed tool |
 | `timestamp` | `datetime` | When the execution occurred |
-| `status` | `ExecutionStatus` | `success`, `error`, or `disabled` |
+| `status` | `ExecutionStatus` | `success`, `error`, `timeout`, or `disabled` |
 | `duration_ms` | `float` | Execution duration in milliseconds |
 | `arguments` | `dict` | Input arguments passed to the tool |
 | `result` | `Any` | Execution result (for successful executions) |
 | `error` | `str \| None` | Error message (for failed executions) |
+| `exception_type` | `str \| None` | Qualified exception class name, e.g. `"ValueError"` |
+| `traceback` | `str \| None` | Formatted traceback string from the exception |
 | `metadata` | `dict` | Additional metadata |
 
 ## Querying Logs Programmatically
