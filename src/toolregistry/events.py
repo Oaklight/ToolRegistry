@@ -32,6 +32,7 @@ class ChangeEventType(str, Enum):
     PERMISSION_DENIED = "permission_denied"
     PERMISSION_ASKED = "permission_asked"
     METADATA_UPDATE = "metadata_update"
+    TOOL_ERROR = "tool_error"
 
 
 @dataclass(frozen=True)

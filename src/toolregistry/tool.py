@@ -471,6 +471,32 @@ class Tool(BaseModel):
             validated_params = model.model_dump_one_level()
         return validated_params
 
+    def run_raw(self, parameters: dict[str, Any]) -> Any:
+        """Execute tool synchronously, raising on failure.
+
+        Unlike ``run()``, this method does **not** catch exceptions — they
+        propagate to the caller, preserving full stack-trace information.
+
+        Args:
+            parameters: Input parameters for the tool.
+
+        Returns:
+            The tool execution result.
+
+        Raises:
+            Exception: Any exception raised during validation or execution.
+
+        Note:
+            Result size truncation (via ``max_result_size``) is only applied
+            when tools are executed through
+            ``ToolRegistry.execute_tool_calls()``. Direct calls return raw
+            results without truncation.
+        """
+        if not self._has_native_thought_param():
+            parameters = {k: v for k, v in parameters.items() if k != "thought"}
+        validated_params = self._validate_parameters(parameters)
+        return self.callable(**validated_params)
+
     def run(self, parameters: dict[str, Any]) -> Any:
         """Execute tool synchronously.
 
@@ -488,14 +514,58 @@ class Tool(BaseModel):
             when tools are executed through
             ``ToolRegistry.execute_tool_calls()``. Direct calls to ``run()``
             return raw results without truncation.
+
+        .. deprecated::
+            When an exception is caught, ``run()`` returns an error string.
+            This behaviour is deprecated — use ``run_raw()`` to get
+            exceptions directly. In a future version ``run()`` will raise.
         """
         try:
-            if not self._has_native_thought_param():
-                parameters = {k: v for k, v in parameters.items() if k != "thought"}
-            validated_params = self._validate_parameters(parameters)
-            return self.callable(**validated_params)
+            return self.run_raw(parameters)
         except Exception as e:
+            warnings.warn(
+                "Tool.run() caught an exception and returned an error string. "
+                "This behavior is deprecated; use Tool.run_raw() for exceptions. "
+                "In a future version, run() will also raise.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
             return f"Error executing {self.name}: {str(e)}"
+
+    async def arun_raw(self, parameters: dict[str, Any]) -> Any:
+        """Execute tool asynchronously, raising on failure.
+
+        Unlike ``arun()``, this method does **not** catch exceptions — they
+        propagate to the caller, preserving full stack-trace information.
+
+        Args:
+            parameters: Input parameters for the tool.
+
+        Returns:
+            The tool execution result.
+
+        Raises:
+            NotImplementedError: If async execution is unsupported.
+            Exception: Any exception raised during validation or execution.
+
+        Note:
+            Result size truncation (via ``max_result_size``) is only applied
+            when tools are executed through
+            ``ToolRegistry.execute_tool_calls()``. Direct calls return raw
+            results without truncation.
+        """
+        if not self._has_native_thought_param():
+            parameters = {k: v for k, v in parameters.items() if k != "thought"}
+        validated_params = self._validate_parameters(parameters)
+
+        if inspect.iscoroutinefunction(self.callable):
+            return await self.callable(**validated_params)
+        elif hasattr(self.callable, "__call__"):
+            return await self.callable(**validated_params)
+        raise NotImplementedError(
+            "Async execution requires either an async function (coroutine) "
+            "or a callable whose __call__ method is async or returns an awaitable object."
+        )
 
     async def arun(self, parameters: dict[str, Any]) -> Any:
         """Execute tool asynchronously.
@@ -515,21 +585,22 @@ class Tool(BaseModel):
             when tools are executed through
             ``ToolRegistry.execute_tool_calls()``. Direct calls to ``arun()``
             return raw results without truncation.
+
+        .. deprecated::
+            When an exception is caught, ``arun()`` returns an error string.
+            This behaviour is deprecated — use ``arun_raw()`` to get
+            exceptions directly. In a future version ``arun()`` will raise.
         """
         try:
-            if not self._has_native_thought_param():
-                parameters = {k: v for k, v in parameters.items() if k != "thought"}
-            validated_params = self._validate_parameters(parameters)
-
-            if inspect.iscoroutinefunction(self.callable):
-                return await self.callable(**validated_params)
-            elif hasattr(self.callable, "__call__"):
-                return await self.callable(**validated_params)
-            raise NotImplementedError(
-                "Async execution requires either an async function (coroutine) "
-                "or a callable whose __call__ method is async or returns an awaitable object."
-            )
+            return await self.arun_raw(parameters)
         except Exception as e:
+            warnings.warn(
+                "Tool.arun() caught an exception and returned an error string. "
+                "This behavior is deprecated; use Tool.arun_raw() for exceptions. "
+                "In a future version, arun() will also raise.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
             return f"Error executing {self.name}: {str(e)}"
 
     def update_namespace(

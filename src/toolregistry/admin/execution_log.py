@@ -18,6 +18,7 @@ class ExecutionStatus(str, Enum):
 
     SUCCESS = "success"
     ERROR = "error"
+    TIMEOUT = "timeout"
     DISABLED = "disabled"
 
 
@@ -32,11 +33,13 @@ class ExecutionLogEntry:
         id: Unique identifier (UUID) for this log entry.
         tool_name: Name of the executed tool.
         timestamp: When the execution occurred.
-        status: Execution status (success, error, or disabled).
+        status: Execution status (success, error, timeout, or disabled).
         duration_ms: Execution duration in milliseconds.
         arguments: Input arguments passed to the tool.
         result: Execution result (only for successful executions).
         error: Error message (only for failed executions).
+        exception_type: Qualified name of the exception class (e.g. "ValueError").
+        traceback: Formatted traceback string from the exception.
         metadata: Additional metadata about the execution.
     """
 
@@ -48,6 +51,8 @@ class ExecutionLogEntry:
     arguments: dict[str, Any]
     result: Any = None
     error: str | None = None
+    exception_type: str | None = None
+    traceback: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -59,6 +64,8 @@ class ExecutionLogEntry:
         arguments: dict[str, Any],
         result: Any = None,
         error: str | None = None,
+        exception_type: str | None = None,
+        traceback: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> "ExecutionLogEntry":
         """Create a new ExecutionLogEntry with auto-generated id and timestamp.
@@ -70,6 +77,8 @@ class ExecutionLogEntry:
             arguments: Input arguments passed to the tool.
             result: Execution result (for successful executions).
             error: Error message (for failed executions).
+            exception_type: Qualified name of the exception class.
+            traceback: Formatted traceback string.
             metadata: Additional metadata.
 
         Returns:
@@ -84,6 +93,8 @@ class ExecutionLogEntry:
             arguments=arguments,
             result=result,
             error=error,
+            exception_type=exception_type,
+            traceback=traceback,
             metadata=metadata or {},
         )
 
