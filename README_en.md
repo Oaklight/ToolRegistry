@@ -7,79 +7,40 @@
 
 [English Version](README_en.md) | [中文版](README_zh.md)
 
-A Python library for managing and executing tools in a structured way.
+A protocol-agnostic tool management library for function-calling LLMs.
 
-## Full Documentation
+**[Documentation](https://toolregistry.readthedocs.io)** · **[arXiv Paper](https://arxiv.org/abs/2507.10593)**
 
-Full documentation is available at [https://toolregistry.readthedocs.io](https://toolregistry.readthedocs.io)
+## Ecosystem
 
-## 📦 Related Package: [toolregistry-hub](https://github.com/Oaklight/toolregistry-hub/)
+| Package | Description | PyPI | Docs |
+|---------|-------------|------|------|
+| **toolregistry** | Core library — tool registration, schema generation, execution | [![PyPI](https://img.shields.io/pypi/v/toolregistry?color=green)](https://pypi.org/project/toolregistry/) | [Docs](https://toolregistry.readthedocs.io/) |
+| **toolregistry-server** | Server adapters — expose tools via OpenAPI & MCP | [![PyPI](https://img.shields.io/pypi/v/toolregistry-server?color=green)](https://pypi.org/project/toolregistry-server/) | [Docs](https://toolregistry-server.readthedocs.io/) |
+| **toolregistry-hub** | Ready-to-use tools — calculator, web search, file ops, etc. | [![PyPI](https://img.shields.io/pypi/v/toolregistry-hub?color=green)](https://pypi.org/project/toolregistry-hub/) | [Docs](https://toolregistry-hub.readthedocs.io/) |
 
-> **Important Notice**: As of version 0.4.14, the hub tools have been spun off into a separate package [`toolregistry-hub`](https://pypi.org/project/toolregistry-hub/). This standalone package provides a collection of ready-to-use tools for LLM function calling and can be used independently or alongside ToolRegistry. This spinoff enables separate development, distribution, and versioning of the hub tools, making it easier to maintain and update them without affecting the core ToolRegistry functionality.
+```mermaid
+graph LR
+    Hub["toolregistry-hub<br/><i>Ready-to-use tool implementations</i>"]
+    Server["toolregistry-server<br/><i>OpenAPI & MCP protocol adapters</i>"]
+    Core["toolregistry<br/><i>Tool registration, schema generation, execution</i>"]
 
-- **Install**: [`pip install toolregistry-hub`](https://pypi.org/project/toolregistry-hub/)
-- **PyPI**: [toolregistry-hub on PyPI](https://pypi.org/project/toolregistry-hub/)
-- **GitHub**: [toolregistry-hub on GitHub](https://github.com/Oaklight/toolregistry-hub/)
+    Hub --> Server --> Core
+```
 
 ## Features
 
-- Tool registration and management
-- JSON Schema generation for tool parameters
-- Tool execution and result handling
-- Support for both synchronous and asynchronous tools
-- Support native Python functions and class methods as tools
-- Support multiple [MCP](https://toolregistry.readthedocs.io/en/stable/usage/integrations/mcp.html) transport methods: STDIO, streamable HTTP, SSE, WebSocket, FastMCP instance, etc.
-- Support [OpenAPI]https://toolregistry.readthedocs.io/en/stable/usage/integrations/openapi.html) tools
+- **Protocol-agnostic** — register tools from native Python functions/classes, MCP servers, OpenAPI specs, or LangChain tools through a unified interface
+- **Multi-provider schemas** — generate tool schemas for OpenAI, Anthropic, and Gemini via [llm-rosetta](https://github.com/Oaklight/llm-rosetta)
+- **Concurrent execution** — thread and process pool backends with per-tool timeout and concurrency control
+- **Permission system** — tag-based policies (`READ_ONLY`, `DESTRUCTIVE`, `NETWORK`, etc.) with allow/deny/ask rules
+- **Tool metadata & tags** — classify tools with `ToolTag`, `ToolMetadata`, namespace support, and source tracking
+- **Admin panel** — built-in Web UI for monitoring tools, permissions, and runtime config (i18n: EN/ZH)
+- **Think-augmented calling** — inject chain-of-thought reasoning into tool calls ([arXiv:2601.18282](https://arxiv.org/abs/2601.18282))
+- **Declarative config** — load tool sources from JSONC/YAML config files
+- **Zero-dependency core** — HTTP client, YAML parser, JSON Schema resolver all vendored; only `pydantic` and `llm-rosetta` as runtime deps
 
-## Installation
-
-### Basic Installation
-
-Install the core package (requires **Python >= 3.10**):
-
-```bash
-pip install toolregistry
-```
-
-### Installing with Extra Support Modules
-
-Extra modules can be installed by specifying extras in brackets. For example, to install specific extra supports:
-
-```bash
-pip install toolregistry[mcp,openapi]
-```
-
-Below is a table summarizing available extra modules:
-
-| Extra Module | Example Command                     |
-| ------------ | ----------------------------------- |
-| mcp          | pip install toolregistry[mcp]       |
-| openapi      | pip install toolregistry[openapi]   |
-| langchain    | pip install toolregistry[langchain] |
-
-### Hub Tools Installation
-
-The hub tools are available as a separate package `toolregistry-hub`:
-
-```bash
-pip install toolregistry-hub
-```
-
-This allows you to use hub tools independently or alongside ToolRegistry.
-
-## Examples
-
-### OpenAI Implementation
-
-The [openai_tool_usage_example.py](examples/openai_tool_usage_example.py) shows how to integrate ToolRegistry with OpenAI's API.
-
-### Cicada Implementation
-
-The [cicada_tool_usage_example.py](examples/cicada_tool_usage_example.py) demonstrates how to use ToolRegistry with the Cicada MultiModalModel.
-
-## Basic Tool Invocation
-
-This section demonstrates how to invoke a basic tool. Example:
+## Quick Start
 
 ```python
 from toolregistry import ToolRegistry
@@ -91,168 +52,25 @@ def add(a: float, b: float) -> float:
     """Add two numbers together."""
     return a + b
 
-available_tools = registry.list_tools()
-
-print(available_tools) # ['add']
-
-add_func = registry.get_callable('add')
-print(type(add_func)) # <class 'function'>
-add_result = add_func(1, 2)
-print(add_result) # 3
-
-add_func = registry['add']
-print(type(add_func)) # <class 'function'>
-add_result = add_func(4, 5)
-print(add_result) # 9
+# Use with any LLM provider
+schemas = registry.get_schemas(api_format="openai-chat")  # or "anthropic", "gemini"
+result = registry["add"](1, 2)  # 3.0
 ```
 
-For more usage examples, please refer to [Documentation - Usage](https://toolregistry.readthedocs.io/en/stable/usage/basics.html)
+See the [Usage Guide](https://toolregistry.readthedocs.io/en/stable/usage/basics.html) for MCP, OpenAPI, LangChain integrations and more.
 
-## MCP Integration
+## Installation
 
-The ToolRegistry provides first-class support for MCP (Model Context Protocol) tools with multiple transport options:
+Requires **Python >= 3.10**.
 
-```python
-# transport can be a URL string, script path, transport instance, or MCP instance.
-transport = "https://mcphub.url/mcp"  # Streamable HTTP MCP
-transport = "http://localhost:8000/sse/test_group"  # Legacy HTTP+SSE
-transport = "examples/mcp_related/mcp_servers/math_server.py"  # Local path
-transport = {
-    "mcpServers": {
-        "make_mcp": {
-            "command": f"{Path.home()}/mambaforge/envs/toolregistry_dev/bin/python",
-            "args": [
-                f"{Path.home()}/projects/toolregistry/examples/mcp_related/mcp_servers/math_server.py"
-            ],
-            "env": {},
-        }
-    }
-}  # MCP configuration dictionary example
-transport = FastMCP(name="MyFastMCP")  # FastMCP instance
-transport = StreamableHttpTransport(url="https://mcphub.example.com/mcp", headers={"Authorization": "Bearer token"})  # Transport instance with custom headers
-
-registry.register_from_mcp(transport)
-
-# Get all tools' JSON, including MCP tools
-tools_json = registry.get_schemas()
+```bash
+pip install toolregistry                   # core
+pip install toolregistry[mcp]              # + MCP support
+pip install toolregistry[langchain]        # + LangChain support
+pip install toolregistry-hub               # ready-to-use tools (separate package)
 ```
-
-## OpenAPI Integration
-
-The `register_from_openapi` method now accepts two parameters:
-
-- `client_config`: a `toolregistry.integrations.openapi.HttpxClientConfig` object that configures the HTTP client used to interact with the API. You can configure the headers, authorization, timeout, and other settings. Allowing greater flexibility than the previous version.
-- `openapi_spec`: The OpenAPI specification as `Dict[str, Any]`, loaded with a function like `load_openapi_spec` or `load_openapi_spec_async`. These functions accept a file path or a URL to the OpenAPI specification or a URL to the base api and return the parsed OpenAPI specification as a dictionary.
-
-Example:
-
-```python
-from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec
-
-client_config = HttpxClientConfig(base_url="http://localhost:8000")
-openapi_spec = load_openapi_spec("./openapi_spec.json")
-openapi_spec = load_openapi_spec("http://localhost:8000")
-openapi_spec = load_openapi_spec("http://localhost:8000/openapi.json")
-
-registry.register_from_openapi(
-    client_config=client_config,
-    openapi_spec=openapi_spec
-)
-
-# Get all tools' JSON, including OpenAPI tools
-tools_json = registry.get_schemas()
-```
-
-### Note
-
-When using the functions `load_openapi_spec` or `load_openapi_spec_async`, the following behaviors apply:
-
-1. **Base URL provided**: If you specify only a base URL (e.g., `http://localhost:8000`), the loader will attempt "best effort" auto-discovery to locate the OpenAPI specification file. It checks endpoints such as `http://<base_url>/openapi.json` or `http://<base_url>/swagger.json`. If auto-discovery fails, ensure the base URL is accurate and the specification is accessible.
-
-2. **File path provided**: If you provide a file path (e.g., `./openapi_spec.json`), the function will load the OpenAPI specification directly from the file. Unlike simple direct load, the functionality includes unwinding `$ref` blocks commonly found in OpenAPI specifications. This ensures that any schema references are fully resolved within the returned dictionary.
-
-## LangChain Integration
-
-The LangChain integration module allows ToolRegistry to register and invoke LangChain tools seamlessly, supporting both synchronous and asynchronous calls.
-
-```python
-from langchain_community.tools import ArxivQueryRun, PubmedQueryRun
-from toolregistry import ToolRegistry
-
-registry = ToolRegistry()
-
-registry.register_from_langchain([ArxivQueryRun(), PubmedQueryRun()])
-tools_json = registry.get_schemas()
-```
-
-## Registering Class Tools
-
-Class tools are registered to ToolRegistry using the `register_from_class` method. This allows developers to extend the functionality of ToolRegistry by creating custom tool classes with reusable methods.
-
-Example:
-
-```python
-from toolregistry import ToolRegistry
-
-class StaticExample:
-    @staticmethod
-    def greet(name: str) -> str:
-        return f"Hello, {name}!"
-
-class InstanceExample:
-    def __init__(self, name: str):
-        self.name = name
-
-    def greet(self, name: str) -> str:
-        return f"Hello, {name}! I'm {self.name}."
-
-registry = ToolRegistry()
-registry.register_from_class(StaticExample, namespace=True)
-print(registry.list_tools())  # ['static_example.greet']
-print(registry["static_example.greet"]("Alice"))  # Hello, Alice!
-
-registry = ToolRegistry()
-registry.register_from_class(InstanceExample("Bob"), namespace=True)
-print(registry.list_tools())  # ['instance_example.greet']
-print(registry["instance_example.greet"]("Alice"))  # Hello, Alice! I'm Bob.
-```
-
-### Hub Tools
-
-[Available Tools](src/toolregistry/hub/)
-
-Hub tools encapsulate commonly used functionalities as methods in classes. Examples of available hub tools include:
-
-- **Calculator**: Basic arithmetic, scientific operations, statistical functions, financial calculations, and more.
-- **DateTime**: Comprehensive datetime utilities with timezone support, including current time retrieval and timezone conversions.
-- **FileOps**: File manipulation like diff generation, patching, verification, merging, and splitting.
-- **Filesystem**: Comprehensive file system operations such as directory listing, file read/write, path normalization, and querying file attributes.
-- **ThinkTool**: Simple reasoning and brainstorming utility for structured thought processes.
-- **UnitConverter**: Extensive unit conversions such as temperature, length, weight, volume, etc.
-- **WebSearch**: Web search functionality supporting multiple engines like Bing, Google and SearXNG, etc.
-- **Fetch**: Fetching content from URL.
-
-To register hub tools:
-
-```python
-from toolregistry import ToolRegistry
-from toolregistry.hub import Calculator
-
-registry = ToolRegistry()
-registry.register_from_class(Calculator, namespace=True)
-
-# Get available tools list
-print(registry.list_tools())
-# ['calculator-list_allowed_fns', 'calculator-help', 'calculator-evaluate']
-```
-
-### Community Contribution
-
-We welcome community contributions of new tool classes to ToolRegistry! If you have designs or implementations for other commonly used tools, feel free to submit them through a Pull Request on the [GitHub Repository](https://github.com/yourrepository/toolregistry). Your contributions will help expand the diversity and usability of the tools.
 
 ## Citation
-
-If you use ToolRegistry in your research or project, please consider cite it as:
 
 ```bibtex
 @software{toolregistry2025,
@@ -273,4 +91,4 @@ If you use ToolRegistry in your research or project, please consider cite it as:
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT — see [LICENSE](LICENSE) for details.

@@ -7,79 +7,40 @@
 
 [English Version](README_en.md) | [中文版](README_zh.md)
 
-一个用于以结构化方式管理和执行工具的 Python 库。
+一个协议无关的工具管理库，面向支持函数调用的大语言模型。
 
-## 完整文档
+**[文档](https://toolregistry.readthedocs.io)** · **[arXiv 论文](https://arxiv.org/abs/2507.10593)**
 
-完整文档可访问 [https://toolregistry.readthedocs.io](https://toolregistry.readthedocs.io)
+## 生态系统
 
-## 📦 相关包：[toolregistry-hub](https://github.com/Oaklight/toolregistry-hub/)
+| 包 | 描述 | PyPI | 文档 |
+|---|------|------|------|
+| **toolregistry** | 核心库 — 工具注册、Schema 生成、执行 | [![PyPI](https://img.shields.io/pypi/v/toolregistry?color=green)](https://pypi.org/project/toolregistry/) | [文档](https://toolregistry.readthedocs.io/) |
+| **toolregistry-server** | 服务端适配器 — 通过 OpenAPI 和 MCP 暴露工具 | [![PyPI](https://img.shields.io/pypi/v/toolregistry-server?color=green)](https://pypi.org/project/toolregistry-server/) | [文档](https://toolregistry-server.readthedocs.io/) |
+| **toolregistry-hub** | 即用工具集 — 计算器、网页搜索、文件操作等 | [![PyPI](https://img.shields.io/pypi/v/toolregistry-hub?color=green)](https://pypi.org/project/toolregistry-hub/) | [文档](https://toolregistry-hub.readthedocs.io/) |
 
-> **重要通知**：从版本 0.4.14 开始，hub 工具已分离为独立包 [`toolregistry-hub`](https://pypi.org/project/toolregistry-hub/)。这个独立包提供了一个即用型工具集合，专为 LLM 函数调用设计，可以独立使用或与 ToolRegistry 一起使用。这种分离使得 hub 工具能够独立开发、分发和版本控制，更容易维护和更新，而不会影响核心 ToolRegistry 功能。
+```mermaid
+graph LR
+    Hub["toolregistry-hub<br/><i>即用工具实现</i>"]
+    Server["toolregistry-server<br/><i>OpenAPI 和 MCP 协议适配器</i>"]
+    Core["toolregistry<br/><i>工具注册、Schema 生成、执行</i>"]
 
-- **安装**：[`pip install toolregistry-hub`](https://pypi.org/project/toolregistry-hub/)
-- **PyPI**: [toolregistry-hub on PyPI](https://pypi.org/project/toolregistry-hub/)
-- **GitHub**: [toolregistry-hub on GitHub](https://github.com/Oaklight/toolregistry-hub/)
+    Hub --> Server --> Core
+```
 
 ## 特性
 
-- 工具注册与管理
-- 工具参数的 JSON Schema 生成
-- 工具执行与结果处理
-- 支持同步和异步工具
-- 支持 Python 原生函数和类方法作为工具
-- 支持多种 [MCP](https://toolregistry.readthedocs.io/en/stable/usage/integrations/mcp.html) 传输方式: STDIO, streamable http, sse, websocket, FastMCP 实例等
-- 支持 [OpenAPI]https://toolregistry.readthedocs.io/en/stable/usage/integrations/openapi.html) 工具
+- **协议无关** — 通过统一接口注册原生 Python 函数/类、MCP 服务器、OpenAPI 规范或 LangChain 工具
+- **多 Provider Schema** — 通过 [llm-rosetta](https://github.com/Oaklight/llm-rosetta) 生成 OpenAI、Anthropic、Gemini 格式的工具 Schema
+- **并发执行** — 线程和进程池后端，支持按工具设置超时和并发控制
+- **权限系统** — 基于标签的策略（`READ_ONLY`、`DESTRUCTIVE`、`NETWORK` 等），支持允许/拒绝/询问规则
+- **工具元数据与标签** — 通过 `ToolTag`、`ToolMetadata`、命名空间和来源追踪对工具进行分类
+- **管理面板** — 内置 Web UI，监控工具、权限和运行时配置（国际化：中/英）
+- **思维增强调用** — 在工具调用中注入思维链推理（[arXiv:2601.18282](https://arxiv.org/abs/2601.18282)）
+- **声明式配置** — 从 JSONC/YAML 配置文件加载工具源
+- **零依赖核心** — HTTP 客户端、YAML 解析器、JSON Schema 解析器全部内置；仅 `pydantic` 和 `llm-rosetta` 作为运行时依赖
 
-## 安装
-
-### 基本安装
-
-安装核心包（需要 **Python >= 3.10**）：
-
-```bash
-pip install toolregistry
-```
-
-### 安装额外支持模块
-
-通过在括号中指定额外模块来安装。例如，要安装特定的额外支持：
-
-```bash
-pip install toolregistry[mcp,openapi]
-```
-
-以下是可用额外模块的总结表：
-
-| 额外模块  | 示例命令                            |
-| --------- | ----------------------------------- |
-| mcp       | pip install toolregistry[mcp]       |
-| openapi   | pip install toolregistry[openapi]   |
-| langchain | pip install toolregistry[langchain] |
-
-### Hub 工具安装
-
-Hub 工具作为独立包 `toolregistry-hub` 提供：
-
-```bash
-pip install toolregistry-hub
-```
-
-这允许您独立使用 hub 工具或与 ToolRegistry 一起使用。
-
-## 示例
-
-### OpenAI 实现
-
-[openai_tool_usage_example.py](examples/openai_tool_usage_example.py) 展示了如何将 ToolRegistry 与 OpenAI 的 API 集成。
-
-### Cicada 实现
-
-[cicada_tool_usage_example.py](examples/cicada_tool_usage_example.py) 演示了如何将 ToolRegistry 与 Cicada 多模态模型结合使用。
-
-## 基本工具调用
-
-本节展示了如何调用基本工具。示例：
+## 快速开始
 
 ```python
 from toolregistry import ToolRegistry
@@ -91,170 +52,25 @@ def add(a: float, b: float) -> float:
     """将两个数字相加。"""
     return a + b
 
-available_tools = registry.list_tools()
-
-print(available_tools) # ['add']
-
-add_func = registry.get_callable('add')
-print(type(add_func)) # <class 'function'>
-add_result = add_func(1, 2)
-print(add_result) # 3
-
-add_func = registry['add']
-print(type(add_func)) # <class 'function'>
-add_result = add_func(4, 5)
-print(add_result) # 9
+# 适配任意 LLM Provider
+schemas = registry.get_schemas(api_format="openai-chat")  # 或 "anthropic"、"gemini"
+result = registry["add"](1, 2)  # 3.0
 ```
 
-更多使用示例，请参考 [文档 - 使用](https://toolregistry.readthedocs.io/en/stable/usage/basics.html)
+更多用法请参阅[使用指南](https://toolregistry.readthedocs.io/en/stable/usage/basics.html)，涵盖 MCP、OpenAPI、LangChain 集成等。
 
-## MCP 集成
+## 安装
 
-ToolRegistry 提供对 MCP（模型上下文协议）工具的一流支持：
+需要 **Python >= 3.10**。
 
-```python
-# transport 可以是 URL 字符串、脚本路径、transport 实例或 MCP 实例。
-transport = "https://mcphub.url/mcp"  # 使用 HTTP Streamable MCP
-transport = "http://localhost:8000/sse/test_group"  # 使用 legacy HTTP+sse
-transport = "examples/mcp_related/mcp_servers/math_server.py"  # 本地路径
-transport = {
-    "mcpServers": {
-        "make_mcp": {
-            "command": f"{Path.home()}/mambaforge/envs/toolregistry_dev/bin/python",
-            "args": [
-                f"{Path.home()}/projects/toolregistry/examples/mcp_related/mcp_servers/math_server.py"
-            ],
-            "env": {},
-        }
-    }
-} # 示例 MCP 配置字典
-transport = FastMCP(name="MyFastMCP")  # 使用 FastMCP 实例
-transport = StreamableHttpTransport(url="https://mcphub.example.com/mcp", headers={"Authorization": "Bearer token"})  # 使用自定义头的 transport 实例
-
-registry.register_from_mcp(transport)
-
-# 获取所有工具的 JSON，包括 MCP 工具
-tools_json = registry.get_schemas()
+```bash
+pip install toolregistry                   # 核心
+pip install toolregistry[mcp]              # + MCP 支持
+pip install toolregistry[langchain]        # + LangChain 支持
+pip install toolregistry-hub               # 即用工具集（独立包）
 ```
-
-## OpenAPI 集成
-
-`register_from_openapi`方法现在接受两个参数：
-
-- `client_config`：一个`toolregistry.integrations.openapi.HttpxClientConfig`对象，用于配置与 API 交互的 HTTP 客户端。可以配置请求头、认证、超时等设置，提供比以前版本更大的灵活性。
-- `openapi_spec`：以`Dict[str, Any]`形式表示的 OpenAPI 规范，使用`load_openapi_spec`或`load_openapi_spec_async`等函数加载。这些函数支持通过文件路径或 URL 获取 OpenAPI 规范，或者通过 API 的基础 URL 获取，并返回解析后的 OpenAPI 规范字典。
-
-示例：
-
-```python
-from toolregistry.integrations.openapi import HttpxClientConfig, load_openapi_spec
-
-client_config = HttpxClientConfig(base_url="http://localhost:8000")
-openapi_spec = load_openapi_spec("./openapi_spec.json")
-openapi_spec = load_openapi_spec("http://localhost:8000")
-openapi_spec = load_openapi_spec("http://localhost:8000/openapi.json")
-
-registry.register_from_openapi(
-    client_config=client_config,
-    openapi_spec=openapi_spec
-)
-
-# 获取所有工具的JSON，包括OpenAPI工具
-tools_json = registry.get_schemas()
-```
-
-### 注意
-
-在使用 `load_openapi_spec` 或 `load_openapi_spec_async` 函数时，具有以下行为：
-
-1. **提供基础 URL**：如果仅指定基础 URL（例如 `http://localhost:8000`），加载器将尝试“尽力而为”自动发现 OpenAPI 规范文件。会检查诸如 `http://<base_url>/openapi.json` 或 `http://<base_url>/swagger.json` 的端点。如果自动发现失败，请确保基础 URL 是准确的并且规范文件可以访问。
-
-2. **提供文件路径**：如果您提供文件路径（例如 `./openapi_spec.json`），函数将直接从文件中加载 OpenAPI 规范。与简单的直接加载不同，此功能还包括解析 OpenAPI 规范中常见的 `$ref` 块。这确保返回的字典中任何模式引用都被完全解析。
-
-## LangChain 集成
-
-LangChain 集成模块允许 ToolRegistry 无缝注册和调用 LangChain 工具，支持同步和异步调用。
-
-```python
-from langchain_community.tools import ArxivQueryRun, PubmedQueryRun
-from toolregistry import ToolRegistry
-
-registry = ToolRegistry()
-
-registry.register_from_langchain([ArxivQueryRun(), PubmedQueryRun()])
-tools_json = registry.get_schemas()
-```
-
-## 注册 Class 工具
-
-Class 工具通过 `register_from_class` 方法注册到 ToolRegistry。这允许开发人员通过创建具有可重用方法的自定义工具类来扩展 ToolRegistry 的功能。
-
-示例：
-
-```python
-from toolregistry import ToolRegistry
-
-class StaticExample:
-    @staticmethod
-    def greet(name: str) -> str:
-        return f"你好，{name}！"
-
-class InstanceExample:
-    def __init__(self, name: str):
-        self.name = name
-
-    def greet(self, name: str) -> str:
-        return f"你好，{name}！我是 {self.name}。"
-
-registry = ToolRegistry()
-registry.register_from_class(StaticExample, namespace=True)
-print(registry.list_tools())  # ['static_example.greet']
-print(registry["static_example.greet"]("Alice"))  # 你好，Alice！
-
-registry = ToolRegistry()
-registry.register_from_class(InstanceExample("Bob"), namespace=True)
-print(registry.list_tools())  # ['instance_example.greet']
-print(registry["instance_example.greet"]("Alice"))  # 你好，Alice！我是 Bob。
-```
-
-### Hub 工具
-
-[最新可用工具](src/toolregistry/hub/)
-
-Hub 工具将常用功能封装为类中的方法，以增强功能性和组织性。
-
-可用的 Hub 工具示例包括：
-
-- **Calculator**：基本算术、科学运算、统计函数、金融计算等。
-- **DateTime**：全面的日期时间工具，支持时区功能，包括当前时间获取和时区转换。
-- **FileOps**：文件操作如差异生成、补丁、验证、合并和拆分。
-- **Filesystem**：全面的文件系统操作，如目录列表、文件读写、路径规范化和查询文件属性。
-- **ThinkTool**：简单的推理和头脑风暴工具，用于结构化思维过程。
-- **UnitConverter**：广泛的单位转换，如温度、长度、重量、体积等。
-- **WebSearch**：网页搜索功能，支持多种引擎，如 Bing、Google 和 SearXNG 等。
-- **Fetch**：从 URL 获取内容。
-
-注册 Hub 工具：
-
-```python
-from toolregistry import ToolRegistry
-from toolregistry.hub import Calculator
-
-registry = ToolRegistry()
-registry.register_from_class(Calculator, namespace=True)
-
-# 获取可用工具列表
-print(registry.list_tools())
-# ['calculator-list_allowed_fns', 'calculator-help', 'calculator-evaluate']
-```
-
-### 社区贡献
-
-我们欢迎社区贡献新的工具类到 ToolRegistry！如果您有其他常用工具类的设计或实现，欢迎通过 Pull Request 提交到 [GitHub 仓库](https://github.com/yourrepository/toolregistry)。您的贡献将帮助拓展工具的多样性和适用性。
 
 ## 引用
-
-如果您在研究或项目中使用了 ToolRegistry，请引用：
 
 ```bibtex
 @software{toolregistry2025,
@@ -275,4 +91,4 @@ print(registry.list_tools())
 
 ## 许可证
 
-此项目根据 MIT 许可证授权 - 详情请参阅 [LICENSE](LICENSE) 文件。
+MIT — 详情请参阅 [LICENSE](LICENSE)。
