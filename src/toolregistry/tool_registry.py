@@ -871,6 +871,10 @@ class ToolRegistry(
                 - tags (list[str]): Sorted union of predefined and custom tags
                 - locality (str): ``"local"``, ``"remote"``, or ``"any"``
                 - is_async (bool): Whether the tool requires async execution
+                - source (str): Origin of the tool (e.g. ``"native"``,
+                  ``"mcp"``, ``"openapi"``, ``"langchain"``)
+                - source_detail (str): Extra detail about the tool's origin
+                  (e.g. transport URI, spec URL, class name)
                 - think_augment (bool | None): Think-augmented calling setting
                 - defer (bool): Whether the tool is deferred from initial prompt
                 - has_native_thought (bool): Whether the function natively
@@ -910,6 +914,8 @@ class ToolRegistry(
                     "tags": sorted(meta.all_tags),
                     "locality": meta.locality,
                     "is_async": meta.is_async,
+                    "source": meta.source,
+                    "source_detail": meta.source_detail,
                     "think_augment": meta.think_augment,
                     "defer": meta.defer,
                     "has_native_thought": tool._has_native_thought_param(),

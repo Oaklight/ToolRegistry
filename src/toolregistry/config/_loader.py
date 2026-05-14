@@ -16,7 +16,7 @@ from ._types import (
     ToolSource,
 )
 
-__all__ = ["load_config"]
+__all__ = ["load_config", "save_config"]
 
 _TRANSPORT_ALIASES: dict[str, str] = {
     "http": "streamable-http",
@@ -45,6 +45,37 @@ def load_config(path: str | Path) -> ToolConfig:
     fmt = _detect_format(p)
     data = _parse_file(p, fmt)
     return _build_config(data, source=str(p))
+
+
+def save_config(config: ToolConfig, path: str | Path) -> None:
+    """Serialize a ``ToolConfig`` and write it to a file.
+
+    The output format is auto-detected from the file extension:
+    ``.json`` / ``.jsonc`` produce JSON, ``.yaml`` / ``.yml`` produce
+    YAML.  Uses the vendored serializers so no external dependencies
+    are required.
+
+    Args:
+        config: The configuration to serialize.
+        path: Destination file path.
+
+    Raises:
+        ConfigError: If the file extension is unsupported.
+    """
+    import json
+
+    p = Path(path)
+    fmt = _detect_format(p)
+    data = config.to_dict()
+
+    if fmt == "jsonc":
+        text = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+    else:
+        from .._vendor.yaml import dump as yaml_dump
+
+        text = yaml_dump(data)
+
+    p.write_text(text, encoding="utf-8")
 
 
 # --- format detection -------------------------------------------------------

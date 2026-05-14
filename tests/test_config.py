@@ -7,12 +7,14 @@ from pathlib import Path
 import pytest
 
 from toolregistry.config import (
+    AuthConfig,
     ConfigError,
     MCPSource,
     OpenAPISource,
     PythonSource,
     ToolConfig,
     load_config,
+    save_config,
 )
 
 
@@ -798,3 +800,234 @@ tools:
         assert isinstance(s4, MCPSource)
         assert s4.transport == "streamable-http"
         assert s4.url == "http://localhost:8080/mcp"
+
+
+# ---------------------------------------------------------------------------
+# Serialization — to_dict() and save_config()
+# ---------------------------------------------------------------------------
+
+
+class TestToDict:
+    """Tests for to_dict() methods on config dataclasses."""
+
+    def test_python_source_class_path(self) -> None:
+        """PythonSource with class_path maps to 'class' key."""
+        src = PythonSource(class_path="pkg.module.Cls", namespace="calc")
+        d = src.to_dict()
+        assert d["type"] == "python"
+        assert d["class"] == "pkg.module.Cls"
+        assert d["namespace"] == "calc"
+        assert "module" not in d
+        assert "enabled" not in d  # default True omitted
+
+    def test_python_source_module_path(self) -> None:
+        """PythonSource with module_path maps to 'module' key."""
+        src = PythonSource(module_path="pkg.tools", enabled=False)
+        d = src.to_dict()
+        assert d["type"] == "python"
+        assert d["module"] == "pkg.tools"
+        assert d["enabled"] is False
+        assert "class" not in d
+
+    def test_mcp_source_stdio(self) -> None:
+        """MCPSource with stdio transport serializes command."""
+        src = MCPSource(
+            transport="stdio",
+            command=("python", "-m", "srv"),
+            namespace="mcp1",
+            env={"DEBUG": "1"},
+        )
+        d = src.to_dict()
+        assert d["type"] == "mcp"
+        assert d["transport"] == "stdio"
+        assert d["command"] == ["python", "-m", "srv"]
+        assert d["env"] == {"DEBUG": "1"}
+        assert d["namespace"] == "mcp1"
+        assert "url" not in d
+        assert "persistent" not in d  # default True omitted
+
+    def test_mcp_source_sse(self) -> None:
+        """MCPSource with sse transport serializes url."""
+        src = MCPSource(
+            transport="sse",
+            url="http://localhost:8080/sse",
+            persistent=False,
+        )
+        d = src.to_dict()
+        assert d["type"] == "mcp"
+        assert d["transport"] == "sse"
+        assert d["url"] == "http://localhost:8080/sse"
+        assert d["persistent"] is False
+        assert "command" not in d
+
+    def test_openapi_source_basic(self) -> None:
+        """OpenAPISource serializes url and optional fields."""
+        src = OpenAPISource(
+            url="http://api.example.com/spec.json",
+            namespace="api1",
+            base_url="http://api.example.com",
+        )
+        d = src.to_dict()
+        assert d["type"] == "openapi"
+        assert d["url"] == "http://api.example.com/spec.json"
+        assert d["namespace"] == "api1"
+        assert d["base_url"] == "http://api.example.com"
+        assert "auth" not in d
+
+    def test_openapi_source_with_auth(self) -> None:
+        """OpenAPISource with auth config serializes auth."""
+        auth = AuthConfig(type="bearer", token_env="API_KEY")
+        src = OpenAPISource(url="http://api.example.com/spec.json", auth=auth)
+        d = src.to_dict()
+        assert "auth" in d
+        assert d["auth"]["token_env"] == "API_KEY"
+        # Token should not be in dict (security)
+        assert "token" not in d["auth"]
+
+    def test_auth_config_defaults_omitted(self) -> None:
+        """AuthConfig with all defaults produces empty dict."""
+        auth = AuthConfig()
+        d = auth.to_dict()
+        assert d == {}
+
+    def test_auth_config_custom_header(self) -> None:
+        """AuthConfig with custom header type serializes correctly."""
+        auth = AuthConfig(type="header", token_env="X_KEY", header_name="X-Api-Key")
+        d = auth.to_dict()
+        assert d["type"] == "header"
+        assert d["token_env"] == "X_KEY"
+        assert d["header_name"] == "X-Api-Key"
+
+    def test_tool_config_full(self) -> None:
+        """ToolConfig.to_dict() produces clean config dict."""
+        config = ToolConfig(
+            mode="denylist",
+            disabled=("ns1", "ns2"),
+            tools=(
+                PythonSource(class_path="a.B", namespace="calc"),
+                MCPSource(transport="stdio", command=("python", "-m", "srv")),
+            ),
+            source="/path/to/config.yaml",
+        )
+        d = config.to_dict()
+        assert d["mode"] == "denylist"
+        assert d["disabled"] == ["ns1", "ns2"]
+        assert len(d["tools"]) == 2
+        assert d["tools"][0]["type"] == "python"
+        assert d["tools"][1]["type"] == "mcp"
+        # source path should NOT be in the dict
+        assert "source" not in d
+
+    def test_tool_config_empty(self) -> None:
+        """ToolConfig with defaults produces minimal dict."""
+        config = ToolConfig()
+        d = config.to_dict()
+        assert d == {"mode": "denylist"}
+
+    def test_tool_config_allowlist(self) -> None:
+        """ToolConfig in allowlist mode includes enabled list."""
+        config = ToolConfig(mode="allowlist", enabled=("ns1",))
+        d = config.to_dict()
+        assert d["mode"] == "allowlist"
+        assert d["enabled"] == ["ns1"]
+        assert "disabled" not in d
+
+
+class TestSaveConfig:
+    """Tests for save_config() function."""
+
+    def test_save_json(self, tmp_path: Path) -> None:
+        """save_config writes valid JSON that can be reloaded."""
+        config = ToolConfig(
+            mode="denylist",
+            disabled=("ns1",),
+            tools=(PythonSource(class_path="a.B", namespace="calc"),),
+        )
+        path = tmp_path / "tools.json"
+        save_config(config, path)
+
+        loaded = load_config(path)
+        assert loaded.mode == "denylist"
+        assert loaded.disabled == ("ns1",)
+        assert len(loaded.tools) == 1
+        assert isinstance(loaded.tools[0], PythonSource)
+
+    def test_save_yaml(self, tmp_path: Path) -> None:
+        """save_config writes valid YAML that can be reloaded."""
+        config = ToolConfig(
+            mode="allowlist",
+            enabled=("calc",),
+            tools=(MCPSource(transport="sse", url="http://localhost:8080/sse"),),
+        )
+        path = tmp_path / "tools.yaml"
+        save_config(config, path)
+
+        loaded = load_config(path)
+        assert loaded.mode == "allowlist"
+        assert loaded.enabled == ("calc",)
+        assert len(loaded.tools) == 1
+        assert isinstance(loaded.tools[0], MCPSource)
+        assert loaded.tools[0].url == "http://localhost:8080/sse"
+
+    def test_save_roundtrip_complex(self, tmp_path: Path) -> None:
+        """Round-trip a complex config through save and load."""
+        original = ToolConfig(
+            mode="denylist",
+            disabled=("ns1", "ns2"),
+            tools=(
+                PythonSource(class_path="pkg.Cls", namespace="py1"),
+                PythonSource(module_path="pkg.tools", namespace="py2", enabled=False),
+                MCPSource(
+                    transport="stdio",
+                    command=("python", "-m", "srv"),
+                    namespace="mcp1",
+                    env={"KEY": "val"},
+                ),
+                MCPSource(
+                    transport="sse",
+                    url="http://localhost:8080/sse",
+                    namespace="mcp2",
+                    persistent=False,
+                ),
+                OpenAPISource(
+                    url="http://api.example.com/spec.json",
+                    namespace="api1",
+                    base_url="http://api.example.com",
+                ),
+            ),
+        )
+
+        for ext in (".json", ".yaml"):
+            path = tmp_path / f"config{ext}"
+            save_config(original, path)
+            loaded = load_config(path)
+
+            assert loaded.mode == original.mode
+            assert loaded.disabled == original.disabled
+            assert len(loaded.tools) == len(original.tools)
+
+            # Verify each tool type round-trips
+            assert isinstance(loaded.tools[0], PythonSource)
+            assert loaded.tools[0].class_path == "pkg.Cls"
+
+            assert isinstance(loaded.tools[1], PythonSource)
+            assert loaded.tools[1].module_path == "pkg.tools"
+            assert loaded.tools[1].enabled is False
+
+            assert isinstance(loaded.tools[2], MCPSource)
+            assert loaded.tools[2].transport == "stdio"
+            assert loaded.tools[2].command == ("python", "-m", "srv")
+            assert loaded.tools[2].env == {"KEY": "val"}
+
+            assert isinstance(loaded.tools[3], MCPSource)
+            assert loaded.tools[3].transport == "sse"
+            assert loaded.tools[3].persistent is False
+
+            assert isinstance(loaded.tools[4], OpenAPISource)
+            assert loaded.tools[4].base_url == "http://api.example.com"
+
+    def test_save_unsupported_extension(self, tmp_path: Path) -> None:
+        """save_config raises ConfigError for unsupported extension."""
+        config = ToolConfig()
+        with pytest.raises(ConfigError, match="Unsupported"):
+            save_config(config, tmp_path / "config.toml")

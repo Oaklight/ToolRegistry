@@ -1325,6 +1325,59 @@
         .badge-allow { background: rgba(61,139,95,0.10);  color: #3D8B5F; }
         .badge-deny  { background: rgba(196,65,65,0.10);  color: #C44141; }
         .badge-ask   { background: rgba(194,146,46,0.10); color: #C2922E; }
+        .badge-source {
+            display: inline-flex;
+            align-items: center;
+            padding: 1px 6px;
+            font-size: 0.5625rem;
+            font-weight: 600;
+            border-radius: 4px;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            margin-left: 6px;
+            vertical-align: middle;
+        }
+        .badge-source-native   { background: rgba(128,128,128,0.12); color: #888; }
+        .badge-source-mcp      { background: rgba(59,130,246,0.12);  color: #3B82F6; }
+        .badge-source-openapi  { background: rgba(34,197,94,0.12);   color: #22C55E; }
+        .badge-source-langchain { background: rgba(168,85,247,0.12);  color: #A855F7; }
+        .source-card {
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+        .source-card-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .source-detail {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            word-break: break-all;
+        }
+        .source-tools-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 8px;
+        }
+        .source-tool-chip {
+            display: inline-block;
+            padding: 2px 8px;
+            font-size: 0.6875rem;
+            background: var(--bg-primary);
+            border-radius: 4px;
+            border: 1px solid var(--border);
+        }
+        .config-section {
+            margin-top: 8px;
+        }
+        .config-section .meta-item {
+            margin-bottom: 6px;
+        }
     </style>
 </head>
 <body>
@@ -1366,6 +1419,7 @@
             <div class="tabs">
                 <button class="tab active" data-tab="tools" onclick="switchTab('tools')" data-i18n="tab.tools">Tools</button>
                 <button class="tab" data-tab="namespaces" onclick="switchTab('namespaces')" data-i18n="tab.namespaces">Namespaces</button>
+                <button class="tab" data-tab="sources" onclick="switchTab('sources')" data-i18n="tab.sources">Sources</button>
                 <button class="tab" data-tab="logs" onclick="switchTab('logs')" data-i18n="tab.logs">Logs</button>
                 <button class="tab" data-tab="state" onclick="switchTab('state')" data-i18n="tab.state">State</button>
                 <button class="tab" data-tab="permissions" onclick="switchTab('permissions')" data-i18n="tab.permissions">Permissions</button>
@@ -1425,6 +1479,13 @@
                                     <option value="remote" data-i18n="filter.remote">Remote</option>
                                     <option value="any" data-i18n="filter.any">Any</option>
                                 </select>
+                                <select class="input select" id="source-filter" onchange="filterTools()">
+                                    <option value="" data-i18n="filter.allSources">All Sources</option>
+                                    <option value="native">Native</option>
+                                    <option value="mcp">MCP</option>
+                                    <option value="openapi">OpenAPI</option>
+                                    <option value="langchain">LangChain</option>
+                                </select>
                             </div>
                             <div class="table-container">
                                 <table class="tools-table">
@@ -1462,6 +1523,7 @@
                                 <thead>
                                     <tr>
                                         <th data-i18n="col.namespace">Namespace</th>
+                                        <th data-i18n="col.source">Source</th>
                                         <th data-i18n="col.totalTools">Total Tools</th>
                                         <th data-i18n="col.enabled">Enabled</th>
                                         <th data-i18n="col.disabled">Disabled</th>
@@ -1470,10 +1532,23 @@
                                     </tr>
                                 </thead>
                                 <tbody id="namespaces-body">
-                                    <tr><td colspan="6" class="loading"><div class="spinner"></div><span data-i18n="misc.loading">Loading...</span></td></tr>
+                                    <tr><td colspan="7" class="loading"><div class="spinner"></div><span data-i18n="misc.loading">Loading...</span></td></tr>
                                 </tbody>
                             </table>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sources Tab -->
+            <div id="tab-sources" class="tab-content" style="display: none;">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title" data-i18n="tab.sources">Sources</h2>
+                        <button class="btn btn-secondary btn-sm" onclick="refreshSources()" data-i18n="btn.refresh">Refresh</button>
+                    </div>
+                    <div class="card-body" id="sources-body">
+                        <div class="loading"><div class="spinner"></div><span data-i18n="misc.loading">Loading...</span></div>
                     </div>
                 </div>
             </div>
@@ -1568,6 +1643,15 @@
                             </button>
                         </div>
                     </div>
+
+                    <div class="card" id="config-card" style="display: none;">
+                        <div class="card-header">
+                            <h2 class="card-title" data-i18n="section.configFile">Config File</h2>
+                        </div>
+                        <div class="card-body" id="config-body">
+                            <div class="loading"><div class="spinner"></div><span data-i18n="misc.loading">Loading...</span></div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1632,14 +1716,15 @@
           en: {
             'app.title':'ToolRegistry Admin Panel',
             'status.connected':'Connected', 'status.disconnected':'Disconnected',
-            'tab.tools':'Tools', 'tab.namespaces':'Namespaces', 'tab.logs':'Logs',
+            'tab.tools':'Tools', 'tab.namespaces':'Namespaces', 'tab.sources':'Sources', 'tab.logs':'Logs',
             'tab.state':'State', 'tab.permissions':'Permissions',
             'section.overview':'Overview', 'section.tools':'Tools',
             'section.execStats':'Execution Statistics', 'section.execLogs':'Execution Logs',
             'section.exportState':'Export State', 'section.importState':'Import State',
+            'section.configFile':'Config File',
             'section.permPolicy':'Permission Policy',
             'col.name':'Name', 'col.permission':'Permission', 'col.enabled':'Enabled',
-            'col.reason':'Reason', 'col.think':'Think', 'col.defer':'Defer', 'col.namespace':'Namespace', 'col.totalTools':'Total Tools',
+            'col.reason':'Reason', 'col.think':'Think', 'col.defer':'Defer', 'col.namespace':'Namespace', 'col.source':'Source', 'col.totalTools':'Total Tools',
             'col.disabled':'Disabled', 'col.tags':'Tags', 'col.actions':'Actions',
             'col.timestamp':'Timestamp', 'col.tool':'Tool', 'col.status':'Status',
             'col.duration':'Duration', 'col.ruleName':'Rule Name', 'col.result':'Result',
@@ -1648,7 +1733,7 @@
             'btn.cancel':'Cancel', 'btn.confirm':'Confirm',
             'btn.enableAll':'Enable All', 'btn.disableAll':'Disable All',
             'filter.allNamespaces':'All Namespaces', 'filter.allStatus':'All Status',
-            'filter.allTags':'All Tags', 'filter.allLocality':'All Locality',
+            'filter.allTags':'All Tags', 'filter.allLocality':'All Locality', 'filter.allSources':'All Sources',
             'filter.enabled':'Enabled', 'filter.disabled':'Disabled',
             'filter.local':'Local', 'filter.remote':'Remote', 'filter.any':'Any',
             'label.searchTools':'Search tools...', 'label.filterByTool':'Filter by tool...',
@@ -1685,6 +1770,7 @@
             'detail.status':'Status', 'detail.permission':'Permission',
             'detail.disableReason':'Disable Reason', 'detail.permReason':'Permission Reason',
             'detail.description':'Description',
+            'detail.source':'Source', 'detail.sourceDetail':'Source Detail',
             'detail.locality':'Locality', 'detail.async':'Async',
             'detail.concurrencySafe':'Concurrency Safe', 'detail.thinkAugment':'Think Augment',
             'detail.timeout':'Timeout', 'detail.maxResultSize':'Max Result Size',
@@ -1710,19 +1796,27 @@
             'misc.clickToDisableAll':'Click to disable all', 'misc.clickToEnableAll':'Click to enable all',
             'misc.thinkAugmentedAll':'Think-augmented (all)', 'misc.deferredAll':'Deferred (all)',
             'misc.nativeThought':'This tool natively declares a thought parameter',
+            'misc.none':'None',
+            'empty.sources':'No tool sources', 'empty.sourcesHint':'Sources will appear here once tools are registered.',
+            'config.mode':'Mode', 'config.filePath':'Config File', 'config.disabled':'Disabled Namespaces', 'config.enabled':'Enabled Namespaces',
+            'config.saveHint':'Write current disabled namespaces to config file',
+            'btn.saveToConfig':'Save to Config',
+            'toast.configSaved':'Config saved to file', 'toast.configSavedMemory':'Config updated (in memory only)',
+            'toast.configSaveFailed':'Failed to save config: {error}',
             'toast.detailFailed':'Failed to load tool details: {error}',
           },
           zh: {
             'app.title':'ToolRegistry \u7ba1\u7406\u9762\u677f',
             'status.connected':'\u5df2\u8fde\u63a5', 'status.disconnected':'\u5df2\u65ad\u5f00',
-            'tab.tools':'\u5de5\u5177', 'tab.namespaces':'\u547d\u540d\u7a7a\u95f4', 'tab.logs':'\u65e5\u5fd7',
+            'tab.tools':'\u5de5\u5177', 'tab.namespaces':'\u547d\u540d\u7a7a\u95f4', 'tab.sources':'\u6765\u6e90', 'tab.logs':'\u65e5\u5fd7',
             'tab.state':'\u72b6\u6001', 'tab.permissions':'\u6743\u9650',
             'section.overview':'\u6982\u89c8', 'section.tools':'\u5de5\u5177',
             'section.execStats':'\u6267\u884c\u7edf\u8ba1', 'section.execLogs':'\u6267\u884c\u65e5\u5fd7',
             'section.exportState':'\u5bfc\u51fa\u72b6\u6001', 'section.importState':'\u5bfc\u5165\u72b6\u6001',
+            'section.configFile':'\u914d\u7f6e\u6587\u4ef6',
             'section.permPolicy':'\u6743\u9650\u7b56\u7565',
             'col.name':'\u540d\u79f0', 'col.permission':'\u6743\u9650', 'col.enabled':'\u542f\u7528',
-            'col.reason':'\u539f\u56e0', 'col.think':'\u601d\u8003', 'col.defer':'\u5ef6\u8fdf', 'col.namespace':'\u547d\u540d\u7a7a\u95f4', 'col.totalTools':'\u5de5\u5177\u603b\u6570',
+            'col.reason':'\u539f\u56e0', 'col.think':'\u601d\u8003', 'col.defer':'\u5ef6\u8fdf', 'col.namespace':'\u547d\u540d\u7a7a\u95f4', 'col.source':'\u6765\u6e90', 'col.totalTools':'\u5de5\u5177\u603b\u6570',
             'col.disabled':'\u5df2\u7981\u7528', 'col.tags':'\u6807\u7b7e', 'col.actions':'\u64cd\u4f5c',
             'col.timestamp':'\u65f6\u95f4\u6233', 'col.tool':'\u5de5\u5177', 'col.status':'\u72b6\u6001',
             'col.duration':'\u8017\u65f6', 'col.ruleName':'\u89c4\u5219\u540d\u79f0', 'col.result':'\u7ed3\u679c',
@@ -1731,7 +1825,7 @@
             'btn.cancel':'\u53d6\u6d88', 'btn.confirm':'\u786e\u8ba4',
             'btn.enableAll':'\u5168\u90e8\u542f\u7528', 'btn.disableAll':'\u5168\u90e8\u7981\u7528',
             'filter.allNamespaces':'\u5168\u90e8\u547d\u540d\u7a7a\u95f4', 'filter.allStatus':'\u5168\u90e8\u72b6\u6001',
-            'filter.allTags':'\u5168\u90e8\u6807\u7b7e', 'filter.allLocality':'\u5168\u90e8\u4f4d\u7f6e',
+            'filter.allTags':'\u5168\u90e8\u6807\u7b7e', 'filter.allLocality':'\u5168\u90e8\u4f4d\u7f6e', 'filter.allSources':'\u5168\u90e8\u6765\u6e90',
             'filter.enabled':'\u5df2\u542f\u7528', 'filter.disabled':'\u5df2\u7981\u7528',
             'filter.local':'\u672c\u5730', 'filter.remote':'\u8fdc\u7a0b', 'filter.any':'\u4efb\u610f',
             'label.searchTools':'\u641c\u7d22\u5de5\u5177...', 'label.filterByTool':'\u6309\u5de5\u5177\u7b5b\u9009...',
@@ -1768,6 +1862,7 @@
             'detail.status':'\u72b6\u6001', 'detail.permission':'\u6743\u9650',
             'detail.disableReason':'\u7981\u7528\u539f\u56e0', 'detail.permReason':'\u6743\u9650\u539f\u56e0',
             'detail.description':'\u63cf\u8ff0',
+            'detail.source':'\u6765\u6e90', 'detail.sourceDetail':'\u6765\u6e90\u8be6\u60c5',
             'detail.locality':'\u4f4d\u7f6e', 'detail.async':'\u5f02\u6b65',
             'detail.concurrencySafe':'\u5e76\u53d1\u5b89\u5168', 'detail.thinkAugment':'\u601d\u8003\u589e\u5f3a',
             'detail.timeout':'\u8d85\u65f6', 'detail.maxResultSize':'\u6700\u5927\u7ed3\u679c\u5927\u5c0f',
@@ -1793,6 +1888,13 @@
             'misc.clickToDisableAll':'\u70b9\u51fb\u7981\u7528\u5168\u90e8', 'misc.clickToEnableAll':'\u70b9\u51fb\u542f\u7528\u5168\u90e8',
             'misc.thinkAugmentedAll':'\u601d\u8003\u589e\u5f3a\uff08\u5168\u90e8\uff09', 'misc.deferredAll':'\u5ef6\u8fdf\u6267\u884c\uff08\u5168\u90e8\uff09',
             'misc.nativeThought':'\u8be5\u5de5\u5177\u539f\u751f\u58f0\u660e\u4e86 thought \u53c2\u6570',
+            'misc.none':'\u65e0',
+            'empty.sources':'\u6682\u65e0\u5de5\u5177\u6765\u6e90', 'empty.sourcesHint':'\u5de5\u5177\u6ce8\u518c\u540e\u6765\u6e90\u5c06\u663e\u793a\u5728\u6b64\u5904\u3002',
+            'config.mode':'\u6a21\u5f0f', 'config.filePath':'\u914d\u7f6e\u6587\u4ef6', 'config.disabled':'\u7981\u7528\u7684\u547d\u540d\u7a7a\u95f4', 'config.enabled':'\u542f\u7528\u7684\u547d\u540d\u7a7a\u95f4',
+            'config.saveHint':'\u5c06\u5f53\u524d\u7981\u7528\u7684\u547d\u540d\u7a7a\u95f4\u5199\u5165\u914d\u7f6e\u6587\u4ef6',
+            'btn.saveToConfig':'\u4fdd\u5b58\u5230\u914d\u7f6e',
+            'toast.configSaved':'\u914d\u7f6e\u5df2\u4fdd\u5b58\u5230\u6587\u4ef6', 'toast.configSavedMemory':'\u914d\u7f6e\u5df2\u66f4\u65b0\uff08\u4ec5\u5185\u5b58\uff09',
+            'toast.configSaveFailed':'\u4fdd\u5b58\u914d\u7f6e\u5931\u8d25\uff1a{error}',
             'toast.detailFailed':'\u52a0\u8f7d\u5de5\u5177\u8be6\u60c5\u5931\u8d25\uff1a{error}',
           },
         };
@@ -1957,6 +2059,21 @@
             async getPermissions() {
                 return this.request('/api/permissions');
             }
+
+            async getSources() {
+                return this.request('/api/sources');
+            }
+
+            async getConfig() {
+                return this.request('/api/config');
+            }
+
+            async updateConfig(data) {
+                return this.request('/api/config', {
+                    method: 'PUT',
+                    body: JSON.stringify(data)
+                });
+            }
         }
 
         const api = new AdminAPI(API_BASE, AUTH_TOKEN);
@@ -2039,8 +2156,12 @@
             } else if (tabName === 'logs') {
                 refreshLogs();
                 refreshLogStats();
+            } else if (tabName === 'sources') {
+                refreshSources();
             } else if (tabName === 'permissions') {
                 refreshPermissions();
+            } else if (tabName === 'state') {
+                refreshConfig();
             }
         }
 
@@ -2072,6 +2193,12 @@
             // Strip "ToolTag." prefix and lowercase for matching
             const key = tag.replace(/^ToolTag\./i, '').toLowerCase();
             return key;
+        }
+
+        function renderSourceBadge(source) {
+            if (!source) return '';
+            const cls = 'badge-source badge-source-' + source;
+            return `<span class="${cls}">${escapeHtml(source)}</span>`;
         }
 
         function renderTagBadges(tags, systemOnly) {
@@ -2164,11 +2291,14 @@
                 const anyDefer = children.some(t => t.defer);
                 const nsId = 'ns-' + ns.replace(/[^a-zA-Z0-9_]/g, '_');
                 const isDefault = ns === 'default';
+                const nsSources = [...new Set(children.map(t => t.source))];
+                const nsSourceBadge = nsSources.length === 1 ? renderSourceBadge(nsSources[0]) : '';
                 html += `
                 <tr class="ns-row" onclick="toggleNsGroup('${nsId}')">
                     <td><span class="ns-chevron">${SVG_CHEVRON}</span></td>
                     <td>
                         <span style="font-weight: 500;">${escapeHtml(ns)}</span>
+                        ${nsSourceBadge}
                         <span class="text-muted" style="margin-left: 8px; font-size: 0.6875rem;">${children.length > 1 ? t('misc.toolCountPlural', {count: children.length}) : t('misc.toolCount', {count: children.length})}</span>
                     </td>
                     <td class="col-think" onclick="event.stopPropagation()">
@@ -2199,12 +2329,14 @@
                     const tagBadges = renderTagBadges(tool.tags, true);
                     const metaIcons = renderMetaIcons(tool);
                     const permBadge = renderPermissionBadge(tool.permission);
+                    const sourceBadge = nsSources.length > 1 ? renderSourceBadge(tool.source) : '';
                     html += `
                 <tr class="ns-child-row" data-ns-group="${nsId}">
                     <td></td>
                     <td>
                         <span class="ns-child-name-link" onclick="event.stopPropagation(); showToolDetailModal('${escapeHtml(tool.name)}')">${escapeHtml(shortName)}</span>
                         <span class="tool-badges">${tagBadges}</span>
+                        ${sourceBadge}
                         ${metaIcons}
                     </td>
                     <td class="col-think" onclick="event.stopPropagation()">${renderMetaToggle(tool.name, 'think_augment', tool.think_augment, tool.has_native_thought)}</td>
@@ -2280,6 +2412,7 @@
             const status = document.getElementById('status-filter').value;
             const tag = document.getElementById('tag-filter').value;
             const locality = document.getElementById('locality-filter').value;
+            const source = document.getElementById('source-filter').value;
 
             const filtered = allTools.filter(tool => {
                 const matchSearch = tool.name.toLowerCase().includes(search);
@@ -2289,7 +2422,8 @@
                     (status === 'disabled' && !tool.enabled);
                 const matchTag = !tag || (tool.tags && tool.tags.includes(tag));
                 const matchLocality = !locality || tool.locality === locality;
-                return matchSearch && matchNamespace && matchStatus && matchTag && matchLocality;
+                const matchSource = !source || tool.source === source;
+                return matchSearch && matchNamespace && matchStatus && matchTag && matchLocality && matchSource;
             });
 
             renderTools(filtered);
@@ -2412,16 +2546,28 @@
 
             if (namespaces.length === 0) {
                 tbody.innerHTML = `
-                    <tr><td colspan="6" class="empty-state">
+                    <tr><td colspan="7" class="empty-state">
                         <div class="empty-state-icon">${t('empty.ns')}</div>
                         <div class="empty-state-text">${t('empty.nsHint')}</div>
                     </td></tr>`;
                 return;
             }
 
-            tbody.innerHTML = namespaces.map(ns => `
+            // Determine source type per namespace from tools data
+            const nsSourceMap = {};
+            allTools.forEach(tool => {
+                const ns = tool.namespace || 'default';
+                if (!nsSourceMap[ns]) nsSourceMap[ns] = new Set();
+                nsSourceMap[ns].add(tool.source || 'native');
+            });
+
+            tbody.innerHTML = namespaces.map(ns => {
+                const sources = nsSourceMap[ns.name] || new Set();
+                const sourceBadges = [...sources].map(s => renderSourceBadge(s)).join(' ');
+                return `
                 <tr>
                     <td><span style="font-weight: 500;">${escapeHtml(ns.name)}</span></td>
+                    <td>${sourceBadges || '<span class="text-muted" style="font-size: 0.75rem;">&mdash;</span>'}</td>
                     <td>${ns.tool_count}</td>
                     <td><span class="text-success">${ns.enabled_count}</span></td>
                     <td><span class="text-error">${ns.disabled_count}</span></td>
@@ -2432,8 +2578,8 @@
                             <button class="btn btn-danger btn-sm" style="min-width: 90px; text-align: center;" onclick="showDisableNamespaceModal('${escapeHtml(ns.name)}')">${t('btn.disableAll')}</button>
                         </div>`}
                     </td>
-                </tr>
-            `).join('');
+                </tr>`;
+            }).join('');
         }
 
         function showDisableNamespaceModal(name) {
@@ -2700,9 +2846,11 @@
                         <div class="meta-item"><span class="meta-label">${t('detail.name')}</span><span class="meta-value">${escapeHtml(tool.name)}</span></div>
                         <div class="meta-item"><span class="meta-label">${t('detail.namespace')}</span><span class="meta-value">${escapeHtml(tool.namespace || 'default')}</span></div>
                         <div class="meta-item"><span class="meta-label">${t('detail.methodName')}</span><span class="meta-value">${escapeHtml(tool.method_name || tool.name)}</span></div>
+                        <div class="meta-item"><span class="meta-label">${t('detail.source')}</span><span class="meta-value">${renderSourceBadge(meta.source || 'native')}</span></div>
                         <div class="meta-item"><span class="meta-label">${t('detail.status')}</span><span class="meta-value">${tool.enabled ? `<span class="text-success">${t('stat.enabled')}</span>` : `<span class="text-error">${t('stat.disabled')}</span>`}</span></div>
                         <div class="meta-item"><span class="meta-label">${t('detail.permission')}</span><span class="meta-value">${permHtml}</span></div>
                     </div>
+                    ${meta.source_detail ? `<div class="meta-item mt-2"><span class="meta-label">${t('detail.sourceDetail')}</span><span class="meta-value" style="word-break: break-all;">${escapeHtml(meta.source_detail)}</span></div>` : ''}
                     ${tool.reason ? `<div class="meta-item mt-2"><span class="meta-label">${t('detail.disableReason')}</span><span class="meta-value text-error">${escapeHtml(tool.reason)}</span></div>` : ''}
                     ${perm && perm.reason ? `<div class="meta-item mt-2"><span class="meta-label">${t('detail.permReason')}</span><span class="meta-value">${escapeHtml(perm.reason)}</span></div>` : ''}
                     <div class="mt-2"><span class="meta-label">${t('detail.description')}</span><p style="font-size: 0.8125rem; margin-top: 4px;">${escapeHtml(tool.description || '')}</p></div>
@@ -2825,6 +2973,102 @@
             const div = document.createElement('div');
             div.textContent = str;
             return div.innerHTML;
+        }
+
+        // ============== Sources ==============
+        async function refreshSources() {
+            try {
+                const data = await api.getSources();
+                renderSources(data.sources || []);
+            } catch (e) {
+                document.getElementById('sources-body').innerHTML =
+                    `<div class="empty-state"><div class="text-error">${e.message}</div></div>`;
+            }
+        }
+
+        function renderSources(sources) {
+            const body = document.getElementById('sources-body');
+
+            if (sources.length === 0) {
+                body.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">${t('empty.sources')}</div>
+                        <div class="empty-state-text">${t('empty.sourcesHint')}</div>
+                    </div>`;
+                return;
+            }
+
+            body.innerHTML = sources.map(src => {
+                const toolChips = src.tools.map(tn =>
+                    `<span class="source-tool-chip">${escapeHtml(tn)}</span>`
+                ).join('');
+                return `
+                <div class="source-card">
+                    <div class="source-card-header">
+                        ${renderSourceBadge(src.type)}
+                        <span style="font-weight: 500;">${escapeHtml(src.namespace)}</span>
+                        <span class="text-muted" style="font-size: 0.75rem; margin-left: auto;">${src.enabled_count}/${src.tool_count} ${t('stat.enabled').toLowerCase()}</span>
+                    </div>
+                    ${src.detail ? `<div class="source-detail">${escapeHtml(src.detail)}</div>` : ''}
+                    <div class="source-tools-list">${toolChips}</div>
+                </div>`;
+            }).join('');
+        }
+
+        // ============== Config ==============
+        async function refreshConfig() {
+            try {
+                const config = await api.getConfig();
+                document.getElementById('config-card').style.display = '';
+                renderConfig(config);
+            } catch (e) {
+                // 404 means no config loaded — hide the card
+                document.getElementById('config-card').style.display = 'none';
+            }
+        }
+
+        function renderConfig(config) {
+            const body = document.getElementById('config-body');
+            const disabledList = (config.disabled || []).map(d =>
+                `<span class="source-tool-chip">${escapeHtml(d)}</span>`
+            ).join('') || `<span class="text-muted" style="font-size: 0.75rem;">${t('misc.none')}</span>`;
+            const enabledList = (config.enabled || []).map(e =>
+                `<span class="source-tool-chip">${escapeHtml(e)}</span>`
+            ).join('') || `<span class="text-muted" style="font-size: 0.75rem;">${t('misc.none')}</span>`;
+
+            body.innerHTML = `
+                <div class="config-section">
+                    <div class="metadata-grid">
+                        <div class="meta-item"><span class="meta-label">${t('config.mode')}</span><span class="meta-value"><strong>${escapeHtml(config.mode)}</strong></span></div>
+                        <div class="meta-item"><span class="meta-label">${t('config.filePath')}</span><span class="meta-value" style="word-break: break-all;">${config.source ? escapeHtml(config.source) : `<span class="text-muted">${t('misc.none')}</span>`}</span></div>
+                    </div>
+                    <div class="meta-item mt-2">
+                        <span class="meta-label">${config.mode === 'denylist' ? t('config.disabled') : t('config.enabled')}</span>
+                        <div style="margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px;">
+                            ${config.mode === 'denylist' ? disabledList : enabledList}
+                        </div>
+                    </div>
+                    ${config.source ? `<div class="mt-2">
+                        <button class="btn btn-primary btn-sm" onclick="saveCurrentStateToConfig()">${t('btn.saveToConfig')}</button>
+                        <span class="text-muted" style="font-size: 0.75rem; margin-left: 8px;">${t('config.saveHint')}</span>
+                    </div>` : ''}
+                </div>`;
+        }
+
+        async function saveCurrentStateToConfig() {
+            try {
+                const state = await api.exportState();
+                const disabled = Object.keys(state.disabled || {});
+                const result = await api.updateConfig({ disabled });
+                if (result.saved) {
+                    showToast(t('toast.configSaved'), 'success');
+                    refreshConfig();
+                } else {
+                    showToast(t('toast.configSavedMemory'), 'success');
+                }
+            } catch (e) {
+                showToast(t('toast.configSaveFailed', {error: e.message}), 'error');
+            }
         }
 
         function refreshAll() {

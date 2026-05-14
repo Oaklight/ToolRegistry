@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 __all__ = [
     "ConfigError",
@@ -44,6 +44,22 @@ class AuthConfig:
     token_env: str | None = None
     header_name: str = "Authorization"
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a config-file-compatible dict.
+
+        Omits fields with default values for cleaner output.
+        The ``token`` field is excluded to avoid leaking secrets;
+        only ``token_env`` is preserved.
+        """
+        d: dict[str, Any] = {}
+        if self.type != "bearer":
+            d["type"] = self.type
+        if self.token_env:
+            d["token_env"] = self.token_env
+        if self.type == "header" and self.header_name != "Authorization":
+            d["header_name"] = self.header_name
+        return d
+
 
 @dataclass(frozen=True)
 class PythonSource:
@@ -80,6 +96,23 @@ class PythonSource:
                 "PythonSource accepts only one of 'class_path' or 'module_path', not both."
             )
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a config-file-compatible dict.
+
+        Maps ``class_path`` back to the ``"class"`` key and
+        ``module_path`` to ``"module"`` for config-file compatibility.
+        """
+        d: dict[str, Any] = {"type": "python"}
+        if self.class_path:
+            d["class"] = self.class_path
+        if self.module_path:
+            d["module"] = self.module_path
+        if self.namespace:
+            d["namespace"] = self.namespace
+        if not self.enabled:
+            d["enabled"] = False
+        return d
+
 
 @dataclass(frozen=True)
 class MCPSource:
@@ -113,6 +146,28 @@ class MCPSource:
     headers: dict[str, str] | None = None
     persistent: bool = True
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a config-file-compatible dict.
+
+        Omits fields with default values for cleaner output.
+        """
+        d: dict[str, Any] = {"type": "mcp", "transport": self.transport}
+        if self.namespace:
+            d["namespace"] = self.namespace
+        if not self.enabled:
+            d["enabled"] = False
+        if self.command:
+            d["command"] = list(self.command)
+        if self.env:
+            d["env"] = dict(self.env)
+        if self.url:
+            d["url"] = self.url
+        if self.headers:
+            d["headers"] = dict(self.headers)
+        if not self.persistent:
+            d["persistent"] = False
+        return d
+
 
 @dataclass(frozen=True)
 class OpenAPISource:
@@ -132,6 +187,22 @@ class OpenAPISource:
     enabled: bool = True
     auth: AuthConfig | None = None
     base_url: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a config-file-compatible dict.
+
+        Omits fields with default values for cleaner output.
+        """
+        d: dict[str, Any] = {"type": "openapi", "url": self.url}
+        if self.namespace:
+            d["namespace"] = self.namespace
+        if not self.enabled:
+            d["enabled"] = False
+        if self.auth:
+            d["auth"] = self.auth.to_dict()
+        if self.base_url:
+            d["base_url"] = self.base_url
+        return d
 
 
 ToolSource = PythonSource | MCPSource | OpenAPISource
@@ -157,3 +228,19 @@ class ToolConfig:
     enabled: tuple[str, ...] = ()
     tools: tuple[ToolSource, ...] = ()
     source: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a config-file-compatible dict.
+
+        Omits fields with default values for cleaner output.
+        The ``source`` (file path) field is excluded as it is
+        diagnostic metadata, not part of the config schema.
+        """
+        d: dict[str, Any] = {"mode": self.mode}
+        if self.disabled:
+            d["disabled"] = list(self.disabled)
+        if self.enabled:
+            d["enabled"] = list(self.enabled)
+        if self.tools:
+            d["tools"] = [t.to_dict() for t in self.tools]
+        return d

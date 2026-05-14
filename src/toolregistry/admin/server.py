@@ -16,6 +16,7 @@ from .auth import TokenAuth
 
 if TYPE_CHECKING:
     from toolregistry import ToolRegistry
+    from toolregistry.config import ToolConfig
 
 logger = logging.getLogger(__name__)
 
@@ -44,11 +45,13 @@ class AdminApp(App):
         registry: The ToolRegistry instance to manage.
         auth: Optional TokenAuth instance for authentication.
         serve_ui: Whether to serve the admin UI at root path.
+        config: Optional ToolConfig for config-aware endpoints.
     """
 
     registry: "ToolRegistry"
     auth: TokenAuth | None
     serve_ui: bool
+    config: "ToolConfig | None"
 
 
 class AdminServer:
@@ -84,6 +87,7 @@ class AdminServer:
         serve_ui: bool = True,
         remote: bool = False,
         auth_token: str | None = None,
+        config: "ToolConfig | None" = None,
     ) -> None:
         """Initialize admin server.
 
@@ -97,12 +101,17 @@ class AdminServer:
             auth_token: Optional authentication token. If None and remote is True,
                 a random token is generated. If None and remote is False, no
                 authentication is required.
+            config: Optional ToolConfig for config-aware admin endpoints.
+                When provided, enables ``GET /api/config`` and
+                ``PUT /api/config`` endpoints for viewing and persisting
+                configuration changes.
         """
         self._registry = registry
         self._host = "0.0.0.0" if remote else host
         self._port = port
         self._serve_ui = serve_ui
         self._remote = remote
+        self._config = config
 
         # Set up authentication
         if auth_token is not None:
@@ -166,6 +175,7 @@ class AdminServer:
         self._app.registry = self._registry
         self._app.auth = self._auth
         self._app.serve_ui = self._serve_ui
+        self._app.config = self._config
 
         # Register routes and middleware
         from .handlers import setup_routes
