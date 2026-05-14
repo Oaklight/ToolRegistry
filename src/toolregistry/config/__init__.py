@@ -13,7 +13,7 @@ Example::
         print(source)
 """
 
-from ._loader import load_config
+from ._loader import load_config, save_config
 from ._types import (
     AuthConfig,
     ConfigError,
@@ -26,6 +26,7 @@ from ._types import (
 
 __all__ = [
     "load_config",
+    "save_config",
     "AuthConfig",
     "ConfigError",
     "MCPSource",

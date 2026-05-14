@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..admin import AdminInfo, AdminServer
+    from ..config import ToolConfig
     from ..tool_registry import ToolRegistry
 
 
@@ -23,6 +24,7 @@ class AdminMixin:
         serve_ui: bool = True,
         remote: bool = False,
         auth_token: str | None = None,
+        config: ToolConfig | None = None,
     ) -> AdminInfo:
         """Enable the admin panel.
 
@@ -37,6 +39,10 @@ class AdminMixin:
                 and auto-generates an auth token if none provided. Defaults to False.
             auth_token: Optional authentication token. If None and remote is True,
                 a random token is generated.
+            config: Optional ToolConfig for config-aware admin endpoints.
+                When provided, enables ``GET /api/config`` and
+                ``PUT /api/config`` endpoints for viewing and persisting
+                configuration changes to the source file.
 
         Returns:
             AdminInfo containing server details including URL and token.
@@ -67,6 +73,7 @@ class AdminMixin:
             serve_ui=serve_ui,
             remote=remote,
             auth_token=auth_token,
+            config=config,
         )
         return self._admin_server.start()
 

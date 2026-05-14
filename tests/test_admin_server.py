@@ -935,3 +935,169 @@ class TestAdminServerMetadataUpdate:
             data={"defer": True},
         )
         assert status == 404
+
+
+class TestAdminSourcesAndConfig:
+    """Tests for source info, /api/sources, and /api/config endpoints."""
+
+    @pytest.fixture
+    def server_with_tools(self):
+        """Create a server with registered tools."""
+        registry = ToolRegistry()
+
+        def add(a: int, b: int) -> int:
+            """Add two numbers."""
+            return a + b
+
+        def subtract(a: int, b: int) -> int:
+            """Subtract two numbers."""
+            return a - b
+
+        registry.register(add, namespace="math")
+        registry.register(subtract, namespace="math")
+
+        server = AdminServer(registry, port=18094)
+        info = server.start()
+        time.sleep(0.1)
+
+        yield server, info, registry
+
+        server.stop()
+
+    def _request(
+        self,
+        url: str,
+        method: str = "GET",
+        data: dict | None = None,
+    ) -> tuple[int, dict]:
+        """Make HTTP request and return status code and JSON response."""
+        headers = {"Content-Type": "application/json"}
+        body = json.dumps(data).encode() if data else None
+        req = urllib.request.Request(url, data=body, headers=headers, method=method)
+        try:
+            with urllib.request.urlopen(req, timeout=5) as response:
+                return response.status, json.loads(response.read().decode())
+        except urllib.error.HTTPError as e:
+            return e.code, json.loads(e.read().decode())
+
+    def test_get_tools_includes_source(self, server_with_tools) -> None:
+        """Test GET /api/tools includes source and source_detail fields."""
+        server, info, registry = server_with_tools
+        status, data = self._request(f"{info.url}/api/tools")
+        assert status == 200
+        for tool in data["tools"]:
+            assert "source" in tool
+            assert "source_detail" in tool
+            assert tool["source"] == "native"
+
+    def test_get_tool_detail_includes_source(self, server_with_tools) -> None:
+        """Test GET /api/tools/{name} includes source in metadata."""
+        server, info, registry = server_with_tools
+        status, data = self._request(f"{info.url}/api/tools/math-add")
+        assert status == 200
+        assert "source" in data["metadata"]
+        assert "source_detail" in data["metadata"]
+        assert data["metadata"]["source"] == "native"
+
+    def test_get_sources(self, server_with_tools) -> None:
+        """Test GET /api/sources returns aggregated source info."""
+        server, info, registry = server_with_tools
+        status, data = self._request(f"{info.url}/api/sources")
+        assert status == 200
+        assert "sources" in data
+        assert len(data["sources"]) >= 1
+        src = data["sources"][0]
+        assert "type" in src
+        assert "detail" in src
+        assert "namespace" in src
+        assert "tool_count" in src
+        assert "enabled_count" in src
+        assert "tools" in src
+        assert src["type"] == "native"
+        assert src["tool_count"] == 2
+
+    def test_export_state_includes_sources(self, server_with_tools) -> None:
+        """Test GET /api/state includes sources in export."""
+        server, info, registry = server_with_tools
+        status, data = self._request(f"{info.url}/api/state")
+        assert status == 200
+        assert "sources" in data
+        assert "math-add" in data["sources"]
+        assert data["sources"]["math-add"]["source"] == "native"
+
+    def test_get_config_no_config(self, server_with_tools) -> None:
+        """Test GET /api/config returns 404 when no config loaded."""
+        server, info, registry = server_with_tools
+        status, data = self._request(f"{info.url}/api/config")
+        assert status == 404
+
+    def test_config_endpoints_with_config(self, tmp_path) -> None:
+        """Test GET/PUT /api/config with a loaded config."""
+        from toolregistry.config import ToolConfig, PythonSource, load_config
+
+        config = ToolConfig(
+            mode="denylist",
+            disabled=("ns1",),
+            tools=(PythonSource(class_path="a.B", namespace="calc"),),
+            source=str(tmp_path / "tools.json"),
+        )
+        # Write initial config file
+        config_path = tmp_path / "tools.json"
+        config_path.write_text('{"mode": "denylist", "disabled": ["ns1"]}')
+
+        registry = ToolRegistry()
+        registry.register(lambda x: x, name="echo")
+        server = AdminServer(registry, port=18095, config=config)
+        info = server.start()
+        time.sleep(0.1)
+
+        try:
+            # GET /api/config
+            status, data = self._request(f"{info.url}/api/config")
+            assert status == 200
+            assert data["mode"] == "denylist"
+            assert "ns1" in data["disabled"]
+            assert data["source"] == str(config_path)
+
+            # PUT /api/config — update disabled list
+            status, data = self._request(
+                f"{info.url}/api/config",
+                method="PUT",
+                data={"disabled": ["ns1", "ns2"]},
+            )
+            assert status == 200
+            assert data["saved"] is True
+            assert "ns2" in data["disabled"]
+
+            # Verify file was written
+            reloaded = load_config(config_path)
+            assert "ns2" in reloaded.disabled
+
+            # GET /api/config should reflect update
+            status, data = self._request(f"{info.url}/api/config")
+            assert status == 200
+            assert "ns2" in data["disabled"]
+        finally:
+            server.stop()
+
+    def test_update_config_invalid_mode(self, tmp_path) -> None:
+        """Test PUT /api/config rejects invalid mode."""
+        from toolregistry.config import ToolConfig
+
+        config = ToolConfig(source=str(tmp_path / "tools.json"))
+        (tmp_path / "tools.json").write_text('{"mode": "denylist"}')
+
+        registry = ToolRegistry()
+        server = AdminServer(registry, port=18096, config=config)
+        info = server.start()
+        time.sleep(0.1)
+
+        try:
+            status, data = self._request(
+                f"{info.url}/api/config",
+                method="PUT",
+                data={"mode": "invalid"},
+            )
+            assert status == 400
+        finally:
+            server.stop()

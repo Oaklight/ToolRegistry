@@ -222,12 +222,15 @@ def _handle_root(request: Request) -> Response:
                 "POST /api/namespaces/{ns}/enable",
                 "POST /api/namespaces/{ns}/disable",
                 "PATCH /api/namespaces/{ns}/metadata",
+                "GET /api/sources",
                 "GET /api/logs",
                 "GET /api/logs/stats",
                 "DELETE /api/logs",
                 "GET /api/state",
                 "POST /api/state",
                 "GET /api/permissions",
+                "GET /api/config",
+                "PUT /api/config",
             ],
         }
     )
@@ -272,6 +275,8 @@ def _get_tool(request: Request, name: str) -> Response:
             "max_result_size": tool.metadata.max_result_size,
             "tags": sorted(str(t) for t in tool.metadata.tags),
             "custom_tags": sorted(tool.metadata.custom_tags),
+            "source": tool.metadata.source,
+            "source_detail": tool.metadata.source_detail,
             "defer": tool.metadata.defer,
             "search_hint": tool.metadata.search_hint,
             "think_augment": tool.metadata.think_augment,
@@ -540,12 +545,52 @@ def _clear_logs(request: Request) -> Response:
     )
 
 
-def _export_state(request: Request) -> Response:
-    """Export current state."""
+def _get_sources(request: Request) -> Response:
+    """Get aggregated tool sources."""
     registry = _app(request).registry
+    groups: dict[tuple[str, str, str], dict[str, Any]] = {}
+
+    for tool_name in registry.list_tools(include_disabled=True):
+        tool = registry.get_tool(tool_name)
+        if tool is None:
+            continue
+        meta = tool.metadata
+        ns = tool.namespace or "default"
+        key = (meta.source, meta.source_detail, ns)
+
+        if key not in groups:
+            groups[key] = {
+                "type": meta.source,
+                "detail": meta.source_detail,
+                "namespace": ns,
+                "tool_count": 0,
+                "enabled_count": 0,
+                "tools": [],
+            }
+        groups[key]["tool_count"] += 1
+        if registry.is_enabled(tool_name):
+            groups[key]["enabled_count"] += 1
+        groups[key]["tools"].append(tool_name)
+
+    sources = sorted(groups.values(), key=lambda s: (s["type"], s["namespace"]))
+    return _json_response({"sources": sources})
+
+
+def _export_state(request: Request) -> Response:
+    """Export current state including source metadata."""
+    registry = _app(request).registry
+    sources: dict[str, dict[str, str]] = {}
+    for tool_name in registry.list_tools(include_disabled=True):
+        tool = registry.get_tool(tool_name)
+        if tool:
+            sources[tool_name] = {
+                "source": tool.metadata.source,
+                "source_detail": tool.metadata.source_detail,
+            }
     state = {
         "disabled": dict(registry._disabled),
         "tools": registry.list_tools(include_disabled=True),
+        "sources": sources,
     }
     return _json_response(state)
 
@@ -604,6 +649,89 @@ def _get_permissions(request: Request) -> Response:
     )
 
 
+def _get_config(request: Request) -> Response:
+    """Get the current tool configuration."""
+    config = _app(request).config
+    if config is None:
+        return _error_response(404, "Not Found", "No tool configuration is loaded")
+    data = config.to_dict()
+    data["source"] = config.source
+    return _json_response(data)
+
+
+def _update_config(request: Request) -> Response:
+    """Update tool configuration and persist to disk."""
+    from dataclasses import replace
+
+    from ..config import save_config
+
+    app = _app(request)
+    config = app.config
+    if config is None:
+        return _error_response(404, "Not Found", "No tool configuration is loaded")
+
+    if not request.body:
+        return _error_response(400, "Bad Request", "Request body is required")
+
+    try:
+        data = request.json()
+    except (json.JSONDecodeError, ValueError) as e:
+        return _error_response(400, "Bad Request", f"Invalid JSON: {e}")
+
+    if not isinstance(data, dict):
+        return _error_response(400, "Bad Request", "Body must be a JSON object")
+
+    # Build kwargs for replace()
+    updates: dict[str, Any] = {}
+    if "mode" in data:
+        mode = data["mode"]
+        if mode not in ("denylist", "allowlist"):
+            return _error_response(
+                400,
+                "Bad Request",
+                f"Invalid mode '{mode}'. Must be 'denylist' or 'allowlist'.",
+            )
+        updates["mode"] = mode
+    if "disabled" in data:
+        if not isinstance(data["disabled"], list):
+            return _error_response(400, "Bad Request", "'disabled' must be a list")
+        updates["disabled"] = tuple(data["disabled"])
+    if "enabled" in data:
+        if not isinstance(data["enabled"], list):
+            return _error_response(400, "Bad Request", "'enabled' must be a list")
+        updates["enabled"] = tuple(data["enabled"])
+
+    if not updates:
+        return _error_response(
+            400,
+            "Bad Request",
+            "No valid fields to update. Supported: mode, disabled, enabled.",
+        )
+
+    new_config = replace(config, **updates)
+
+    # Persist to disk if source path is known
+    saved_path = ""
+    if config.source:
+        try:
+            save_config(new_config, config.source)
+            new_config = replace(new_config, source=config.source)
+            saved_path = config.source
+        except Exception as e:
+            return _error_response(
+                500, "Internal Server Error", f"Failed to write config file: {e}"
+            )
+
+    app.config = new_config
+
+    result = new_config.to_dict()
+    result["source"] = new_config.source
+    result["saved"] = bool(saved_path)
+    if saved_path:
+        result["saved_path"] = saved_path
+    return _json_response(result)
+
+
 # ============== Route Setup ==============
 
 
@@ -632,9 +760,12 @@ def setup_routes(app: "AdminApp") -> None:
     app.post("/api/namespaces/<name>/enable")(_enable_namespace)
     app.post("/api/namespaces/<name>/disable")(_disable_namespace)
     app.patch("/api/namespaces/<name>/metadata")(_update_namespace_metadata)
+    app.get("/api/sources")(_get_sources)
     app.get("/api/logs")(_get_logs)
     app.get("/api/logs/stats")(_get_log_stats)
     app.delete("/api/logs")(_clear_logs)
     app.get("/api/state")(_export_state)
     app.post("/api/state")(_import_state)
     app.get("/api/permissions")(_get_permissions)
+    app.get("/api/config")(_get_config)
+    app.put("/api/config")(_update_config)
