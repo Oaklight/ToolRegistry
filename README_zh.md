@@ -1,6 +1,7 @@
 # ToolRegistry
 
 [![PyPI version](https://img.shields.io/pypi/v/toolregistry?color=green)](https://pypi.org/project/toolregistry/)
+[![GitHub release](https://img.shields.io/github/v/release/Oaklight/ToolRegistry?color=green)](https://github.com/Oaklight/ToolRegistry/releases/latest)
 [![CI](https://github.com/Oaklight/ToolRegistry/actions/workflows/ci.yml/badge.svg)](https://github.com/Oaklight/ToolRegistry/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Oaklight/toolregistry)
