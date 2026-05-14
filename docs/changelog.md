@@ -10,7 +10,7 @@ author: Oaklight
 
 This page documents all notable changes to the ToolRegistry project since the first release.
 
-## Unreleased
+## [0.9.1] - 2026-05-14
 
 ### New Features
 
@@ -36,6 +36,11 @@ This page documents all notable changes to the ToolRegistry project since the fi
 - Add pre-commit with ruff, ty type check, and complexipy
 - Split CI into lint + test jobs
 - Add missing websockets dependency in test job
+
+### Docs
+
+- Rewrite README as concise ecosystem landing page
+- Add GitHub release badge
 
 ## [0.9.0] - 2026-05-11
 
