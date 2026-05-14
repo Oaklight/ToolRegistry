@@ -10,7 +10,7 @@ author: Oaklight
 
 本页面记录了 ToolRegistry 项目自首个发布版本以来的所有重要变更。
 
-## Unreleased
+## [0.9.1] - 2026-05-14
 
 ### 新特性
 
@@ -36,6 +36,11 @@ author: Oaklight
 - 添加 pre-commit，集成 ruff、ty 类型检查和 complexipy
 - 将 CI 拆分为 lint + test 两个任务
 - 在测试任务中添加缺失的 websockets 依赖
+
+### 文档
+
+- 重写 README 为简洁的生态系统着陆页
+- 添加 GitHub release 徽章
 
 ## [0.9.0] - 2026-05-11
 
