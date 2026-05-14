@@ -10,6 +10,33 @@ author: Oaklight
 
 This page documents all notable changes to the ToolRegistry project since the first release.
 
+## Unreleased
+
+### New Features
+
+- **Tool Source Tracking** ([#125](../../issues/125), [#130](../../pull/130))
+    - Add `source` and `source_detail` fields to `ToolMetadata` for tracking tool provenance
+    - Each integration auto-sets `source` during construction: `"mcp"`, `"openapi"`, `"langchain"`, or `"native"` (default)
+    - `source_detail` captures transport info (MCP), base URL + path (OpenAPI), or class name (LangChain)
+
+### Bug Fixes
+
+- **Parameter Introspection Warnings** ([#126](../../issues/126), [#131](../../pull/131))
+    - Emit `UserWarning` when `*args` or `**kwargs` parameters are skipped during JSON Schema generation
+    - Emit `UserWarning` when parameter model generation fails in `Tool.from_function()`, instead of silently producing an empty schema
+
+### Refactoring
+
+- Extract route handlers from `setup_routes()` to reduce complexity
+- Rename executor `ExecutionStatus` to `HandleStatus`
+- Extract helpers from `execute_tool_calls()` to reduce complexity
+
+### CI
+
+- Add pre-commit with ruff, ty type check, and complexipy
+- Split CI into lint + test jobs
+- Add missing websockets dependency in test job
+
 ## [0.9.0] - 2026-05-11
 
 ### New Features

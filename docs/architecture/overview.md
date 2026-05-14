@@ -162,6 +162,8 @@ Metadata enriches tools with classification and behavioral hints:
 | `defer` | Exclude from initial prompt; discoverable via `ToolDiscoveryTool` |
 | `search_hint` | Extra keywords for BM25 discoverability |
 | `think_augment` | Per-tool override for thought-augmented calling |
+| `source` | Tool origin: `"native"`, `"mcp"`, `"openapi"`, or `"langchain"` (auto-set by integrations) |
+| `source_detail` | Integration-specific provenance info (transport, URL, class name) |
 | `extra` | Arbitrary key-value pairs for application-specific use |
 
 Tags drive the permission system — you write rules that match on tags rather than tool names.
