@@ -771,3 +771,92 @@ class TestThinkAugmentedExecution:
         schemas = registry.get_schemas()
         props = schemas[0]["function"]["parameters"]["properties"]
         assert "thought" not in props
+
+
+class TestStructuredErrorHandling:
+    """Test structured error handling in execute_tool_calls."""
+
+    def _make_failing_tool_call(self, call_id="call_fail"):
+        """Create a tool call that targets a tool that raises."""
+        return ChatCompletionMessageFunctionToolCall(
+            id=call_id,
+            type="function",
+            function=Function(name="fail_tool", arguments="{}"),
+        )
+
+    def test_execute_tool_calls_logs_structured_error(self):
+        """Test that execution errors log exception_type and traceback."""
+        from toolregistry.admin import ExecutionStatus
+
+        def fail_tool() -> str:
+            """A tool that always fails."""
+            raise ValueError("something went wrong")
+
+        registry = ToolRegistry()
+        registry.register(fail_tool)
+        registry.enable_logging()
+
+        results = registry.execute_tool_calls([self._make_failing_tool_call()])
+
+        assert "Error" in results["call_fail"]
+
+        log = registry.get_execution_log()
+        entries = log.get_entries()
+        assert len(entries) == 1
+        entry = entries[0]
+        assert entry.status == ExecutionStatus.ERROR
+        assert entry.exception_type is not None
+        assert "ValueError" in entry.exception_type
+        assert entry.error is not None
+
+    def test_execute_tool_calls_emits_tool_error_event(self):
+        """Test that TOOL_ERROR event is emitted on tool failure."""
+        from toolregistry.events import ChangeEventType
+
+        def fail_tool() -> str:
+            """A tool that always fails."""
+            raise RuntimeError("boom")
+
+        registry = ToolRegistry()
+        registry.register(fail_tool)
+
+        events_received = []
+        registry.on_change(lambda e: events_received.append(e))
+
+        registry.execute_tool_calls([self._make_failing_tool_call()])
+
+        error_events = [
+            e for e in events_received if e.event_type == ChangeEventType.TOOL_ERROR
+        ]
+        assert len(error_events) == 1
+        assert error_events[0].tool_name == "fail_tool"
+        assert error_events[0].reason is not None
+        assert "boom" in error_events[0].reason
+        assert error_events[0].metadata.get("exception_type") is not None
+
+    def test_execute_tool_calls_success_does_not_emit_tool_error(self):
+        """Test that successful tool calls do not emit TOOL_ERROR."""
+        from toolregistry.events import ChangeEventType
+
+        def ok_tool() -> str:
+            """A tool that succeeds."""
+            return "ok"
+
+        registry = ToolRegistry()
+        registry.register(ok_tool)
+
+        events_received = []
+        registry.on_change(lambda e: events_received.append(e))
+
+        tool_call = ChatCompletionMessageFunctionToolCall(
+            id="call_ok",
+            type="function",
+            function=Function(name="ok_tool", arguments="{}"),
+        )
+        results = registry.execute_tool_calls([tool_call])
+
+        assert results["call_ok"] == "ok"
+        error_events = [
+            e for e in events_received if e.event_type == ChangeEventType.TOOL_ERROR
+        ]
+        assert len(error_events) == 0

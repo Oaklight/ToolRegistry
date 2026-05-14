@@ -4,7 +4,9 @@ import logging
 import random
 import string
 import time
+import traceback as tb_module
 import warnings
+from dataclasses import dataclass
 from typing import Any, Literal
 from collections.abc import Callable
 
@@ -37,6 +39,21 @@ from ._mixins import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class _ToolError:
+    """Internal sentinel for structured error propagation.
+
+    Used by ``_collect_handle_result`` and ``_submit_tool_call`` to carry
+    exception metadata through the execution pipeline without relying on
+    string-prefix detection.
+    """
+
+    message: str
+    exception_type: str | None = None
+    traceback_str: str | None = None
+    is_timeout: bool = False
 
 
 class ToolRegistry(
@@ -467,6 +484,8 @@ class ToolRegistry(
         *,
         result: str | None = None,
         error: str | None = None,
+        exception_type: str | None = None,
+        traceback: str | None = None,
     ) -> None:
         """Append an entry to the execution log if logging is enabled.
 
@@ -477,6 +496,8 @@ class ToolRegistry(
             arguments: Tool call arguments.
             result: Optional result string.
             error: Optional error string.
+            exception_type: Optional qualified exception class name.
+            traceback: Optional formatted traceback string.
         """
         if self._execution_log is None:
             return
@@ -489,6 +510,8 @@ class ToolRegistry(
             arguments=arguments,
             result=result,
             error=error,
+            exception_type=exception_type,
+            traceback=traceback,
         )
         self._execution_log.add(entry)
 
@@ -498,7 +521,7 @@ class ToolRegistry(
         backend: Any,
         call_arguments: dict[str, dict],
         mode: str,
-    ) -> Any | str:
+    ) -> Any | _ToolError:
         """Submit a single tool call for execution.
 
         Args:
@@ -508,7 +531,7 @@ class ToolRegistry(
             mode: Current execution mode ("process" or "thread").
 
         Returns:
-            An ExecutionHandle on success, or an error string on failure.
+            An ExecutionHandle on success, or a ``_ToolError`` on failure.
         """
         function_name = tc.name
         function_args = call_arguments.get(tc.id, {})
@@ -518,7 +541,9 @@ class ToolRegistry(
         callable_func = tool_obj.callable if tool_obj else None
 
         if callable_func is None:
-            return f"Error: Tool '{function_name}' not found or callable is None"
+            return _ToolError(
+                message=f"Error: Tool '{function_name}' not found or callable is None",
+            )
 
         per_call_timeout = (
             tool_obj.metadata.timeout if tool_obj and tool_obj.metadata else None
@@ -541,26 +566,44 @@ class ToolRegistry(
                         timeout=per_call_timeout,
                     )
                 except Exception as e2:
-                    return f"Error preparing tool call {function_name}: {e2!s}"
-            return f"Error preparing tool call {function_name}: {e!s}"
+                    return _ToolError(
+                        message=f"Error preparing tool call {function_name}: {e2!s}",
+                        exception_type=type(e2).__qualname__,
+                        traceback_str=tb_module.format_exc(),
+                    )
+            return _ToolError(
+                message=f"Error preparing tool call {function_name}: {e!s}",
+                exception_type=type(e).__qualname__,
+                traceback_str=tb_module.format_exc(),
+            )
 
-    def _collect_handle_result(self, handle: Any, tool_name: str) -> str | list:
-        """Wait for a handle and return the finalized result or error string.
+    def _collect_handle_result(
+        self, handle: Any, tool_name: str
+    ) -> str | list | _ToolError:
+        """Wait for a handle and return the finalized result or a ``_ToolError``.
 
         Args:
             handle: An ExecutionHandle to collect.
             tool_name: Name of the tool (for error messages and finalization).
 
         Returns:
-            The finalized result string/list, or an error message.
+            The finalized result string/list, or a ``_ToolError`` on failure.
         """
         try:
             result = handle.result()
             return self._finalize_result(result, tool_name)
         except TimeoutError:
-            return f"Error: Tool '{tool_name}' timed out"
+            return _ToolError(
+                message=f"Error: Tool '{tool_name}' timed out",
+                exception_type="TimeoutError",
+                is_timeout=True,
+            )
         except Exception as e:
-            return f"Error executing {tool_name}: {e!s}"
+            return _ToolError(
+                message=f"Error executing {tool_name}: {e!s}",
+                exception_type=type(e).__qualname__,
+                traceback_str=tb_module.format_exc(),
+            )
 
     def execute_tool_calls(
         self,
@@ -581,7 +624,6 @@ class ToolRegistry(
             are ``str`` for normal results or ``list[ContentBlock]`` for
             multimodal results (e.g. images).
         """
-        from .admin import ExecutionStatus
         from .executor import ExecutionHandle
 
         generic_tool_calls = convert_tool_calls(tool_calls)
@@ -602,42 +644,94 @@ class ToolRegistry(
         )
 
         handles: list[tuple[Any, ExecutionHandle]] = []
+        # Map call ID → raw result (_ToolError or success value)
+        raw_results: dict[str, Any] = {}
 
         for tc in enabled_calls:
             handle_or_error = self._submit_tool_call(tc, backend, call_arguments, mode)
-            if isinstance(handle_or_error, str):
-                tool_responses[tc.id] = handle_or_error
+            if isinstance(handle_or_error, _ToolError):
+                raw_results[tc.id] = handle_or_error
+                tool_responses[tc.id] = handle_or_error.message
                 continue
 
             if has_unsafe:
-                tool_responses[tc.id] = self._collect_handle_result(
-                    handle_or_error, tc.name
+                result = self._collect_handle_result(handle_or_error, tc.name)
+                raw_results[tc.id] = result
+                tool_responses[tc.id] = (
+                    result.message if isinstance(result, _ToolError) else result
                 )
             else:
                 handles.append((tc, handle_or_error))
 
         for tc, handle in handles:
-            tool_responses[tc.id] = self._collect_handle_result(handle, tc.name)
+            result = self._collect_handle_result(handle, tc.name)
+            raw_results[tc.id] = result
+            tool_responses[tc.id] = (
+                result.message if isinstance(result, _ToolError) else result
+            )
 
-        # Log executed tool calls
-        if self._execution_log is not None:
-            end_time = time.perf_counter()
-            for tc in enabled_calls:
-                start_time = call_start_times.get(tc.id, end_time)
-                duration_ms = (end_time - start_time) * 1000
-                response = tool_responses.get(tc.id, "")
-                response_str = str(response)
-                is_error = response_str.startswith("Error")
-                self._log_entry(
-                    tc.name,
-                    ExecutionStatus.ERROR if is_error else ExecutionStatus.SUCCESS,
-                    duration_ms,
-                    call_arguments.get(tc.id, {}),
-                    result=None if is_error else response_str,
-                    error=response_str if is_error else None,
-                )
+        # Log executed tool calls and emit error events
+        self._log_tool_call_results(
+            enabled_calls, raw_results, call_start_times, call_arguments
+        )
 
         return tool_responses
+
+    def _log_tool_call_results(
+        self,
+        enabled_calls: list[Any],
+        raw_results: dict[str, Any],
+        call_start_times: dict[str, float],
+        call_arguments: dict[str, dict],
+    ) -> None:
+        """Log execution results and emit error events for completed tool calls.
+
+        Args:
+            enabled_calls: List of tool calls that were executed.
+            raw_results: Map of call ID to raw result (_ToolError or success value).
+            call_start_times: Map of call ID to start timestamp.
+            call_arguments: Map of call ID to parsed arguments.
+        """
+        from .admin import ExecutionStatus
+
+        end_time = time.perf_counter()
+        for tc in enabled_calls:
+            start_time = call_start_times.get(tc.id, end_time)
+            duration_ms = (end_time - start_time) * 1000
+            raw = raw_results.get(tc.id)
+
+            if isinstance(raw, _ToolError):
+                status = (
+                    ExecutionStatus.TIMEOUT if raw.is_timeout else ExecutionStatus.ERROR
+                )
+                self._log_entry(
+                    tc.name,
+                    status,
+                    duration_ms,
+                    call_arguments.get(tc.id, {}),
+                    error=raw.message,
+                    exception_type=raw.exception_type,
+                    traceback=raw.traceback_str,
+                )
+                self._emit_change(
+                    ChangeEvent(
+                        event_type=ChangeEventType.TOOL_ERROR,
+                        tool_name=tc.name,
+                        reason=raw.message,
+                        metadata={
+                            "exception_type": raw.exception_type,
+                            "arguments": call_arguments.get(tc.id, {}),
+                        },
+                    )
+                )
+            else:
+                self._log_entry(
+                    tc.name,
+                    ExecutionStatus.SUCCESS,
+                    duration_ms,
+                    call_arguments.get(tc.id, {}),
+                    result=str(raw) if raw is not None else None,
+                )
 
     def build_tool_call_messages(
         self,
