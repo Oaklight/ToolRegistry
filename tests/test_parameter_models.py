@@ -1,10 +1,12 @@
 """Unit tests for the parameter_models module."""
 
 import inspect
-from typing import Any, Optional, Union
+from enum import Enum
+from typing import Annotated, Any, Literal, Optional, Union
 from unittest.mock import Mock, patch
 
 import pytest
+from pydantic import Field
 from pydantic.fields import FieldInfo
 
 from toolregistry.parameter_models import (
@@ -427,3 +429,261 @@ class TestGenerateParametersModel:
         model = model_class(x=5, y=15)
         assert model.x == 5
         assert model.y == 15
+
+
+class TestComplexTypeSchemaGeneration:
+    """Test edge cases with complex type annotations and JSON Schema output."""
+
+    @staticmethod
+    def _schema_for(func):
+        """Generate JSON Schema from function parameters."""
+        model = _generate_parameters_model(func)
+        assert model is not None, f"Model generation failed for {func.__name__}"
+        return model.model_json_schema()
+
+    # --- Union / anyOf ---
+
+    def test_union_produces_anyof(self):
+        """Union[str, int] should produce anyOf in schema."""
+
+        def f(value: Union[str, int]) -> None: ...
+
+        schema = self._schema_for(f)
+        prop = schema["properties"]["value"]
+        assert "anyOf" in prop
+        types = {branch.get("type") for branch in prop["anyOf"]}
+        assert types == {"string", "integer"}
+
+    def test_pipe_union_produces_anyof(self):
+        """str | int (PEP 604) should produce anyOf in schema."""
+
+        def f(value: str | int) -> None: ...
+
+        schema = self._schema_for(f)
+        prop = schema["properties"]["value"]
+        assert "anyOf" in prop
+
+    # --- Nested generic types ---
+
+    def test_list_str(self):
+        """list[str] should produce array with string items."""
+
+        def f(items: list[str]) -> None: ...
+
+        schema = self._schema_for(f)
+        prop = schema["properties"]["items"]
+        assert prop["type"] == "array"
+        assert prop["items"]["type"] == "string"
+
+    def test_dict_str_int(self):
+        """dict[str, int] should produce object with additionalProperties."""
+
+        def f(mapping: dict[str, int]) -> None: ...
+
+        schema = self._schema_for(f)
+        prop = schema["properties"]["mapping"]
+        assert prop["type"] == "object"
+        assert prop["additionalProperties"]["type"] == "integer"
+
+    # --- Nested Pydantic BaseModel ---
+
+    def test_nested_pydantic_model(self):
+        """A Pydantic BaseModel parameter should produce a $ref or inline schema."""
+        from pydantic import BaseModel
+
+        class Address(BaseModel):
+            city: str
+            zip_code: str
+
+        def f(addr: Address) -> None: ...
+
+        schema = self._schema_for(f)
+        # The property should reference the Address schema
+        prop = schema["properties"]["addr"]
+        assert "$ref" in prop or "properties" in prop
+
+        # Address schema should be in $defs or inline
+        if "$ref" in prop:
+            assert "$defs" in schema
+            assert "Address" in schema["$defs"]
+            addr_schema = schema["$defs"]["Address"]
+            assert "city" in addr_schema["properties"]
+            assert "zip_code" in addr_schema["properties"]
+
+    # --- Literal ---
+
+    def test_literal_produces_enum(self):
+        """Literal['a', 'b', 'c'] should produce an enum constraint."""
+
+        def f(mode: Literal["a", "b", "c"]) -> None: ...
+
+        schema = self._schema_for(f)
+        prop = schema["properties"]["mode"]
+        assert prop["enum"] == ["a", "b", "c"]
+
+    def test_literal_int(self):
+        """Literal[1, 2, 3] should produce an enum with integers."""
+
+        def f(level: Literal[1, 2, 3]) -> None: ...
+
+        schema = self._schema_for(f)
+        prop = schema["properties"]["level"]
+        assert prop["enum"] == [1, 2, 3]
+
+    # --- Annotated with Field constraints ---
+
+    def test_annotated_with_ge_constraint(self):
+        """Annotated[int, Field(ge=0)] should produce minimum constraint."""
+
+        def f(count: Annotated[int, Field(ge=0)]) -> None: ...
+
+        schema = self._schema_for(f)
+        prop = schema["properties"]["count"]
+        assert prop["type"] == "integer"
+        assert prop.get("minimum") == 0
+
+    def test_annotated_with_max_length(self):
+        """Annotated[str, Field(max_length=10)] should produce maxLength."""
+
+        def f(name: Annotated[str, Field(max_length=10)]) -> None: ...
+
+        schema = self._schema_for(f)
+        prop = schema["properties"]["name"]
+        assert prop["type"] == "string"
+        assert prop.get("maxLength") == 10
+
+    def test_annotated_with_description(self):
+        """Annotated[int, Field(description='...')] should carry description."""
+
+        def f(x: Annotated[int, Field(description="The x value")]) -> None: ...
+
+        schema = self._schema_for(f)
+        prop = schema["properties"]["x"]
+        assert prop.get("description") == "The x value"
+
+    # --- Optional[list[str]] ---
+
+    def test_optional_list(self):
+        """Optional[list[str]] should produce nullable array."""
+
+        def f(tags: list[str] | None = None) -> None: ...
+
+        schema = self._schema_for(f)
+        prop = schema["properties"]["tags"]
+        # Pydantic may express this as anyOf with array + null, or type array with default
+        prop_str = str(prop)
+        assert "array" in prop_str or "items" in prop_str
+
+    # --- Enum subclass ---
+
+    def test_enum_parameter(self):
+        """Enum subclass parameters should produce enum constraint."""
+
+        class Color(str, Enum):
+            RED = "red"
+            GREEN = "green"
+            BLUE = "blue"
+
+        def f(color: Color) -> None: ...
+
+        schema = self._schema_for(f)
+        # Could be inline enum or $ref to Color
+        prop = schema["properties"]["color"]
+        if "$ref" in prop:
+            color_schema = schema["$defs"]["Color"]
+            assert set(color_schema["enum"]) == {"red", "green", "blue"}
+        else:
+            assert set(prop["enum"]) == {"red", "green", "blue"}
+
+    # --- Default values with complex types ---
+
+    def test_default_empty_list(self):
+        """Default value of [] should work for list[str] parameter."""
+
+        def f(items: list[str] = []) -> None: ...  # noqa: B006
+
+        model = _generate_parameters_model(f)
+        assert model is not None
+        instance = model()
+        assert instance.items == []
+
+    def test_default_dict(self):
+        """Default value of {} should work for dict parameter."""
+
+        def f(meta: dict[str, int] = {}) -> None: ...  # noqa: B006
+
+        model = _generate_parameters_model(f)
+        assert model is not None
+        instance = model()
+        assert instance.meta == {}
+
+    # --- *args / **kwargs warnings ---
+
+    def test_args_emits_warning(self):
+        """*args parameter should emit UserWarning and be excluded."""
+
+        def f(x: int, *args) -> None: ...
+
+        with pytest.warns(UserWarning, match=r"\*args"):
+            model = _generate_parameters_model(f)
+
+        assert model is not None
+        assert "args" not in model.model_json_schema()["properties"]
+        assert "x" in model.model_json_schema()["properties"]
+
+    def test_kwargs_emits_warning(self):
+        """**kwargs parameter should emit UserWarning and be excluded."""
+
+        def f(x: int, **kwargs) -> None: ...
+
+        with pytest.warns(UserWarning, match=r"\*\*kwargs"):
+            model = _generate_parameters_model(f)
+
+        assert model is not None
+        assert "kwargs" not in model.model_json_schema()["properties"]
+        assert "x" in model.model_json_schema()["properties"]
+
+    # --- Required fields tracking ---
+
+    def test_required_fields_in_schema(self):
+        """Required parameters should appear in schema 'required' list."""
+
+        def f(name: str, age: int, city: str = "NYC") -> None: ...
+
+        schema = self._schema_for(f)
+        assert "name" in schema.get("required", [])
+        assert "age" in schema.get("required", [])
+        # city has default, should not be required
+        assert "city" not in schema.get("required", [])
+
+    # --- Mixed complex scenario ---
+
+    def test_mixed_complex_types(self):
+        """Function with many complex types should produce valid schema."""
+
+        class Priority(str, Enum):
+            LOW = "low"
+            HIGH = "high"
+
+        def process(
+            name: str,
+            tags: list[str],
+            priority: Priority = Priority.LOW,
+            count: Annotated[int, Field(ge=0)] = 0,
+            mode: Literal["fast", "slow"] = "fast",
+            extra: dict[str, Any] | None = None,
+        ) -> None: ...
+
+        schema = self._schema_for(process)
+        props = schema["properties"]
+
+        assert "name" in props
+        assert "tags" in props
+        assert "priority" in props
+        assert "count" in props
+        assert "mode" in props
+        assert "extra" in props
+
+        # name should be required
+        assert "name" in schema.get("required", [])
+        assert "tags" in schema.get("required", [])
