@@ -10,6 +10,33 @@ author: Oaklight
 
 本页面记录了 ToolRegistry 项目自首个发布版本以来的所有重要变更。
 
+## Unreleased
+
+### 新特性
+
+- **工具来源追踪**（[#125](../../issues/125)、[#130](../../pull/130)）
+    - 为 `ToolMetadata` 新增 `source` 和 `source_detail` 字段，用于追踪工具来源
+    - 各集成在构建工具时自动设置 `source`：`"mcp"`、`"openapi"`、`"langchain"` 或 `"native"`（默认）
+    - `source_detail` 记录传输信息（MCP）、基础 URL + 路径（OpenAPI）或类名（LangChain）
+
+### 修复
+
+- **参数内省警告**（[#126](../../issues/126)、[#131](../../pull/131)）
+    - 当 JSON Schema 生成过程中跳过 `*args` 或 `**kwargs` 参数时发出 `UserWarning`
+    - 当 `Tool.from_function()` 中参数模型生成失败时发出 `UserWarning`，而非静默生成空 schema
+
+### 重构
+
+- 从 `setup_routes()` 中提取路由处理函数以降低复杂度
+- 将执行器 `ExecutionStatus` 重命名为 `HandleStatus`
+- 从 `execute_tool_calls()` 中提取辅助函数以降低复杂度
+
+### CI
+
+- 添加 pre-commit，集成 ruff、ty 类型检查和 complexipy
+- 将 CI 拆分为 lint + test 两个任务
+- 在测试任务中添加缺失的 websockets 依赖
+
 ## [0.9.0] - 2026-05-11
 
 ### 新特性
