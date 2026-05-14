@@ -170,6 +170,34 @@ async_tool = Tool(
 )
 ```
 
+### 执行工具：`run_raw()` 与 `run()`
+
+`Tool` 类提供两组执行 API：
+
+- **`run_raw(parameters)` / `arun_raw(parameters)`** — 验证参数并执行工具。失败时直接抛出异常，允许程序化调用方捕获和处理错误。
+- **`run(parameters)` / `arun(parameters)`** *（已弃用的错误吞没行为）* — 委托给 `run_raw()`/`arun_raw()`，但会捕获异常并返回类似 `"Error executing tool_name: ..."` 的错误字符串。此行为会发出 `DeprecationWarning`；未来版本中 `run()` 也将直接抛出异常。
+
+```python
+from toolregistry import Tool
+
+def divide(a: float, b: float) -> float:
+    """Divide a by b."""
+    return a / b
+
+tool = Tool.from_function(divide)
+
+# 推荐：使用 run_raw() 进行程序化错误处理
+try:
+    result = tool.run_raw({"a": 10, "b": 0})
+except ZeroDivisionError:
+    print("不能除以零！")
+
+# 遗留方式：run() 捕获异常并返回错误字符串（已弃用）
+result = tool.run({"a": 10, "b": 0})
+# result == "Error executing divide: division by zero"
+# ^ 发出 DeprecationWarning
+```
+
 ## 参数模式格式
 
 Tool 类使用 JSON Schema 格式进行参数验证：

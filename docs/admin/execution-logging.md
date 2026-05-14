@@ -30,11 +30,13 @@ info = registry.enable_admin()
 | `id` | `str` | 唯一标识符（UUID） |
 | `tool_name` | `str` | 执行的工具名称 |
 | `timestamp` | `datetime` | 执行发生的时间 |
-| `status` | `ExecutionStatus` | `success`、`error` 或 `disabled` |
+| `status` | `ExecutionStatus` | `success`、`error`、`timeout` 或 `disabled` |
 | `duration_ms` | `float` | 执行耗时（毫秒） |
 | `arguments` | `dict` | 传递给工具的输入参数 |
 | `result` | `Any` | 执行结果（成功执行时） |
 | `error` | `str \| None` | 错误信息（失败执行时） |
+| `exception_type` | `str \| None` | 异常类的限定名称，如 `"ValueError"` |
+| `traceback` | `str \| None` | 异常的格式化追溯字符串 |
 | `metadata` | `dict` | 附加元数据 |
 
 ## 编程方式查询日志

@@ -4,6 +4,34 @@
 
 ## 0.8.x → 下一版本
 
+### `Tool.run()` / `arun()` 错误吞没行为已弃用
+
+`Tool.run()` 和 `arun()` 之前会捕获所有异常并返回类似 `"Error executing tool_name: ..."` 的错误字符串。此行为现已弃用，会发出 `DeprecationWarning`。未来版本中 `run()` 也将直接抛出异常。
+
+**之前：**
+
+```python
+tool = registry.get_tool("divide")
+result = tool.run({"a": 10, "b": 0})
+# result == "Error executing divide: division by zero"
+# 不抛出异常，无警告
+```
+
+**之后：**
+
+```python
+# 推荐：使用 run_raw() 进行程序化错误处理
+try:
+    result = tool.run_raw({"a": 10, "b": 0})
+except ZeroDivisionError:
+    print("不能除以零！")
+
+# 遗留方式：run() 仍然可用，但出错时会发出 DeprecationWarning
+result = tool.run({"a": 10, "b": 0})
+# DeprecationWarning: Tool.run() caught an exception and returned an error string.
+# This behavior is deprecated; use Tool.run_raw() for exceptions.
+```
+
 ### `HttpxClientConfig` 重命名为 `HttpClientConfig`
 
 `HttpxClientConfig` 类已重命名为 `HttpClientConfig`，以反映核心库不再依赖 httpx。旧名称保留为弃用别名。

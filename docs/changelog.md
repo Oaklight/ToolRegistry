@@ -10,6 +10,23 @@ author: Oaklight
 
 本页面记录了 ToolRegistry 项目自首个发布版本以来的所有重要变更。
 
+## [Unreleased]
+
+### 重构
+
+- **将 Tool.run() 的异常处理与 LLM 错误格式化分离** ([#129](../../issues/129), [#149](../../pull/149))
+    - 新增 `run_raw()` 和 `arun_raw()` 方法，直接抛出异常而不捕获
+    - `run()` 和 `arun()` 捕获异常并返回错误字符串时现在会发出 `DeprecationWarning`；程序化错误处理请使用 `run_raw()`/`arun_raw()`
+    - 在 `execute_tool_calls()` 中用类型安全的 `_ToolError` 哨兵模式替代脆弱的 `startswith("Error")` 字符串前缀检测
+    - 在 `ChangeEventType` 中新增 `TOOL_ERROR` 事件，用于回调订阅者
+    - 在 `ExecutionStatus` 枚举中新增 `TIMEOUT` 状态（与 `ERROR` 区分）
+    - 为 `ExecutionLogEntry` 新增 `exception_type` 和 `traceback` 字段，支持结构化错误日志
+
+### 测试
+
+- **改善复杂类型 JSON Schema 生成的边界情况覆盖** ([#128](../../issues/128), [#150](../../pull/150))
+    - 新增 18 个测试，覆盖 `Union`、`Literal`、`Annotated[T, Field(...)]`、嵌套 `BaseModel`、`Enum` 子类、`Optional[list[...]]`、可变默认值、`*args`/`**kwargs` 警告、required 字段追踪以及混合复杂场景
+
 ## [0.9.1] - 2026-05-14
 
 ### 新特性

@@ -28,6 +28,7 @@
 | `PERMISSION_DENIED` | 工具调用被权限策略拒绝 |
 | `PERMISSION_ASKED` | 工具调用被上报给权限处理器 |
 | `METADATA_UPDATE` | 工具的元数据在运行时被更新 |
+| `TOOL_ERROR` | 工具执行失败并抛出异常 |
 
 ### 示例
 
@@ -45,6 +46,8 @@ elif event.event_type == ChangeEventType.PERMISSION_ASKED:
     print(f"工具调用被上报：{event.tool_name}")
 elif event.event_type == ChangeEventType.METADATA_UPDATE:
     print(f"元数据已更新：{event.tool_name}，字段：{event.metadata}")
+elif event.event_type == ChangeEventType.TOOL_ERROR:
+    print(f"工具错误：{event.tool_name}，类型：{event.metadata.get('exception_type')}")
 ```
 
 ## ChangeEvent
