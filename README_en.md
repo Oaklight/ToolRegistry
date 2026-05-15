@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Oaklight/toolregistry)
 
-[English Version](README_en.md) | [中文版](README_zh.md)
+English Version | [中文版](README_zh.md)
 
 A protocol-agnostic tool management library for function-calling LLMs.
 
@@ -16,17 +16,16 @@ A protocol-agnostic tool management library for function-calling LLMs.
 
 | Package | Description | PyPI | Docs |
 |---------|-------------|------|------|
-| **toolregistry** | Core library — tool registration, schema generation, execution | [![PyPI](https://img.shields.io/pypi/v/toolregistry?color=green)](https://pypi.org/project/toolregistry/) | [Docs](https://toolregistry.readthedocs.io/) |
-| **toolregistry-server** | Server adapters — expose tools via OpenAPI & MCP | [![PyPI](https://img.shields.io/pypi/v/toolregistry-server?color=green)](https://pypi.org/project/toolregistry-server/) | [Docs](https://toolregistry-server.readthedocs.io/) |
-| **toolregistry-hub** | Ready-to-use tools — calculator, web search, file ops, etc. | [![PyPI](https://img.shields.io/pypi/v/toolregistry-hub?color=green)](https://pypi.org/project/toolregistry-hub/) | [Docs](https://toolregistry-hub.readthedocs.io/) |
+| [**toolregistry**](https://github.com/Oaklight/ToolRegistry) | Core library — tool registration, schema generation, execution | [![PyPI](https://img.shields.io/pypi/v/toolregistry?color=green)](https://pypi.org/project/toolregistry/) | [Docs](https://toolregistry.readthedocs.io/) |
+| [**toolregistry-server**](https://github.com/Oaklight/toolregistry-server) | Server adapters — expose tools via OpenAPI & MCP | [![PyPI](https://img.shields.io/pypi/v/toolregistry-server?color=green)](https://pypi.org/project/toolregistry-server/) | [Docs](https://toolregistry-server.readthedocs.io/) |
+| [**toolregistry-hub**](https://github.com/Oaklight/toolregistry-hub) | Ready-to-use tools — calculator, web search, file ops, etc. | [![PyPI](https://img.shields.io/pypi/v/toolregistry-hub?color=green)](https://pypi.org/project/toolregistry-hub/) | [Docs](https://toolregistry-hub.readthedocs.io/) |
 
-```mermaid
-graph LR
-    Hub["toolregistry-hub<br/><i>Ready-to-use tool implementations</i>"]
-    Server["toolregistry-server<br/><i>OpenAPI & MCP protocol adapters</i>"]
-    Core["toolregistry<br/><i>Tool registration, schema generation, execution</i>"]
-
-    Hub --> Server --> Core
+```
+toolregistry (core)
+       ↓
+toolregistry-server (tool server)
+       ↓
+toolregistry-hub (tool collection + server config)
 ```
 
 ## Features

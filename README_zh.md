@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Oaklight/toolregistry)
 
-[English Version](README_en.md) | [中文版](README_zh.md)
+[English Version](README_en.md) | 中文版
 
 一个协议无关的工具管理库，面向支持函数调用的大语言模型。
 
@@ -16,17 +16,16 @@
 
 | 包 | 描述 | PyPI | 文档 |
 |---|------|------|------|
-| **toolregistry** | 核心库 — 工具注册、Schema 生成、执行 | [![PyPI](https://img.shields.io/pypi/v/toolregistry?color=green)](https://pypi.org/project/toolregistry/) | [文档](https://toolregistry.readthedocs.io/) |
-| **toolregistry-server** | 服务端适配器 — 通过 OpenAPI 和 MCP 暴露工具 | [![PyPI](https://img.shields.io/pypi/v/toolregistry-server?color=green)](https://pypi.org/project/toolregistry-server/) | [文档](https://toolregistry-server.readthedocs.io/) |
-| **toolregistry-hub** | 即用工具集 — 计算器、网页搜索、文件操作等 | [![PyPI](https://img.shields.io/pypi/v/toolregistry-hub?color=green)](https://pypi.org/project/toolregistry-hub/) | [文档](https://toolregistry-hub.readthedocs.io/) |
+| [**toolregistry**](https://github.com/Oaklight/ToolRegistry) | 核心库 — 工具注册、Schema 生成、执行 | [![PyPI](https://img.shields.io/pypi/v/toolregistry?color=green)](https://pypi.org/project/toolregistry/) | [文档](https://toolregistry.readthedocs.io/) |
+| [**toolregistry-server**](https://github.com/Oaklight/toolregistry-server) | 服务端适配器 — 通过 OpenAPI 和 MCP 暴露工具 | [![PyPI](https://img.shields.io/pypi/v/toolregistry-server?color=green)](https://pypi.org/project/toolregistry-server/) | [文档](https://toolregistry-server.readthedocs.io/) |
+| [**toolregistry-hub**](https://github.com/Oaklight/toolregistry-hub) | 即用工具集 — 计算器、网页搜索、文件操作等 | [![PyPI](https://img.shields.io/pypi/v/toolregistry-hub?color=green)](https://pypi.org/project/toolregistry-hub/) | [文档](https://toolregistry-hub.readthedocs.io/) |
 
-```mermaid
-graph LR
-    Hub["toolregistry-hub<br/><i>即用工具实现</i>"]
-    Server["toolregistry-server<br/><i>OpenAPI 和 MCP 协议适配器</i>"]
-    Core["toolregistry<br/><i>工具注册、Schema 生成、执行</i>"]
-
-    Hub --> Server --> Core
+```
+toolregistry (core)
+       ↓
+toolregistry-server (tool server)
+       ↓
+toolregistry-hub (tool collection + server config)
 ```
 
 ## 特性
