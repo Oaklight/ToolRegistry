@@ -17,6 +17,7 @@ from .static import ADMIN_HTML
 
 if TYPE_CHECKING:
     from toolregistry import ToolRegistry
+    from toolregistry.tool import Tool
 
     from .server import AdminApp
 
@@ -356,6 +357,37 @@ def _update_tool_metadata(request: Request, name: str) -> Response:
     )
 
 
+def _new_namespace_entry(name: str) -> dict[str, Any]:
+    """Create a fresh namespace stats dict."""
+    return {
+        "name": name,
+        "tool_count": 0,
+        "enabled_count": 0,
+        "disabled_count": 0,
+        "async_count": 0,
+        "remote_count": 0,
+        "tags": set(),
+    }
+
+
+def _accumulate_tool_stats(
+    ns_data: dict[str, Any],
+    tool: "Tool",
+    is_enabled: bool,
+) -> None:
+    """Update namespace stats with a single tool's info."""
+    ns_data["tool_count"] += 1
+    if is_enabled:
+        ns_data["enabled_count"] += 1
+    else:
+        ns_data["disabled_count"] += 1
+    if tool.metadata.is_async:
+        ns_data["async_count"] += 1
+    if tool.metadata.locality == "remote":
+        ns_data["remote_count"] += 1
+    ns_data["tags"].update(tool.metadata.all_tags)
+
+
 def _get_namespaces(request: Request) -> Response:
     """Get all namespaces."""
     registry = _app(request).registry
@@ -365,25 +397,8 @@ def _get_namespaces(request: Request) -> Response:
         if tool:
             ns = tool.namespace or "default"
             if ns not in namespaces:
-                namespaces[ns] = {
-                    "name": ns,
-                    "tool_count": 0,
-                    "enabled_count": 0,
-                    "disabled_count": 0,
-                    "async_count": 0,
-                    "remote_count": 0,
-                    "tags": set(),
-                }
-            namespaces[ns]["tool_count"] += 1
-            if registry.is_enabled(tool_name):
-                namespaces[ns]["enabled_count"] += 1
-            else:
-                namespaces[ns]["disabled_count"] += 1
-            if tool.metadata.is_async:
-                namespaces[ns]["async_count"] += 1
-            if tool.metadata.locality == "remote":
-                namespaces[ns]["remote_count"] += 1
-            namespaces[ns]["tags"].update(tool.metadata.all_tags)
+                namespaces[ns] = _new_namespace_entry(ns)
+            _accumulate_tool_stats(namespaces[ns], tool, registry.is_enabled(tool_name))
 
     for ns_data in namespaces.values():
         ns_data["tags"] = sorted(ns_data["tags"])
