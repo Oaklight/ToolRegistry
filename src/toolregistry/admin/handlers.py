@@ -18,7 +18,6 @@ from .static import ADMIN_HTML
 
 if TYPE_CHECKING:
     from toolregistry import ToolRegistry
-    from toolregistry.tool import Tool
 
     from .server import AdminApp
 
@@ -390,37 +389,6 @@ def _update_tool_metadata(request: Request, name: str) -> Response:
     )
 
 
-def _new_namespace_entry(name: str) -> dict[str, Any]:
-    """Create a fresh namespace stats dict."""
-    return {
-        "name": name,
-        "tool_count": 0,
-        "enabled_count": 0,
-        "disabled_count": 0,
-        "async_count": 0,
-        "remote_count": 0,
-        "tags": set(),
-    }
-
-
-def _accumulate_tool_stats(
-    ns_data: dict[str, Any],
-    tool: "Tool",
-    is_enabled: bool,
-) -> None:
-    """Update namespace stats with a single tool's info."""
-    ns_data["tool_count"] += 1
-    if is_enabled:
-        ns_data["enabled_count"] += 1
-    else:
-        ns_data["disabled_count"] += 1
-    if tool.metadata.is_async:
-        ns_data["async_count"] += 1
-    if tool.metadata.locality == "remote":
-        ns_data["remote_count"] += 1
-    ns_data["tags"].update(tool.metadata.all_tags)
-
-
 def _get_namespaces(request: Request) -> Response:
     """Get all namespaces."""
     registry = _app(request).registry
@@ -430,8 +398,25 @@ def _get_namespaces(request: Request) -> Response:
         if tool:
             ns = tool.namespace or "default"
             if ns not in namespaces:
-                namespaces[ns] = _new_namespace_entry(ns)
-            _accumulate_tool_stats(namespaces[ns], tool, registry.is_enabled(tool_name))
+                namespaces[ns] = {
+                    "name": ns,
+                    "tool_count": 0,
+                    "enabled_count": 0,
+                    "disabled_count": 0,
+                    "async_count": 0,
+                    "remote_count": 0,
+                    "tags": set(),
+                }
+            namespaces[ns]["tool_count"] += 1
+            if registry.is_enabled(tool_name):
+                namespaces[ns]["enabled_count"] += 1
+            else:
+                namespaces[ns]["disabled_count"] += 1
+            if tool.metadata.is_async:
+                namespaces[ns]["async_count"] += 1
+            if tool.metadata.locality == "remote":
+                namespaces[ns]["remote_count"] += 1
+            namespaces[ns]["tags"].update(tool.metadata.all_tags)
 
     for ns_data in namespaces.values():
         ns_data["tags"] = sorted(ns_data["tags"])
@@ -726,40 +711,30 @@ def _get_config(request: Request) -> Response:
     return _json_response(data)
 
 
-def _parse_config_updates(data: dict) -> tuple[dict[str, Any] | None, Response | None]:
-    """Parse and validate config update fields from request data.
+def _validate_config_field(
+    data: dict, field: str, updates: dict[str, Any]
+) -> Response | None:
+    """Validate a single config update field and add it to updates.
 
     Returns:
-        A tuple of (updates_dict, None) on success, or (None, error_response) on failure.
+        An error Response if validation fails, None on success.
     """
-    updates: dict[str, Any] = {}
-    if "mode" in data:
+    if field not in data:
+        return None
+    if field == "mode":
         mode = data["mode"]
         if mode not in ("denylist", "allowlist"):
-            return None, _error_response(
+            return _error_response(
                 400,
                 "Bad Request",
                 f"Invalid mode '{mode}'. Must be 'denylist' or 'allowlist'.",
             )
         updates["mode"] = mode
-    if "disabled" in data:
-        if not isinstance(data["disabled"], list):
-            return None, _error_response(
-                400, "Bad Request", "'disabled' must be a list"
-            )
-        updates["disabled"] = tuple(data["disabled"])
-    if "enabled" in data:
-        if not isinstance(data["enabled"], list):
-            return None, _error_response(400, "Bad Request", "'enabled' must be a list")
-        updates["enabled"] = tuple(data["enabled"])
-
-    if not updates:
-        return None, _error_response(
-            400,
-            "Bad Request",
-            "No valid fields to update. Supported: mode, disabled, enabled.",
-        )
-    return updates, None
+    else:  # "disabled" or "enabled"
+        if not isinstance(data[field], list):
+            return _error_response(400, "Bad Request", f"'{field}' must be a list")
+        updates[field] = tuple(data[field])
+    return None
 
 
 def _update_config(request: Request) -> Response:
@@ -784,10 +759,18 @@ def _update_config(request: Request) -> Response:
     if not isinstance(data, dict):
         return _error_response(400, "Bad Request", "Body must be a JSON object")
 
-    updates, err = _parse_config_updates(data)
-    if err is not None:
-        return err
-    assert updates is not None  # guaranteed when err is None
+    updates: dict[str, Any] = {}
+    for field in ("mode", "disabled", "enabled"):
+        err = _validate_config_field(data, field, updates)
+        if err is not None:
+            return err
+
+    if not updates:
+        return _error_response(
+            400,
+            "Bad Request",
+            "No valid fields to update. Supported: mode, disabled, enabled.",
+        )
 
     new_config = replace(config, **updates)
 
