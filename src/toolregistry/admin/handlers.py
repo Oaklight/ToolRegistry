@@ -735,6 +735,7 @@ def _update_config(request: Request) -> Response:
     updates, err = _parse_config_updates(data)
     if err is not None:
         return err
+    assert updates is not None  # guaranteed when err is None
 
     new_config = replace(config, **updates)
 
