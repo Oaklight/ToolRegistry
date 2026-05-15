@@ -659,6 +659,42 @@ def _get_config(request: Request) -> Response:
     return _json_response(data)
 
 
+def _parse_config_updates(data: dict) -> tuple[dict[str, Any] | None, Response | None]:
+    """Parse and validate config update fields from request data.
+
+    Returns:
+        A tuple of (updates_dict, None) on success, or (None, error_response) on failure.
+    """
+    updates: dict[str, Any] = {}
+    if "mode" in data:
+        mode = data["mode"]
+        if mode not in ("denylist", "allowlist"):
+            return None, _error_response(
+                400,
+                "Bad Request",
+                f"Invalid mode '{mode}'. Must be 'denylist' or 'allowlist'.",
+            )
+        updates["mode"] = mode
+    if "disabled" in data:
+        if not isinstance(data["disabled"], list):
+            return None, _error_response(
+                400, "Bad Request", "'disabled' must be a list"
+            )
+        updates["disabled"] = tuple(data["disabled"])
+    if "enabled" in data:
+        if not isinstance(data["enabled"], list):
+            return None, _error_response(400, "Bad Request", "'enabled' must be a list")
+        updates["enabled"] = tuple(data["enabled"])
+
+    if not updates:
+        return None, _error_response(
+            400,
+            "Bad Request",
+            "No valid fields to update. Supported: mode, disabled, enabled.",
+        )
+    return updates, None
+
+
 def _update_config(request: Request) -> Response:
     """Update tool configuration and persist to disk."""
     from dataclasses import replace
@@ -681,32 +717,9 @@ def _update_config(request: Request) -> Response:
     if not isinstance(data, dict):
         return _error_response(400, "Bad Request", "Body must be a JSON object")
 
-    # Build kwargs for replace()
-    updates: dict[str, Any] = {}
-    if "mode" in data:
-        mode = data["mode"]
-        if mode not in ("denylist", "allowlist"):
-            return _error_response(
-                400,
-                "Bad Request",
-                f"Invalid mode '{mode}'. Must be 'denylist' or 'allowlist'.",
-            )
-        updates["mode"] = mode
-    if "disabled" in data:
-        if not isinstance(data["disabled"], list):
-            return _error_response(400, "Bad Request", "'disabled' must be a list")
-        updates["disabled"] = tuple(data["disabled"])
-    if "enabled" in data:
-        if not isinstance(data["enabled"], list):
-            return _error_response(400, "Bad Request", "'enabled' must be a list")
-        updates["enabled"] = tuple(data["enabled"])
-
-    if not updates:
-        return _error_response(
-            400,
-            "Bad Request",
-            "No valid fields to update. Supported: mode, disabled, enabled.",
-        )
+    updates, err = _parse_config_updates(data)
+    if err is not None:
+        return err
 
     new_config = replace(config, **updates)
 
