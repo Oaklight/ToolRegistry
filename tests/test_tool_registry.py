@@ -643,10 +643,10 @@ class TestToolRegistryResultTruncation:
 
 
 class TestThinkAugmentedExecution:
-    """Test think-augmented calling in execute_tool_calls path."""
+    """Test think-augmented calling (toolcall_reason) in execute_tool_calls path."""
 
-    def test_execute_tool_calls_strips_thought(self):
-        """Test that thought is stripped in execute_tool_calls."""
+    def test_execute_tool_calls_strips_toolcall_reason(self):
+        """Test that toolcall_reason is stripped in execute_tool_calls."""
         from openai.types.chat.chat_completion_message_tool_call import (
             ChatCompletionMessageToolCall as ChatCompletionMessageFunctionToolCall,
             Function,
@@ -665,15 +665,15 @@ class TestThinkAugmentedExecution:
                 type="function",
                 function=Function(
                     name="greet",
-                    arguments='{"name": "World", "thought": "I should greet the world"}',
+                    arguments='{"name": "World", "toolcall_reason": "I should greet the world"}',
                 ),
             )
         ]
         results = registry.execute_tool_calls(tool_calls)
         assert results["call_think"] == "Hello, World!"
 
-    def test_get_schemas_default_no_thought(self):
-        """Test that get_schemas() excludes thought by default (think_augment=False)."""
+    def test_get_schemas_default_no_toolcall_reason(self):
+        """Test that get_schemas() excludes toolcall_reason by default (think_augment=False)."""
 
         def add(a: int, b: int) -> int:
             """Add two numbers."""
@@ -683,10 +683,10 @@ class TestThinkAugmentedExecution:
         registry.register(add)
         schemas = registry.get_schemas()
         props = schemas[0]["function"]["parameters"]["properties"]
-        assert "thought" not in props
+        assert "toolcall_reason" not in props
 
     def test_get_schemas_with_think_augment_enabled(self):
-        """Test that get_schemas() includes thought when think_augment=True."""
+        """Test that get_schemas() includes toolcall_reason when think_augment=True."""
 
         def add(a: int, b: int) -> int:
             """Add two numbers."""
@@ -696,7 +696,7 @@ class TestThinkAugmentedExecution:
         registry.register(add)
         schemas = registry.get_schemas()
         props = schemas[0]["function"]["parameters"]["properties"]
-        assert "thought" in props
+        assert "toolcall_reason" in props
 
     def test_enable_disable_think_augment(self):
         """Test enable/disable_think_augment toggle methods."""
@@ -710,17 +710,21 @@ class TestThinkAugmentedExecution:
 
         # Default: off
         schemas = registry.get_schemas()
-        assert "thought" not in schemas[0]["function"]["parameters"]["properties"]
+        assert (
+            "toolcall_reason" not in schemas[0]["function"]["parameters"]["properties"]
+        )
 
         # Enable
         registry.enable_think_augment()
         schemas = registry.get_schemas()
-        assert "thought" in schemas[0]["function"]["parameters"]["properties"]
+        assert "toolcall_reason" in schemas[0]["function"]["parameters"]["properties"]
 
         # Disable again
         registry.disable_think_augment()
         schemas = registry.get_schemas()
-        assert "thought" not in schemas[0]["function"]["parameters"]["properties"]
+        assert (
+            "toolcall_reason" not in schemas[0]["function"]["parameters"]["properties"]
+        )
 
     def test_per_tool_override_true(self):
         """Test per-tool think_augment=True overrides registry default (off)."""
@@ -735,7 +739,7 @@ class TestThinkAugmentedExecution:
         registry.register(tool)
         schemas = registry.get_schemas()
         props = schemas[0]["function"]["parameters"]["properties"]
-        assert "thought" in props
+        assert "toolcall_reason" in props
 
     def test_per_tool_override_false(self):
         """Test per-tool think_augment=False overrides registry setting (on)."""
@@ -750,7 +754,7 @@ class TestThinkAugmentedExecution:
         registry.register(tool)
         schemas = registry.get_schemas()
         props = schemas[0]["function"]["parameters"]["properties"]
-        assert "thought" not in props
+        assert "toolcall_reason" not in props
 
     def test_per_tool_none_follows_registry(self):
         """Test per-tool think_augment=None follows registry setting."""
@@ -765,12 +769,12 @@ class TestThinkAugmentedExecution:
         registry.register(tool)
         schemas = registry.get_schemas()
         props = schemas[0]["function"]["parameters"]["properties"]
-        assert "thought" in props
+        assert "toolcall_reason" in props
 
         registry.disable_think_augment()
         schemas = registry.get_schemas()
         props = schemas[0]["function"]["parameters"]["properties"]
-        assert "thought" not in props
+        assert "toolcall_reason" not in props
 
 
 class TestStructuredErrorHandling:

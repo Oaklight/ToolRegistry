@@ -27,16 +27,15 @@ class ToolTag(str, Enum):
     PRIVILEGED = "privileged"
 
 
-THINK_PROPERTY: dict[str, str] = {
+TOOLCALL_REASON_PROPERTY: dict[str, str] = {
     "type": "string",
-    "description": (
-        "Your step-by-step reasoning about why you chose this tool and how to use it."
-    ),
+    "description": "Why you chose this tool and what you expect from it.",
 }
 """Schema snippet injected into every tool's ``parameters.properties``
-so that LLMs can include chain-of-thought reasoning when calling a tool.
+so that LLMs can articulate the rationale for each tool call.
 
-Reference: https://arxiv.org/abs/2601.18282
+Inspired by thought-augmented tool calling (https://arxiv.org/abs/2601.18282)
+but uses a unique field name to avoid collisions with native tool parameters.
 """
 
 
@@ -112,9 +111,9 @@ class ToolMetadata(BaseModel):
     """Control thought-augmented tool calling for this tool.
 
     - ``None`` (default): follow the registry-level setting.
-    - ``True``: always inject a ``thought`` property into this tool's
-      schema, regardless of the registry setting.
-    - ``False``: never inject ``thought`` into this tool's schema.
+    - ``True``: always inject a ``toolcall_reason`` property into this
+      tool's schema, regardless of the registry setting.
+    - ``False``: never inject ``toolcall_reason`` into this tool's schema.
 
     Reference: https://arxiv.org/abs/2601.18282
     """
@@ -217,26 +216,18 @@ class Tool(BaseModel):
         return data
 
     def model_post_init(self, __context: Any) -> None:
-        """Inject ``thought`` property into the tool's parameter schema.
+        """Inject ``toolcall_reason`` property into the tool's parameter schema.
 
         Runs after every ``Tool`` (and subclass) construction, regardless
         of whether the instance was created via ``from_function()``, or
         directly (MCP, OpenAPI, LangChain integrations).
 
-        The ``thought`` field is only added when ``parameters`` already
-        contains a ``properties`` mapping and does not already define a
-        ``thought`` key (i.e. native ``thought`` parameters are preserved).
+        The ``toolcall_reason`` field is only added when ``parameters``
+        already contains a ``properties`` mapping.
         """
         props = self.parameters.get("properties")
-        if props is not None and "thought" not in props:
-            props["thought"] = THINK_PROPERTY
-
-    def _has_native_thought_param(self) -> bool:
-        """Return True if the wrapped function natively declares a ``thought`` parameter."""
-        return (
-            self.parameters_model is not None
-            and "thought" in self.parameters_model.model_fields
-        )
+        if props is not None and "toolcall_reason" not in props:
+            props["toolcall_reason"] = TOOLCALL_REASON_PROPERTY
 
     @property
     def is_async(self) -> bool:
@@ -342,20 +333,14 @@ class Tool(BaseModel):
 
         return tool
 
-    def _parameters_without_thought(self) -> dict[str, Any]:
-        """Return a shallow copy of ``parameters`` with ``thought`` removed.
-
-        Only strips ``thought`` when it was injected (i.e. the wrapped
-        function does not natively declare a ``thought`` parameter).
-        """
+    def _parameters_without_toolcall_reason(self) -> dict[str, Any]:
+        """Return a deep copy of ``parameters`` with ``toolcall_reason`` removed."""
         import copy
 
-        if self._has_native_thought_param():
-            return self.parameters
         params = copy.deepcopy(self.parameters)
         props = params.get("properties")
         if props is not None:
-            props.pop("thought", None)
+            props.pop("toolcall_reason", None)
         return params
 
     def get_schema(
@@ -373,7 +358,7 @@ class Tool(BaseModel):
         Args:
             api_format: Target API format. One of ``"openai-chat"``,
                 ``"openai-response"``, ``"anthropic"``, ``"gemini"``.
-            _think_augment: Internal override for thought injection.
+            _think_augment: Internal override for toolcall_reason injection.
                 When ``None`` (default), falls back to
                 ``self.metadata.think_augment``.  Used by
                 :meth:`ToolRegistry.get_schemas` to pass the resolved
@@ -394,12 +379,12 @@ class Tool(BaseModel):
             else self.metadata.think_augment
         )
         # None means "include" when called directly (no registry context)
-        should_include_thought = effective is not False
+        should_include_reason = effective is not False
 
         params = (
             self.parameters
-            if should_include_thought
-            else self._parameters_without_thought()
+            if should_include_reason
+            else self._parameters_without_toolcall_reason()
         )
         ir_tool = _make_ir_tool_definition(self.name, self.description, params)
 
@@ -492,8 +477,7 @@ class Tool(BaseModel):
             ``ToolRegistry.execute_tool_calls()``. Direct calls return raw
             results without truncation.
         """
-        if not self._has_native_thought_param():
-            parameters = {k: v for k, v in parameters.items() if k != "thought"}
+        parameters = {k: v for k, v in parameters.items() if k != "toolcall_reason"}
         validated_params = self._validate_parameters(parameters)
         return self.callable(**validated_params)
 
@@ -554,8 +538,7 @@ class Tool(BaseModel):
             ``ToolRegistry.execute_tool_calls()``. Direct calls return raw
             results without truncation.
         """
-        if not self._has_native_thought_param():
-            parameters = {k: v for k, v in parameters.items() if k != "thought"}
+        parameters = {k: v for k, v in parameters.items() if k != "toolcall_reason"}
         validated_params = self._validate_parameters(parameters)
 
         if inspect.iscoroutinefunction(self.callable):

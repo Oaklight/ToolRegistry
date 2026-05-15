@@ -99,10 +99,10 @@ class ToolRegistry(
                 for all tools. Individual tools can override this via
                 ``ToolMetadata.max_result_size``. None means no limit.
             think_augment: Enable thought-augmented tool calling globally.
-                When ``True``, a ``thought`` property is included in
-                every tool's schema so LLMs can emit chain-of-thought
-                reasoning alongside tool calls.  Individual tools can
-                override this via ``ToolMetadata.think_augment``.
+                When ``True``, a ``toolcall_reason`` property is
+                included in every tool's schema so LLMs can articulate
+                their rationale when calling tools.  Individual tools
+                can override this via ``ToolMetadata.think_augment``.
                 Defaults to ``False``.
             tool_discovery: Enable tool discovery on initialization.
                 When ``True``, :meth:`enable_tool_discovery` is called
@@ -207,10 +207,10 @@ class ToolRegistry(
     def enable_think_augment(self) -> None:
         """Enable thought-augmented tool calling globally.
 
-        When enabled, a ``thought`` property is included in every tool's
-        schema (via :meth:`get_schemas`) so that LLMs can emit
-        chain-of-thought reasoning alongside tool calls.  Individual
-        tools can still override this via ``ToolMetadata.think_augment``.
+        When enabled, a ``toolcall_reason`` property is included in
+        every tool's schema (via :meth:`get_schemas`) so that LLMs can
+        articulate their rationale when calling tools.  Individual tools
+        can still override this via ``ToolMetadata.think_augment``.
 
         Reference: https://arxiv.org/abs/2601.18282
         """
@@ -219,9 +219,9 @@ class ToolRegistry(
     def disable_think_augment(self) -> None:
         """Disable thought-augmented tool calling globally.
 
-        When disabled, the ``thought`` property is stripped from tool
-        schemas produced by :meth:`get_schemas`, unless a tool explicitly
-        opts in via ``ToolMetadata.think_augment = True``.
+        When disabled, the ``toolcall_reason`` property is stripped from
+        tool schemas produced by :meth:`get_schemas`, unless a tool
+        explicitly opts in via ``ToolMetadata.think_augment = True``.
         """
         self._think_augment = False
 
@@ -536,8 +536,7 @@ class ToolRegistry(
         function_name = tc.name
         function_args = call_arguments.get(tc.id, {})
         tool_obj = self.get_tool(function_name)
-        if tool_obj and not tool_obj._has_native_thought_param():
-            function_args.pop("thought", None)
+        function_args.pop("toolcall_reason", None)
         callable_func = tool_obj.callable if tool_obj else None
 
         if callable_func is None:
@@ -877,8 +876,6 @@ class ToolRegistry(
                   (e.g. transport URI, spec URL, class name)
                 - think_augment (bool | None): Think-augmented calling setting
                 - defer (bool): Whether the tool is deferred from initial prompt
-                - has_native_thought (bool): Whether the function natively
-                  declares a ``thought`` parameter
 
         Example:
             >>> registry = ToolRegistry()
@@ -896,7 +893,6 @@ class ToolRegistry(
                     "is_async": False,
                     "think_augment": None,
                     "defer": False,
-                    "has_native_thought": False
                 }
             ]
         """
@@ -918,7 +914,6 @@ class ToolRegistry(
                     "source_detail": meta.source_detail,
                     "think_augment": meta.think_augment,
                     "defer": meta.defer,
-                    "has_native_thought": tool._has_native_thought_param(),
                 }
             )
         return status_list

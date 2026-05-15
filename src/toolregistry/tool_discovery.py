@@ -40,9 +40,9 @@ def _tool_name_to_text(name: str) -> str:
 
 
 def _extract_param_names(tool: Tool) -> str:
-    """Extract parameter names from a tool's JSON schema, excluding ``thought``."""
+    """Extract parameter names from a tool's JSON schema, excluding ``toolcall_reason``."""
     props = tool.parameters.get("properties", {})
-    return " ".join(k for k in props if k != "thought")
+    return " ".join(k for k in props if k != "toolcall_reason")
 
 
 def _tool_to_fields(tool: Tool) -> dict[str, str]:

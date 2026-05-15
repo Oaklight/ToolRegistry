@@ -1402,6 +1402,13 @@
                     <div class="status-indicator" id="status-indicator" title="Connected" data-i18n-title="status.connected">
                         <span class="status-dot" id="status-dot"></span>
                     </div>
+                    <button class="btn-refresh" onclick="showVersionInfo()" title="Version Info" data-i18n-title="btn.versionInfo">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="16" x2="12" y2="12"></line>
+                            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                        </svg>
+                    </button>
                     <button class="btn-refresh" onclick="refreshAll()" title="Refresh" data-i18n-title="btn.refresh">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <polyline points="23 4 23 10 17 10"></polyline>
@@ -1728,7 +1735,7 @@
             'col.disabled':'Disabled', 'col.tags':'Tags', 'col.actions':'Actions',
             'col.timestamp':'Timestamp', 'col.tool':'Tool', 'col.status':'Status',
             'col.duration':'Duration', 'col.ruleName':'Rule Name', 'col.result':'Result',
-            'btn.refresh':'Refresh', 'btn.clearLogs':'Clear Logs', 'btn.apply':'Apply',
+            'btn.refresh':'Refresh', 'btn.versionInfo':'Version Info', 'btn.clearLogs':'Clear Logs', 'btn.apply':'Apply',
             'btn.downloadState':'Download State', 'btn.uploadState':'Upload State',
             'btn.cancel':'Cancel', 'btn.confirm':'Confirm',
             'btn.enableAll':'Enable All', 'btn.disableAll':'Disable All',
@@ -1820,7 +1827,7 @@
             'col.disabled':'\u5df2\u7981\u7528', 'col.tags':'\u6807\u7b7e', 'col.actions':'\u64cd\u4f5c',
             'col.timestamp':'\u65f6\u95f4\u6233', 'col.tool':'\u5de5\u5177', 'col.status':'\u72b6\u6001',
             'col.duration':'\u8017\u65f6', 'col.ruleName':'\u89c4\u5219\u540d\u79f0', 'col.result':'\u7ed3\u679c',
-            'btn.refresh':'\u5237\u65b0', 'btn.clearLogs':'\u6e05\u9664\u65e5\u5fd7', 'btn.apply':'\u5e94\u7528',
+            'btn.refresh':'\u5237\u65b0', 'btn.versionInfo':'\u7248\u672c\u4fe1\u606f', 'btn.clearLogs':'\u6e05\u9664\u65e5\u5fd7', 'btn.apply':'\u5e94\u7528',
             'btn.downloadState':'\u4e0b\u8f7d\u72b6\u6001', 'btn.uploadState':'\u4e0a\u4f20\u72b6\u6001',
             'btn.cancel':'\u53d6\u6d88', 'btn.confirm':'\u786e\u8ba4',
             'btn.enableAll':'\u5168\u90e8\u542f\u7528', 'btn.disableAll':'\u5168\u90e8\u7981\u7528',
@@ -2339,7 +2346,7 @@
                         ${sourceBadge}
                         ${metaIcons}
                     </td>
-                    <td class="col-think" onclick="event.stopPropagation()">${renderMetaToggle(tool.name, 'think_augment', tool.think_augment, tool.has_native_thought)}</td>
+                    <td class="col-think" onclick="event.stopPropagation()">${renderMetaToggle(tool.name, 'think_augment', tool.think_augment, false)}</td>
                     <td class="col-defer" onclick="event.stopPropagation()">${renderMetaToggle(tool.name, 'defer', tool.defer, false)}</td>
                     <td>${permBadge}</td>
                     <td>
@@ -2516,6 +2523,7 @@
                 refreshStats();
             } catch (e) {
                 showToast(e.message, 'error');
+                refreshTools();
             }
         }
 
@@ -2609,6 +2617,8 @@
                 refreshStats();
             } catch (e) {
                 showToast(e.message, 'error');
+                refreshNamespaces();
+                refreshTools();
             }
         }
 
@@ -3074,6 +3084,20 @@
         function refreshAll() {
             const activeTab = document.querySelector('.tab.active').dataset.tab;
             switchTab(activeTab);
+        }
+
+        async function showVersionInfo() {
+            try {
+                const res = await apiFetch('/api/info');
+                const data = await res.json();
+                let lines = [];
+                for (const [pkg, ver] of Object.entries(data)) {
+                    lines.push(`${pkg}: ${ver}`);
+                }
+                alert(lines.join('\n') || 'No version info available');
+            } catch (e) {
+                alert('Failed to fetch version info');
+            }
         }
 
         // ============== Initialization ==============
