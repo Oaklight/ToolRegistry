@@ -6,6 +6,7 @@ management and monitoring.
 """
 
 import json
+import os
 import urllib.parse
 from dataclasses import asdict
 from datetime import datetime
@@ -287,12 +288,44 @@ def _get_tool(request: Request, name: str) -> Response:
     return _json_response(tool_info)
 
 
+def _check_env_requirements(
+    registry: "ToolRegistry", name: str
+) -> tuple[bool, list[str]]:
+    """Check if missing-env requirements are now satisfied.
+
+    Inspects the disable reason for a ``"Missing env: ..."`` prefix and
+    verifies whether the listed environment variables are now set.
+
+    Args:
+        registry: The ToolRegistry instance.
+        name: Tool or namespace name.
+
+    Returns:
+        A tuple of ``(satisfied, missing_vars)``.
+    """
+    reason = registry.get_disable_reason(name)
+    if not reason or not reason.startswith("Missing env:"):
+        return True, []
+    env_str = reason[len("Missing env:") :].strip()
+    env_vars = [v.strip() for v in env_str.split(",") if v.strip()]
+    missing = [v for v in env_vars if not os.environ.get(v)]
+    return len(missing) == 0, missing
+
+
 def _enable_tool(request: Request, name: str) -> Response:
     """Enable a tool."""
     registry = _app(request).registry
     name = urllib.parse.unquote(name)
     if name not in registry:
         return _error_response(404, "Not Found", f"Tool not found: {name}")
+
+    satisfied, missing = _check_env_requirements(registry, name)
+    if not satisfied:
+        return _error_response(
+            400,
+            "Bad Request",
+            f"Cannot enable '{name}': missing env vars: {', '.join(missing)}",
+        )
 
     registry.enable(name)
     return _json_response({"success": True, "message": f"Tool '{name}' enabled"})
@@ -414,22 +447,41 @@ def _enable_namespace(request: Request, name: str) -> Response:
     """Enable all tools in namespace."""
     registry = _app(request).registry
     name = urllib.parse.unquote(name)
-    registry.enable(name)
 
+    # Check env requirements on any tool in the namespace
+    skipped: list[str] = []
     enabled_count = 0
     for tool_name in registry.list_tools(include_disabled=True):
         tool = registry.get_tool(tool_name)
         if tool and tool.namespace == name:
-            registry.enable(tool_name)
-            enabled_count += 1
+            satisfied, missing = _check_env_requirements(registry, tool_name)
+            if not satisfied:
+                skipped.extend(missing)
+            else:
+                registry.enable(tool_name)
+                enabled_count += 1
 
-    return _json_response(
-        {
-            "success": True,
-            "message": f"Namespace '{name}' enabled",
-            "tools_enabled": enabled_count,
-        }
-    )
+    if skipped and enabled_count == 0:
+        # All tools blocked by missing env vars
+        unique_missing = sorted(set(skipped))
+        return _error_response(
+            400,
+            "Bad Request",
+            f"Cannot enable namespace '{name}': "
+            f"missing env vars: {', '.join(unique_missing)}",
+        )
+
+    # Enable at namespace level too (removes namespace-level disable)
+    registry.enable(name)
+
+    result: dict[str, Any] = {
+        "success": True,
+        "message": f"Namespace '{name}' enabled",
+        "tools_enabled": enabled_count,
+    }
+    if skipped:
+        result["skipped_missing_env"] = sorted(set(skipped))
+    return _json_response(result)
 
 
 def _disable_namespace(request: Request, name: str) -> Response:
@@ -761,6 +813,23 @@ def _update_config(request: Request) -> Response:
     return _json_response(result)
 
 
+# ============== Version Info ==============
+
+
+def _get_info(request: Request) -> Response:
+    """Return version information for toolregistry and optional dependencies."""
+    import toolregistry
+
+    info: dict[str, str] = {"toolregistry": toolregistry.__version__}
+    try:
+        import toolregistry_server
+
+        info["toolregistry_server"] = toolregistry_server.__version__
+    except ImportError:
+        pass
+    return _json_response(info)
+
+
 # ============== Route Setup ==============
 
 
@@ -798,3 +867,4 @@ def setup_routes(app: "AdminApp") -> None:
     app.get("/api/permissions")(_get_permissions)
     app.get("/api/config")(_get_config)
     app.put("/api/config")(_update_config)
+    app.get("/api/info")(_get_info)
