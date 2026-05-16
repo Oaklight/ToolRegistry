@@ -12,6 +12,10 @@ This page documents all notable changes to the ToolRegistry project since the fi
 
 ## [Unreleased]
 
+### Dependencies
+
+- Update vendored `httpclient` module from 0.4.0 to 0.4.1 (zerodep)
+
 ### Refactoring
 
 - **Separate Tool.run() exception handling from LLM error formatting** ([#129](../../issues/129), [#149](../../pull/149))
