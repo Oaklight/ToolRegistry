@@ -123,14 +123,32 @@ Tooling config (ruff, ty, complexipy) lives in `pyproject.toml`.
 ## Documentation
 
 User-facing docs live on **orphan branches** (`docs_en`, `docs_zh`), mounted
-as git worktrees at `./docs_en/` and `./docs_zh/`. MkDocs + mkdocs-material,
-deployed to Zensical.
+as git worktrees at `./docs_en/` and `./docs_zh/`. Built with zensical.
 
 ```bash
 # Edit docs in-place (worktrees already mounted)
 cd docs_en/docs/
 # Commit and push inside the worktree
 ```
+
+### When to update docs worktrees
+
+Update `docs_en/` and `docs_zh/` whenever any of the following happens:
+
+- **New public API added or signature changed**: update the relevant API
+  reference pages in both languages.
+- **Behavior change or bug fix affecting documented functionality**: update
+  affected guide/reference pages.
+- **Changelog-worthy change merged to main branch**: update
+  `docs_en/docs/changelog.md` and `docs_zh/docs/changelog.md` under the
+  `[Unreleased]` section. Follow the [Keep a Changelog](https://keepachangelog.com/)
+  format. Entries should cover: features, enhancements, bug fixes,
+  breaking changes, and infrastructure.
+- **Release published**: move `[Unreleased]` entries into a new versioned
+  section in both changelogs.
+
+Commits in doc worktrees use `PRE_COMMIT_ALLOW_NO_CONFIG=1 git commit` since
+those branches have no `.pre-commit-config.yaml`.
 
 ## Escalation
 
