@@ -12,6 +12,10 @@ author: Oaklight
 
 ## [Unreleased]
 
+### 依赖
+
+- 更新内置 `httpclient` 模块从 0.4.0 至 0.4.1（zerodep）
+
 ### 重构
 
 - **将 Tool.run() 的异常处理与 LLM 错误格式化分离** ([#129](../../issues/129), [#149](../../pull/149))
