@@ -37,7 +37,7 @@ classifiers = [
 dependencies = [
     "pydantic>=2.7.2,<3.0.0",
     "cloudpickle>=3.0.0",
-    "llm-rosetta>=0.5.1,<0.6.0",
+    "llm-rosetta>=0.5.1,<0.7.0",
 ]
 
 [project.optional-dependencies]
