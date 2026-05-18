@@ -188,5 +188,8 @@ docs_zh/
 # Playwright MCP cache
 .playwright-mcp/
 
+# Claude Code session cache
+.claude/
+
 # Temporary test artifacts
 test.db
