@@ -219,11 +219,19 @@ def _build_python_source(
             f"Tool entry at index {index} (type=python): requires 'class' or 'module'."
         )
 
+    raw_kwargs = entry.get("kwargs", {})
+    if not isinstance(raw_kwargs, dict):
+        raise ConfigError(
+            f"Tool entry at index {index} (type=python): "
+            f"'kwargs' must be a mapping, got {type(raw_kwargs).__name__}."
+        )
+
     return PythonSource(
         class_path=class_path,
         module_path=module_path,
         namespace=namespace,
         enabled=enabled,
+        kwargs=raw_kwargs,
     )
 
 

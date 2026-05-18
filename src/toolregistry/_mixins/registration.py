@@ -288,6 +288,7 @@ class RegistrationMixin:
         cls: type | object,
         namespace: bool | str = False,
         traverse_mro: bool = True,
+        constructor_kwargs: dict | None = None,
         **kwargs,
     ):
         """Register all static methods from a class or instance as tools.
@@ -305,6 +306,9 @@ class RegistrationMixin:
                 ``object``), with subclass methods taking priority over parent
                 class methods. When False, only methods defined directly on the
                 class are registered.
+            constructor_kwargs: Keyword arguments forwarded to the class
+                constructor when *cls* is a class that needs to be instantiated.
+                Ignored when a pre-built instance is passed.
 
         Example:
             ```python
@@ -323,13 +327,14 @@ class RegistrationMixin:
         hub = ClassToolIntegration(
             cast("ToolRegistry", self), traverse_mro=traverse_mro
         )
-        return hub.register_class_methods(cls, namespace)
+        return hub.register_class_methods(cls, namespace, constructor_kwargs)
 
     async def register_from_class_async(
         self,
         cls: type | object,
         namespace: bool | str = False,
         traverse_mro: bool = True,
+        constructor_kwargs: dict | None = None,
         **kwargs,
     ):
         """Async implementation to register all static methods from a class or instance as tools.
@@ -347,6 +352,9 @@ class RegistrationMixin:
                 ``object``), with subclass methods taking priority over parent
                 class methods. When False, only methods defined directly on the
                 class are registered.
+            constructor_kwargs: Keyword arguments forwarded to the class
+                constructor when *cls* is a class that needs to be instantiated.
+                Ignored when a pre-built instance is passed.
 
         Example:
             ```python
@@ -361,7 +369,9 @@ class RegistrationMixin:
         hub = ClassToolIntegration(
             cast("ToolRegistry", self), traverse_mro=traverse_mro
         )
-        return await hub.register_class_methods_async(cls, namespace)
+        return await hub.register_class_methods_async(
+            cls, namespace, constructor_kwargs
+        )
 
 
 def _resolve_namespace_compat(
