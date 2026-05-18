@@ -12,6 +12,8 @@ author: Oaklight
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-05-18
+
 ### 新增
 
 - **`disable_by_tags()` — 基于标签的批量禁用** ([#158](../../issues/158))
