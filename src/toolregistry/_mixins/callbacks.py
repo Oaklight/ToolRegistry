@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from ..events import ChangeCallback, ChangeEvent, PostRegisterHook
 
 if TYPE_CHECKING:
     from ..tool import Tool
+    from ..tool_registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -146,7 +147,7 @@ class ChangeCallbackMixin:
 
         for hook in hooks:
             try:
-                result = hook(tool_name, tool, self)  # type: ignore[arg-type]
+                result = hook(tool_name, tool, cast("ToolRegistry", self))
             except Exception as exc:
                 logger.warning(f"Post-register hook {hook!r} raised exception: {exc}")
                 continue
@@ -154,7 +155,7 @@ class ChangeCallbackMixin:
             if result:
                 # Non-empty string → auto-disable
                 try:
-                    self.disable(tool_name, reason=result)  # type: ignore[attr-defined]
+                    cast("ToolRegistry", self).disable(tool_name, reason=result)
                 except Exception as exc:
                     logger.warning(
                         f"Auto-disable triggered by post-register hook {hook!r} "
