@@ -145,7 +145,12 @@ Update `docs_en/` and `docs_zh/` whenever any of the following happens:
   format. Entries should cover: features, enhancements, bug fixes,
   breaking changes, and infrastructure.
 - **Release published**: move `[Unreleased]` entries into a new versioned
-  section in both changelogs.
+  section in both changelogs, then create a GitHub Release:
+  ```bash
+  gh release create vX.Y.Z --title "vX.Y.Z" --notes "..."
+  ```
+  Release notes should mirror the versioned changelog section (in English).
+  Include an installation snippet and a "Full Changelog" compare link.
 
 Commits in doc worktrees use `PRE_COMMIT_ALLOW_NO_CONFIG=1 git commit` since
 those branches have no `.pre-commit-config.yaml`.
