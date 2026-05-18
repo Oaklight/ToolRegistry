@@ -4,10 +4,16 @@ This module provides the event infrastructure for the callback mechanism,
 enabling subscribers to receive notifications when tool state changes occur.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, TypeAlias
+from typing import TYPE_CHECKING, Any, TypeAlias
 from collections.abc import Callable
+
+if TYPE_CHECKING:
+    from .tool import Tool
+    from .tool_registry import ToolRegistry
 
 
 class ChangeEventType(str, Enum):
@@ -54,3 +60,16 @@ class ChangeEvent:
 
 ChangeCallback: TypeAlias = Callable[[ChangeEvent], None]
 """Callback signature: receives a ChangeEvent, returns nothing."""
+
+PostRegisterHook: TypeAlias = Callable[[str, "Tool", "ToolRegistry"], "str | None"]
+"""Hook called after a tool is added to the registry.
+
+Args:
+    tool_name: The name under which the tool was registered.
+    tool: The :class:`~toolregistry.tool.Tool` instance that was registered.
+    registry: The :class:`~toolregistry.tool_registry.ToolRegistry` that owns it.
+
+Returns:
+    A non-empty string to auto-disable the tool with that string as the
+    reason, or ``None`` to leave the tool enabled.
+"""
