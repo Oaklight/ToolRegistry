@@ -15,6 +15,8 @@
 - **元数据保留**：维护工具描述、参数和执行元数据
 - **灵活执行**：多种执行模式和并发选项
 - **变更回调**：通过 `on_change()` / `remove_on_change()` 订阅工具状态变更
+- **注册后钩子**：通过 `add_post_register_hook()` 在每个工具注册完成后运行自定义逻辑，支持自动禁用
+- **基于标签的批量禁用**：通过 `disable_by_tags()` 按 `ToolTag` 值批量禁用多个工具
 
 ## 架构
 
@@ -192,6 +194,83 @@ print(status)
 disabled_tools = [s for s in status if not s["enabled"]]
 print(disabled_tools)
 # 输出：[{"name": "subtract", "enabled": False, "reason": "维护中", "namespace": None}]
+```
+
+### 基于标签的批量禁用
+
+```python
+from toolregistry import ToolRegistry, ToolMetadata, ToolTag
+
+registry = ToolRegistry()
+
+def read_file(path: str) -> str:
+    """从磁盘读取文件。"""
+    ...
+
+def delete_file(path: str) -> None:
+    """从磁盘删除文件。"""
+    ...
+
+def send_email(to: str, body: str) -> None:
+    """发送电子邮件。"""
+    ...
+
+registry.register(read_file, metadata=ToolMetadata(tags={ToolTag.FILE_SYSTEM, ToolTag.READ_ONLY}))
+registry.register(delete_file, metadata=ToolMetadata(tags={ToolTag.FILE_SYSTEM, ToolTag.DESTRUCTIVE}))
+registry.register(send_email, metadata=ToolMetadata(tags={ToolTag.NETWORK}))
+
+# match="any"（默认）：工具拥有至少一个指定标签即被禁用
+disabled = registry.disable_by_tags(
+    {ToolTag.DESTRUCTIVE, ToolTag.NETWORK},
+    match="any",
+    reason="只读模式下限制访问",
+)
+print(disabled)  # ['delete_file', 'send_email']
+
+# match="all"：工具携带全部指定标签才被禁用
+registry2 = ToolRegistry()
+registry2.register(read_file, metadata=ToolMetadata(tags={ToolTag.FILE_SYSTEM, ToolTag.READ_ONLY}))
+registry2.register(delete_file, metadata=ToolMetadata(tags={ToolTag.FILE_SYSTEM, ToolTag.DESTRUCTIVE}))
+
+disabled2 = registry2.disable_by_tags(
+    {ToolTag.FILE_SYSTEM, ToolTag.DESTRUCTIVE},
+    match="all",
+    reason="不允许破坏性文件系统操作",
+)
+print(disabled2)  # ['delete_file']
+```
+
+### 注册后钩子
+
+```python
+from toolregistry import ToolRegistry, PostRegisterHook, ToolMetadata, ToolTag
+
+registry = ToolRegistry()
+
+# 钩子：在注册时自动禁用所有特权工具
+def deny_privileged(tool_name: str, tool, registry) -> str | None:
+    tags = tool.metadata.tags if tool.metadata else set()
+    if ToolTag.PRIVILEGED in tags:
+        return f"当前环境不允许特权工具 '{tool_name}'"
+    return None
+
+registry.add_post_register_hook(deny_privileged)
+
+def sudo_command(cmd: str) -> str:
+    """以提升的权限运行命令。"""
+    ...
+
+registry.register(sudo_command, metadata=ToolMetadata(tags={ToolTag.PRIVILEGED}))
+
+print(registry.is_enabled("sudo_command"))     # False
+print(registry.get_disable_reason("sudo_command"))
+# "当前环境不允许特权工具 'sudo_command'"
+
+# 可以注册多个钩子，按注册顺序依次调用
+def log_all(tool_name: str, tool, registry) -> None:
+    print(f"[钩子] 已注册：{tool_name}")
+
+registry.add_post_register_hook(log_all)
 ```
 
 ## 集成点

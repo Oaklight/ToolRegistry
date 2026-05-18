@@ -99,6 +99,72 @@ ChangeCallback = Callable[[ChangeEvent], None]
 
 回调接收一个 `ChangeEvent` 并且不返回任何值。回调应该是轻量级的，不应抛出需要传播的异常。
 
+## PostRegisterHook
+
+在每个工具成功注册后自动触发的钩子函数类型别名。
+
+### 签名
+
+```python
+PostRegisterHook = Callable[[str, Tool, ToolRegistry], str | None]
+```
+
+钩子接收三个参数：
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `tool_name` | `str` | 新注册工具的规范化名称 |
+| `tool` | `Tool` | 刚刚注册的 `Tool` 对象 |
+| `registry` | `ToolRegistry` | 工具所注册到的注册表实例 |
+
+### 返回值语义
+
+- **返回非空字符串** → 该工具在注册完成后立即自动禁用，返回值作为禁用原因。
+- **返回 `None`** → 工具保持启用（默认行为）。
+
+### 注册方式
+
+在 `ToolRegistry` 实例上调用 `add_post_register_hook()` 挂载一个或多个钩子：
+
+```python
+registry.add_post_register_hook(hook)
+```
+
+支持多个钩子，按注册顺序依次调用。钩子内部抛出的异常会被捕获并记录，不向外传播，也不影响后续钩子的运行。
+
+`PostRegisterHook` 已从 `toolregistry` 顶层包导出。
+
+### 示例
+
+```python
+from toolregistry import ToolRegistry, PostRegisterHook, ToolTag
+
+registry = ToolRegistry()
+
+# 自动禁用所有标记为 DESTRUCTIVE 的工具
+def block_destructive(tool_name: str, tool, registry) -> str | None:
+    if tool.metadata and ToolTag.DESTRUCTIVE in (tool.metadata.tags or set()):
+        return f"自动禁用：'{tool_name}' 被标记为 DESTRUCTIVE"
+    return None
+
+registry.add_post_register_hook(block_destructive)
+
+from toolregistry import ToolMetadata, ToolTag
+
+def delete_all_files() -> None:
+    """删除工作目录中的所有文件。"""
+    ...
+
+registry.register(
+    delete_all_files,
+    metadata=ToolMetadata(tags={ToolTag.DESTRUCTIVE}),
+)
+
+print(registry.is_enabled("delete_all_files"))  # False
+print(registry.get_disable_reason("delete_all_files"))
+# "自动禁用：'delete_all_files' 被标记为 DESTRUCTIVE"
+```
+
 ## API 参考
 
 ::: toolregistry.events
@@ -110,6 +176,7 @@ ChangeCallback = Callable[[ChangeEvent], None]
             - ChangeEventType
             - ChangeEvent
             - ChangeCallback
+            - PostRegisterHook
 
 ## 与 ToolRegistry 配合使用
 

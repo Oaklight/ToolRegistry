@@ -12,6 +12,27 @@ author: Oaklight
 
 ## [Unreleased]
 
+### 新增
+
+- **`disable_by_tags()` — 基于标签的批量禁用** ([#158](../../issues/158))
+    - 为 `ToolRegistry` 新增 `disable_by_tags(tags, *, match="any", reason=...)` 方法，支持按 `ToolTag` 值批量禁用工具
+    - `match="any"`（默认）：工具拥有**至少一个**匹配标签即被禁用
+    - `match="all"`：工具携带**全部**指定标签才被禁用
+    - 已禁用的工具会被跳过，不重复计入返回值
+    - 返回本次新被禁用的工具名列表
+
+- **注册后钩子（Post-registration hook）** ([#159](../../issues/159))
+    - 为 `ToolRegistry` 新增 `add_post_register_hook(hook)` 方法，支持注册在每个工具注册完成后自动触发的钩子
+    - 钩子签名：`PostRegisterHook = Callable[[str, Tool, ToolRegistry], str | None]`
+    - 钩子返回非空字符串时，该工具自动以返回值为原因被禁用；返回 `None` 则工具保持启用
+    - 支持多个钩子，按注册顺序依次调用；钩子内部异常被捕获记录，不向外传播
+    - `PostRegisterHook` 已从 `toolregistry` 顶层包导出
+
+- **`PythonSource.kwargs` — 配置中传递构造函数参数** ([#160](../../issues/160))
+    - 为声明式配置文件中的 `python` 工具源新增 `kwargs: dict[str, Any]` 字段
+    - 允许通过 `register_from_class()` 加载 `class` 条目时向类构造函数传递关键字参数
+    - 支持环境变量插值（如 `"${API_KEY}"`），与其他配置字段行为一致
+
 ### 依赖
 
 - 更新内置 `httpclient` 模块从 0.4.0 至 0.4.1（zerodep）

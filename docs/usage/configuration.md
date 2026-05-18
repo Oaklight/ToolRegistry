@@ -103,9 +103,37 @@ tools:
 | `class` | string | `class`/`module` 二选一 | 完整的类路径（如 `"pkg.Calculator"`） |
 | `module` | string | `class`/`module` 二选一 | 完整的模块路径（如 `"pkg.tools"`） |
 | `namespace` | string | 否 | 注册工具的命名空间 |
+| `kwargs` | dict | 否 | 传递给类构造函数的关键字参数（默认：`{}`） |
 | `enabled` | bool | 否 | 按源启用/禁用（默认：`true`） |
 
 指定 `class` 时，消费者调用 `register_from_class()`。指定 `module` 时，消费者注册模块中所有公开的可调用对象。
+
+#### 使用 `kwargs` 传递构造函数参数
+
+加载 `class` 条目时，使用 `kwargs` 向类构造函数传递关键字参数：
+
+```yaml
+tools:
+  - type: python
+    class: mypackage.tools.SearchTool
+    namespace: search
+    kwargs:
+      api_key: "${SEARCH_API_KEY}"
+      base_url: "https://api.example.com"
+
+  - type: python
+    class: mypackage.tools.DatabaseTool
+    namespace: db
+    kwargs:
+      host: "localhost"
+      port: 5432
+      db_name: "mydb"
+```
+
+`kwargs` 的值支持环境变量插值（如 `"${VAR}"`），与其他配置字段行为一致。省略 `kwargs` 时，类构造函数不带参数调用（等效于 `{}`）。
+
+!!! note
+    `kwargs` 仅适用于 `class` 条目，指定 `module` 时会被忽略。
 
 !!! note "旧版格式"
     旧版格式 `{"module": "pkg", "class": "Cls"}`（不含 `type` 字段）仍然支持。类型自动推断为 `"python"`，`class_path` 合并为 `"pkg.Cls"`。
