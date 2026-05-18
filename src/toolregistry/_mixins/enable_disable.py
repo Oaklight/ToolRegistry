@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from ..events import ChangeEvent, ChangeEventType
 
 if TYPE_CHECKING:
-    from ..tool import Tool
+    from ..tool import Tool, ToolTag
 
 
 class EnableDisableMixin:
@@ -87,6 +87,49 @@ class EnableDisableMixin:
         if tool and tool.namespace:
             return self._disabled.get(tool.namespace)
         return None
+
+    def disable_by_tags(
+        self,
+        tags: set[ToolTag],
+        *,
+        match: Literal["any", "all"] = "any",
+        reason: str = "Disabled by tag filter",
+    ) -> list[str]:
+        """Disable all tools whose metadata tags overlap with *tags*.
+
+        Args:
+            tags: Set of ToolTag values to match against.
+            match: ``"any"`` disables tools that have at least one matching tag
+                (default). ``"all"`` requires all tags to be present.
+            reason: Disable reason recorded on each tool.
+
+        Returns:
+            List of tool names that were disabled.
+        """
+        if not tags:
+            return []
+
+        # Normalise the incoming tags to their string values so comparisons
+        # work regardless of whether callers pass ToolTag enum members or
+        # plain strings (ToolTag inherits from str, so this is transparent).
+        tag_strs: set[str] = {t if isinstance(t, str) else t.value for t in tags}
+
+        disabled: list[str] = []
+        for name, tool in self._tools.items():
+            if tool.metadata is None:
+                continue
+            # Skip tools that are already disabled.
+            if not self.is_enabled(name):
+                continue
+            tool_tags = tool.metadata.all_tags
+            if match == "any":
+                matched = bool(tool_tags & tag_strs)
+            else:
+                matched = tag_strs.issubset(tool_tags)
+            if matched:
+                self.disable(name, reason=reason)
+                disabled.append(name)
+        return disabled
 
     # Fields safe to update at runtime via update_tool_metadata()
     _MUTABLE_METADATA_FIELDS: frozenset[str] = frozenset({"think_augment", "defer"})
