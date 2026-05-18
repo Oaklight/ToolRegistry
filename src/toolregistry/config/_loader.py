@@ -11,6 +11,7 @@ from ._types import (
     ConfigError,
     MCPSource,
     OpenAPISource,
+    ProfileConfig,
     PythonSource,
     ToolConfig,
     ToolSource,
@@ -139,12 +140,26 @@ def _build_config(data: dict[str, Any], source: str) -> ToolConfig:
             )
         tools.append(_build_tool_source(cast(dict[str, Any], entry), i))
 
+    raw_profiles = data.get("profiles", {})
+    if not isinstance(raw_profiles, dict):
+        raise ConfigError(
+            f"'profiles' must be a mapping, got {type(raw_profiles).__name__}."
+        )
+    profiles: dict[str, ProfileConfig] = {}
+    for name, profile_data in raw_profiles.items():
+        if not isinstance(profile_data, dict):
+            raise ConfigError(
+                f"Profile '{name}' must be a mapping, got {type(profile_data).__name__}."
+            )
+        profiles[name] = _build_profile_config(profile_data, name)
+
     return ToolConfig(
         mode=mode,
         disabled=tuple(disabled),
         enabled=tuple(enabled_list),
         tools=tuple(tools),
         source=source,
+        profiles=profiles,
     )
 
 
@@ -158,6 +173,29 @@ def _validate_string_list(data: dict[str, Any], key: str) -> list[str]:
                 f"'{key}[{i}]' must be a string, got {type(item).__name__}."
             )
     return value
+
+
+def _build_profile_config(data: dict[str, Any], name: str) -> ProfileConfig:
+    """Parse a single profile config entry.
+
+    Args:
+        data: Raw mapping for this profile.
+        name: Profile name (for error messages).
+
+    Returns:
+        Parsed ``ProfileConfig``.
+
+    Raises:
+        ConfigError: If the data is invalid.
+    """
+    disable_tags = _validate_string_list(data, "disable_tags")
+    enable = _validate_string_list(data, "enable")
+    disable = _validate_string_list(data, "disable")
+    return ProfileConfig(
+        disable_tags=tuple(disable_tags),
+        enable=tuple(enable),
+        disable=tuple(disable),
+    )
 
 
 # --- tool source dispatch ----------------------------------------------------
@@ -226,12 +264,21 @@ def _build_python_source(
             f"'kwargs' must be a mapping, got {type(raw_kwargs).__name__}."
         )
 
+    raw_tags = entry.get("tags", [])
+    if not isinstance(raw_tags, list):
+        raise ConfigError(
+            f"Tool entry at index {index}: 'tags' must be a list, "
+            f"got {type(raw_tags).__name__}."
+        )
+    tags = tuple(str(t) for t in raw_tags)
+
     return PythonSource(
         class_path=class_path,
         module_path=module_path,
         namespace=namespace,
         enabled=enabled,
         kwargs=raw_kwargs,
+        tags=tags,
     )
 
 
@@ -254,6 +301,14 @@ def _build_mcp_source(
             f"got '{raw_transport}'."
         )
 
+    raw_tags = entry.get("tags", [])
+    if not isinstance(raw_tags, list):
+        raise ConfigError(
+            f"Tool entry at index {index}: 'tags' must be a list, "
+            f"got {type(raw_tags).__name__}."
+        )
+    tags = tuple(str(t) for t in raw_tags)
+
     if transport == "stdio":
         command = entry.get("command")
         if not command:
@@ -270,6 +325,7 @@ def _build_mcp_source(
             command=tuple(command),
             env=entry.get("env"),
             persistent=entry.get("persistent", True),
+            tags=tags,
         )
 
     # sse or streamable-http
@@ -286,6 +342,7 @@ def _build_mcp_source(
         url=url,
         headers=entry.get("headers"),
         persistent=entry.get("persistent", True),
+        tags=tags,
     )
 
 
@@ -313,12 +370,21 @@ def _build_openapi_source(
             )
         auth = _build_auth(auth_data, index)
 
+    raw_tags = entry.get("tags", [])
+    if not isinstance(raw_tags, list):
+        raise ConfigError(
+            f"Tool entry at index {index}: 'tags' must be a list, "
+            f"got {type(raw_tags).__name__}."
+        )
+    tags = tuple(str(t) for t in raw_tags)
+
     return OpenAPISource(
         url=url,
         namespace=namespace,
         enabled=enabled,
         auth=auth,
         base_url=entry.get("base_url"),
+        tags=tags,
     )
 
 

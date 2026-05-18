@@ -8,6 +8,7 @@ from typing import Any, Literal
 __all__ = [
     "ConfigError",
     "AuthConfig",
+    "ProfileConfig",
     "PythonSource",
     "MCPSource",
     "OpenAPISource",
@@ -62,6 +63,39 @@ class AuthConfig:
 
 
 @dataclass(frozen=True)
+class ProfileConfig:
+    """Per-profile filter overrides declared in the config file.
+
+    When a profile name is found in ``ToolConfig.profiles``, these
+    settings take precedence over the built-in tag-based defaults.
+
+    Attributes:
+        disable_tags: Tag names whose tools should be disabled.
+            Replaces the built-in default tag set for this profile.
+            When absent, the built-in default is used.
+        enable: Namespace patterns to force-enable after tag filtering
+            (highest priority — overrides tag-based disable).
+        disable: Namespace patterns to force-disable after tag filtering
+            (applied after ``enable``).
+    """
+
+    disable_tags: tuple[str, ...] = ()
+    enable: tuple[str, ...] = ()
+    disable: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a config-file-compatible dict."""
+        d: dict[str, Any] = {}
+        if self.disable_tags:
+            d["disable_tags"] = list(self.disable_tags)
+        if self.enable:
+            d["enable"] = list(self.enable)
+        if self.disable:
+            d["disable"] = list(self.disable)
+        return d
+
+
+@dataclass(frozen=True)
 class PythonSource:
     """A tool source backed by a Python class or module.
 
@@ -90,6 +124,7 @@ class PythonSource:
     namespace: str | None = None
     enabled: bool = True
     kwargs: dict[str, Any] = field(default_factory=dict)
+    tags: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.class_path and not self.module_path:
@@ -119,6 +154,8 @@ class PythonSource:
             d["enabled"] = False
         if self.kwargs:
             d["kwargs"] = dict(self.kwargs)
+        if self.tags:
+            d["tags"] = list(self.tags)
         return d
 
 
@@ -153,6 +190,7 @@ class MCPSource:
     url: str | None = None
     headers: dict[str, str] | None = None
     persistent: bool = True
+    tags: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a config-file-compatible dict.
@@ -174,6 +212,8 @@ class MCPSource:
             d["headers"] = dict(self.headers)
         if not self.persistent:
             d["persistent"] = False
+        if self.tags:
+            d["tags"] = list(self.tags)
         return d
 
 
@@ -195,6 +235,7 @@ class OpenAPISource:
     enabled: bool = True
     auth: AuthConfig | None = None
     base_url: str | None = None
+    tags: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a config-file-compatible dict.
@@ -210,6 +251,8 @@ class OpenAPISource:
             d["auth"] = self.auth.to_dict()
         if self.base_url:
             d["base_url"] = self.base_url
+        if self.tags:
+            d["tags"] = list(self.tags)
         return d
 
 
@@ -236,6 +279,7 @@ class ToolConfig:
     enabled: tuple[str, ...] = ()
     tools: tuple[ToolSource, ...] = ()
     source: str = ""
+    profiles: dict[str, ProfileConfig] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a config-file-compatible dict.
@@ -251,4 +295,6 @@ class ToolConfig:
             d["enabled"] = list(self.enabled)
         if self.tools:
             d["tools"] = [t.to_dict() for t in self.tools]
+        if self.profiles:
+            d["profiles"] = {name: pc.to_dict() for name, pc in self.profiles.items()}
         return d
