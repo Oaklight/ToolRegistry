@@ -12,6 +12,8 @@ This page documents all notable changes to the ToolRegistry project since the fi
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-05-18
+
 ### Added
 
 - **`disable_by_tags()` — Tag-based bulk disable** ([#158](../../issues/158))
