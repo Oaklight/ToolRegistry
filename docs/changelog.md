@@ -12,6 +12,27 @@ This page documents all notable changes to the ToolRegistry project since the fi
 
 ## [Unreleased]
 
+### Added
+
+- **`disable_by_tags()` — Tag-based bulk disable** ([#158](../../issues/158))
+    - Add `disable_by_tags(tags, *, match="any", reason=...)` to `ToolRegistry` for disabling tools in bulk by their `ToolTag` values
+    - `match="any"` (default): disables a tool if it has **at least one** of the specified tags
+    - `match="all"`: disables a tool only if it carries **every** specified tag
+    - Already-disabled tools are skipped and not double-counted
+    - Returns a list of tool names that were newly disabled by this call
+
+- **Post-registration hook** ([#159](../../issues/159))
+    - Add `add_post_register_hook(hook)` to `ToolRegistry` for registering hooks invoked after each tool is registered
+    - Hook signature: `PostRegisterHook = Callable[[str, Tool, ToolRegistry], str | None]`
+    - Returning a non-empty string from a hook automatically disables the tool with that string as the reason; returning `None` leaves the tool enabled
+    - Multiple hooks are supported and invoked in registration order; exceptions inside hooks are caught and logged without propagating
+    - `PostRegisterHook` is exported from the `toolregistry` top-level package
+
+- **`PythonSource.kwargs` — constructor arguments in config** ([#160](../../issues/160))
+    - Add `kwargs: dict[str, Any]` field to the `python` tool source in declarative config files
+    - Allows passing keyword arguments to the class constructor when a `class` entry is loaded via `register_from_class()`
+    - Supports environment variable interpolation (e.g. `"${API_KEY}"`) consistent with other config fields
+
 ### Dependencies
 
 - Update vendored `httpclient` module from 0.4.0 to 0.4.1 (zerodep)

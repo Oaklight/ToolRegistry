@@ -103,9 +103,37 @@ tools:
 | `class` | string | One of `class`/`module` | Fully-qualified class path (e.g. `"pkg.Calculator"`) |
 | `module` | string | One of `class`/`module` | Fully-qualified module path (e.g. `"pkg.tools"`) |
 | `namespace` | string | No | Namespace for registered tools |
+| `kwargs` | dict | No | Keyword arguments passed to the class constructor (default: `{}`) |
 | `enabled` | bool | No | Per-source enable/disable (default: `true`) |
 
 When `class` is specified, the consumer calls `register_from_class()`. When `module` is specified, the consumer registers all public callables from the module.
+
+#### Passing Constructor Arguments with `kwargs`
+
+Use `kwargs` to supply keyword arguments to the class constructor when loading a `class` entry:
+
+```yaml
+tools:
+  - type: python
+    class: mypackage.tools.SearchTool
+    namespace: search
+    kwargs:
+      api_key: "${SEARCH_API_KEY}"
+      base_url: "https://api.example.com"
+
+  - type: python
+    class: mypackage.tools.DatabaseTool
+    namespace: db
+    kwargs:
+      host: "localhost"
+      port: 5432
+      db_name: "mydb"
+```
+
+Environment variable interpolation (e.g. `"${VAR}"`) is supported in `kwargs` values, consistent with other config fields. If `kwargs` is omitted, the class constructor is called with no arguments (equivalent to `{}`).
+
+!!! note
+    `kwargs` applies only to `class` entries. It is ignored when `module` is specified.
 
 !!! note "Legacy Format"
     The legacy format `{"module": "pkg", "class": "Cls"}` (without `type` field) is still supported. The type is inferred as `"python"` and `class_path` is combined as `"pkg.Cls"`.

@@ -99,6 +99,73 @@ ChangeCallback = Callable[[ChangeEvent], None]
 
 Callbacks receive a `ChangeEvent` and return nothing. They should be lightweight and not raise exceptions that need to propagate.
 
+## PostRegisterHook
+
+A type alias for hooks that are automatically invoked after each tool is successfully registered.
+
+### Signature
+
+```python
+PostRegisterHook = Callable[[str, Tool, ToolRegistry], str | None]
+```
+
+The hook receives three arguments:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `tool_name` | `str` | The normalized name of the newly registered tool |
+| `tool` | `Tool` | The `Tool` object that was just registered |
+| `registry` | `ToolRegistry` | The registry instance the tool was registered into |
+
+### Return Value Semantics
+
+- **Return a non-empty string** → the tool is automatically disabled immediately after registration, with the returned string used as the disable reason.
+- **Return `None`** → the tool remains enabled (default behavior).
+
+### Registration
+
+Use `add_post_register_hook()` on a `ToolRegistry` instance to attach one or more hooks:
+
+```python
+registry.add_post_register_hook(hook)
+```
+
+Multiple hooks are supported and invoked in registration order. Exceptions raised inside a hook are caught and logged; they do not propagate and do not prevent subsequent hooks from running.
+
+`PostRegisterHook` is exported from the `toolregistry` top-level package.
+
+### Example
+
+```python
+from toolregistry import ToolRegistry, PostRegisterHook, ToolTag
+
+registry = ToolRegistry()
+
+# Auto-disable any tool tagged as DESTRUCTIVE
+def block_destructive(tool_name: str, tool, registry) -> str | None:
+    if tool.metadata and ToolTag.DESTRUCTIVE in (tool.metadata.tags or set()):
+        return f"Auto-disabled: '{tool_name}' is tagged DESTRUCTIVE"
+    return None
+
+registry.add_post_register_hook(block_destructive)
+
+# Any tool registered from this point on will be checked by the hook
+from toolregistry import ToolMetadata, ToolTag
+
+def delete_all_files() -> None:
+    """Delete all files in the working directory."""
+    ...
+
+registry.register(
+    delete_all_files,
+    metadata=ToolMetadata(tags={ToolTag.DESTRUCTIVE}),
+)
+
+print(registry.is_enabled("delete_all_files"))  # False
+print(registry.get_disable_reason("delete_all_files"))
+# "Auto-disabled: 'delete_all_files' is tagged DESTRUCTIVE"
+```
+
 ## API Reference
 
 ::: toolregistry.events
@@ -110,6 +177,7 @@ Callbacks receive a `ChangeEvent` and return nothing. They should be lightweight
             - ChangeEventType
             - ChangeEvent
             - ChangeCallback
+            - PostRegisterHook
 
 ## Usage with ToolRegistry
 

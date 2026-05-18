@@ -15,6 +15,8 @@ The central registry class that manages tool registration, execution, and metada
 - **Metadata Preservation**: Maintains tool descriptions, parameters, and execution metadata
 - **Flexible Execution**: Multiple execution modes and concurrency options
 - **Change Callbacks**: Subscribe to tool state changes via `on_change()` / `remove_on_change()`
+- **Post-Registration Hooks**: Run custom logic after each tool is registered via `add_post_register_hook()`, with optional auto-disable support
+- **Tag-Based Bulk Disable**: Disable multiple tools at once by their `ToolTag` values via `disable_by_tags()`
 
 ## Architecture
 
@@ -192,6 +194,83 @@ print(status)
 disabled_tools = [s for s in status if not s["enabled"]]
 print(disabled_tools)
 # Output: [{"name": "subtract", "enabled": False, "reason": "Under maintenance", "namespace": None}]
+```
+
+### Tag-Based Bulk Disable
+
+```python
+from toolregistry import ToolRegistry, ToolMetadata, ToolTag
+
+registry = ToolRegistry()
+
+def read_file(path: str) -> str:
+    """Read a file from disk."""
+    ...
+
+def delete_file(path: str) -> None:
+    """Delete a file from disk."""
+    ...
+
+def send_email(to: str, body: str) -> None:
+    """Send an email."""
+    ...
+
+registry.register(read_file, metadata=ToolMetadata(tags={ToolTag.FILE_SYSTEM, ToolTag.READ_ONLY}))
+registry.register(delete_file, metadata=ToolMetadata(tags={ToolTag.FILE_SYSTEM, ToolTag.DESTRUCTIVE}))
+registry.register(send_email, metadata=ToolMetadata(tags={ToolTag.NETWORK}))
+
+# match="any" (default): disable tools that have AT LEAST ONE of the given tags
+disabled = registry.disable_by_tags(
+    {ToolTag.DESTRUCTIVE, ToolTag.NETWORK},
+    match="any",
+    reason="Restricted in read-only mode",
+)
+print(disabled)  # ['delete_file', 'send_email']
+
+# match="all": disable only tools that carry EVERY specified tag
+registry2 = ToolRegistry()
+registry2.register(read_file, metadata=ToolMetadata(tags={ToolTag.FILE_SYSTEM, ToolTag.READ_ONLY}))
+registry2.register(delete_file, metadata=ToolMetadata(tags={ToolTag.FILE_SYSTEM, ToolTag.DESTRUCTIVE}))
+
+disabled2 = registry2.disable_by_tags(
+    {ToolTag.FILE_SYSTEM, ToolTag.DESTRUCTIVE},
+    match="all",
+    reason="No destructive filesystem ops allowed",
+)
+print(disabled2)  # ['delete_file']
+```
+
+### Post-Registration Hook
+
+```python
+from toolregistry import ToolRegistry, PostRegisterHook, ToolMetadata, ToolTag
+
+registry = ToolRegistry()
+
+# Hook: auto-disable any privileged tool at registration time
+def deny_privileged(tool_name: str, tool, registry) -> str | None:
+    tags = tool.metadata.tags if tool.metadata else set()
+    if ToolTag.PRIVILEGED in tags:
+        return f"Privileged tool '{tool_name}' is not allowed in this environment"
+    return None
+
+registry.add_post_register_hook(deny_privileged)
+
+def sudo_command(cmd: str) -> str:
+    """Run a command with elevated privileges."""
+    ...
+
+registry.register(sudo_command, metadata=ToolMetadata(tags={ToolTag.PRIVILEGED}))
+
+print(registry.is_enabled("sudo_command"))     # False
+print(registry.get_disable_reason("sudo_command"))
+# "Privileged tool 'sudo_command' is not allowed in this environment"
+
+# Multiple hooks are invoked in registration order
+def log_all(tool_name: str, tool, registry) -> None:
+    print(f"[hook] registered: {tool_name}")
+
+registry.add_post_register_hook(log_all)
 ```
 
 ## Integration Points
