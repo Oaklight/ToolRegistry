@@ -152,6 +152,30 @@ Update `docs_en/` and `docs_zh/` whenever any of the following happens:
   Release notes should mirror the versioned changelog section (in English).
   Include an installation snippet and a "Full Changelog" compare link.
 
+### Cross-language consistency (enforced)
+
+**Both language versions must be updated in the same task/agent run.** Never
+update only one language and leave the other for later. The workflow is:
+
+1. Make changes to `docs_en/` first (English is the source of truth).
+2. In the same task, apply equivalent changes to `docs_zh/` before committing.
+3. Commit and push both worktrees before the task is considered done.
+
+Splitting the two languages across separate agents or separate sessions is not
+allowed — it leads to drift and missed pages.
+
+### Cross-language consistency (enforced)
+
+**Both language versions must be updated in the same task/agent run.** Never
+update only one language and leave the other for later. The workflow is:
+
+1. Make changes to `docs_en/` first (English is the source of truth).
+2. In the same task, apply equivalent changes to `docs_zh/` before committing.
+3. Commit and push both worktrees before the task is considered done.
+
+Splitting the two languages across separate agents or separate sessions is not
+allowed — it leads to drift and missed pages.
+
 Commits in doc worktrees use `PRE_COMMIT_ALLOW_NO_CONFIG=1 git commit` since
 those branches have no `.pre-commit-config.yaml`.
 
