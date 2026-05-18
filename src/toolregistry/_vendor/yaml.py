@@ -2,7 +2,7 @@
 # version = "0.3.1"
 # deps = []
 # tier = "subsystem"
-# category = "data"
+# category = "serialization"
 # note = "Install/update via `zerodep add yaml`"
 # ///
 
@@ -30,8 +30,7 @@ from __future__ import annotations
 
 import math
 import re
-from typing import IO, Any, overload
-from collections.abc import Iterator
+from typing import IO, Any, Iterator, overload
 
 __all__ = [
     "YAMLError",

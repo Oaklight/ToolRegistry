@@ -1,8 +1,8 @@
 # /// zerodep
-# version = "0.3.2"
+# version = "0.4.0"
 # deps = []
 # tier = "medium"
-# category = "utility"
+# category = "text"
 # note = "Install/update via `zerodep add sparse_search`"
 # ///
 """Zero-dependency sparse text search with BM25 family and TF-IDF ranking.
@@ -47,12 +47,14 @@ import statistics
 from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, cast
-from collections.abc import Callable
+from typing import Any, Callable
 
 __all__ = [
     "Result",
     "SparseIndex",
+    "jaccard_similarity",
+    "rrf",
+    "mmr",
 ]
 
 _VERSION = "0.1.0"
@@ -630,9 +632,9 @@ class SparseIndex:
                 raw_score,
                 total_tf,
                 doc_len_ratio,
-                cast(float, alpha),
-                cast(float, beta),
-                base_rate,
+                alpha,
+                beta,
+                base_rate,  # type: ignore[arg-type]
             )
         return calibrated
 
@@ -1033,3 +1035,194 @@ class SparseIndex:
         if Path(path).suffix in (".db", ".sqlite", ".sqlite3"):
             return "sqlite"
         return "json"
+
+
+# ---------------------------------------------------------------------------
+# Post-retrieval re-ranking utilities
+# ---------------------------------------------------------------------------
+
+
+def jaccard_similarity(set_a: set, set_b: set) -> float:
+    """Jaccard similarity coefficient between two sets.
+
+    ``J(A, B) = |A ∩ B| / |A ∪ B|``
+
+    Returns 0.0 when both sets are empty. This is a building-block for
+    constructing similarity functions to pass to :func:`mmr`.
+
+    Example::
+
+        tokens = {}  # doc_id -> set of tokens
+        sim_fn = lambda a, b: jaccard_similarity(tokens[a.doc_id], tokens[b.doc_id])
+        diverse = mmr(results, sim_fn, lambda_=0.7)
+
+    Args:
+        set_a: First set.
+        set_b: Second set.
+
+    Returns:
+        Similarity in [0.0, 1.0].
+    """
+    union = len(set_a | set_b)
+    if union == 0:
+        return 0.0
+    return len(set_a & set_b) / union
+
+
+def rrf(
+    *result_lists: list[Result],
+    k: int = 60,
+    top_k: int | None = None,
+    weights: list[float] | None = None,
+) -> list[Result]:
+    """Reciprocal Rank Fusion of multiple ranked result lists.
+
+    Combines results from different retrieval systems (e.g. BM25 sparse
+    and dense vector search) using the formula::
+
+        Score(d) = Σ weight_i / (k + rank_i)
+
+    where *rank_i* is the 1-based position of document *d* in the *i*-th
+    list (Cormack et al., SIGIR 2009).
+
+    Example::
+
+        sparse = index.search("quick fox", top_k=20)
+        dense  = [Result("d1", 0.9), Result("d3", 0.7), ...]  # external
+        fused  = rrf(sparse, dense, k=60, top_k=10)
+
+    Args:
+        *result_lists: One or more lists of :class:`Result` objects. Each
+            list should be pre-sorted by descending relevance.
+        k: RRF constant controlling rank sensitivity. Higher values flatten
+            rank differences. Default 60 (per Cormack et al.).
+        top_k: Maximum number of results to return. ``None`` returns all.
+        weights: Per-list weights. When ``None``, all lists are weighted
+            equally (1.0). Length must match the number of result lists.
+
+    Returns:
+        Fused list of :class:`Result` sorted by descending RRF score.
+        Metadata is taken from the occurrence with the highest original
+        score.
+
+    Raises:
+        ValueError: If no result lists are provided, ``weights`` length
+            does not match, or ``k`` is not positive.
+    """
+    if not result_lists:
+        raise ValueError("rrf() requires at least one result list")
+    if k <= 0:
+        raise ValueError(f"k must be positive, got {k}")
+    if weights is not None and len(weights) != len(result_lists):
+        raise ValueError(
+            f"weights length ({len(weights)}) must match "
+            f"number of result lists ({len(result_lists)})"
+        )
+
+    rrf_scores: dict[str, float] = {}
+    best_meta: dict[str, dict[str, Any] | None] = {}
+    best_original: dict[str, float] = {}
+
+    for list_idx, results in enumerate(result_lists):
+        w = weights[list_idx] if weights is not None else 1.0
+        seen_in_list: set[str] = set()
+        for rank_0, r in enumerate(results):
+            if r.doc_id in seen_in_list:
+                continue
+            seen_in_list.add(r.doc_id)
+            rrf_scores[r.doc_id] = rrf_scores.get(r.doc_id, 0.0) + w / (k + rank_0 + 1)
+            if r.doc_id not in best_original or r.score > best_original[r.doc_id]:
+                best_original[r.doc_id] = r.score
+                best_meta[r.doc_id] = r.metadata
+
+    ranked = sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)
+    if top_k is not None:
+        ranked = ranked[:top_k]
+
+    return [
+        Result(doc_id=did, score=score, metadata=best_meta[did])
+        for did, score in ranked
+    ]
+
+
+def mmr(
+    results: list[Result],
+    similarity_fn: Callable[[Result, Result], float],
+    *,
+    lambda_: float = 0.5,
+    top_k: int | None = None,
+) -> list[Result]:
+    """Maximal Marginal Relevance re-ranking for result diversification.
+
+    Greedily selects results that balance relevance with diversity::
+
+        MMR(d) = argmax[λ · rel(d) − (1 − λ) · max sim(d, d_j)]
+
+    where *d_j* are already-selected results. Relevance scores are min-max
+    normalized to [0, 1] internally so they are comparable to similarity.
+
+    Example::
+
+        tokens = {r.doc_id: set(tokenize(texts[r.doc_id])) for r in results}
+        sim = lambda a, b: jaccard_similarity(tokens[a.doc_id], tokens[b.doc_id])
+        diverse = mmr(results, sim, lambda_=0.7, top_k=5)
+
+    Args:
+        results: Candidate results, typically from :meth:`SparseIndex.search`
+            or :func:`rrf`.
+        similarity_fn: A callable ``(Result, Result) -> float`` returning a
+            similarity score in [0, 1]. See :func:`jaccard_similarity` for
+            a set-based helper.
+        lambda_: Trade-off between relevance (1.0) and diversity (0.0).
+            Default 0.5.
+        top_k: Number of results to select. ``None`` selects all (full
+            re-ranking).
+
+    Returns:
+        Re-ranked list of :class:`Result` with scores set to their MMR
+        scores.
+
+    Raises:
+        ValueError: If ``lambda_`` is not in [0, 1].
+    """
+    if not (0.0 <= lambda_ <= 1.0):
+        raise ValueError(f"lambda_ must be in [0, 1], got {lambda_}")
+    if not results:
+        return []
+
+    n = len(results)
+    select_k = n if top_k is None else min(top_k, n)
+
+    # Min-max normalize relevance scores to [0, 1]
+    max_score = max(r.score for r in results)
+    min_score = min(r.score for r in results)
+    score_range = max_score - min_score
+    if score_range > 0:
+        norm = {r.doc_id: (r.score - min_score) / score_range for r in results}
+    else:
+        norm = {r.doc_id: (1.0 if max_score > 0 else 0.0) for r in results}
+
+    candidates = list(results)
+    selected: list[Result] = []
+
+    while len(selected) < select_k and candidates:
+        best_mmr = -math.inf
+        best_idx = 0
+
+        for idx, cand in enumerate(candidates):
+            rel = norm[cand.doc_id]
+            if selected:
+                max_sim = max(similarity_fn(cand, s) for s in selected)
+            else:
+                max_sim = 0.0
+            mmr_score = lambda_ * rel - (1.0 - lambda_) * max_sim
+            if mmr_score > best_mmr:
+                best_mmr = mmr_score
+                best_idx = idx
+
+        chosen = candidates.pop(best_idx)
+        selected.append(
+            Result(doc_id=chosen.doc_id, score=best_mmr, metadata=chosen.metadata)
+        )
+
+    return selected

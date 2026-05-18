@@ -2,7 +2,7 @@
 # version = "0.3.0"
 # deps = []
 # tier = "medium"
-# category = "utility"
+# category = "devtools"
 # note = "Install/update via `zerodep add structlog`"
 # ///
 
@@ -49,8 +49,7 @@ import logging
 import os
 import sys
 import traceback
-from typing import IO, Any
-from collections.abc import Callable
+from typing import IO, Any, Callable
 
 __all__ = [
     # Type aliases
