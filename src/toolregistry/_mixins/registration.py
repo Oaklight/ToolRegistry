@@ -32,6 +32,8 @@ class RegistrationMixin:
 
         def _emit_change(self, event: ChangeEvent) -> None: ...
 
+        def _run_post_register_hooks(self, tool_name: str, tool: Tool) -> None: ...
+
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self._mcp_integrations: list = []
@@ -61,6 +63,7 @@ class RegistrationMixin:
             tool_or_func.update_namespace(namespace, force=True)
             self._tools[tool_or_func.name] = tool_or_func
             registered_name = tool_or_func.name
+            registered_tool = tool_or_func
         else:
             tool = Tool.from_function(
                 tool_or_func,
@@ -71,6 +74,9 @@ class RegistrationMixin:
             )
             self._tools[tool.name] = tool
             registered_name = tool.name
+            registered_tool = tool
+
+        self._run_post_register_hooks(registered_name, registered_tool)
 
         self._emit_change(
             ChangeEvent(

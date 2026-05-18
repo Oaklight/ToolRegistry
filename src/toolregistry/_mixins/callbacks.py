@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import logging
 import threading
+from typing import TYPE_CHECKING
 
-from ..events import ChangeCallback, ChangeEvent
+from ..events import ChangeCallback, ChangeEvent, PostRegisterHook
+
+if TYPE_CHECKING:
+    from ..tool import Tool
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +21,8 @@ class ChangeCallbackMixin:
         super().__init__(**kwargs)
         self._change_callbacks: list[ChangeCallback] = []
         self._callback_lock = threading.Lock()
+        self._post_register_hooks: list[PostRegisterHook] = []
+        self._hooks_lock = threading.Lock()
 
     def on_change(self, callback: ChangeCallback) -> None:
         """Register a callback to be notified of tool state changes.
@@ -89,3 +95,68 @@ class ChangeCallbackMixin:
                 # Log but don't propagate - one bad callback shouldn't
                 # break the entire notification chain
                 logger.warning(f"Change callback {callback!r} raised exception: {e}")
+
+    def add_post_register_hook(self, hook: PostRegisterHook) -> None:
+        """Register a hook to be called after each tool is added to the registry.
+
+        Hooks are invoked synchronously in registration order immediately after
+        a tool is inserted into the registry (before the REGISTER change event
+        is emitted).  If a hook returns a non-empty string the tool is
+        auto-disabled with that string as the reason.  Returning ``None`` leaves
+        the tool enabled.
+
+        Args:
+            hook: Callable with signature
+                ``(tool_name: str, tool: Tool, registry: ToolRegistry) -> str | None``.
+                Must not raise exceptions that should propagate; any exception
+                is caught and logged.
+
+        Note:
+            - Hooks are invoked in registration order.
+            - The same hook can be registered multiple times.
+            - Hooks should be lightweight; heavy processing should be
+              offloaded to a separate thread/task.
+
+        Example:
+            ```python
+            def my_hook(name: str, tool: Tool, registry: ToolRegistry) -> str | None:
+                if name.startswith("dangerous_"):
+                    return "Blocked by policy"
+                return None
+
+            registry.add_post_register_hook(my_hook)
+            ```
+        """
+        with self._hooks_lock:
+            self._post_register_hooks.append(hook)
+
+    def _run_post_register_hooks(self, tool_name: str, tool: Tool) -> None:
+        """Invoke all registered post-register hooks for a newly added tool.
+
+        Each hook is called with ``(tool_name, tool, self)``.  If a hook
+        returns a non-empty string the tool is auto-disabled.  Exceptions
+        raised inside hooks are caught and logged so they never propagate.
+
+        Args:
+            tool_name: The name under which the tool was registered.
+            tool: The :class:`~toolregistry.tool.Tool` instance that was added.
+        """
+        with self._hooks_lock:
+            hooks = self._post_register_hooks.copy()
+
+        for hook in hooks:
+            try:
+                result = hook(tool_name, tool, self)  # type: ignore[arg-type]
+            except Exception as exc:
+                logger.warning(f"Post-register hook {hook!r} raised exception: {exc}")
+                continue
+
+            if result:
+                # Non-empty string → auto-disable
+                try:
+                    self.disable(tool_name, reason=result)  # type: ignore[attr-defined]
+                except Exception as exc:
+                    logger.warning(
+                        f"Auto-disable triggered by post-register hook {hook!r} "
+                        f"failed for tool '{tool_name}': {exc}"
+                    )

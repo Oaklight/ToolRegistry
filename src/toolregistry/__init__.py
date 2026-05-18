@@ -6,7 +6,7 @@ from .admin import (
     ExecutionStatus,
     TokenAuth,
 )
-from .events import ChangeCallback, ChangeEvent, ChangeEventType
+from .events import ChangeCallback, ChangeEvent, ChangeEventType, PostRegisterHook
 from .executor import (
     ExecutionContext,
     ProcessPoolBackend,
@@ -41,6 +41,7 @@ __all__ = [
     "PermissionRequest",
     "PermissionResult",
     "PermissionRule",
+    "PostRegisterHook",
     "ProcessPoolBackend",
     "ProgressReport",
     "ThreadBackend",
