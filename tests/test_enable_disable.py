@@ -2,6 +2,7 @@
 
 import json
 
+from toolregistry.tool import Tool, ToolMetadata, ToolTag
 from toolregistry.tool_registry import ToolRegistry
 from toolregistry.types import (
     ChatCompletionMessageFunctionToolCall,
@@ -512,3 +513,150 @@ class TestGetToolsStatus:
         assert status[0]["enabled"] is False
         # Empty string reason is still returned
         assert status[0]["reason"] == ""
+
+
+# ===========================================================================
+# 9. disable_by_tags
+# ===========================================================================
+
+
+def _make_tagged_registry() -> ToolRegistry:
+    """Build a registry with three tools carrying different tags for testing."""
+    registry = ToolRegistry(name="test")
+
+    def read_data() -> str:
+        """Read some data."""
+        return "data"
+
+    def delete_data() -> str:
+        """Delete some data."""
+        return "deleted"
+
+    def fetch_url() -> str:
+        """Fetch a URL."""
+        return "content"
+
+    registry.register(
+        Tool.from_function(read_data, metadata=ToolMetadata(tags={ToolTag.READ_ONLY}))
+    )
+    registry.register(
+        Tool.from_function(
+            delete_data, metadata=ToolMetadata(tags={ToolTag.DESTRUCTIVE})
+        )
+    )
+    registry.register(
+        Tool.from_function(
+            fetch_url, metadata=ToolMetadata(tags={ToolTag.NETWORK, ToolTag.READ_ONLY})
+        )
+    )
+    return registry
+
+
+class TestDisableByTags:
+    """Verify disable_by_tags() with match='any' and match='all' modes."""
+
+    def test_match_any_disables_tools_with_at_least_one_tag(self):
+        registry = _make_tagged_registry()
+        # READ_ONLY matches read_data and fetch_url
+        result = registry.disable_by_tags({ToolTag.READ_ONLY}, match="any")
+        assert set(result) == {"read_data", "fetch_url"}
+        assert not registry.is_enabled("read_data")
+        assert not registry.is_enabled("fetch_url")
+        assert registry.is_enabled("delete_data")
+
+    def test_match_any_default_mode(self):
+        registry = _make_tagged_registry()
+        # Default match is "any"
+        result = registry.disable_by_tags({ToolTag.NETWORK})
+        assert result == ["fetch_url"]
+        assert not registry.is_enabled("fetch_url")
+
+    def test_match_all_requires_all_tags_present(self):
+        registry = _make_tagged_registry()
+        # Only fetch_url has both NETWORK and READ_ONLY
+        result = registry.disable_by_tags(
+            {ToolTag.NETWORK, ToolTag.READ_ONLY}, match="all"
+        )
+        assert result == ["fetch_url"]
+        assert not registry.is_enabled("fetch_url")
+        assert registry.is_enabled("read_data")
+        assert registry.is_enabled("delete_data")
+
+    def test_match_all_no_match_returns_empty(self):
+        registry = _make_tagged_registry()
+        # No tool has both DESTRUCTIVE and NETWORK
+        result = registry.disable_by_tags(
+            {ToolTag.DESTRUCTIVE, ToolTag.NETWORK}, match="all"
+        )
+        assert result == []
+        assert registry.is_enabled("read_data")
+        assert registry.is_enabled("delete_data")
+        assert registry.is_enabled("fetch_url")
+
+    def test_no_intersection_returns_empty_list(self):
+        registry = _make_tagged_registry()
+        result = registry.disable_by_tags({ToolTag.PRIVILEGED}, match="any")
+        assert result == []
+        assert registry.is_enabled("read_data")
+        assert registry.is_enabled("delete_data")
+        assert registry.is_enabled("fetch_url")
+
+    def test_already_disabled_tool_skipped_in_return(self):
+        registry = _make_tagged_registry()
+        # Pre-disable fetch_url before the bulk operation.
+        registry.disable("fetch_url", reason="pre-disabled")
+        result = registry.disable_by_tags({ToolTag.READ_ONLY}, match="any")
+        # fetch_url was already disabled — must NOT appear in the return value.
+        assert "fetch_url" not in result
+        assert "read_data" in result
+        # The pre-existing reason must be preserved (not overwritten).
+        assert registry.get_disable_reason("fetch_url") == "pre-disabled"
+
+    def test_custom_reason_recorded(self):
+        registry = _make_tagged_registry()
+        registry.disable_by_tags({ToolTag.DESTRUCTIVE}, reason="safety lockdown")
+        assert registry.get_disable_reason("delete_data") == "safety lockdown"
+
+    def test_default_reason_recorded(self):
+        registry = _make_tagged_registry()
+        registry.disable_by_tags({ToolTag.DESTRUCTIVE})
+        assert registry.get_disable_reason("delete_data") == "Disabled by tag filter"
+
+    def test_empty_tags_returns_empty_list(self):
+        registry = _make_tagged_registry()
+        result = registry.disable_by_tags(set())
+        assert result == []
+        # No tool should be disabled
+        assert registry.is_enabled("read_data")
+        assert registry.is_enabled("delete_data")
+        assert registry.is_enabled("fetch_url")
+
+    def test_tool_without_tags_not_matched(self):
+        """Tools with no tags at all are never matched by a non-empty tag set."""
+        registry = ToolRegistry(name="test")
+        registry.register(add)  # default ToolMetadata, no tags
+        result = registry.disable_by_tags({ToolTag.SLOW})
+        assert result == []
+        assert registry.is_enabled("add") is True
+
+    def test_empty_registry_returns_empty_list(self):
+        """disable_by_tags on an empty registry returns []."""
+        registry = ToolRegistry(name="test")
+        assert registry.disable_by_tags({ToolTag.SLOW}) == []
+
+    def test_custom_string_tags_matched(self):
+        """disable_by_tags works with plain string custom_tags via all_tags."""
+        from toolregistry.tool import Tool
+
+        registry = ToolRegistry(name="test")
+        registry.register(
+            Tool.from_function(add, metadata=ToolMetadata(custom_tags={"beta"}))
+        )
+        registry.register(
+            Tool.from_function(subtract, metadata=ToolMetadata(custom_tags={"stable"}))
+        )
+
+        result = registry.disable_by_tags({"beta"})  # type: ignore[arg-type]
+        assert result == ["add"]
+        assert not registry.is_enabled("add")
+        assert registry.is_enabled("subtract")
