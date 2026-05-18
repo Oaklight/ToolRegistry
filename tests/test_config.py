@@ -241,6 +241,91 @@ tools:
         with pytest.raises(ConfigError, match="requires 'class' or 'module'"):
             load_config(p)
 
+    def test_kwargs_empty_by_default(self, tmp_path: Path) -> None:
+        """PythonSource.kwargs defaults to empty dict when not specified."""
+        p = _write(
+            tmp_path,
+            "cfg.yaml",
+            """\
+tools:
+  - type: python
+    class: mypackage.MyTool
+""",
+        )
+        cfg = load_config(p)
+        src = cfg.tools[0]
+        assert isinstance(src, PythonSource)
+        assert src.kwargs == {}
+
+    def test_kwargs_parsed_from_yaml(self, tmp_path: Path) -> None:
+        """kwargs dict is correctly parsed from YAML config."""
+        p = _write(
+            tmp_path,
+            "cfg.yaml",
+            """\
+tools:
+  - type: python
+    class: mypackage.SearchTool
+    namespace: search
+    kwargs:
+      api_key: secret123
+      base_url: https://api.example.com
+      timeout: 30
+""",
+        )
+        cfg = load_config(p)
+        src = cfg.tools[0]
+        assert isinstance(src, PythonSource)
+        assert src.kwargs == {
+            "api_key": "secret123",
+            "base_url": "https://api.example.com",
+            "timeout": 30,
+        }
+
+    def test_kwargs_parsed_from_jsonc(self, tmp_path: Path) -> None:
+        """kwargs dict is correctly parsed from JSONC config."""
+        p = _write(
+            tmp_path,
+            "cfg.jsonc",
+            """\
+{
+  "tools": [
+    {
+      "type": "python",
+      "class": "mypackage.SearchTool",
+      "namespace": "search",
+      "kwargs": {
+        "api_key": "secret123",
+        "base_url": "https://api.example.com"
+      }
+    }
+  ]
+}
+""",
+        )
+        cfg = load_config(p)
+        src = cfg.tools[0]
+        assert isinstance(src, PythonSource)
+        assert src.kwargs == {
+            "api_key": "secret123",
+            "base_url": "https://api.example.com",
+        }
+
+    def test_kwargs_invalid_type(self, tmp_path: Path) -> None:
+        """Non-mapping kwargs raises ConfigError."""
+        p = _write(
+            tmp_path,
+            "cfg.yaml",
+            """\
+tools:
+  - type: python
+    class: mypackage.MyTool
+    kwargs: not_a_mapping
+""",
+        )
+        with pytest.raises(ConfigError, match="'kwargs' must be a mapping"):
+            load_config(p)
+
 
 # ---------------------------------------------------------------------------
 # MCPSource
@@ -828,6 +913,21 @@ class TestToDict:
         assert d["module"] == "pkg.tools"
         assert d["enabled"] is False
         assert "class" not in d
+
+    def test_python_source_kwargs_omitted_when_empty(self) -> None:
+        """PythonSource with empty kwargs does not include 'kwargs' key in dict."""
+        src = PythonSource(class_path="pkg.Cls")
+        d = src.to_dict()
+        assert "kwargs" not in d
+
+    def test_python_source_kwargs_serialized(self) -> None:
+        """PythonSource with non-empty kwargs includes 'kwargs' key in dict."""
+        src = PythonSource(
+            class_path="pkg.Cls",
+            kwargs={"api_key": "secret", "timeout": 30},
+        )
+        d = src.to_dict()
+        assert d["kwargs"] == {"api_key": "secret", "timeout": 30}
 
     def test_mcp_source_stdio(self) -> None:
         """MCPSource with stdio transport serializes command."""

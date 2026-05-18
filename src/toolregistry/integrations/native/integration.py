@@ -41,6 +41,7 @@ class ClassToolIntegration:
         self,
         cls_or_instance: type | object,
         namespace: bool | str = False,
+        constructor_kwargs: dict | None = None,
     ) -> None:
         """Register all methods from a class or instance as tools.
 
@@ -57,6 +58,10 @@ class ClassToolIntegration:
                 - If True, the namespace is derived from the class name.
                 - If a string is provided, it is used as the namespace.
                 Defaults to False.
+            constructor_kwargs: Keyword arguments forwarded to the class
+                constructor when *cls_or_instance* is a class that needs
+                to be instantiated.  Ignored when a pre-built instance is
+                passed.  Defaults to ``None`` (no extra arguments).
         """
         resolved_ns = _determine_namespace(cls_or_instance, namespace)
 
@@ -64,7 +69,9 @@ class ClassToolIntegration:
             if _is_all_static_methods(cls_or_instance):
                 self._register_static_methods(cls_or_instance, resolved_ns)
             else:
-                instance = self._instantiate_class(cls_or_instance)
+                instance = self._instantiate_class(
+                    cls_or_instance, constructor_kwargs or {}
+                )
                 self._register_instance_methods(instance, resolved_ns)
         else:
             self._register_instance_methods(cls_or_instance, resolved_ns)
@@ -73,6 +80,7 @@ class ClassToolIntegration:
         self,
         cls_or_instance: type | object,
         namespace: bool | str = False,
+        constructor_kwargs: dict | None = None,
     ) -> None:
         """Async implementation to register tools from a class.
 
@@ -85,10 +93,18 @@ class ClassToolIntegration:
                 - If True, the namespace is derived from the class name.
                 - If a string is provided, it is used as the namespace.
                 Defaults to False.
+            constructor_kwargs: Keyword arguments forwarded to the class
+                constructor when *cls_or_instance* is a class that needs
+                to be instantiated.  Ignored when a pre-built instance is
+                passed.  Defaults to ``None`` (no extra arguments).
         """
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(
-            None, self.register_class_methods, cls_or_instance, namespace
+            None,
+            self.register_class_methods,
+            cls_or_instance,
+            namespace,
+            constructor_kwargs,
         )
 
     @staticmethod
@@ -145,39 +161,44 @@ class ClassToolIntegration:
             return f"{param.name}: {ann}"
         return param.name
 
-    def _instantiate_class(self, cls: type) -> object:
-        """Attempt to instantiate *cls* with no arguments.
+    def _instantiate_class(self, cls: type, constructor_kwargs: dict) -> object:
+        """Attempt to instantiate *cls* with the given keyword arguments.
 
-        Before calling ``cls()``, this method inspects ``__init__`` for
-        required parameters.  If any are found, a ``TypeError`` is raised
-        immediately with a message that lists the missing parameters and
-        suggests passing a pre-constructed instance instead.
+        When *constructor_kwargs* is non-empty the class is called directly
+        with those arguments.  When it is empty, ``__init__`` is first
+        inspected for required parameters and a ``TypeError`` is raised
+        immediately if any are found (preserving the original zero-argument
+        behaviour).
 
         Args:
             cls: The class to instantiate.
+            constructor_kwargs: Keyword arguments forwarded to ``cls()``.
 
         Returns:
             An instance of *cls*.
 
         Raises:
-            TypeError: If the class requires constructor arguments or if
-                zero-argument instantiation fails for another reason.
+            TypeError: If the class requires constructor arguments that are
+                not satisfied by *constructor_kwargs*, or if instantiation
+                fails for another reason.
         """
-        required_params = self._get_required_init_params(cls)
-        if required_params:
-            formatted = ", ".join(self._format_param(p) for p in required_params)
-            example_args = ", ".join(f"{p.name}=..." for p in required_params)
-            raise TypeError(
-                f"Class '{cls.__name__}' requires constructor arguments ({formatted}). "
-                f"Please instantiate it first: "
-                f"register_from_class({cls.__name__}({example_args}))"
-            )
+        if not constructor_kwargs:
+            required_params = self._get_required_init_params(cls)
+            if required_params:
+                formatted = ", ".join(self._format_param(p) for p in required_params)
+                example_args = ", ".join(f"{p.name}=..." for p in required_params)
+                raise TypeError(
+                    f"Class '{cls.__name__}' requires constructor arguments ({formatted}). "
+                    f"Please instantiate it first: "
+                    f"register_from_class({cls.__name__}({example_args}))"
+                )
 
         try:
-            return cls()
+            return cls(**constructor_kwargs)
         except TypeError as e:
             raise TypeError(
-                f"Failed to instantiate class '{cls.__name__}' with no arguments: {e}. "
+                f"Failed to instantiate class '{cls.__name__}' "
+                f"with arguments {constructor_kwargs!r}: {e}. "
                 f"Please pass a pre-constructed instance instead: "
                 f"register_from_class({cls.__name__}(...))"
             ) from e

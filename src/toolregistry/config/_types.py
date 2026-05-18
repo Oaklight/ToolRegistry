@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
 __all__ = [
@@ -79,12 +79,17 @@ class PythonSource:
             (e.g. ``"my_package.tools"``).
         namespace: Optional namespace passed to the registration call.
         enabled: Per-source enabled flag.
+        kwargs: Keyword arguments forwarded to the class constructor when
+            *class_path* is used.  Allows passing configuration (e.g. API
+            keys, base URLs) directly from the config file instead of
+            requiring a pre-constructed instance.
     """
 
     class_path: str | None = None
     module_path: str | None = None
     namespace: str | None = None
     enabled: bool = True
+    kwargs: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.class_path and not self.module_path:
@@ -101,6 +106,7 @@ class PythonSource:
 
         Maps ``class_path`` back to the ``"class"`` key and
         ``module_path`` to ``"module"`` for config-file compatibility.
+        Omits ``kwargs`` when empty.
         """
         d: dict[str, Any] = {"type": "python"}
         if self.class_path:
@@ -111,6 +117,8 @@ class PythonSource:
             d["namespace"] = self.namespace
         if not self.enabled:
             d["enabled"] = False
+        if self.kwargs:
+            d["kwargs"] = dict(self.kwargs)
         return d
 
 

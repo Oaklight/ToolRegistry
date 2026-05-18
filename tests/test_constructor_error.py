@@ -154,3 +154,64 @@ class TestConstructorErrorMessage:
         # Unannotated params should appear without colon
         assert "host:" not in msg
         assert "port:" not in msg
+
+
+class TestConstructorKwargs:
+    """Verify that constructor_kwargs are forwarded correctly to the class."""
+
+    def test_kwargs_passed_to_constructor(self):
+        """constructor_kwargs are forwarded to the class __init__."""
+        registry = ToolRegistry()
+        registry.register_from_class(
+            ServiceWithRequiredArgs,
+            constructor_kwargs={"api_key": "mykey", "timeout": 10},
+        )
+        assert "call_api" in registry.list_tools()
+
+    def test_kwargs_values_available_on_instance(self):
+        """The registered instance retains the kwargs passed at construction."""
+        registry = ToolRegistry()
+        registry.register_from_class(
+            ServiceWithRequiredArgs,
+            constructor_kwargs={"api_key": "testkey", "timeout": 5},
+        )
+        result = registry["call_api"](endpoint="/test")
+        assert result == "testkey:/test"
+
+    def test_empty_kwargs_preserves_original_behaviour(self):
+        """Passing an empty constructor_kwargs dict behaves like no kwargs."""
+        registry = ToolRegistry()
+        registry.register_from_class(ServiceNoArgs, constructor_kwargs={})
+        assert "ping" in registry.list_tools()
+
+    def test_none_kwargs_preserves_original_behaviour(self):
+        """Passing None for constructor_kwargs behaves like no kwargs."""
+        registry = ToolRegistry()
+        registry.register_from_class(ServiceNoArgs, constructor_kwargs=None)
+        assert "ping" in registry.list_tools()
+
+    def test_kwargs_with_defaults_override(self):
+        """constructor_kwargs override default parameter values."""
+        registry = ToolRegistry()
+        registry.register_from_class(
+            ServiceWithDefaults,
+            constructor_kwargs={"retries": 7, "verbose": True},
+        )
+        assert "status" in registry.list_tools()
+
+    def test_required_args_without_kwargs_still_errors(self):
+        """Without constructor_kwargs, required-arg classes still raise TypeError."""
+        registry = ToolRegistry()
+        with pytest.raises(TypeError, match="ServiceWithRequiredArgs"):
+            registry.register_from_class(ServiceWithRequiredArgs)
+
+    def test_kwargs_wrong_values_raise_type_error(self):
+        """Passing constructor_kwargs with wrong types raises TypeError with context."""
+        registry = ToolRegistry()
+        # ServiceWithRequiredArgs expects api_key: str, timeout: int
+        # Passing an unexpected keyword should propagate as TypeError
+        with pytest.raises(TypeError):
+            registry.register_from_class(
+                ServiceWithRequiredArgs,
+                constructor_kwargs={"api_key": "key", "unknown_param": 42},
+            )
