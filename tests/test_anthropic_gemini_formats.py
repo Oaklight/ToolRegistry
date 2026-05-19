@@ -8,7 +8,7 @@ import json
 
 
 from toolregistry import Tool
-from toolregistry.types.common import (
+from toolregistry.llm.tool_calls import (
     ToolCall,
     build_assistant_message,
     build_tool_response,
@@ -123,7 +123,7 @@ class TestGetJsonSchemaOpenAI:
 
     def test_schema_sanitization_strips_unsupported_keywords(self):
         """Rosetta sanitizes schemas (removes $ref, $schema, etc)."""
-        from toolregistry._rosetta import (
+        from toolregistry.llm._rosetta import (
             _get_anthropic_tool_ops,
             _make_ir_tool_definition,
         )

@@ -23,7 +23,7 @@ from .permissions import (
 )
 from .tool import Tool, ToolMetadata, ToolTag
 from .tool_registry import ToolRegistry
-from .tool_discovery import ToolDiscoveryTool
+from .llm.discovery import ToolDiscoveryTool
 
 __all__ = [
     "AdminInfo",

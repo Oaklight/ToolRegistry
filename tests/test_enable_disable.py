@@ -4,10 +4,6 @@ import json
 
 from toolregistry.tool import Tool, ToolMetadata, ToolTag
 from toolregistry.tool_registry import ToolRegistry
-from toolregistry.types import (
-    ChatCompletionMessageFunctionToolCall,
-    Function,
-)
 
 
 # ---------------------------------------------------------------------------
@@ -288,14 +284,12 @@ class TestExecuteToolCallsDisabled:
     """Verify that execute_tool_calls rejects disabled tools."""
 
     def _make_tool_call(self, name: str, arguments: dict, call_id: str = "call_1"):
-        """Create a ChatCompletionMessageFunctionToolCall for testing."""
-        return ChatCompletionMessageFunctionToolCall(
-            id=call_id,
-            function=Function(
-                name=name,
-                arguments=json.dumps(arguments),
-            ),
-        )
+        """Create an OpenAI chat format tool call dict for testing."""
+        return {
+            "id": call_id,
+            "type": "function",
+            "function": {"name": name, "arguments": json.dumps(arguments)},
+        }
 
     def test_execute_enabled_tool(self):
         registry = ToolRegistry(name="test")

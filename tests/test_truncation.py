@@ -2,7 +2,7 @@
 
 import os
 
-from toolregistry.truncation import (
+from toolregistry.llm.truncation import (
     TruncatedResult,
     TruncationStrategy,
     truncate_result,

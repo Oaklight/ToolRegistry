@@ -12,21 +12,20 @@ from collections.abc import Callable
 
 from .executor import ProcessPoolBackend, ThreadBackend
 from .tool import ToolTag
-from .truncation import truncate_result
-from .types.content_blocks import is_content_block_list
+from .llm.truncation import truncate_result
+from .llm.content_blocks import is_content_block_list
 from .permissions import (
     PermissionResult,
 )
-from .types import (
+from .llm.tool_calls import (
     API_FORMATS,
-    AnyToolCall,
     build_assistant_message,
     build_tool_response,
     convert_tool_calls,
 )
 
 from .events import ChangeCallback, ChangeEvent, ChangeEventType
-from .tool_discovery import TOOL_DISCOVERY_NAME, ToolDiscoveryTool
+from .llm.discovery import TOOL_DISCOVERY_NAME, ToolDiscoveryTool
 
 from ._mixins import (
     AdminMixin,
@@ -606,7 +605,7 @@ class ToolRegistry(
 
     def execute_tool_calls(
         self,
-        tool_calls: list[AnyToolCall],
+        tool_calls: list[Any],
         execution_mode: Literal["process", "thread"] | None = None,
     ) -> dict[str, str | list]:
         """Execute tool calls with concurrency using cloudpickle for serialization.
@@ -734,7 +733,7 @@ class ToolRegistry(
 
     def build_tool_call_messages(
         self,
-        tool_calls: list[AnyToolCall],
+        tool_calls: list[Any],
         tool_responses: dict[str, str | list],
         api_format: API_FORMATS = "openai-chat",
     ) -> list[dict[str, Any]]:
@@ -767,8 +766,8 @@ class ToolRegistry(
             When multimodal content is present, an additional user
             message is appended containing the expanded content.
         """
-        from .types.common import _normalize_api_format
-        from .types.content_blocks import (
+        from .llm.tool_calls import _normalize_api_format
+        from .llm.content_blocks import (
             build_expanded_user_message,
             expand_content_blocks,
         )
@@ -806,7 +805,7 @@ class ToolRegistry(
 
     def recover_tool_call_assistant_message(
         self,
-        tool_calls: list[AnyToolCall],
+        tool_calls: list[Any],
         tool_responses: dict[str, str | list],
         api_format: API_FORMATS = "openai-chat",
     ) -> list[dict[str, Any]]:
@@ -980,7 +979,7 @@ class ToolRegistry(
         Returns:
             A list of tool definition dicts in the specified API format.
         """
-        from .types.common import _normalize_api_format
+        from .llm.tool_calls import _normalize_api_format
 
         api_format = _normalize_api_format(api_format)
 

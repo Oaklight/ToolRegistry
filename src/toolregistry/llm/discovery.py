@@ -14,12 +14,12 @@ from __future__ import annotations
 import re
 from typing import Any, TYPE_CHECKING
 
-from ._vendor.sparse_search import SparseIndex
+from .._vendor.sparse_search import SparseIndex
 
 if TYPE_CHECKING:
-    from .tool import Tool
-    from .tool_registry import ToolRegistry
-    from .types import API_FORMATS
+    from ..tool import Tool
+    from ..tool_registry import ToolRegistry
+    from .tool_calls import API_FORMATS
 
 _DEFAULT_FIELD_WEIGHTS: dict[str, float] = {
     "name": 3.0,
@@ -70,7 +70,7 @@ class ToolDiscoveryTool:
     Example::
 
         from toolregistry import ToolRegistry
-        from toolregistry.tool_discovery import ToolDiscoveryTool
+        from toolregistry.llm.discovery import ToolDiscoveryTool
 
         registry = ToolRegistry()
         registry.register(my_func)

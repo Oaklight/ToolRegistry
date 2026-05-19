@@ -5,7 +5,6 @@ import asyncio
 import pytest
 
 from toolregistry import ToolRegistry
-from toolregistry.types import ChatCompletionMessageFunctionToolCall, Function
 
 
 class TestToolRegistryIntegration:
@@ -79,20 +78,8 @@ class TestToolRegistryIntegration:
 
         # Create tool calls
         tool_calls = [
-            ChatCompletionMessageFunctionToolCall(
-                id="call_1",
-                function=Function(
-                    name="calculate_area",
-                    arguments='{"length": 5.0, "width": 3.0}',
-                ),
-            ),
-            ChatCompletionMessageFunctionToolCall(
-                id="call_2",
-                function=Function(
-                    name="format_result",
-                    arguments='{"value": 15.0, "unit": "square meters"}',
-                ),
-            ),
+            {"id": "call_1", "type": "function", "function": {"name": "calculate_area", "arguments": '{"length": 5.0, "width": 3.0}'}},
+            {"id": "call_2", "type": "function", "function": {"name": "format_result", "arguments": '{"value": 15.0, "unit": "square meters"}'}},
         ]
 
         # Execute tool calls
@@ -249,20 +236,9 @@ class TestToolRegistryIntegration:
 
         # Test tool call execution error handling
         tool_calls = [
-            ChatCompletionMessageFunctionToolCall(
-                id="call_fail",
-                function=Function(
-                    name="failing_function", arguments='{"should_fail": true}'
-                ),
-            ),
-            ChatCompletionMessageFunctionToolCall(
-                id="call_good",
-                function=Function(name="good_function", arguments='{"x": 10, "y": 20}'),
-            ),
-            ChatCompletionMessageFunctionToolCall(
-                id="call_invalid",
-                function=Function(name="nonexistent_function", arguments="{}"),
-            ),
+            {"id": "call_fail", "type": "function", "function": {"name": "failing_function", "arguments": '{"should_fail": true}'}},
+            {"id": "call_good", "type": "function", "function": {"name": "good_function", "arguments": '{"x": 10, "y": 20}'}},
+            {"id": "call_invalid", "type": "function", "function": {"name": "nonexistent_function", "arguments": "{}"}},
         ]
 
         results = registry.execute_tool_calls(tool_calls)
@@ -383,14 +359,8 @@ class TestToolRegistryIntegration:
 
         # Test with different execution modes
         tool_calls = [
-            ChatCompletionMessageFunctionToolCall(
-                id="call_1",
-                function=Function(name="cpu_intensive_task", arguments='{"n": 1000}'),
-            ),
-            ChatCompletionMessageFunctionToolCall(
-                id="call_2",
-                function=Function(name="cpu_intensive_task", arguments='{"n": 2000}'),
-            ),
+            {"id": "call_1", "type": "function", "function": {"name": "cpu_intensive_task", "arguments": '{"n": 1000}'}},
+            {"id": "call_2", "type": "function", "function": {"name": "cpu_intensive_task", "arguments": '{"n": 2000}'}},
         ]
 
         # Test thread mode

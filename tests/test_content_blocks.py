@@ -6,19 +6,15 @@ import pytest
 
 from toolregistry import ToolRegistry
 from toolregistry.tool import Tool, ToolMetadata
-from toolregistry.types.content_blocks import (
+from toolregistry.llm.content_blocks import (
     ContentBlock,
     build_expanded_user_message,
     content_blocks_to_text,
     expand_content_blocks,
     is_content_block_list,
 )
-from toolregistry.types import (
+from toolregistry.llm.tool_calls import (
     build_tool_response,
-)
-from toolregistry.types.openai.chat_completion import (
-    ChatCompletionMessageFunctionToolCall,
-    Function,
 )
 
 # ---------------------------------------------------------------------------
@@ -338,10 +334,7 @@ class TestExecuteToolCallsMultimodal:
         registry.register(image_tool)
 
         tool_calls = [
-            ChatCompletionMessageFunctionToolCall(
-                id="call_1",
-                function=Function(name="image_tool", arguments='{"path": "test.png"}'),
-            )
+            {"id": "call_1", "type": "function", "function": {"name": "image_tool", "arguments": '{"path": "test.png"}'}}
         ]
 
         results = registry.execute_tool_calls(tool_calls, execution_mode="thread")
@@ -359,10 +352,7 @@ class TestExecuteToolCallsMultimodal:
         registry.register(text_tool)
 
         tool_calls = [
-            ChatCompletionMessageFunctionToolCall(
-                id="call_2",
-                function=Function(name="text_tool", arguments='{"x": 42}'),
-            )
+            {"id": "call_2", "type": "function", "function": {"name": "text_tool", "arguments": '{"x": 42}'}}
         ]
 
         results = registry.execute_tool_calls(tool_calls, execution_mode="thread")
@@ -407,7 +397,7 @@ class TestBuildToolResponseMultimodal:
         assert "Here is an image:" in output
 
     def test_gemini_uses_text_fallback(self, multimodal_responses):
-        from toolregistry.types.common import ToolCall
+        from toolregistry.llm.tool_calls import ToolCall
 
         tc = ToolCall(id="call_1", name="image_tool", arguments="{}")
         messages = build_tool_response(
@@ -447,10 +437,7 @@ class TestBuildToolCallMessagesMultimodal:
         registry.register(image_tool)
 
         tool_calls = [
-            ChatCompletionMessageFunctionToolCall(
-                id="call_1",
-                function=Function(name="image_tool", arguments='{"path": "test.png"}'),
-            )
+            {"id": "call_1", "type": "function", "function": {"name": "image_tool", "arguments": '{"path": "test.png"}'}}
         ]
         responses = registry.execute_tool_calls(tool_calls, execution_mode="thread")
         return registry, tool_calls, responses
@@ -521,10 +508,7 @@ class TestBuildToolCallMessagesMultimodal:
         registry.register(text_tool)
 
         tool_calls = [
-            ChatCompletionMessageFunctionToolCall(
-                id="call_1",
-                function=Function(name="text_tool", arguments='{"x": 42}'),
-            )
+            {"id": "call_1", "type": "function", "function": {"name": "text_tool", "arguments": '{"x": 42}'}}
         ]
         responses = registry.execute_tool_calls(tool_calls, execution_mode="thread")
         messages = registry.build_tool_call_messages(

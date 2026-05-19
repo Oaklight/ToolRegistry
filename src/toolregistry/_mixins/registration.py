@@ -318,9 +318,8 @@ class RegistrationMixin:
 
         Example:
             ```python
-            from toolregistry.hub import Calculator
             registry = ToolRegistry()
-            registry.register_from_class(Calculator)
+            registry.register_from_class(MyClass)
             ```
 
         Note:
@@ -364,9 +363,8 @@ class RegistrationMixin:
 
         Example:
             ```python
-            from toolregistry.hub import Calculator
             registry = ToolRegistry()
-            registry.register_from_class(Calculator)
+            registry.register_from_class(MyClass)
             ```
         """
         namespace = _resolve_namespace_compat(namespace, kwargs)

@@ -7,7 +7,7 @@ from collections.abc import Callable
 from pydantic import BaseModel, Field, model_validator
 
 from .parameter_models import _generate_parameters_model
-from .types import API_FORMATS
+from .llm.tool_calls import API_FORMATS
 from .utils import normalize_tool_name
 
 
@@ -367,8 +367,8 @@ class Tool(BaseModel):
         Returns:
             Provider-specific tool definition dict.
         """
-        from ._rosetta import _make_ir_tool_definition
-        from .types.common import _normalize_api_format
+        from .llm._rosetta import _make_ir_tool_definition
+        from .llm.tool_calls import _normalize_api_format
 
         api_format = _normalize_api_format(api_format)
 
@@ -389,19 +389,19 @@ class Tool(BaseModel):
         ir_tool = _make_ir_tool_definition(self.name, self.description, params)
 
         if api_format == "openai-chat":
-            from ._rosetta import _get_openai_chat_tool_ops
+            from .llm._rosetta import _get_openai_chat_tool_ops
 
             return _get_openai_chat_tool_ops().ir_tool_definition_to_p(ir_tool)
         elif api_format == "openai-response":
-            from ._rosetta import _get_openai_responses_tool_ops
+            from .llm._rosetta import _get_openai_responses_tool_ops
 
             return _get_openai_responses_tool_ops().ir_tool_definition_to_p(ir_tool)
         elif api_format == "anthropic":
-            from ._rosetta import _get_anthropic_tool_ops
+            from .llm._rosetta import _get_anthropic_tool_ops
 
             return _get_anthropic_tool_ops().ir_tool_definition_to_p(ir_tool)
         elif api_format == "gemini":
-            from ._rosetta import _get_google_tool_ops
+            from .llm._rosetta import _get_google_tool_ops
 
             result = _get_google_tool_ops().ir_tool_definition_to_p(ir_tool)
             # Unwrap the function_declarations wrapper to return a single
