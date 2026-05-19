@@ -274,6 +274,15 @@ class ToolRegistry(
             }:
                 if event.tool_name != TOOL_DISCOVERY_NAME:
                     discoverer.rebuild_index()
+            elif event.event_type in {
+                ChangeEventType.ENABLE,
+                ChangeEventType.DISABLE,
+                ChangeEventType.METADATA_UPDATE,
+            }:
+                if event.tool_name != TOOL_DISCOVERY_NAME:
+                    # Cheap sync — no full index rebuild needed, just update
+                    # the discover_tools description to reflect current state.
+                    discoverer._sync_description()
 
         self.on_change(_on_registry_change)
 
