@@ -965,6 +965,33 @@ class ToolRegistry(
             if t.metadata and t.metadata.defer and self.is_enabled(t.name)
         ]
 
+    def apply_metadata_config(self, overrides: "dict[str, Any]") -> None:
+        """Apply ``tool_metadata`` overrides from a loaded ``ToolConfig``.
+
+        Accepts ``dict[str, ToolMetadataOverride]`` (as returned by
+        ``ToolConfig.tool_metadata``) or plain ``dict[str, dict]``.
+        Silently skips tool names not present in the registry.
+
+        Args:
+            overrides: Mapping of exact tool name → metadata override.
+                Each value must have ``search_hint`` (str) and optionally
+                ``defer`` (bool | None) as attributes or dict keys.
+        """
+        for name, override in overrides.items():
+            tool = self._tools.get(name)
+            if tool is None:
+                continue
+            if isinstance(override, dict):
+                hint = override.get("search_hint", "")
+                defer = override.get("defer")
+            else:
+                hint = getattr(override, "search_hint", "")
+                defer = getattr(override, "defer", None)
+            if hint:
+                tool.metadata.search_hint = hint
+            if defer is not None:
+                tool.metadata.defer = defer
+
     def get_schemas(
         self,
         tool_name: str | None = None,

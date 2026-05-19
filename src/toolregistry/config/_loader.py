@@ -14,6 +14,7 @@ from ._types import (
     ProfileConfig,
     PythonSource,
     ToolConfig,
+    ToolMetadataOverride,
     ToolSource,
 )
 
@@ -153,6 +154,8 @@ def _build_config(data: dict[str, Any], source: str) -> ToolConfig:
             )
         profiles[name] = _build_profile_config(profile_data, name)
 
+    tool_metadata = _build_tool_metadata(data)
+
     return ToolConfig(
         mode=mode,
         disabled=tuple(disabled),
@@ -160,6 +163,7 @@ def _build_config(data: dict[str, Any], source: str) -> ToolConfig:
         tools=tuple(tools),
         source=source,
         profiles=profiles,
+        tool_metadata=tool_metadata,
     )
 
 
@@ -196,6 +200,48 @@ def _build_profile_config(data: dict[str, Any], name: str) -> ProfileConfig:
         enable=tuple(enable),
         disable=tuple(disable),
     )
+
+
+# --- tool_metadata section ---------------------------------------------------
+
+
+def _build_tool_metadata(data: dict[str, Any]) -> dict[str, ToolMetadataOverride]:
+    """Parse the ``tool_metadata`` section of a config file.
+
+    Args:
+        data: Top-level config mapping.
+
+    Returns:
+        Dict mapping tool names to ``ToolMetadataOverride`` instances.
+
+    Raises:
+        ConfigError: If the section or any entry is malformed.
+    """
+    raw = data.get("tool_metadata", {})
+    if not isinstance(raw, dict):
+        raise ConfigError(
+            f"'tool_metadata' must be a mapping, got {type(raw).__name__}."
+        )
+    overrides: dict[str, ToolMetadataOverride] = {}
+    for tool_name, entry in raw.items():
+        if not isinstance(entry, dict):
+            raise ConfigError(
+                f"'tool_metadata.{tool_name}' must be a mapping, "
+                f"got {type(entry).__name__}."
+            )
+        search_hint = entry.get("search_hint", "")
+        if not isinstance(search_hint, str):
+            raise ConfigError(
+                f"'tool_metadata.{tool_name}.search_hint' must be a string."
+            )
+        defer = entry.get("defer", None)
+        if defer is not None and not isinstance(defer, bool):
+            raise ConfigError(f"'tool_metadata.{tool_name}.defer' must be a boolean.")
+        overrides[tool_name] = ToolMetadataOverride(
+            search_hint=search_hint,
+            defer=defer,
+        )
+    return overrides
 
 
 # --- tool source dispatch ----------------------------------------------------
