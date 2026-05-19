@@ -846,7 +846,8 @@ def _get_info(request: Request) -> Response:
     info: dict[str, Any] = {
         "toolregistry": toolregistry.__version__,
         "name_sep": getattr(registry, "_name_sep", "-"),
-        "discover_enabled": "discover_tools" in registry._tools,
+        "discover_enabled": "discover_tools" in registry._tools
+        and registry.is_enabled("discover_tools"),
     }
     try:
         import toolregistry_server
@@ -904,7 +905,7 @@ def _get_schema(request: Request) -> Response:
     # --- discover_tools description view ---
     if fmt_str == "discover":
         discovery_tool = registry._tools.get("discover_tools")
-        if discovery_tool is None:
+        if discovery_tool is None or not registry.is_enabled("discover_tools"):
             return _error_response(404, "Not Found", "Tool discovery is not enabled")
         deferred_count, disabled_count = _schema_counts(registry)
 
