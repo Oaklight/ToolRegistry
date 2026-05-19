@@ -89,6 +89,7 @@ class ToolRegistry(
         default_max_result_size: int | None = None,
         think_augment: bool = False,
         tool_discovery: bool = False,
+        name_sep: Literal["-", "."] = "-",
     ) -> None:
         """Initialize an empty ToolRegistry.
 
@@ -113,6 +114,11 @@ class ToolRegistry(
                 that LLMs can use to discover other tools by exact
                 name or natural language query.
                 Defaults to ``False``.
+            name_sep: Separator character used when combining namespace and
+                method name into a tool name (e.g. ``"calculator-evaluate"``
+                with ``"-"`` or ``"calculator.evaluate"`` with ``"."``).
+                OpenAI requires ``"-"``; some providers allow ``"."``.
+                Defaults to ``"-"``.
 
         Notes:
             This class uses private attributes `_tools` and `_sub_registries` internally
@@ -128,6 +134,7 @@ class ToolRegistry(
         self._execution_mode: Literal["process", "thread"] = "process"
         self._default_max_result_size = default_max_result_size
         self._think_augment = think_augment
+        self._name_sep: Literal["-", "."] = name_sep
         self._tool_discovery: ToolDiscoveryTool | None = None
         self._tool_discovery_callback: ChangeCallback | None = None
 

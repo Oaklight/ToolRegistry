@@ -62,9 +62,10 @@ class NamespaceMixin:
         Raises:
             None
         """
+        sep = getattr(self, "_name_sep", "-")
         new_tools: dict[str, Tool] = {}
         for tool in self._tools.values():
-            tool.update_namespace(self.name, force=force)
+            tool.update_namespace(self.name, force=force, sep=sep)
             new_tools[tool.name] = tool
         self._tools = new_tools
 

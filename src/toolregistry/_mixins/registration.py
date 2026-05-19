@@ -59,8 +59,10 @@ class RegistrationMixin:
         if namespace:
             self._sub_registries.add(normalize_tool_name(namespace))
 
+        sep = getattr(self, "_name_sep", "-")
+
         if isinstance(tool_or_func, Tool):
-            tool_or_func.update_namespace(namespace, force=True)
+            tool_or_func.update_namespace(namespace, force=True, sep=sep)
             self._tools[tool_or_func.name] = tool_or_func
             registered_name = tool_or_func.name
             registered_tool = tool_or_func
