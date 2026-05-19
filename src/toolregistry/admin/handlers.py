@@ -853,6 +853,12 @@ def _get_info(request: Request) -> Response:
         info["toolregistry_server"] = toolregistry_server.__version__
     except ImportError:
         pass
+    try:
+        import toolregistry_hub
+
+        info["toolregistry_hub"] = toolregistry_hub.__version__
+    except ImportError:
+        pass
     return _json_response(info)
 
 
