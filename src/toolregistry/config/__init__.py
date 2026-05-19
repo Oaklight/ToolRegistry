@@ -22,6 +22,7 @@ from ._types import (
     ProfileConfig,
     PythonSource,
     ToolConfig,
+    ToolMetadataOverride,
     ToolSource,
 )
 
@@ -35,5 +36,6 @@ __all__ = [
     "ProfileConfig",
     "PythonSource",
     "ToolConfig",
+    "ToolMetadataOverride",
     "ToolSource",
 ]

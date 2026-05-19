@@ -1716,6 +1716,7 @@
                     </div>
                     <div class="card-body">
                         <div id="schema-meta" style="margin-bottom:8px;font-size:0.85rem;color:var(--text-muted);"></div>
+                        <div id="schema-warnings"></div>
                         <pre id="schema-content" style="background:#1B1B18;color:#E8E5E0;padding:16px;border-radius:var(--radius-sm);font-size:0.75rem;overflow:auto;white-space:pre-wrap;font-family:'SF Mono','Fira Code',monospace;max-height:70vh;"></pre>
                     </div>
                 </div>
@@ -1862,6 +1863,11 @@
             'schema.stats':'{visible} visible · {deferred} deferred · {disabled} disabled',
             'schema.discoverStats':'{deferred} deferred in discover_tools · {disabled} disabled',
             'schema.desc':'Tool schemas visible to LLMs (deferred tools excluded).',
+            'schema.warnLong':'{count} tool(s) have long descriptions — consider setting search_hint:',
+            'schema.hintPlaceholder':'search_hint keywords...',
+            'schema.hintSaved':'search_hint saved to config for "{name}"',
+            'schema.hintUpdated':'search_hint updated for "{name}" (no config file loaded)',
+            'detail.searchHintPlaceholder':'Keywords to improve discoverability...',
             'toast.copied':'Copied to clipboard',
             'toast.copyFailed':'Copy failed',
             'config.nameSep':'Name Separator',
@@ -1963,6 +1969,11 @@
             'schema.stats':'\u53ef\u89c1 {visible} \u00b7 \u5ef6\u8fdf {deferred} \u00b7 \u7981\u7528 {disabled}',
             'schema.discoverStats':'discover_tools \u5185\u5ef6\u8fdf {deferred} \u00b7 \u7981\u7528 {disabled}',
             'schema.desc':'\u5de5\u5177 Schema\uff08\u4e0d\u542b\u5ef6\u8fdf\u5de5\u5177\uff09\u3002',
+            'schema.warnLong':'{count} \u4e2a\u5de5\u5177\u63cf\u8ff0\u8fc7\u957f\uff0c\u5efa\u8bae\u8bbe\u7f6e search_hint\uff1a',
+            'schema.hintPlaceholder':'\u641c\u7d22\u5173\u952e\u8bcd...',
+            'schema.hintSaved':'"{name}" \u7684 search_hint \u5df2\u4fdd\u5b58\u5230\u914d\u7f6e\u6587\u4ef6',
+            'schema.hintUpdated':'"{name}" \u7684 search_hint \u5df2\u66f4\u65b0\uff08\u672a\u52a0\u8f7d\u914d\u7f6e\u6587\u4ef6\uff09',
+            'detail.searchHintPlaceholder':'\u63d0\u9ad8\u53ef\u53d1\u73b0\u6027\u7684\u5173\u952e\u8bcd...',
             'toast.copied':'\u5df2\u590d\u5236\u5230\u526a\u8d34\u677f',
             'toast.copyFailed':'\u590d\u5236\u5931\u8d25',
             'config.nameSep':'\u540d\u79f0\u5206\u9694\u7b26',
@@ -2953,7 +2964,12 @@
                         <div class="meta-item"><span class="meta-label">${t('detail.timeout')}</span><span class="meta-value">${meta.timeout != null ? meta.timeout + 's' : 'None'}</span></div>
                         <div class="meta-item"><span class="meta-label">${t('detail.maxResultSize')}</span><span class="meta-value">${meta.max_result_size != null ? meta.max_result_size + ' chars' : 'None'}</span></div>
                         <div class="meta-item"><span class="meta-label">${t('detail.deferred')}</span><span class="meta-value"><label class="meta-checkbox"><input type="checkbox" ${meta.defer ? 'checked' : ''} onchange="toggleToolMeta('${escapeHtml(tool.name)}', 'defer', this.checked)"></label></span></div>
-                        <div class="meta-item"><span class="meta-label">${t('detail.searchHint')}</span><span class="meta-value">${escapeHtml(meta.search_hint) || '\u2014'}</span></div>
+                        <div class="meta-item" style="grid-column:1/-1;"><span class="meta-label">${t('detail.searchHint')}</span><span class="meta-value" style="display:flex;gap:4px;align-items:center;margin-top:2px;">
+                            <input type="text" id="sh-modal-${escapeHtml(tool.name)}" value="${escapeHtml(meta.search_hint || '')}" placeholder="${t('detail.searchHintPlaceholder')}"
+                                style="flex:1;padding:3px 7px;font-size:0.8rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-secondary);color:var(--text-primary);"
+                                onkeydown="if(event.key==='Enter')saveSearchHint('${escapeHtml(tool.name)}',this,false)">
+                            <button class="btn btn-secondary btn-sm" onclick="saveSearchHint('${escapeHtml(tool.name)}',document.getElementById('sh-modal-${escapeHtml(tool.name)}'),false)">${t('btn.apply')}</button>
+                        </span></div>
                     </div>
                     ${systemTags.length > 0 ? `<div class="mt-2"><span class="meta-label">${t('detail.tags')}</span><div style="margin-top: 4px;">${renderTagBadges(systemTags)}</div></div>` : ''}
                     ${customTags.length > 0 ? `<div class="mt-2"><span class="meta-label">${t('detail.customTags')}</span><div style="margin-top: 4px;">${renderTagBadges(customTags)}</div></div>` : ''}
@@ -3181,8 +3197,10 @@
         async function loadSchema(format) {
             const pre = document.getElementById('schema-content');
             const meta = document.getElementById('schema-meta');
+            const warnDiv = document.getElementById('schema-warnings');
             pre.textContent = t('misc.loading');
             meta.textContent = '';
+            warnDiv.innerHTML = '';
             try {
                 const data = await api.getSchema(format);
                 if (data.format === 'discover') {
@@ -3191,6 +3209,26 @@
                         deferred: data.deferred_count ?? 0,
                         disabled: data.disabled_count ?? 0,
                     });
+                    // Warning banner for long-description tools without search_hint
+                    const warnings = (data.tools || []).filter(t => t.long && !t.has_search_hint);
+                    if (warnings.length > 0) {
+                        const items = warnings.map(w => {
+                            const safeId = 'sh-' + w.name.replace(/[^a-zA-Z0-9]/g, '_');
+                            return `<div style="display:flex;align-items:center;gap:6px;margin:4px 0;flex-wrap:wrap;">
+                                <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(w.description)}">
+                                    <strong>${escapeHtml(w.name)}</strong> <span style="opacity:0.7;">(${w.description.length} chars)</span>
+                                </span>
+                                <input type="text" id="${safeId}" placeholder="${t('schema.hintPlaceholder')}"
+                                    style="flex:1;min-width:160px;padding:2px 6px;font-size:0.8rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-secondary);color:var(--text-primary);"
+                                    onkeydown="if(event.key==='Enter')saveSearchHint('${escapeHtml(w.name)}',document.getElementById('${safeId}'),true)">
+                                <button class="btn btn-secondary btn-sm" onclick="saveSearchHint('${escapeHtml(w.name)}',document.getElementById('${safeId}'),true)">${t('btn.apply')}</button>
+                            </div>`;
+                        }).join('');
+                        warnDiv.innerHTML = `<div style="background:var(--bg-secondary);border:1px solid #f59e0b;border-radius:var(--radius-sm);padding:10px 14px;font-size:0.83rem;margin-bottom:10px;">
+                            <span style="color:#d97706;">&#9888;</span> ${t('schema.warnLong', {count: warnings.length})}
+                            <div style="margin-top:6px;">${items}</div>
+                        </div>`;
+                    }
                 } else {
                     pre.textContent = JSON.stringify(data.schema, null, 2);
                     meta.textContent = t('schema.stats', {
@@ -3202,6 +3240,20 @@
                 _schemaLoaded = true;
             } catch (e) {
                 pre.textContent = e.message;
+            }
+        }
+
+        async function saveSearchHint(name, inputEl, reloadDiscover) {
+            const value = inputEl.value.trim();
+            try {
+                const result = await api.updateToolMetadata(name, { search_hint: value });
+                const saved = result && result.saved;
+                showToast(saved ? t('schema.hintSaved', {name}) : t('schema.hintUpdated', {name}), 'success');
+                if (reloadDiscover) {
+                    loadSchema('discover');
+                }
+            } catch (e) {
+                showToast(e.message, 'error');
             }
         }
 

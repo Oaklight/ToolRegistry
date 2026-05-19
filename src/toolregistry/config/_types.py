@@ -12,6 +12,7 @@ __all__ = [
     "PythonSource",
     "MCPSource",
     "OpenAPISource",
+    "ToolMetadataOverride",
     "ToolSource",
     "ToolConfig",
 ]
@@ -261,6 +262,36 @@ ToolSource = PythonSource | MCPSource | OpenAPISource
 
 
 @dataclass(frozen=True)
+class ToolMetadataOverride:
+    """Per-tool metadata overrides declared in the config file.
+
+    Maps to entries under the ``tool_metadata`` top-level key, keyed
+    by exact tool name (e.g. ``"calculator-evaluate"``).
+
+    Attributes:
+        search_hint: Free-form keywords to boost BM25 discoverability
+            and shorten the bullet description in ``discover_tools``.
+        defer: Override whether this tool is deferred from the initial
+            prompt.  ``None`` means no override (use the registered value).
+    """
+
+    search_hint: str = ""
+    defer: bool | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a config-file-compatible dict.
+
+        Omits fields with default/None values for cleaner output.
+        """
+        d: dict[str, Any] = {}
+        if self.search_hint:
+            d["search_hint"] = self.search_hint
+        if self.defer is not None:
+            d["defer"] = self.defer
+        return d
+
+
+@dataclass(frozen=True)
 class ToolConfig:
     """Top-level configuration parsed from a JSONC or YAML file.
 
@@ -272,6 +303,8 @@ class ToolConfig:
         enabled: Namespace patterns to enable (allowlist mode).
         tools: Ordered sequence of tool source declarations.
         source: Filesystem path of the config file (for diagnostics).
+        tool_metadata: Per-tool metadata overrides keyed by exact tool name.
+            Applied after registration; supports ``search_hint`` and ``defer``.
     """
 
     mode: Literal["denylist", "allowlist"] = "denylist"
@@ -280,6 +313,7 @@ class ToolConfig:
     tools: tuple[ToolSource, ...] = ()
     source: str = ""
     profiles: dict[str, ProfileConfig] = field(default_factory=dict)
+    tool_metadata: dict[str, ToolMetadataOverride] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a config-file-compatible dict.
@@ -297,4 +331,10 @@ class ToolConfig:
             d["tools"] = [t.to_dict() for t in self.tools]
         if self.profiles:
             d["profiles"] = {name: pc.to_dict() for name, pc in self.profiles.items()}
+        if self.tool_metadata:
+            d["tool_metadata"] = {
+                name: override.to_dict()
+                for name, override in self.tool_metadata.items()
+                if override.to_dict()  # skip empty overrides
+            }
         return d

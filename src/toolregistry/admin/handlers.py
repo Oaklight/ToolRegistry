@@ -356,8 +356,9 @@ def _disable_tool(request: Request, name: str) -> Response:
 
 
 def _update_tool_metadata(request: Request, name: str) -> Response:
-    """Update tool metadata."""
-    registry = _app(request).registry
+    """Update tool metadata, persisting search_hint/defer to config if loaded."""
+    app = _app(request)
+    registry = app.registry
     name = urllib.parse.unquote(name)
 
     if not request.body:
@@ -380,11 +381,37 @@ def _update_tool_metadata(request: Request, name: str) -> Response:
     except ValueError as e:
         return _error_response(400, "Bad Request", str(e))
 
+    # Persist search_hint / defer to config file if one is loaded
+    saved = False
+    persist_fields = {"search_hint", "defer"}
+    if persist_fields & set(data):
+        config = app.config
+        if config is not None and config.source:
+            from dataclasses import replace
+
+            from ..config import ToolMetadataOverride, save_config
+
+            existing = dict(config.tool_metadata)
+            prev = existing.get(name)
+            new_override = ToolMetadataOverride(
+                search_hint=data.get("search_hint", prev.search_hint if prev else ""),
+                defer=data.get("defer", prev.defer if prev else None),
+            )
+            existing[name] = new_override
+            new_config = replace(config, tool_metadata=existing)
+            try:
+                save_config(new_config, config.source)
+                app.config = new_config
+                saved = True
+            except Exception:
+                pass  # persist is best-effort; in-memory update already done
+
     return _json_response(
         {
             "success": True,
             "message": f"Metadata updated for tool '{name}'",
             "updated": data,
+            "saved": saved,
         }
     )
 
@@ -873,6 +900,29 @@ def _get_schema(request: Request) -> Response:
         if discovery_tool is None:
             return _error_response(404, "Not Found", "Tool discovery is not enabled")
         deferred_count, disabled_count = _schema_counts(registry)
+
+        _hint_threshold = 80
+
+        def _first_sentence(text: str) -> str:
+            line = text.split("\n")[0].strip()
+            dot = line.find(". ")
+            return line[: dot + 1] if dot != -1 else line
+
+        tools_list = [
+            {
+                "name": t_name,
+                "description": _first_sentence(tool.description or ""),
+                "has_search_hint": bool(
+                    getattr(getattr(tool, "metadata", None), "search_hint", "")
+                ),
+                "long": len(_first_sentence(tool.description or "")) > _hint_threshold,
+            }
+            for t_name, tool in registry._tools.items()
+            if t_name != "discover_tools"
+            and registry.is_enabled(t_name)
+            and getattr(getattr(tool, "metadata", None), "defer", False)
+        ]
+
         return _json_response(
             {
                 "format": "discover",
@@ -880,6 +930,7 @@ def _get_schema(request: Request) -> Response:
                 "deferred_count": deferred_count,
                 "disabled_count": disabled_count,
                 "text": discovery_tool.description or "",
+                "tools": tools_list,
             }
         )
 
