@@ -1,15 +1,3255 @@
-"""Static assets for admin panel UI.
+"""Static assets for the admin panel."""
 
-Loads the admin panel HTML from admin.html using importlib.resources.
+ADMIN_HTML: str = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ToolRegistry Admin Panel</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* ============== CSS Variables ============== */
+        :root {
+            --bg-primary: #FAF9F7;
+            --bg-secondary: #FFFFFF;
+            --text-primary: #1B1B18;
+            --text-secondary: #81807C;
+            --accent: #C2922E;
+            --accent-hover: #A67C1E;
+            --accent-light: rgba(194, 146, 46, 0.08);
+            --border: #E8E5E0;
+            --success: #3D8B5F;
+            --error: #C44141;
+            --warning: #C2922E;
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
+            --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.08);
+            --radius-sm: 6px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --transition: all 0.2s ease;
+        }
+
+        /* ============== Reset & Base ============== */
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* ============== Layout ============== */
+        .app {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 0 32px;
+            height: 56px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.9375rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            letter-spacing: -0.01em;
+        }
+
+        .logo-icon {
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent);
+        }
+
+        .logo-icon svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+        }
+
+        .status-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--success);
+        }
+
+        .status-dot.disconnected {
+            background: var(--error);
+        }
+
+        .btn-refresh {
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: var(--transition);
+        }
+
+        .btn-refresh:hover {
+            border-color: var(--text-secondary);
+            color: var(--text-primary);
+        }
+
+        .btn-refresh svg {
+            width: 15px;
+            height: 15px;
+        }
+
+        .main {
+            flex: 1;
+            padding: 32px;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* ============== Grid Layout ============== */
+        .grid {
+            display: grid;
+            gap: 24px;
+        }
+
+        @media (min-width: 1024px) {
+            .grid {
+                grid-template-columns: 1fr 1fr;
+            }
+            .grid-full {
+                grid-column: 1 / -1;
+            }
+        }
+
+        @media (min-width: 1280px) {
+            .grid {
+                grid-template-columns: 1fr 1fr 1fr;
+            }
+        }
+
+        /* ============== Cards ============== */
+        .card {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border);
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 18px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .card-title {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            letter-spacing: -0.01em;
+        }
+
+        .card-body {
+            padding: 24px;
+        }
+
+        .card-body.no-padding {
+            padding: 0;
+        }
+
+        /* ============== Buttons ============== */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 7px 14px;
+            font-size: 0.8125rem;
+            font-weight: 500;
+            font-family: inherit;
+            border: none;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: var(--transition);
+            white-space: nowrap;
+            letter-spacing: -0.005em;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: var(--accent-hover);
+        }
+
+        .btn-secondary {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: var(--border);
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-success:hover:not(:disabled) {
+            background: #337A50;
+        }
+
+        .btn-danger {
+            background: transparent;
+            color: var(--error);
+            border: 1px solid var(--border);
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background: rgba(196, 65, 65, 0.06);
+            border-color: var(--error);
+        }
+
+        .btn-sm {
+            padding: 5px 10px;
+            font-size: 0.75rem;
+        }
+
+        .btn-icon {
+            padding: 8px;
+            width: 36px;
+            height: 36px;
+        }
+
+        /* ============== Toggle Switch ============== */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 22px;
+            cursor: pointer;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: #D4D2CE;
+            border-radius: 22px;
+            transition: background 0.25s ease;
+        }
+
+        .toggle-slider::before {
+            content: "";
+            position: absolute;
+            left: 2px;
+            top: 2px;
+            width: 18px;
+            height: 18px;
+            background: #fff;
+            border-radius: 50%;
+            transition: transform 0.25s ease;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+        }
+
+        .toggle-switch input:checked + .toggle-slider {
+            background: var(--accent);
+        }
+
+        .toggle-switch input:checked + .toggle-slider::before {
+            transform: translateX(18px);
+        }
+
+        /* Namespace-level toggle: teal color to distinguish from method toggles */
+        .toggle-switch.toggle-ns input:checked + .toggle-slider {
+            background: #2B8A7E;
+        }
+
+        /* Metadata checkbox: styled checkbox for think/defer */
+        .meta-checkbox {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .meta-checkbox input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 15px;
+            height: 15px;
+            border: 1.5px solid #C4C1BB;
+            border-radius: 3px;
+            background: #fff;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.15s ease;
+            flex-shrink: 0;
+        }
+
+        .meta-checkbox input[type="checkbox"]:checked {
+            background: #6366F1;
+            border-color: #6366F1;
+        }
+
+        .meta-checkbox input[type="checkbox"]:checked::after {
+            content: "";
+            position: absolute;
+            left: 4px;
+            top: 1px;
+            width: 5px;
+            height: 9px;
+            border: solid #fff;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+        }
+
+        .meta-checkbox input[type="checkbox"]:hover {
+            border-color: #6366F1;
+        }
+
+        .meta-checkbox-label {
+            font-size: 0.6875rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+
+        .meta-checkbox-disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .meta-checkbox-disabled input[type="checkbox"] {
+            cursor: not-allowed;
+        }
+
+        /* ============== Tables ============== */
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 10px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            background: var(--bg-primary);
+            font-weight: 500;
+            font-size: 0.6875rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background: rgba(250, 249, 247, 0.5);
+        }
+
+        /* Tools table column widths */
+        .tools-table .col-chevron { width: 36px; }
+        .tools-table .col-name { width: auto; }
+        .tools-table .col-think { width: 64px; text-align: center; }
+        .tools-table .col-defer { width: 64px; text-align: center; }
+        .tools-table .col-permission { width: 80px; }
+        .tools-table .col-enabled { width: 64px; text-align: center; }
+        .tools-table .col-reason { width: 140px; max-width: 140px; }
+
+        .col-reason-text {
+            font-size: 0.75rem;
+            font-style: italic;
+            color: var(--text-secondary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            display: block;
+            max-width: 120px;
+        }
+
+        /* ============== Namespace Group Rows ============== */
+        .ns-row {
+            cursor: pointer;
+            background: rgba(250, 249, 247, 0.6);
+        }
+
+        .ns-row:hover td {
+            background: rgba(232, 229, 224, 0.3);
+        }
+
+        .ns-row td {
+            font-weight: 500;
+        }
+
+        .ns-row .ns-chevron {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s ease;
+            color: var(--text-secondary);
+            width: 16px;
+            height: 16px;
+        }
+
+        .ns-row .ns-chevron svg {
+            width: 12px;
+            height: 12px;
+        }
+
+        .ns-row.expanded .ns-chevron {
+            transform: rotate(90deg);
+        }
+
+        .ns-child-row {
+            display: none;
+        }
+
+        .ns-child-row.visible {
+            display: table-row;
+        }
+
+        .ns-child-row td:nth-child(2) {
+            padding-left: 36px;
+            position: relative;
+        }
+
+        .ns-child-row td:nth-child(2)::before {
+            content: "";
+            position: absolute;
+            left: 24px;
+            top: 0;
+            bottom: 0;
+            width: 1px;
+            background: var(--border);
+        }
+
+        /* ============== Badges ============== */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 8px;
+            font-size: 0.6875rem;
+            font-weight: 500;
+            border-radius: 9999px;
+        }
+
+        .badge-success {
+            background: rgba(61, 139, 95, 0.1);
+            color: var(--success);
+        }
+
+        .badge-error {
+            background: rgba(196, 65, 65, 0.1);
+            color: var(--error);
+        }
+
+        .badge-warning {
+            background: rgba(194, 146, 46, 0.1);
+            color: var(--accent);
+        }
+
+        .badge-neutral {
+            background: var(--bg-primary);
+            color: var(--text-secondary);
+        }
+
+        /* ============== Forms ============== */
+        .input {
+            width: 100%;
+            padding: 8px 12px;
+            font-size: 0.8125rem;
+            font-family: inherit;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            transition: var(--transition);
+        }
+
+        .input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(194, 146, 46, 0.08);
+        }
+
+        .input::placeholder {
+            color: var(--text-secondary);
+        }
+
+        .select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2381807C' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            padding-right: 32px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 0.8125rem;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        /* ============== Search & Filters ============== */
+        .search-bar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            align-items: center;
+        }
+
+        .search-input {
+            flex: 1;
+            min-width: 140px;
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .search-input input {
+            padding-left: 36px;
+        }
+
+        .search-input .search-icon {
+            position: absolute;
+            left: 11px;
+            top: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            pointer-events: none;
+            z-index: 1;
+            color: var(--text-secondary);
+        }
+
+        .search-input .search-icon svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .search-bar .select {
+            width: auto;
+            flex: 0 0 auto;
+        }
+
+        .filter-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex: 1;
+        }
+
+        .filter-group .input {
+            width: auto;
+            flex: 0 0 auto;
+        }
+
+        .filter-group .input[type="text"] {
+            flex: 1;
+            min-width: 120px;
+        }
+
+        /* ============== Stats Grid ============== */
+        .stats-grid {
+            display: flex;
+            gap: 0;
+        }
+
+        .stat-card {
+            flex: 1;
+            padding: 20px 24px;
+            text-align: center;
+            position: relative;
+        }
+
+        .stat-card + .stat-card::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 20%;
+            bottom: 20%;
+            width: 1px;
+            background: var(--border);
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1.2;
+            letter-spacing: -0.02em;
+        }
+
+        .stat-label {
+            font-size: 0.6875rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            font-weight: 500;
+        }
+
+        /* ============== Modal ============== */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(27, 27, 24, 0.4);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: var(--transition);
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+            border: 1px solid var(--border);
+            width: 90%;
+            max-width: 440px;
+            max-height: 90vh;
+            overflow: auto;
+            transform: scale(0.97) translateY(8px);
+            transition: var(--transition);
+        }
+
+        .modal-overlay.active .modal {
+            transform: scale(1) translateY(0);
+        }
+
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-title {
+            font-size: 0.9375rem;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.25rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+            line-height: 1;
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: var(--radius-sm);
+            transition: var(--transition);
+        }
+
+        .modal-close:hover {
+            color: var(--text-primary);
+            background: var(--bg-primary);
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        /* ============== Toast ============== */
+        .toast-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 1100;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .toast {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--border);
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 280px;
+            max-width: 380px;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .toast.hiding {
+            animation: slideOut 0.3s ease forwards;
+        }
+
+        @keyframes slideOut {
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+
+        .toast-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .toast.success .toast-dot {
+            background: var(--success);
+        }
+
+        .toast.error .toast-dot {
+            background: var(--error);
+        }
+
+        .toast.warning .toast-dot {
+            background: var(--warning);
+        }
+
+        .toast-content {
+            flex: 1;
+        }
+
+        .toast-message {
+            font-size: 0.8125rem;
+            color: var(--text-primary);
+        }
+
+        /* ============== Log Entry Details ============== */
+        .log-details {
+            display: none;
+            padding: 16px;
+            background: var(--bg-primary);
+            border-top: 1px solid var(--border);
+        }
+
+        .log-details.active {
+            display: block;
+        }
+
+        .log-details pre {
+            background: #1B1B18;
+            color: #E8E5E0;
+            padding: 12px;
+            border-radius: var(--radius-sm);
+            font-size: 0.75rem;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+            font-family: 'SF Mono', 'Fira Code', 'Fira Mono', 'Roboto Mono', monospace;
+        }
+
+        .log-row {
+            cursor: pointer;
+        }
+
+        .log-row:hover td {
+            background: rgba(250, 249, 247, 0.5);
+        }
+
+        .expand-icon {
+            transition: transform 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+        }
+
+        .expand-icon svg {
+            width: 12px;
+            height: 12px;
+        }
+
+        .log-row.expanded .expand-icon {
+            transform: rotate(90deg);
+        }
+
+        /* ============== Empty State ============== */
+        .empty-state {
+            text-align: center;
+            padding: 48px 24px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state-icon {
+            font-size: 1rem;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state-text {
+            font-size: 0.8125rem;
+        }
+
+        /* ============== Loading ============== */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 48px;
+            color: var(--text-secondary);
+            font-size: 0.8125rem;
+        }
+
+        .spinner {
+            width: 18px;
+            height: 18px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* ============== Tabs ============== */
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 32px;
+            gap: 0;
+        }
+
+        .tab {
+            padding: 10px 18px;
+            font-size: 0.8125rem;
+            font-weight: 500;
+            font-family: inherit;
+            color: var(--text-secondary);
+            background: none;
+            border: none;
+            cursor: pointer;
+            position: relative;
+            transition: var(--transition);
+            letter-spacing: -0.005em;
+        }
+
+        .tab:hover {
+            color: var(--text-primary);
+        }
+
+        .tab.active {
+            color: var(--text-primary);
+        }
+
+        .tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--text-primary);
+            border-radius: 2px 2px 0 0;
+        }
+
+        /* ============== Responsive ============== */
+        @media (max-width: 768px) {
+            .header {
+                padding: 0 16px;
+            }
+
+            .header-content {
+                flex-wrap: wrap;
+            }
+
+            .main {
+                padding: 20px 16px;
+            }
+
+            .card-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .search-bar {
+                flex-wrap: wrap;
+            }
+
+            .search-input {
+                width: 100%;
+                flex: 1 1 100%;
+            }
+
+            .search-bar .select {
+                flex: 1 1 auto;
+                min-width: 0;
+            }
+
+            .filter-group {
+                width: 100%;
+                flex-wrap: wrap;
+            }
+
+            .filter-group .input {
+                flex: 1 1 auto;
+                width: auto;
+                min-width: 0;
+            }
+
+            .table-container {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .table-container table {
+                min-width: 500px;
+            }
+
+            th, td {
+                padding: 8px 12px;
+                font-size: 0.75rem;
+            }
+
+            .col-reason, .col-think, .col-defer {
+                display: none;
+            }
+
+            .btn {
+                padding: 6px 12px;
+                font-size: 0.75rem;
+            }
+
+            .stats-grid {
+                flex-wrap: wrap;
+            }
+
+            .stat-card {
+                min-width: 50%;
+            }
+        }
+
+        /* ============== Utility Classes ============== */
+        .text-muted {
+            color: var(--text-secondary);
+        }
+
+        .text-success {
+            color: var(--success);
+        }
+
+        .text-error {
+            color: var(--error);
+        }
+
+        .text-sm {
+            font-size: 0.75rem;
+        }
+
+        .mt-2 {
+            margin-top: 8px;
+        }
+
+        .mt-4 {
+            margin-top: 16px;
+        }
+
+        .mb-2 {
+            margin-bottom: 8px;
+        }
+
+        .mb-4 {
+            margin-bottom: 16px;
+        }
+
+        .flex {
+            display: flex;
+        }
+
+        .items-center {
+            align-items: center;
+        }
+
+        .justify-between {
+            justify-content: space-between;
+        }
+
+        .gap-2 {
+            gap: 8px;
+        }
+
+        .gap-4 {
+            gap: 16px;
+        }
+
+        .truncate {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 200px;
+        }
+
+        /* ============== Tag Badges ============== */
+        .badge-tag {
+            display: inline-flex;
+            align-items: center;
+            padding: 1px 6px;
+            font-size: 0.625rem;
+            font-weight: 500;
+            border-radius: 9999px;
+            margin-right: 3px;
+            letter-spacing: 0.02em;
+        }
+
+        .badge-tag-read_only  { background: rgba(61,139,95,0.10);  color: #3D8B5F; }
+        .badge-tag-destructive{ background: rgba(196,65,65,0.10);  color: #C44141; }
+        .badge-tag-slow       { background: rgba(194,146,46,0.10); color: #C2922E; }
+        .badge-tag-network    { background: rgba(59,130,246,0.10); color: #3B82F6; }
+        .badge-tag-privileged { background: rgba(139,92,246,0.10); color: #8B5CF6; }
+        .badge-tag-file_system{ background: rgba(20,184,166,0.10); color: #14B8A6; }
+        .badge-tag-custom     { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); }
+
+        .badge-locality {
+            display: inline-flex;
+            align-items: center;
+            padding: 1px 6px;
+            font-size: 0.625rem;
+            font-weight: 500;
+            border-radius: 9999px;
+            margin-right: 3px;
+        }
+        .badge-locality-local  { background: rgba(61,139,95,0.08);  color: #3D8B5F; }
+        .badge-locality-remote { background: rgba(59,130,246,0.08); color: #3B82F6; }
+
+        .tool-meta-icons {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-left: 6px;
+        }
+
+        .meta-icon {
+            display: inline-flex;
+            align-items: center;
+            padding: 1px 6px;
+            font-size: 0.625rem;
+            font-weight: 500;
+            border-radius: 9999px;
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            cursor: default;
+            letter-spacing: 0.02em;
+        }
+
+        .tool-badges {
+            display: inline-flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 2px;
+            margin-left: 8px;
+        }
+
+        /* ============== Tool Detail Modal ============== */
+        .detail-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(27, 27, 24, 0.4);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: var(--transition);
+        }
+
+        .detail-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .detail-modal {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+            border: 1px solid var(--border);
+            width: 90%;
+            max-width: 640px;
+            max-height: 85vh;
+            overflow: auto;
+            transform: scale(0.97) translateY(8px);
+            transition: var(--transition);
+        }
+
+        .detail-overlay.active .detail-modal {
+            transform: scale(1) translateY(0);
+        }
+
+        .detail-section {
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .detail-section:last-child {
+            border-bottom: none;
+        }
+
+        .detail-section-title {
+            font-size: 0.6875rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+        }
+
+        .metadata-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px 24px;
+        }
+
+        .meta-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .meta-label {
+            font-size: 0.6875rem;
+            color: var(--text-secondary);
+        }
+
+        .meta-value {
+            font-size: 0.8125rem;
+            font-weight: 500;
+        }
+
+        .schema-toggle {
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .schema-toggle .expand-icon {
+            transition: transform 0.2s ease;
+        }
+
+        .schema-toggle.expanded .expand-icon {
+            transform: rotate(90deg);
+        }
+
+        .schema-content {
+            display: none;
+            margin-top: 10px;
+        }
+
+        .schema-content.visible {
+            display: block;
+        }
+
+        .ns-child-name-link {
+            cursor: pointer;
+            color: var(--text-primary);
+            transition: var(--transition);
+        }
+
+        .ns-child-name-link:hover {
+            color: var(--accent);
+        }
+
+        /* ============== Permissions ============== */
+        .perm-status-card {
+            display: flex;
+            gap: 24px;
+            margin-bottom: 20px;
+        }
+
+        .perm-status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8125rem;
+        }
+
+        .perm-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .perm-dot-active  { background: var(--success); }
+        .perm-dot-inactive { background: var(--text-secondary); }
+
+        .header-select {
+            padding: 4px 8px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 0.75rem;
+            font-family: inherit;
+            cursor: pointer;
+            outline: none;
+            transition: var(--transition);
+        }
+        .header-select:hover { border-color: var(--accent); }
+        .header-select:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-light); }
+
+        .badge-allow, .badge-deny, .badge-ask {
+            display: inline-flex;
+            align-items: center;
+            padding: 1px 8px;
+            font-size: 0.625rem;
+            font-weight: 500;
+            border-radius: 9999px;
+            letter-spacing: 0.02em;
+        }
+        .badge-allow { background: rgba(61,139,95,0.10);  color: #3D8B5F; }
+        .badge-deny  { background: rgba(196,65,65,0.10);  color: #C44141; }
+        .badge-ask   { background: rgba(194,146,46,0.10); color: #C2922E; }
+        .badge-source {
+            display: inline-flex;
+            align-items: center;
+            padding: 1px 6px;
+            font-size: 0.5625rem;
+            font-weight: 600;
+            border-radius: 4px;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            margin-left: 6px;
+            vertical-align: middle;
+        }
+        .badge-source-native   { background: rgba(128,128,128,0.12); color: #888; }
+        .badge-source-mcp      { background: rgba(59,130,246,0.12);  color: #3B82F6; }
+        .badge-source-openapi  { background: rgba(34,197,94,0.12);   color: #22C55E; }
+        .badge-source-langchain { background: rgba(168,85,247,0.12);  color: #A855F7; }
+        .source-card {
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+        .source-card-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .source-detail {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            word-break: break-all;
+        }
+        .source-tools-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 8px;
+        }
+        .source-tool-chip {
+            display: inline-block;
+            padding: 2px 8px;
+            font-size: 0.6875rem;
+            background: var(--bg-primary);
+            border-radius: 4px;
+            border: 1px solid var(--border);
+        }
+        .config-section {
+            margin-top: 8px;
+        }
+        .config-section .meta-item {
+            margin-bottom: 6px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <div class="logo-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                    </div>
+                    <span data-i18n="app.title">ToolRegistry Admin Panel</span>
+                </div>
+                <div class="header-actions">
+                    <select id="langSwitcher" class="header-select" onchange="setLang(this.value)">
+                        <option value="en">EN</option>
+                        <option value="zh">中文</option>
+                    </select>
+                    <div class="status-indicator" id="status-indicator" title="Connected" data-i18n-title="status.connected">
+                        <span class="status-dot" id="status-dot"></span>
+                    </div>
+                    <button class="btn-refresh" onclick="showVersionInfo()" title="Version Info" data-i18n-title="btn.versionInfo">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="16" x2="12" y2="12"></line>
+                            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                        </svg>
+                    </button>
+                    <button class="btn-refresh" onclick="refreshAll()" title="Refresh" data-i18n-title="btn.refresh">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="23 4 23 10 17 10"></polyline>
+                            <polyline points="1 20 1 14 7 14"></polyline>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main">
+            <!-- Tabs -->
+            <div class="tabs">
+                <button class="tab active" data-tab="tools" onclick="switchTab('tools')" data-i18n="tab.tools">Tools</button>
+                <button class="tab" data-tab="namespaces" onclick="switchTab('namespaces')" data-i18n="tab.namespaces">Namespaces</button>
+                <button class="tab" data-tab="sources" onclick="switchTab('sources')" data-i18n="tab.sources">Sources</button>
+                <button class="tab" data-tab="logs" onclick="switchTab('logs')" data-i18n="tab.logs">Logs</button>
+                <button class="tab" data-tab="state" onclick="switchTab('state')" data-i18n="tab.state">State</button>
+                <button class="tab" data-tab="permissions" onclick="switchTab('permissions')" data-i18n="tab.permissions">Permissions</button>
+                <button class="tab" data-tab="schema" onclick="switchTab('schema')" data-i18n="tab.schema">Schema</button>
+            </div>
+
+            <!-- Tools Tab -->
+            <div id="tab-tools" class="tab-content">
+                <div class="grid">
+                    <!-- Stats Card -->
+                    <div class="card grid-full">
+                        <div class="card-header">
+                            <h2 class="card-title" data-i18n="section.overview">Overview</h2>
+                        </div>
+                        <div class="card-body" style="padding: 0;">
+                            <div class="stats-grid" id="stats-grid">
+                                <div class="loading"><div class="spinner"></div><span data-i18n="misc.loading">Loading...</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tools Card -->
+                    <div class="card grid-full">
+                        <div class="card-header">
+                            <h2 class="card-title" data-i18n="section.tools">Tools</h2>
+                            <div class="flex gap-2">
+                                <button class="btn btn-secondary btn-sm" id="toggle-expand-btn" onclick="toggleAllGroups()" title="Expand all" style="width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center;">
+                                    <svg id="toggle-expand-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3l4 4 4-4"/><path d="M4 9l4 4 4-4"/></svg>
+                                </button>
+                                <button class="btn btn-secondary btn-sm" onclick="refreshTools()" data-i18n="btn.refresh">Refresh</button>
+                            </div>
+                        </div>
+                        <div class="card-body no-padding">
+                            <div class="search-bar" style="padding: 16px 16px 0;">
+                                <div class="search-input">
+                                    <span class="search-icon">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <circle cx="11" cy="11" r="8"></circle>
+                                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                        </svg>
+                                    </span>
+                                    <input type="text" class="input" id="tool-search" placeholder="Search tools..." data-i18n-placeholder="label.searchTools" oninput="filterTools()">
+                                </div>
+                                <select class="input select" id="namespace-filter" onchange="filterTools()">
+                                    <option value="" data-i18n="filter.allNamespaces">All Namespaces</option>
+                                </select>
+                                <select class="input select" id="status-filter" onchange="filterTools()">
+                                    <option value="" data-i18n="filter.allStatus">All Status</option>
+                                    <option value="enabled" data-i18n="filter.enabled">Enabled</option>
+                                    <option value="disabled" data-i18n="filter.disabled">Disabled</option>
+                                </select>
+                                <select class="input select" id="tag-filter" onchange="filterTools()">
+                                    <option value="" data-i18n="filter.allTags">All Tags</option>
+                                </select>
+                                <select class="input select" id="locality-filter" onchange="filterTools()">
+                                    <option value="" data-i18n="filter.allLocality">All Locality</option>
+                                    <option value="local" data-i18n="filter.local">Local</option>
+                                    <option value="remote" data-i18n="filter.remote">Remote</option>
+                                    <option value="any" data-i18n="filter.any">Any</option>
+                                </select>
+                                <select class="input select" id="source-filter" onchange="filterTools()">
+                                    <option value="" data-i18n="filter.allSources">All Sources</option>
+                                    <option value="native">Native</option>
+                                    <option value="mcp">MCP</option>
+                                    <option value="openapi">OpenAPI</option>
+                                    <option value="langchain">LangChain</option>
+                                </select>
+                            </div>
+                            <div class="table-container">
+                                <table class="tools-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="col-chevron"></th>
+                                            <th class="col-name" data-i18n="col.name">Name</th>
+                                            <th class="col-think" data-i18n="col.think">Think</th>
+                                            <th class="col-defer" data-i18n="col.defer">Defer</th>
+                                            <th class="col-permission" data-i18n="col.permission">Permission</th>
+                                            <th class="col-enabled" data-i18n="col.enabled">Enabled</th>
+                                            <th class="col-reason" data-i18n="col.reason">Reason</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tools-body">
+                                        <tr><td colspan="7" class="loading"><div class="spinner"></div><span data-i18n="misc.loading">Loading...</span></td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Namespaces Tab -->
+            <div id="tab-namespaces" class="tab-content" style="display: none;">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title" data-i18n="tab.namespaces">Namespaces</h2>
+                        <button class="btn btn-secondary btn-sm" onclick="refreshNamespaces()" data-i18n="btn.refresh">Refresh</button>
+                    </div>
+                    <div class="card-body no-padding">
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th data-i18n="col.namespace">Namespace</th>
+                                        <th data-i18n="col.source">Source</th>
+                                        <th data-i18n="col.totalTools">Total Tools</th>
+                                        <th data-i18n="col.enabled">Enabled</th>
+                                        <th data-i18n="col.disabled">Disabled</th>
+                                        <th data-i18n="col.tags">Tags</th>
+                                        <th data-i18n="col.actions">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="namespaces-body">
+                                    <tr><td colspan="7" class="loading"><div class="spinner"></div><span data-i18n="misc.loading">Loading...</span></td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sources Tab -->
+            <div id="tab-sources" class="tab-content" style="display: none;">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title" data-i18n="tab.sources">Sources</h2>
+                        <button class="btn btn-secondary btn-sm" onclick="refreshSources()" data-i18n="btn.refresh">Refresh</button>
+                    </div>
+                    <div class="card-body" id="sources-body">
+                        <div class="loading"><div class="spinner"></div><span data-i18n="misc.loading">Loading...</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Logs Tab -->
+            <div id="tab-logs" class="tab-content" style="display: none;">
+                <div class="grid">
+                    <!-- Log Stats -->
+                    <div class="card grid-full">
+                        <div class="card-header">
+                            <h2 class="card-title" data-i18n="section.execStats">Execution Statistics</h2>
+                        </div>
+                        <div class="card-body" style="padding: 0;">
+                            <div class="stats-grid" id="log-stats-grid">
+                                <div class="loading"><div class="spinner"></div><span data-i18n="misc.loading">Loading...</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Logs Table -->
+                    <div class="card grid-full">
+                        <div class="card-header">
+                            <h2 class="card-title" data-i18n="section.execLogs">Execution Logs</h2>
+                            <div class="flex gap-2">
+                                <button class="btn btn-secondary btn-sm" onclick="refreshLogs()" data-i18n="btn.refresh">Refresh</button>
+                                <button class="btn btn-danger btn-sm" onclick="confirmClearLogs()" data-i18n="btn.clearLogs">Clear Logs</button>
+                            </div>
+                        </div>
+                        <div class="card-body no-padding">
+                            <div class="search-bar" style="padding: 16px 16px 0;">
+                                <div class="filter-group" style="flex: 1;">
+                                    <input type="text" class="input" id="log-tool-filter" placeholder="Filter by tool..." data-i18n-placeholder="label.filterByTool" style="flex: 1;">
+                                    <select class="input select" id="log-status-filter">
+                                        <option value="" data-i18n="filter.allStatus">All Status</option>
+                                        <option value="success" data-i18n="log.success">Success</option>
+                                        <option value="error" data-i18n="log.error">Error</option>
+                                        <option value="disabled" data-i18n="log.rejected">Rejected</option>
+                                    </select>
+                                    <select class="input select" id="log-limit">
+                                        <option value="50" data-i18n="log.last50">Last 50</option>
+                                        <option value="100" selected data-i18n="log.last100">Last 100</option>
+                                        <option value="500" data-i18n="log.last500">Last 500</option>
+                                    </select>
+                                    <button class="btn btn-primary btn-sm" onclick="refreshLogs()" data-i18n="btn.apply">Apply</button>
+                                </div>
+                            </div>
+                            <div class="table-container">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 36px;"></th>
+                                            <th data-i18n="col.timestamp">Timestamp</th>
+                                            <th data-i18n="col.tool">Tool</th>
+                                            <th data-i18n="col.status">Status</th>
+                                            <th data-i18n="col.duration">Duration</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="logs-body">
+                                        <tr><td colspan="5" class="loading"><div class="spinner"></div><span data-i18n="misc.loading">Loading...</span></td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- State Tab -->
+            <div id="tab-state" class="tab-content" style="display: none;">
+                <div class="grid">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title" data-i18n="section.exportState">Export State</h2>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted mb-4" style="font-size: 0.8125rem;" data-i18n="state.exportDesc">Download the current state of disabled tools and namespaces as a JSON file.</p>
+                            <button class="btn btn-primary" onclick="exportState()" data-i18n="btn.downloadState">
+                                Download State
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title" data-i18n="section.importState">Import State</h2>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted mb-4" style="font-size: 0.8125rem;" data-i18n="state.importDesc">Upload a previously exported state file to restore disabled tools and namespaces.</p>
+                            <input type="file" id="import-file" accept=".json" style="display: none;" onchange="handleImportFile(event)">
+                            <button class="btn btn-secondary" onclick="document.getElementById('import-file').click()" data-i18n="btn.uploadState">
+                                Upload State
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="card" id="config-card" style="display: none;">
+                        <div class="card-header">
+                            <h2 class="card-title" data-i18n="section.configFile">Config File</h2>
+                        </div>
+                        <div class="card-body" id="config-body">
+                            <div class="loading"><div class="spinner"></div><span data-i18n="misc.loading">Loading...</span></div>
+                        </div>
+                    </div>
+
+                    <div class="card" id="registry-settings-card" style="display: none;">
+                        <div class="card-header">
+                            <h2 class="card-title" data-i18n="config.nameSep">Name Separator</h2>
+                        </div>
+                        <div class="card-body">
+                            <div class="metadata-grid">
+                                <div class="meta-item">
+                                    <span class="meta-label" data-i18n="config.nameSep">Name Separator</span>
+                                    <div style="display:flex;gap:8px;align-items:center;margin-top:4px;">
+                                        <select id="name-sep-select" class="btn btn-secondary btn-sm" style="padding:4px 8px;cursor:pointer;">
+                                            <option value="-">- (hyphen)</option>
+                                            <option value=".">. (dot)</option>
+                                        </select>
+                                        <button class="btn btn-primary btn-sm" onclick="saveNameSep()" data-i18n="btn.apply">Apply</button>
+                                    </div>
+                                    <p class="text-muted mt-2" style="font-size:0.75rem;" data-i18n="config.nameSepHint">Separator between namespace and method name (applies to future registrations only).</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Permissions Tab -->
+            <div id="tab-permissions" class="tab-content" style="display: none;">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title" data-i18n="section.permPolicy">Permission Policy</h2>
+                        <button class="btn btn-secondary btn-sm" onclick="refreshPermissions()" data-i18n="btn.refresh">Refresh</button>
+                    </div>
+                    <div class="card-body" id="permissions-body">
+                        <div class="loading"><div class="spinner"></div><span data-i18n="misc.loading">Loading...</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Schema Tab -->
+            <div id="tab-schema" class="tab-content" style="display: none;">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title" data-i18n="tab.schema">Schema</h2>
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <select id="schema-format-select" class="btn btn-secondary btn-sm" style="padding:4px 8px;cursor:pointer;" onchange="loadSchema(this.value)">
+                                <option value="openai-chat">openai-chat</option>
+                                <option value="openai-response">openai-response</option>
+                                <option value="anthropic">anthropic</option>
+                                <option value="gemini">gemini</option>
+                            </select>
+                            <button class="btn btn-secondary btn-sm" onclick="loadSchema(document.getElementById('schema-format-select').value)" data-i18n="btn.refresh">Refresh</button>
+                            <button class="btn btn-secondary btn-sm" onclick="copySchema()" data-i18n="btn.copy">Copy</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="schema-meta" style="margin-bottom:8px;font-size:0.85rem;color:var(--text-muted);"></div>
+                        <pre id="schema-content" style="background:#1B1B18;color:#E8E5E0;padding:16px;border-radius:var(--radius-sm);font-size:0.75rem;overflow:auto;white-space:pre-wrap;font-family:'SF Mono','Fira Code',monospace;max-height:70vh;"></pre>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Tool Detail Modal -->
+    <div class="detail-overlay" id="detail-overlay" onclick="closeDetailModal(event)">
+        <div class="detail-modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3 class="modal-title" id="detail-title" data-i18n="modal.toolDetail">Tool Details</h3>
+                <button class="modal-close" onclick="closeDetailModal()">&times;</button>
+            </div>
+            <div id="detail-body"></div>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modal-title">Modal Title</h3>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                Modal content
+            </div>
+            <div class="modal-footer" id="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal()" data-i18n="btn.cancel">Cancel</button>
+                <button class="btn btn-primary" id="modal-confirm" data-i18n="btn.confirm">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script>
+        // ============== Configuration ==============
+        const API_BASE = window.location.origin;
+        let AUTH_TOKEN = localStorage.getItem('admin_token') || '';
+        let autoRefreshInterval = null;
+        let allTools = [];
+
+        // SVG icon helper
+        const SVG_CHEVRON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>';
+
+        // ===================== i18n =====================
+        const I18N = {
+          en: {
+            'app.title':'ToolRegistry Admin Panel',
+            'status.connected':'Connected', 'status.disconnected':'Disconnected',
+            'tab.tools':'Tools', 'tab.namespaces':'Namespaces', 'tab.sources':'Sources', 'tab.logs':'Logs',
+            'tab.state':'State', 'tab.permissions':'Permissions',
+            'section.overview':'Overview', 'section.tools':'Tools',
+            'section.execStats':'Execution Statistics', 'section.execLogs':'Execution Logs',
+            'section.exportState':'Export State', 'section.importState':'Import State',
+            'section.configFile':'Config File',
+            'section.permPolicy':'Permission Policy',
+            'col.name':'Name', 'col.permission':'Permission', 'col.enabled':'Enabled',
+            'col.reason':'Reason', 'col.think':'Think', 'col.defer':'Defer', 'col.namespace':'Namespace', 'col.source':'Source', 'col.totalTools':'Total Tools',
+            'col.disabled':'Disabled', 'col.tags':'Tags', 'col.actions':'Actions',
+            'col.timestamp':'Timestamp', 'col.tool':'Tool', 'col.status':'Status',
+            'col.duration':'Duration', 'col.ruleName':'Rule Name', 'col.result':'Result',
+            'btn.refresh':'Refresh', 'btn.versionInfo':'Version Info', 'btn.clearLogs':'Clear Logs', 'btn.apply':'Apply',
+            'btn.downloadState':'Download State', 'btn.uploadState':'Upload State',
+            'btn.cancel':'Cancel', 'btn.confirm':'Confirm',
+            'btn.enableAll':'Enable All', 'btn.disableAll':'Disable All',
+            'filter.allNamespaces':'All Namespaces', 'filter.allStatus':'All Status',
+            'filter.allTags':'All Tags', 'filter.allLocality':'All Locality', 'filter.allSources':'All Sources',
+            'filter.enabled':'Enabled', 'filter.disabled':'Disabled',
+            'filter.local':'Local', 'filter.remote':'Remote', 'filter.any':'Any',
+            'label.searchTools':'Search tools...', 'label.filterByTool':'Filter by tool...',
+            'label.reasonOptional':'Reason (optional)', 'label.enterReason':'Enter reason for disabling...',
+            'toast.toolEnabled':'Tool "{name}" enabled', 'toast.toolDisabled':'Tool "{name}" disabled',
+            'toast.nsEnabled':'Namespace "{name}" enabled', 'toast.nsDisabled':'Namespace "{name}" disabled',
+            'toast.logsCleared':'Logs cleared successfully',
+            'toast.stateExported':'State exported successfully',
+            'toast.stateImported':'State imported successfully',
+            'toast.invalidJson':'Invalid JSON file',
+            'toast.metaUpdated':'{field} {state} for "{name}"',
+            'toast.nsMetaUpdated':'{field} {state} for namespace "{name}"',
+            'modal.disableTool':'Disable Tool', 'modal.disableNs':'Disable Namespace',
+            'modal.clearLogs':'Clear Logs', 'modal.importState':'Import State',
+            'modal.toolDetail':'Tool Details',
+            'modal.toolLabel':'Tool: ', 'modal.nsLabel':'Namespace: ',
+            'modal.disableNsHint':'This will disable all tools in this namespace.',
+            'confirm.clearLogs':'Are you sure you want to clear all execution logs?',
+            'confirm.clearLogsWarn':'This action cannot be undone.',
+            'confirm.importState':'Are you sure you want to import this state?',
+            'confirm.importOverwrite':'This will overwrite the current disabled tools/namespaces configuration.',
+            'confirm.disabledItems':'Disabled items: {count}',
+            'empty.tools':'No tools registered', 'empty.toolsHint':'Tools will appear here once registered.',
+            'empty.ns':'No namespaces', 'empty.nsHint':'Namespaces will appear here once tools are registered.',
+            'empty.logs':'No entries', 'empty.logsHint':'No log entries found',
+            'empty.permPolicy':'No permission policy configured',
+            'empty.permPolicyHint':'Set a policy via <code>registry.set_permission_policy()</code> to enable permission controls.',
+            'stat.totalTools':'Total Tools', 'stat.enabled':'Enabled', 'stat.disabled':'Disabled',
+            'stat.namespaces':'Namespaces', 'stat.totalEntries':'Total Entries',
+            'stat.successful':'Successful', 'stat.errors':'Errors', 'stat.rejected':'Rejected',
+            'stat.avgDuration':'Avg Duration', 'stat.loggingNotEnabled':'Logging not enabled',
+            'detail.basicInfo':'Basic Info', 'detail.metadata':'Metadata', 'detail.schema':'Schema',
+            'detail.name':'Name', 'detail.namespace':'Namespace', 'detail.methodName':'Method Name',
+            'detail.status':'Status', 'detail.permission':'Permission',
+            'detail.disableReason':'Disable Reason', 'detail.permReason':'Permission Reason',
+            'detail.description':'Description',
+            'detail.source':'Source', 'detail.sourceDetail':'Source Detail',
+            'detail.locality':'Locality', 'detail.async':'Async',
+            'detail.concurrencySafe':'Concurrency Safe', 'detail.thinkAugment':'Think Augment',
+            'detail.timeout':'Timeout', 'detail.maxResultSize':'Max Result Size',
+            'detail.deferred':'Deferred', 'detail.searchHint':'Search Hint',
+            'detail.tags':'Tags', 'detail.customTags':'Custom Tags', 'detail.extra':'Extra',
+            'detail.noPolicy':'No policy',
+            'meta.think':'think', 'meta.defer':'defer', 'meta.async':'async',
+            'meta.enabled':'enabled', 'meta.disabled':'disabled',
+            'meta.yes':'Yes', 'meta.no':'No',
+            'log.last50':'Last 50', 'log.last100':'Last 100', 'log.last500':'Last 500',
+            'log.success':'Success', 'log.error':'Error', 'log.rejected':'Rejected',
+            'log.arguments':'Arguments:', 'log.result':'Result:', 'log.errorLabel':'Error:',
+            'state.exportDesc':'Download the current state of disabled tools and namespaces as a JSON file.',
+            'state.importDesc':'Upload a previously exported state file to restore disabled tools and namespaces.',
+            'perm.policyActive':'Policy Active',
+            'perm.handlerRegistered':'Handler Registered', 'perm.handlerNotSet':'Handler Not Set',
+            'perm.fallback':'Fallback:',
+            'perm.noRules':'No rules defined. All tool calls will use the fallback result.',
+            'misc.loading':'Loading...', 'misc.enterToken':'Enter admin token:',
+            'misc.expandAll':'Expand all', 'misc.collapseAll':'Collapse all',
+            'misc.toolCount':'{count} tool', 'misc.toolCountPlural':'{count} tools',
+            'misc.clickToDisable':'Click to disable', 'misc.clickToEnable':'Click to enable',
+            'misc.clickToDisableAll':'Click to disable all', 'misc.clickToEnableAll':'Click to enable all',
+            'misc.thinkAugmentedAll':'Think-augmented (all)', 'misc.deferredAll':'Deferred (all)',
+            'misc.nativeThought':'This tool natively declares a thought parameter',
+            'misc.none':'None',
+            'empty.sources':'No tool sources', 'empty.sourcesHint':'Sources will appear here once tools are registered.',
+            'config.mode':'Mode', 'config.filePath':'Config File', 'config.disabled':'Disabled Namespaces', 'config.enabled':'Enabled Namespaces',
+            'config.saveHint':'Write current disabled namespaces to config file',
+            'btn.saveToConfig':'Save to Config',
+            'toast.configSaved':'Config saved to file', 'toast.configSavedMemory':'Config updated (in memory only)',
+            'toast.configSaveFailed':'Failed to save config: {error}',
+            'toast.detailFailed':'Failed to load tool details: {error}',
+            'tab.schema':'Schema',
+            'btn.copy':'Copy',
+            'schema.stats':'{visible} visible · {deferred} deferred · {disabled} disabled',
+            'schema.desc':'Tool schemas visible to LLMs (deferred tools excluded).',
+            'toast.copied':'Copied to clipboard',
+            'toast.copyFailed':'Copy failed',
+            'config.nameSep':'Name Separator',
+            'config.nameSepHint':'Separator between namespace and method name (applies to future registrations only).',
+          },
+          zh: {
+            'app.title':'ToolRegistry \\u7ba1\\u7406\\u9762\\u677f',
+            'status.connected':'\\u5df2\\u8fde\\u63a5', 'status.disconnected':'\\u5df2\\u65ad\\u5f00',
+            'tab.tools':'\\u5de5\\u5177', 'tab.namespaces':'\\u547d\\u540d\\u7a7a\\u95f4', 'tab.sources':'\\u6765\\u6e90', 'tab.logs':'\\u65e5\\u5fd7',
+            'tab.state':'\\u72b6\\u6001', 'tab.permissions':'\\u6743\\u9650',
+            'section.overview':'\\u6982\\u89c8', 'section.tools':'\\u5de5\\u5177',
+            'section.execStats':'\\u6267\\u884c\\u7edf\\u8ba1', 'section.execLogs':'\\u6267\\u884c\\u65e5\\u5fd7',
+            'section.exportState':'\\u5bfc\\u51fa\\u72b6\\u6001', 'section.importState':'\\u5bfc\\u5165\\u72b6\\u6001',
+            'section.configFile':'\\u914d\\u7f6e\\u6587\\u4ef6',
+            'section.permPolicy':'\\u6743\\u9650\\u7b56\\u7565',
+            'col.name':'\\u540d\\u79f0', 'col.permission':'\\u6743\\u9650', 'col.enabled':'\\u542f\\u7528',
+            'col.reason':'\\u539f\\u56e0', 'col.think':'\\u601d\\u8003', 'col.defer':'\\u5ef6\\u8fdf', 'col.namespace':'\\u547d\\u540d\\u7a7a\\u95f4', 'col.source':'\\u6765\\u6e90', 'col.totalTools':'\\u5de5\\u5177\\u603b\\u6570',
+            'col.disabled':'\\u5df2\\u7981\\u7528', 'col.tags':'\\u6807\\u7b7e', 'col.actions':'\\u64cd\\u4f5c',
+            'col.timestamp':'\\u65f6\\u95f4\\u6233', 'col.tool':'\\u5de5\\u5177', 'col.status':'\\u72b6\\u6001',
+            'col.duration':'\\u8017\\u65f6', 'col.ruleName':'\\u89c4\\u5219\\u540d\\u79f0', 'col.result':'\\u7ed3\\u679c',
+            'btn.refresh':'\\u5237\\u65b0', 'btn.versionInfo':'\\u7248\\u672c\\u4fe1\\u606f', 'btn.clearLogs':'\\u6e05\\u9664\\u65e5\\u5fd7', 'btn.apply':'\\u5e94\\u7528',
+            'btn.downloadState':'\\u4e0b\\u8f7d\\u72b6\\u6001', 'btn.uploadState':'\\u4e0a\\u4f20\\u72b6\\u6001',
+            'btn.cancel':'\\u53d6\\u6d88', 'btn.confirm':'\\u786e\\u8ba4',
+            'btn.enableAll':'\\u5168\\u90e8\\u542f\\u7528', 'btn.disableAll':'\\u5168\\u90e8\\u7981\\u7528',
+            'filter.allNamespaces':'\\u5168\\u90e8\\u547d\\u540d\\u7a7a\\u95f4', 'filter.allStatus':'\\u5168\\u90e8\\u72b6\\u6001',
+            'filter.allTags':'\\u5168\\u90e8\\u6807\\u7b7e', 'filter.allLocality':'\\u5168\\u90e8\\u4f4d\\u7f6e', 'filter.allSources':'\\u5168\\u90e8\\u6765\\u6e90',
+            'filter.enabled':'\\u5df2\\u542f\\u7528', 'filter.disabled':'\\u5df2\\u7981\\u7528',
+            'filter.local':'\\u672c\\u5730', 'filter.remote':'\\u8fdc\\u7a0b', 'filter.any':'\\u4efb\\u610f',
+            'label.searchTools':'\\u641c\\u7d22\\u5de5\\u5177...', 'label.filterByTool':'\\u6309\\u5de5\\u5177\\u7b5b\\u9009...',
+            'label.reasonOptional':'\\u539f\\u56e0\\uff08\\u53ef\\u9009\\uff09', 'label.enterReason':'\\u8f93\\u5165\\u7981\\u7528\\u539f\\u56e0...',
+            'toast.toolEnabled':'\\u5de5\\u5177 "{name}" \\u5df2\\u542f\\u7528', 'toast.toolDisabled':'\\u5de5\\u5177 "{name}" \\u5df2\\u7981\\u7528',
+            'toast.nsEnabled':'\\u547d\\u540d\\u7a7a\\u95f4 "{name}" \\u5df2\\u542f\\u7528', 'toast.nsDisabled':'\\u547d\\u540d\\u7a7a\\u95f4 "{name}" \\u5df2\\u7981\\u7528',
+            'toast.logsCleared':'\\u65e5\\u5fd7\\u5df2\\u6e05\\u9664',
+            'toast.stateExported':'\\u72b6\\u6001\\u5df2\\u5bfc\\u51fa',
+            'toast.stateImported':'\\u72b6\\u6001\\u5df2\\u5bfc\\u5165',
+            'toast.invalidJson':'\\u65e0\\u6548\\u7684 JSON \\u6587\\u4ef6',
+            'toast.metaUpdated':'{field} \\u5df2\\u4e3a "{name}" {state}',
+            'toast.nsMetaUpdated':'{field} \\u5df2\\u4e3a\\u547d\\u540d\\u7a7a\\u95f4 "{name}" {state}',
+            'modal.disableTool':'\\u7981\\u7528\\u5de5\\u5177', 'modal.disableNs':'\\u7981\\u7528\\u547d\\u540d\\u7a7a\\u95f4',
+            'modal.clearLogs':'\\u6e05\\u9664\\u65e5\\u5fd7', 'modal.importState':'\\u5bfc\\u5165\\u72b6\\u6001',
+            'modal.toolDetail':'\\u5de5\\u5177\\u8be6\\u60c5',
+            'modal.toolLabel':'\\u5de5\\u5177\\uff1a', 'modal.nsLabel':'\\u547d\\u540d\\u7a7a\\u95f4\\uff1a',
+            'modal.disableNsHint':'\\u8fd9\\u5c06\\u7981\\u7528\\u6b64\\u547d\\u540d\\u7a7a\\u95f4\\u4e0b\\u7684\\u6240\\u6709\\u5de5\\u5177\\u3002',
+            'confirm.clearLogs':'\\u786e\\u5b9a\\u8981\\u6e05\\u9664\\u6240\\u6709\\u6267\\u884c\\u65e5\\u5fd7\\u5417\\uff1f',
+            'confirm.clearLogsWarn':'\\u6b64\\u64cd\\u4f5c\\u4e0d\\u53ef\\u64a4\\u9500\\u3002',
+            'confirm.importState':'\\u786e\\u5b9a\\u8981\\u5bfc\\u5165\\u6b64\\u72b6\\u6001\\u5417\\uff1f',
+            'confirm.importOverwrite':'\\u8fd9\\u5c06\\u8986\\u76d6\\u5f53\\u524d\\u7684\\u5de5\\u5177/\\u547d\\u540d\\u7a7a\\u95f4\\u7981\\u7528\\u914d\\u7f6e\\u3002',
+            'confirm.disabledItems':'\\u7981\\u7528\\u9879\\u76ee\\u6570\\uff1a{count}',
+            'empty.tools':'\\u6682\\u65e0\\u5df2\\u6ce8\\u518c\\u5de5\\u5177', 'empty.toolsHint':'\\u5de5\\u5177\\u6ce8\\u518c\\u540e\\u5c06\\u663e\\u793a\\u5728\\u6b64\\u5904\\u3002',
+            'empty.ns':'\\u6682\\u65e0\\u547d\\u540d\\u7a7a\\u95f4', 'empty.nsHint':'\\u5de5\\u5177\\u6ce8\\u518c\\u540e\\u547d\\u540d\\u7a7a\\u95f4\\u5c06\\u663e\\u793a\\u5728\\u6b64\\u5904\\u3002',
+            'empty.logs':'\\u6682\\u65e0\\u6761\\u76ee', 'empty.logsHint':'\\u672a\\u627e\\u5230\\u65e5\\u5fd7\\u6761\\u76ee',
+            'empty.permPolicy':'\\u672a\\u914d\\u7f6e\\u6743\\u9650\\u7b56\\u7565',
+            'empty.permPolicyHint':'\\u901a\\u8fc7 <code>registry.set_permission_policy()</code> \\u8bbe\\u7f6e\\u7b56\\u7565\\u4ee5\\u542f\\u7528\\u6743\\u9650\\u63a7\\u5236\\u3002',
+            'stat.totalTools':'\\u5de5\\u5177\\u603b\\u6570', 'stat.enabled':'\\u5df2\\u542f\\u7528', 'stat.disabled':'\\u5df2\\u7981\\u7528',
+            'stat.namespaces':'\\u547d\\u540d\\u7a7a\\u95f4', 'stat.totalEntries':'\\u603b\\u6761\\u76ee\\u6570',
+            'stat.successful':'\\u6210\\u529f', 'stat.errors':'\\u9519\\u8bef', 'stat.rejected':'\\u5df2\\u62d2\\u7edd',
+            'stat.avgDuration':'\\u5e73\\u5747\\u8017\\u65f6', 'stat.loggingNotEnabled':'\\u672a\\u542f\\u7528\\u65e5\\u5fd7',
+            'detail.basicInfo':'\\u57fa\\u672c\\u4fe1\\u606f', 'detail.metadata':'\\u5143\\u6570\\u636e', 'detail.schema':'\\u6a21\\u5f0f',
+            'detail.name':'\\u540d\\u79f0', 'detail.namespace':'\\u547d\\u540d\\u7a7a\\u95f4', 'detail.methodName':'\\u65b9\\u6cd5\\u540d',
+            'detail.status':'\\u72b6\\u6001', 'detail.permission':'\\u6743\\u9650',
+            'detail.disableReason':'\\u7981\\u7528\\u539f\\u56e0', 'detail.permReason':'\\u6743\\u9650\\u539f\\u56e0',
+            'detail.description':'\\u63cf\\u8ff0',
+            'detail.source':'\\u6765\\u6e90', 'detail.sourceDetail':'\\u6765\\u6e90\\u8be6\\u60c5',
+            'detail.locality':'\\u4f4d\\u7f6e', 'detail.async':'\\u5f02\\u6b65',
+            'detail.concurrencySafe':'\\u5e76\\u53d1\\u5b89\\u5168', 'detail.thinkAugment':'\\u601d\\u8003\\u589e\\u5f3a',
+            'detail.timeout':'\\u8d85\\u65f6', 'detail.maxResultSize':'\\u6700\\u5927\\u7ed3\\u679c\\u5927\\u5c0f',
+            'detail.deferred':'\\u5ef6\\u8fdf\\u6267\\u884c', 'detail.searchHint':'\\u641c\\u7d22\\u63d0\\u793a',
+            'detail.tags':'\\u6807\\u7b7e', 'detail.customTags':'\\u81ea\\u5b9a\\u4e49\\u6807\\u7b7e', 'detail.extra':'\\u989d\\u5916\\u4fe1\\u606f',
+            'detail.noPolicy':'\\u65e0\\u7b56\\u7565',
+            'meta.think':'think', 'meta.defer':'defer', 'meta.async':'async',
+            'meta.enabled':'\\u5df2\\u542f\\u7528', 'meta.disabled':'\\u5df2\\u7981\\u7528',
+            'meta.yes':'\\u662f', 'meta.no':'\\u5426',
+            'log.last50':'\\u6700\\u8fd1 50', 'log.last100':'\\u6700\\u8fd1 100', 'log.last500':'\\u6700\\u8fd1 500',
+            'log.success':'\\u6210\\u529f', 'log.error':'\\u9519\\u8bef', 'log.rejected':'\\u5df2\\u62d2\\u7edd',
+            'log.arguments':'\\u53c2\\u6570\\uff1a', 'log.result':'\\u7ed3\\u679c\\uff1a', 'log.errorLabel':'\\u9519\\u8bef\\uff1a',
+            'state.exportDesc':'\\u5c06\\u5f53\\u524d\\u7981\\u7528\\u7684\\u5de5\\u5177\\u548c\\u547d\\u540d\\u7a7a\\u95f4\\u72b6\\u6001\\u4e0b\\u8f7d\\u4e3a JSON \\u6587\\u4ef6\\u3002',
+            'state.importDesc':'\\u4e0a\\u4f20\\u4e4b\\u524d\\u5bfc\\u51fa\\u7684\\u72b6\\u6001\\u6587\\u4ef6\\u4ee5\\u6062\\u590d\\u5de5\\u5177\\u548c\\u547d\\u540d\\u7a7a\\u95f4\\u7684\\u7981\\u7528\\u72b6\\u6001\\u3002',
+            'perm.policyActive':'\\u7b56\\u7565\\u5df2\\u6fc0\\u6d3b',
+            'perm.handlerRegistered':'\\u5904\\u7406\\u5668\\u5df2\\u6ce8\\u518c', 'perm.handlerNotSet':'\\u5904\\u7406\\u5668\\u672a\\u8bbe\\u7f6e',
+            'perm.fallback':'\\u56de\\u9000\\u7b56\\u7565\\uff1a',
+            'perm.noRules':'\\u672a\\u5b9a\\u4e49\\u89c4\\u5219\\u3002\\u6240\\u6709\\u5de5\\u5177\\u8c03\\u7528\\u5c06\\u4f7f\\u7528\\u56de\\u9000\\u7ed3\\u679c\\u3002',
+            'misc.loading':'\\u52a0\\u8f7d\\u4e2d...', 'misc.enterToken':'\\u8bf7\\u8f93\\u5165\\u7ba1\\u7406\\u5458\\u4ee4\\u724c\\uff1a',
+            'misc.expandAll':'\\u5c55\\u5f00\\u5168\\u90e8', 'misc.collapseAll':'\\u6298\\u53e0\\u5168\\u90e8',
+            'misc.toolCount':'{count} \\u4e2a\\u5de5\\u5177', 'misc.toolCountPlural':'{count} \\u4e2a\\u5de5\\u5177',
+            'misc.clickToDisable':'\\u70b9\\u51fb\\u7981\\u7528', 'misc.clickToEnable':'\\u70b9\\u51fb\\u542f\\u7528',
+            'misc.clickToDisableAll':'\\u70b9\\u51fb\\u7981\\u7528\\u5168\\u90e8', 'misc.clickToEnableAll':'\\u70b9\\u51fb\\u542f\\u7528\\u5168\\u90e8',
+            'misc.thinkAugmentedAll':'\\u601d\\u8003\\u589e\\u5f3a\\uff08\\u5168\\u90e8\\uff09', 'misc.deferredAll':'\\u5ef6\\u8fdf\\u6267\\u884c\\uff08\\u5168\\u90e8\\uff09',
+            'misc.nativeThought':'\\u8be5\\u5de5\\u5177\\u539f\\u751f\\u58f0\\u660e\\u4e86 thought \\u53c2\\u6570',
+            'misc.none':'\\u65e0',
+            'empty.sources':'\\u6682\\u65e0\\u5de5\\u5177\\u6765\\u6e90', 'empty.sourcesHint':'\\u5de5\\u5177\\u6ce8\\u518c\\u540e\\u6765\\u6e90\\u5c06\\u663e\\u793a\\u5728\\u6b64\\u5904\\u3002',
+            'config.mode':'\\u6a21\\u5f0f', 'config.filePath':'\\u914d\\u7f6e\\u6587\\u4ef6', 'config.disabled':'\\u7981\\u7528\\u7684\\u547d\\u540d\\u7a7a\\u95f4', 'config.enabled':'\\u542f\\u7528\\u7684\\u547d\\u540d\\u7a7a\\u95f4',
+            'config.saveHint':'\\u5c06\\u5f53\\u524d\\u7981\\u7528\\u7684\\u547d\\u540d\\u7a7a\\u95f4\\u5199\\u5165\\u914d\\u7f6e\\u6587\\u4ef6',
+            'btn.saveToConfig':'\\u4fdd\\u5b58\\u5230\\u914d\\u7f6e',
+            'toast.configSaved':'\\u914d\\u7f6e\\u5df2\\u4fdd\\u5b58\\u5230\\u6587\\u4ef6', 'toast.configSavedMemory':'\\u914d\\u7f6e\\u5df2\\u66f4\\u65b0\\uff08\\u4ec5\\u5185\\u5b58\\uff09',
+            'toast.configSaveFailed':'\\u4fdd\\u5b58\\u914d\\u7f6e\\u5931\\u8d25\\uff1a{error}',
+            'toast.detailFailed':'\\u52a0\\u8f7d\\u5de5\\u5177\\u8be6\\u60c5\\u5931\\u8d25\\uff1a{error}',
+            'tab.schema':'Schema',
+            'btn.copy':'\\u590d\\u5236',
+            'schema.stats':'\\u53ef\\u89c1 {visible} \\u00b7 \\u5ef6\\u8fdf {deferred} \\u00b7 \\u7981\\u7528 {disabled}',
+            'schema.desc':'\\u5de5\\u5177 Schema\\uff08\\u4e0d\\u542b\\u5ef6\\u8fdf\\u5de5\\u5177\\uff09\\u3002',
+            'toast.copied':'\\u5df2\\u590d\\u5236\\u5230\\u526a\\u8d34\\u677f',
+            'toast.copyFailed':'\\u590d\\u5236\\u5931\\u8d25',
+            'config.nameSep':'\\u540d\\u79f0\\u5206\\u9694\\u7b26',
+            'config.nameSepHint':'\\u547d\\u540d\\u7a7a\\u95f4\\u4e0e\\u65b9\\u6cd5\\u540d\\u4e4b\\u95f4\\u7684\\u5206\\u9694\\u7b26\\uff08\\u4ec5\\u5f71\\u54cd\\u65b0\\u6ce8\\u518c\\u5de5\\u5177\\uff09\\u3002',
+          },
+        };
+
+        let currentLang = localStorage.getItem('toolregistry-lang') || 'en';
+
+        function t(key, params) {
+            let s = (I18N[currentLang] && I18N[currentLang][key]) || I18N.en[key] || key;
+            if (params) {
+                for (const [k, v] of Object.entries(params)) s = s.replace(`{${k}}`, v);
+            }
+            return s;
+        }
+
+        function setLang(lang) {
+            currentLang = lang;
+            localStorage.setItem('toolregistry-lang', lang);
+            document.getElementById('langSwitcher').value = lang;
+            applyI18n();
+        }
+
+        function applyI18n() {
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                el.textContent = t(el.dataset.i18n);
+            });
+            document.querySelectorAll('[data-i18n-html]').forEach(el => {
+                el.innerHTML = t(el.dataset.i18nHtml);
+            });
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                el.placeholder = t(el.dataset.i18nPlaceholder);
+            });
+            document.querySelectorAll('[data-i18n-title]').forEach(el => {
+                el.title = t(el.dataset.i18nTitle);
+            });
+            // Re-render dynamic content for the active tab
+            const activeTab = document.querySelector('.tab.active')?.dataset.tab;
+            if (activeTab === 'tools') { refreshTools(); refreshStats(); }
+            else if (activeTab === 'namespaces') { refreshNamespaces(); }
+            else if (activeTab === 'logs') { refreshLogs(); refreshLogStats(); }
+            else if (activeTab === 'permissions') { refreshPermissions(); }
+            else if (activeTab === 'schema') { loadSchema(document.getElementById('schema-format-select').value); }
+        }
+
+        // ============== API Client ==============
+        class AdminAPI {
+            constructor(baseUrl, token) {
+                this.baseUrl = baseUrl;
+                this.token = token;
+            }
+
+            getHeaders() {
+                const headers = { 'Content-Type': 'application/json' };
+                if (this.token) {
+                    headers['Authorization'] = 'Bearer ' + this.token;
+                }
+                return headers;
+            }
+
+            async request(path, options = {}) {
+                options.headers = { ...this.getHeaders(), ...options.headers };
+                try {
+                    const response = await fetch(this.baseUrl + path, options);
+                    if (response.status === 401) {
+                        const token = prompt(t('misc.enterToken'));
+                        if (token) {
+                            localStorage.setItem('admin_token', token);
+                            this.token = token;
+                            AUTH_TOKEN = token;
+                            return this.request(path, options);
+                        }
+                        throw new Error('Unauthorized');
+                    }
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.message || 'Request failed');
+                    }
+                    return data;
+                } catch (error) {
+                    if (error.name === 'TypeError') {
+                        updateConnectionStatus(false);
+                        throw new Error('Connection failed');
+                    }
+                    throw error;
+                }
+            }
+
+            async getTools() {
+                return this.request('/api/tools');
+            }
+
+            async getTool(name) {
+                return this.request('/api/tools/' + encodeURIComponent(name));
+            }
+
+            async enableTool(name) {
+                return this.request('/api/tools/' + encodeURIComponent(name) + '/enable', { method: 'POST' });
+            }
+
+            async disableTool(name, reason = '') {
+                return this.request('/api/tools/' + encodeURIComponent(name) + '/disable', {
+                    method: 'POST',
+                    body: JSON.stringify({ reason })
+                });
+            }
+
+            async getNamespaces() {
+                return this.request('/api/namespaces');
+            }
+
+            async enableNamespace(ns) {
+                return this.request('/api/namespaces/' + encodeURIComponent(ns) + '/enable', { method: 'POST' });
+            }
+
+            async disableNamespace(ns, reason = '') {
+                return this.request('/api/namespaces/' + encodeURIComponent(ns) + '/disable', {
+                    method: 'POST',
+                    body: JSON.stringify({ reason })
+                });
+            }
+
+            async updateToolMetadata(name, metadata) {
+                return this.request('/api/tools/' + encodeURIComponent(name) + '/metadata', {
+                    method: 'PATCH',
+                    body: JSON.stringify(metadata)
+                });
+            }
+
+            async updateNamespaceMetadata(ns, metadata) {
+                return this.request('/api/namespaces/' + encodeURIComponent(ns) + '/metadata', {
+                    method: 'PATCH',
+                    body: JSON.stringify(metadata)
+                });
+            }
+
+            async getLogs(params = {}) {
+                const query = new URLSearchParams();
+                if (params.limit) query.set('limit', params.limit);
+                if (params.tool_name) query.set('tool_name', params.tool_name);
+                if (params.status) query.set('status', params.status);
+                const queryStr = query.toString();
+                return this.request('/api/logs' + (queryStr ? '?' + queryStr : ''));
+            }
+
+            async getLogStats() {
+                return this.request('/api/logs/stats');
+            }
+
+            async clearLogs() {
+                return this.request('/api/logs', { method: 'DELETE' });
+            }
+
+            async exportState() {
+                return this.request('/api/state');
+            }
+
+            async importState(state) {
+                return this.request('/api/state', {
+                    method: 'POST',
+                    body: JSON.stringify(state)
+                });
+            }
+
+            async getPermissions() {
+                return this.request('/api/permissions');
+            }
+
+            async getSources() {
+                return this.request('/api/sources');
+            }
+
+            async getConfig() {
+                return this.request('/api/config');
+            }
+
+            async updateConfig(data) {
+                return this.request('/api/config', {
+                    method: 'PUT',
+                    body: JSON.stringify(data)
+                });
+            }
+
+            async getInfo() {
+                return this.request('/api/info');
+            }
+
+            async getSchema(format = 'openai-chat') {
+                return this.request('/api/schema?format=' + encodeURIComponent(format));
+            }
+        }
+
+        const api = new AdminAPI(API_BASE, AUTH_TOKEN);
+
+        // ============== UI Helpers ==============
+        function updateConnectionStatus(connected) {
+            const dot = document.getElementById('status-dot');
+            const indicator = document.getElementById('status-indicator');
+            if (connected) {
+                dot.classList.remove('disconnected');
+                indicator.title = t('status.connected');
+            } else {
+                dot.classList.add('disconnected');
+                indicator.title = t('status.disconnected');
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast ' + type;
+
+            toast.innerHTML = `
+                <span class="toast-dot"></span>
+                <div class="toast-content">
+                    <div class="toast-message">${message}</div>
+                </div>
+            `;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.add('hiding');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        let _modalOnCancel = null;
+
+        function showModal(title, content, onConfirm, onCancel) {
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-body').innerHTML = content;
+            document.getElementById('modal-overlay').classList.add('active');
+            _modalOnCancel = onCancel || null;
+
+            const confirmBtn = document.getElementById('modal-confirm');
+            confirmBtn.onclick = () => {
+                _modalOnCancel = null;
+                if (onConfirm) onConfirm();
+                closeModal();
+            };
+        }
+
+        function closeModal(event) {
+            if (event && event.target !== event.currentTarget) return;
+            document.getElementById('modal-overlay').classList.remove('active');
+            if (_modalOnCancel) {
+                _modalOnCancel();
+                _modalOnCancel = null;
+            }
+        }
+
+        function switchTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.tab === tabName);
+            });
+
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.style.display = content.id === 'tab-' + tabName ? 'block' : 'none';
+            });
+
+            // Load data for the tab
+            if (tabName === 'tools') {
+                refreshTools();
+                refreshStats();
+            } else if (tabName === 'namespaces') {
+                refreshNamespaces();
+            } else if (tabName === 'logs') {
+                refreshLogs();
+                refreshLogStats();
+            } else if (tabName === 'sources') {
+                refreshSources();
+            } else if (tabName === 'permissions') {
+                refreshPermissions();
+            } else if (tabName === 'state') {
+                refreshConfig();
+                refreshRegistrySettings();
+            } else if (tabName === 'schema') {
+                loadSchema(document.getElementById('schema-format-select').value);
+            }
+        }
+
+        // ============== Tools ==============
+        async function refreshTools() {
+            try {
+                const data = await api.getTools();
+                allTools = data.tools || [];
+                updateConnectionStatus(true);
+                renderTools(allTools);
+                updateNamespaceFilter(allTools);
+            } catch (e) {
+                document.getElementById('tools-body').innerHTML =
+                    `<tr><td colspan="7" class="empty-state"><div class="text-error">${e.message}</div></td></tr>`;
+            }
+        }
+
+        // Tag color mapping for known ToolTag values
+        const TAG_CLASSES = {
+            'read_only': 'badge-tag-read_only',
+            'destructive': 'badge-tag-destructive',
+            'slow': 'badge-tag-slow',
+            'network': 'badge-tag-network',
+            'privileged': 'badge-tag-privileged',
+            'file_system': 'badge-tag-file_system',
+        };
+
+        function normalizeTagKey(tag) {
+            // Strip "ToolTag." prefix and lowercase for matching
+            const key = tag.replace(/^ToolTag\\./i, '').toLowerCase();
+            return key;
+        }
+
+        function renderSourceBadge(source) {
+            if (!source) return '';
+            const cls = 'badge-source badge-source-' + source;
+            return `<span class="${cls}">${escapeHtml(source)}</span>`;
+        }
+
+        function renderTagBadges(tags, systemOnly) {
+            if (!tags || tags.length === 0) return '';
+            let filtered = tags;
+            if (systemOnly) {
+                filtered = tags.filter(tag => !!TAG_CLASSES[normalizeTagKey(tag)]);
+            }
+            // Sort: system tags first, then custom tags
+            const sorted = [...filtered].sort((a, b) => {
+                const aIsSystem = !!TAG_CLASSES[normalizeTagKey(a)];
+                const bIsSystem = !!TAG_CLASSES[normalizeTagKey(b)];
+                if (aIsSystem && !bIsSystem) return -1;
+                if (!aIsSystem && bIsSystem) return 1;
+                return a.localeCompare(b);
+            });
+            return sorted.map(tag => {
+                const key = normalizeTagKey(tag);
+                const cls = TAG_CLASSES[key] || 'badge-tag-custom';
+                const label = TAG_CLASSES[key] ? key : tag;
+                return `<span class="badge-tag ${cls}">${escapeHtml(label)}</span>`;
+            }).join('');
+        }
+
+        function renderMetaIcons(tool) {
+            let icons = '';
+            if (tool.locality && tool.locality !== 'any') {
+                const cls = tool.locality === 'local' ? 'badge-locality-local' : 'badge-locality-remote';
+                icons += `<span class="badge-locality ${cls}" title="Locality: ${tool.locality}">${tool.locality}</span>`;
+            }
+            if (tool.is_async) {
+                icons += `<span class="meta-icon" title="Async">async</span>`;
+            }
+            return icons ? `<span class="tool-meta-icons">${icons}</span>` : '';
+        }
+
+        function renderMetaToggle(toolName, field, checked, disabled) {
+            const dis = disabled ? 'disabled' : '';
+            const cls = disabled ? 'meta-checkbox meta-checkbox-disabled' : 'meta-checkbox';
+            const title = disabled ? t('misc.nativeThought') : '';
+            return `<label class="${cls}" style="justify-content: center;" ${title ? `title="${title}"` : ''}>
+                <input type="checkbox" ${checked ? 'checked' : ''} ${dis}
+                    onclick="event.stopPropagation()"
+                    onchange="toggleToolMeta('${escapeHtml(toolName)}', '${field}', this.checked)">
+            </label>`;
+        }
+
+        function renderPermissionBadge(perm) {
+            if (!perm) return '<span style="color: var(--border);">&mdash;</span>';
+            const cls = 'badge-' + perm.result;
+            const title = perm.rule_name ? `${perm.rule_name}: ${perm.reason}` : perm.reason;
+            return `<span class="${cls}" title="${escapeHtml(title)}">${perm.result}</span>`;
+        }
+
+        function renderTools(tools) {
+            const tbody = document.getElementById('tools-body');
+
+            if (tools.length === 0) {
+                tbody.innerHTML = `
+                    <tr><td colspan="7" class="empty-state">
+                        <div class="empty-state-icon">${t('empty.tools')}</div>
+                        <div class="empty-state-text">${t('empty.toolsHint')}</div>
+                    </td></tr>`;
+                return;
+            }
+
+            // Group: standalone tools (no namespace) go under "default", rest by namespace
+            const nsMap = {};
+            tools.forEach(t => {
+                const ns = t.namespace || 'default';
+                if (!nsMap[ns]) nsMap[ns] = [];
+                nsMap[ns].push(t);
+            });
+
+            let html = '';
+
+            // Render all groups (default first, then sorted)
+            const nsKeys = Object.keys(nsMap).sort((a, b) => {
+                if (a === 'default') return -1;
+                if (b === 'default') return 1;
+                return a.localeCompare(b);
+            });
+
+            nsKeys.forEach(ns => {
+                const children = nsMap[ns];
+                const allEnabled = children.every(t => t.enabled);
+                const allThink = children.every(t => t.think_augment);
+                const anyThink = children.some(t => t.think_augment);
+                const allDefer = children.every(t => t.defer);
+                const anyDefer = children.some(t => t.defer);
+                const nsId = 'ns-' + ns.replace(/[^a-zA-Z0-9_]/g, '_');
+                const isDefault = ns === 'default';
+                const nsSources = [...new Set(children.map(t => t.source))];
+                const nsSourceBadge = nsSources.length === 1 ? renderSourceBadge(nsSources[0]) : '';
+                html += `
+                <tr class="ns-row" onclick="toggleNsGroup('${nsId}')">
+                    <td><span class="ns-chevron">${SVG_CHEVRON}</span></td>
+                    <td>
+                        <span style="font-weight: 500;">${escapeHtml(ns)}</span>
+                        ${nsSourceBadge}
+                        <span class="text-muted" style="margin-left: 8px; font-size: 0.6875rem;">${children.length > 1 ? t('misc.toolCountPlural', {count: children.length}) : t('misc.toolCount', {count: children.length})}</span>
+                    </td>
+                    <td class="col-think" onclick="event.stopPropagation()">
+                        <label class="meta-checkbox" style="justify-content: center;" title="${t('misc.thinkAugmentedAll')}">
+                            <input type="checkbox" ${allThink ? 'checked' : ''}
+                                onchange="toggleNamespaceMeta('${escapeHtml(ns)}', 'think_augment', this.checked)">
+                        </label>
+                    </td>
+                    <td class="col-defer" onclick="event.stopPropagation()">
+                        <label class="meta-checkbox" style="justify-content: center;" title="${t('misc.deferredAll')}">
+                            <input type="checkbox" ${allDefer ? 'checked' : ''}
+                                onchange="toggleNamespaceMeta('${escapeHtml(ns)}', 'defer', this.checked)">
+                        </label>
+                    </td>
+                    <td class="col-permission"></td>
+                    <td>
+                        ${isDefault ? '' : `<label class="toggle-switch toggle-ns" title="${allEnabled ? t('misc.clickToDisableAll') : t('misc.clickToEnableAll')}" onclick="event.stopPropagation()">
+                            <input type="checkbox" ${allEnabled ? 'checked' : ''}
+                                onchange="toggleNamespace('${escapeHtml(ns)}', this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label>`}
+                    </td>
+                    <td class="col-reason"></td>
+                </tr>`;
+
+                children.forEach(tool => {
+                    const shortName = (!isDefault && tool.name.startsWith(ns + '-')) ? tool.name.slice(ns.length + 1) : tool.name;
+                    const tagBadges = renderTagBadges(tool.tags, true);
+                    const metaIcons = renderMetaIcons(tool);
+                    const permBadge = renderPermissionBadge(tool.permission);
+                    const sourceBadge = nsSources.length > 1 ? renderSourceBadge(tool.source) : '';
+                    html += `
+                <tr class="ns-child-row" data-ns-group="${nsId}">
+                    <td></td>
+                    <td>
+                        <span class="ns-child-name-link" onclick="event.stopPropagation(); showToolDetailModal('${escapeHtml(tool.name)}')">${escapeHtml(shortName)}</span>
+                        <span class="tool-badges">${tagBadges}</span>
+                        ${sourceBadge}
+                        ${metaIcons}
+                    </td>
+                    <td class="col-think" onclick="event.stopPropagation()">${renderMetaToggle(tool.name, 'think_augment', tool.think_augment, false)}</td>
+                    <td class="col-defer" onclick="event.stopPropagation()">${renderMetaToggle(tool.name, 'defer', tool.defer, false)}</td>
+                    <td>${permBadge}</td>
+                    <td>
+                        <label class="toggle-switch" title="${tool.enabled ? t('misc.clickToDisable') : t('misc.clickToEnable')}">
+                            <input type="checkbox" ${tool.enabled ? 'checked' : ''}
+                                onchange="toggleTool('${escapeHtml(tool.name)}', this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </td>
+                    <td class="col-reason"><span class="col-reason-text" title="${escapeHtml(tool.reason || '')}">${tool.reason ? escapeHtml(tool.reason) : '<span style="color: var(--border);">&mdash;</span>'}</span></td>
+                </tr>`;
+                });
+            });
+
+            tbody.innerHTML = html;
+            // Expand all groups by default
+            expandAllGroups();
+        }
+
+        function toggleNsGroup(nsId) {
+            const rows = document.querySelectorAll(`[data-ns-group="${nsId}"]`);
+            const parentRow = rows.length > 0 ? rows[0].previousElementSibling : null;
+            // Walk up to find the .ns-row
+            let nsRow = parentRow;
+            while (nsRow && !nsRow.classList.contains('ns-row')) {
+                nsRow = nsRow.previousElementSibling;
+            }
+            if (!nsRow) return;
+
+            const isExpanded = nsRow.classList.toggle('expanded');
+            rows.forEach(row => row.classList.toggle('visible', isExpanded));
+        }
+
+        let _allExpanded = true;
+
+        function expandAllGroups() {
+            document.querySelectorAll('.ns-row').forEach(row => row.classList.add('expanded'));
+            document.querySelectorAll('.ns-child-row').forEach(row => row.classList.add('visible'));
+            _allExpanded = true;
+            updateToggleBtn();
+        }
+
+        function collapseAllGroups() {
+            document.querySelectorAll('.ns-row').forEach(row => row.classList.remove('expanded'));
+            document.querySelectorAll('.ns-child-row').forEach(row => row.classList.remove('visible'));
+            _allExpanded = false;
+            updateToggleBtn();
+        }
+
+        function toggleAllGroups() {
+            if (_allExpanded) { collapseAllGroups(); } else { expandAllGroups(); }
+        }
+
+        function updateToggleBtn() {
+            const btn = document.getElementById('toggle-expand-btn');
+            const icon = document.getElementById('toggle-expand-icon');
+            if (!btn || !icon) return;
+            if (_allExpanded) {
+                btn.title = t('misc.collapseAll');
+                icon.innerHTML = '<path d="M4 7l4-4 4 4"/><path d="M4 13l4-4 4 4"/>';
+            } else {
+                btn.title = t('misc.expandAll');
+                icon.innerHTML = '<path d="M4 3l4 4 4-4"/><path d="M4 9l4 4 4-4"/>';
+            }
+        }
+
+        function filterTools() {
+            const search = document.getElementById('tool-search').value.toLowerCase();
+            const namespace = document.getElementById('namespace-filter').value;
+            const status = document.getElementById('status-filter').value;
+            const tag = document.getElementById('tag-filter').value;
+            const locality = document.getElementById('locality-filter').value;
+            const source = document.getElementById('source-filter').value;
+
+            const filtered = allTools.filter(tool => {
+                const matchSearch = tool.name.toLowerCase().includes(search);
+                const matchNamespace = !namespace || (tool.namespace || 'default') === namespace;
+                const matchStatus = !status ||
+                    (status === 'enabled' && tool.enabled) ||
+                    (status === 'disabled' && !tool.enabled);
+                const matchTag = !tag || (tool.tags && tool.tags.includes(tag));
+                const matchLocality = !locality || tool.locality === locality;
+                const matchSource = !source || tool.source === source;
+                return matchSearch && matchNamespace && matchStatus && matchTag && matchLocality && matchSource;
+            });
+
+            renderTools(filtered);
+        }
+
+        function updateNamespaceFilter(tools) {
+            const namespaces = [...new Set(tools.map(t => t.namespace || 'default'))].sort((a, b) => {
+                if (a === 'default') return -1;
+                if (b === 'default') return 1;
+                return a.localeCompare(b);
+            });
+            const select = document.getElementById('namespace-filter');
+            const currentValue = select.value;
+
+            select.innerHTML = `<option value="">${t('filter.allNamespaces')}</option>` +
+                namespaces.map(ns => `<option value="${escapeHtml(ns)}">${escapeHtml(ns)}</option>`).join('');
+
+            select.value = currentValue;
+
+            // Update tag filter
+            const allTags = [...new Set(tools.flatMap(t => t.tags || []))].sort();
+            const tagSelect = document.getElementById('tag-filter');
+            const currentTag = tagSelect.value;
+            tagSelect.innerHTML = `<option value="">${t('filter.allTags')}</option>` +
+                allTags.map(tag => `<option value="${escapeHtml(tag)}">${escapeHtml(tag)}</option>`).join('');
+            tagSelect.value = currentTag;
+        }
+
+        function showDisableToolModal(name) {
+            showModal(t('modal.disableTool'), `
+                <div class="form-group">
+                    <label class="form-label">${t('modal.toolLabel')}<strong>${escapeHtml(name)}</strong></label>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">${t('label.reasonOptional')}</label>
+                    <input type="text" class="input" id="disable-reason" placeholder="${t('label.enterReason')}">
+                </div>
+            `, async () => {
+                const reason = document.getElementById('disable-reason').value;
+                await disableTool(name, reason);
+            }, () => {
+                // On cancel, revert the toggle visually
+                refreshTools();
+            });
+        }
+
+        async function toggleTool(name, checked) {
+            if (checked) {
+                await enableTool(name);
+            } else {
+                showDisableToolModal(name);
+            }
+        }
+
+        async function toggleNamespace(ns, checked) {
+            if (checked) {
+                await enableNamespace(ns);
+            } else {
+                showDisableNamespaceModal(ns);
+            }
+        }
+
+        async function toggleToolMeta(name, field, value) {
+            try {
+                await api.updateToolMetadata(name, { [field]: value });
+                showToast(t('toast.metaUpdated', {field, name, state: value ? t('meta.enabled') : t('meta.disabled')}), 'success');
+                refreshTools();
+            } catch (e) {
+                showToast(e.message, 'error');
+                refreshTools();
+            }
+        }
+
+        async function toggleNamespaceMeta(ns, field, value) {
+            try {
+                await api.updateNamespaceMetadata(ns, { [field]: value });
+                showToast(t('toast.nsMetaUpdated', {field, name: ns, state: value ? t('meta.enabled') : t('meta.disabled')}), 'success');
+                refreshTools();
+            } catch (e) {
+                showToast(e.message, 'error');
+                refreshTools();
+            }
+        }
+
+        async function enableTool(name) {
+            try {
+                await api.enableTool(name);
+                showToast(t('toast.toolEnabled', {name}), 'success');
+                refreshTools();
+                refreshStats();
+            } catch (e) {
+                showToast(e.message, 'error');
+                refreshTools();
+            }
+        }
+
+        async function disableTool(name, reason) {
+            try {
+                await api.disableTool(name, reason);
+                showToast(t('toast.toolDisabled', {name}), 'success');
+                refreshTools();
+                refreshStats();
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        // ============== Namespaces ==============
+        async function refreshNamespaces() {
+            try {
+                const data = await api.getNamespaces();
+                renderNamespaces(data.namespaces || []);
+            } catch (e) {
+                document.getElementById('namespaces-body').innerHTML =
+                    `<tr><td colspan="5" class="empty-state"><div class="text-error">${e.message}</div></td></tr>`;
+            }
+        }
+
+        function renderNamespaces(namespaces) {
+            const tbody = document.getElementById('namespaces-body');
+
+            if (namespaces.length === 0) {
+                tbody.innerHTML = `
+                    <tr><td colspan="7" class="empty-state">
+                        <div class="empty-state-icon">${t('empty.ns')}</div>
+                        <div class="empty-state-text">${t('empty.nsHint')}</div>
+                    </td></tr>`;
+                return;
+            }
+
+            // Determine source type per namespace from tools data
+            const nsSourceMap = {};
+            allTools.forEach(tool => {
+                const ns = tool.namespace || 'default';
+                if (!nsSourceMap[ns]) nsSourceMap[ns] = new Set();
+                nsSourceMap[ns].add(tool.source || 'native');
+            });
+
+            tbody.innerHTML = namespaces.map(ns => {
+                const sources = nsSourceMap[ns.name] || new Set();
+                const sourceBadges = [...sources].map(s => renderSourceBadge(s)).join(' ');
+                return `
+                <tr>
+                    <td><span style="font-weight: 500;">${escapeHtml(ns.name)}</span></td>
+                    <td>${sourceBadges || '<span class="text-muted" style="font-size: 0.75rem;">&mdash;</span>'}</td>
+                    <td>${ns.tool_count}</td>
+                    <td><span class="text-success">${ns.enabled_count}</span></td>
+                    <td><span class="text-error">${ns.disabled_count}</span></td>
+                    <td>${(ns.tags || []).length > 0 ? renderTagBadges(ns.tags) : '<span class="text-muted" style="font-size: 0.75rem;">&mdash;</span>'}</td>
+                    <td>
+                        ${ns.name === 'default' ? '<span class="text-muted" style="font-size: 0.75rem;">&mdash;</span>' : `<div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                            <button class="btn btn-success btn-sm" style="min-width: 90px; text-align: center;" onclick="enableNamespace('${escapeHtml(ns.name)}')">${t('btn.enableAll')}</button>
+                            <button class="btn btn-danger btn-sm" style="min-width: 90px; text-align: center;" onclick="showDisableNamespaceModal('${escapeHtml(ns.name)}')">${t('btn.disableAll')}</button>
+                        </div>`}
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        function showDisableNamespaceModal(name) {
+            showModal(t('modal.disableNs'), `
+                <div class="form-group">
+                    <label class="form-label">${t('modal.nsLabel')}<strong>${escapeHtml(name)}</strong></label>
+                    <p class="text-muted text-sm mt-2">${t('modal.disableNsHint')}</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">${t('label.reasonOptional')}</label>
+                    <input type="text" class="input" id="disable-ns-reason" placeholder="${t('label.enterReason')}">
+                </div>
+            `, async () => {
+                const reason = document.getElementById('disable-ns-reason').value;
+                await disableNamespace(name, reason);
+            }, () => {
+                refreshTools();
+            });
+        }
+
+        async function enableNamespace(name) {
+            try {
+                await api.enableNamespace(name);
+                showToast(t('toast.nsEnabled', {name}), 'success');
+                refreshNamespaces();
+                refreshTools();
+                refreshStats();
+            } catch (e) {
+                showToast(e.message, 'error');
+                refreshNamespaces();
+                refreshTools();
+            }
+        }
+
+        async function disableNamespace(name, reason) {
+            try {
+                await api.disableNamespace(name, reason);
+                showToast(t('toast.nsDisabled', {name}), 'success');
+                refreshNamespaces();
+                refreshTools();
+                refreshStats();
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        // ============== Stats ==============
+        async function refreshStats() {
+            try {
+                const data = await api.getTools();
+                const tools = data.tools || [];
+                const enabled = tools.filter(t => t.enabled).length;
+                const disabled = tools.filter(t => !t.enabled).length;
+                const namespaces = new Set(tools.map(t => t.namespace).filter(Boolean)).size;
+
+                document.getElementById('stats-grid').innerHTML = `
+                    <div class="stat-card">
+                        <div class="stat-value">${tools.length}</div>
+                        <div class="stat-label">${t('stat.totalTools')}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value text-success">${enabled}</div>
+                        <div class="stat-label">${t('stat.enabled')}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value text-error">${disabled}</div>
+                        <div class="stat-label">${t('stat.disabled')}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${namespaces}</div>
+                        <div class="stat-label">${t('stat.namespaces')}</div>
+                    </div>
+                `;
+            } catch (e) {
+                document.getElementById('stats-grid').innerHTML =
+                    `<div class="stat-card"><div class="stat-label text-error">${e.message}</div></div>`;
+            }
+        }
+
+        // ============== Logs ==============
+        async function refreshLogs() {
+            try {
+                const params = {
+                    limit: document.getElementById('log-limit').value,
+                    tool_name: document.getElementById('log-tool-filter').value || undefined,
+                    status: document.getElementById('log-status-filter').value || undefined
+                };
+                const data = await api.getLogs(params);
+                renderLogs(data.entries || []);
+            } catch (e) {
+                document.getElementById('logs-body').innerHTML =
+                    `<tr><td colspan="5" class="empty-state"><div class="text-error">${e.message}</div></td></tr>`;
+            }
+        }
+
+        async function refreshLogStats() {
+            try {
+                const data = await api.getLogStats();
+                document.getElementById('log-stats-grid').innerHTML = `
+                    <div class="stat-card">
+                        <div class="stat-value">${data.total_entries || 0}</div>
+                        <div class="stat-label">${t('stat.totalEntries')}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value text-success">${data.by_status?.success || 0}</div>
+                        <div class="stat-label">${t('stat.successful')}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value text-error">${data.by_status?.error || 0}</div>
+                        <div class="stat-label">${t('stat.errors')}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" style="color: var(--text-secondary);">${data.by_status?.disabled || 0}</div>
+                        <div class="stat-label">${t('stat.rejected')}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${(data.avg_duration_ms || 0).toFixed(2)}ms</div>
+                        <div class="stat-label">${t('stat.avgDuration')}</div>
+                    </div>
+                `;
+            } catch (e) {
+                document.getElementById('log-stats-grid').innerHTML =
+                    `<div class="stat-card"><div class="stat-label text-muted">${t('stat.loggingNotEnabled')}</div></div>`;
+            }
+        }
+
+        function renderLogs(entries) {
+            const tbody = document.getElementById('logs-body');
+
+            if (entries.length === 0) {
+                tbody.innerHTML = `
+                    <tr><td colspan="5" class="empty-state">
+                        <div class="empty-state-icon">${t('empty.logs')}</div>
+                        <div class="empty-state-text">${t('empty.logsHint')}</div>
+                    </td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = entries.map((entry, idx) => {
+                const statusClass = entry.status === 'success' ? 'badge-success' :
+                                   entry.status === 'error' ? 'badge-error' : 'badge-warning';
+                const statusLabel = entry.status === 'disabled' ? 'rejected' : entry.status;
+                const timestamp = new Date(entry.timestamp).toLocaleString();
+                const duration = entry.duration_ms ? entry.duration_ms.toFixed(2) + 'ms' : '-';
+
+                return `
+                    <tr class="log-row" onclick="toggleLogDetails(${idx})">
+                        <td><span class="expand-icon">${SVG_CHEVRON}</span></td>
+                        <td class="text-sm">${timestamp}</td>
+                        <td><span style="font-weight: 500;">${escapeHtml(entry.tool_name)}</span></td>
+                        <td><span class="badge ${statusClass}">${statusLabel}</span></td>
+                        <td class="text-muted">${duration}</td>
+                    </tr>
+                    <tr>
+                        <td colspan="5" style="padding: 0;">
+                            <div class="log-details" id="log-details-${idx}">
+                                <div class="mb-2"><strong>${t('log.arguments')}</strong></div>
+                                <pre>${escapeHtml(JSON.stringify(entry.args || {}, null, 2))}</pre>
+                                ${entry.result !== undefined ? `
+                                    <div class="mb-2 mt-4"><strong>${t('log.result')}</strong></div>
+                                    <pre>${escapeHtml(JSON.stringify(entry.result, null, 2))}</pre>
+                                ` : ''}
+                                ${entry.error ? `
+                                    <div class="mb-2 mt-4"><strong>${t('log.errorLabel')}</strong></div>
+                                    <pre class="text-error">${escapeHtml(entry.error)}</pre>
+                                ` : ''}
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function toggleLogDetails(idx) {
+            const details = document.getElementById('log-details-' + idx);
+            const row = details.closest('tr').previousElementSibling;
+
+            details.classList.toggle('active');
+            row.classList.toggle('expanded');
+        }
+
+        function confirmClearLogs() {
+            showModal(t('modal.clearLogs'), `
+                <p>${t('confirm.clearLogs')}</p>
+                <p class="text-muted text-sm mt-2">${t('confirm.clearLogsWarn')}</p>
+            `, async () => {
+                try {
+                    await api.clearLogs();
+                    showToast(t('toast.logsCleared'), 'success');
+                    refreshLogs();
+                    refreshLogStats();
+                } catch (e) {
+                    showToast(e.message, 'error');
+                }
+            });
+        }
+
+        // ============== State Management ==============
+        async function exportState() {
+            try {
+                const state = await api.exportState();
+                const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'toolregistry-state-' + new Date().toISOString().slice(0, 10) + '.json';
+                a.click();
+                URL.revokeObjectURL(url);
+                showToast(t('toast.stateExported'), 'success');
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        async function handleImportFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            try {
+                const text = await file.text();
+                const state = JSON.parse(text);
+
+                showModal(t('modal.importState'), `
+                    <p>${t('confirm.importState')}</p>
+                    <p class="text-muted text-sm mt-2">${t('confirm.importOverwrite')}</p>
+                    <div class="mt-4">
+                        <strong>${t('confirm.disabledItems', {count: Object.keys(state.disabled || {}).length})}</strong>
+                    </div>
+                `, async () => {
+                    try {
+                        await api.importState(state);
+                        showToast(t('toast.stateImported'), 'success');
+                        refreshAll();
+                    } catch (e) {
+                        showToast(e.message, 'error');
+                    }
+                });
+            } catch (e) {
+                showToast(t('toast.invalidJson'), 'error');
+            }
+
+            event.target.value = '';
+        }
+
+        // ============== Tool Detail Modal ==============
+        async function showToolDetailModal(toolName) {
+            try {
+                const tool = await api.getTool(toolName);
+                document.getElementById('detail-title').textContent = tool.name;
+
+                const meta = tool.metadata || {};
+                const systemTags = (meta.tags || []);
+                const customTags = (meta.custom_tags || []);
+
+                let html = '';
+
+                const perm = tool.permission;
+                const permHtml = perm
+                    ? `<span class="badge-${perm.result}">${perm.result}</span>${perm.rule_name ? ` <span class="text-muted" style="font-size: 0.75rem;">(${escapeHtml(perm.rule_name)})</span>` : ''}`
+                    : `<span class="text-muted">${t('detail.noPolicy')}</span>`;
+
+                // Basic info
+                html += `<div class="detail-section">
+                    <div class="detail-section-title">${t('detail.basicInfo')}</div>
+                    <div class="metadata-grid">
+                        <div class="meta-item"><span class="meta-label">${t('detail.name')}</span><span class="meta-value">${escapeHtml(tool.name)}</span></div>
+                        <div class="meta-item"><span class="meta-label">${t('detail.namespace')}</span><span class="meta-value">${escapeHtml(tool.namespace || 'default')}</span></div>
+                        <div class="meta-item"><span class="meta-label">${t('detail.methodName')}</span><span class="meta-value">${escapeHtml(tool.method_name || tool.name)}</span></div>
+                        <div class="meta-item"><span class="meta-label">${t('detail.source')}</span><span class="meta-value">${renderSourceBadge(meta.source || 'native')}</span></div>
+                        <div class="meta-item"><span class="meta-label">${t('detail.status')}</span><span class="meta-value">${tool.enabled ? `<span class="text-success">${t('stat.enabled')}</span>` : `<span class="text-error">${t('stat.disabled')}</span>`}</span></div>
+                        <div class="meta-item"><span class="meta-label">${t('detail.permission')}</span><span class="meta-value">${permHtml}</span></div>
+                    </div>
+                    ${meta.source_detail ? `<div class="meta-item mt-2"><span class="meta-label">${t('detail.sourceDetail')}</span><span class="meta-value" style="word-break: break-all;">${escapeHtml(meta.source_detail)}</span></div>` : ''}
+                    ${tool.reason ? `<div class="meta-item mt-2"><span class="meta-label">${t('detail.disableReason')}</span><span class="meta-value text-error">${escapeHtml(tool.reason)}</span></div>` : ''}
+                    ${perm && perm.reason ? `<div class="meta-item mt-2"><span class="meta-label">${t('detail.permReason')}</span><span class="meta-value">${escapeHtml(perm.reason)}</span></div>` : ''}
+                    <div class="mt-2"><span class="meta-label">${t('detail.description')}</span><p style="font-size: 0.8125rem; margin-top: 4px;">${escapeHtml(tool.description || '')}</p></div>
+                </div>`;
+
+                // Metadata
+                html += `<div class="detail-section">
+                    <div class="detail-section-title">${t('detail.metadata')}</div>
+                    <div class="metadata-grid">
+                        <div class="meta-item"><span class="meta-label">${t('detail.locality')}</span><span class="meta-value">${meta.locality || 'any'}</span></div>
+                        <div class="meta-item"><span class="meta-label">${t('detail.async')}</span><span class="meta-value">${meta.is_async ? t('meta.yes') : t('meta.no')}</span></div>
+                        <div class="meta-item"><span class="meta-label">${t('detail.concurrencySafe')}</span><span class="meta-value">${meta.is_concurrency_safe !== false ? t('meta.yes') : t('meta.no')}</span></div>
+                        <div class="meta-item"><span class="meta-label">${t('detail.thinkAugment')}</span><span class="meta-value"><label class="meta-checkbox"><input type="checkbox" ${meta.think_augment ? 'checked' : ''} onchange="toggleToolMeta('${escapeHtml(tool.name)}', 'think_augment', this.checked)"></label></span></div>
+                        <div class="meta-item"><span class="meta-label">${t('detail.timeout')}</span><span class="meta-value">${meta.timeout != null ? meta.timeout + 's' : 'None'}</span></div>
+                        <div class="meta-item"><span class="meta-label">${t('detail.maxResultSize')}</span><span class="meta-value">${meta.max_result_size != null ? meta.max_result_size + ' chars' : 'None'}</span></div>
+                        <div class="meta-item"><span class="meta-label">${t('detail.deferred')}</span><span class="meta-value"><label class="meta-checkbox"><input type="checkbox" ${meta.defer ? 'checked' : ''} onchange="toggleToolMeta('${escapeHtml(tool.name)}', 'defer', this.checked)"></label></span></div>
+                        <div class="meta-item"><span class="meta-label">${t('detail.searchHint')}</span><span class="meta-value">${escapeHtml(meta.search_hint) || '\\u2014'}</span></div>
+                    </div>
+                    ${systemTags.length > 0 ? `<div class="mt-2"><span class="meta-label">${t('detail.tags')}</span><div style="margin-top: 4px;">${renderTagBadges(systemTags)}</div></div>` : ''}
+                    ${customTags.length > 0 ? `<div class="mt-2"><span class="meta-label">${t('detail.customTags')}</span><div style="margin-top: 4px;">${renderTagBadges(customTags)}</div></div>` : ''}
+                    ${meta.extra && Object.keys(meta.extra).length > 0 ? `<div class="mt-2"><span class="meta-label">${t('detail.extra')}</span><pre style="margin-top: 4px; background: var(--bg-primary); padding: 8px; border-radius: var(--radius-sm); font-size: 0.75rem;">${escapeHtml(JSON.stringify(meta.extra, null, 2))}</pre></div>` : ''}
+                </div>`;
+
+                // Schema (collapsible)
+                html += `<div class="detail-section">
+                    <div class="schema-toggle" onclick="this.classList.toggle('expanded'); this.nextElementSibling.classList.toggle('visible');">
+                        <span class="expand-icon">${SVG_CHEVRON}</span>
+                        <span class="detail-section-title" style="margin-bottom: 0;">${t('detail.schema')}</span>
+                    </div>
+                    <div class="schema-content">
+                        <pre style="background: #1B1B18; color: #E8E5E0; padding: 12px; border-radius: var(--radius-sm); font-size: 0.75rem; overflow-x: auto; white-space: pre-wrap; font-family: 'SF Mono', 'Fira Code', monospace;">${escapeHtml(JSON.stringify(tool.schema, null, 2))}</pre>
+                    </div>
+                </div>`;
+
+                document.getElementById('detail-body').innerHTML = html;
+                document.getElementById('detail-overlay').classList.add('active');
+            } catch (e) {
+                showToast(t('toast.detailFailed', {error: e.message}), 'error');
+            }
+        }
+
+        function closeDetailModal(event) {
+            if (event && event.target !== event.currentTarget) return;
+            document.getElementById('detail-overlay').classList.remove('active');
+        }
+
+        // ============== Permissions ==============
+        async function refreshPermissions() {
+            try {
+                const data = await api.getPermissions();
+                renderPermissions(data);
+            } catch (e) {
+                document.getElementById('permissions-body').innerHTML =
+                    `<div class="empty-state"><div class="text-error">${e.message}</div></div>`;
+            }
+        }
+
+        function renderPermissions(data) {
+            const body = document.getElementById('permissions-body');
+
+            if (!data.has_policy) {
+                body.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">${t('empty.permPolicy')}</div>
+                        <div class="empty-state-text">${t('empty.permPolicyHint')}</div>
+                    </div>`;
+                return;
+            }
+
+            let html = '';
+
+            // Status indicators
+            html += `<div class="perm-status-card">
+                <div class="perm-status-item">
+                    <span class="perm-dot perm-dot-active"></span>
+                    <span>${t('perm.policyActive')}</span>
+                </div>
+                <div class="perm-status-item">
+                    <span class="perm-dot ${data.has_handler ? 'perm-dot-active' : 'perm-dot-inactive'}"></span>
+                    <span>${data.has_handler ? t('perm.handlerRegistered') : t('perm.handlerNotSet')}</span>
+                </div>
+                <div class="perm-status-item">
+                    <span>${t('perm.fallback')}</span>
+                    <span class="badge badge-${data.fallback}">${data.fallback}</span>
+                </div>
+            </div>`;
+
+            // Rules table
+            if (data.rules.length > 0) {
+                html += `<div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>${t('col.ruleName')}</th>
+                                <th>${t('col.result')}</th>
+                                <th>${t('col.reason')}</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+
+                data.rules.forEach(rule => {
+                    html += `<tr>
+                        <td><span style="font-weight: 500;">${escapeHtml(rule.name)}</span></td>
+                        <td><span class="badge badge-${rule.result}">${rule.result}</span></td>
+                        <td class="text-muted" style="font-size: 0.8125rem;">${escapeHtml(rule.reason || '—')}</td>
+                    </tr>`;
+                });
+
+                html += `</tbody></table></div>`;
+            } else {
+                html += `<p class="text-muted" style="font-size: 0.8125rem;">${t('perm.noRules')}</p>`;
+            }
+
+            body.innerHTML = html;
+        }
+
+        // ============== Utilities ==============
+        function escapeHtml(str) {
+            if (!str) return '';
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        // ============== Sources ==============
+        async function refreshSources() {
+            try {
+                const data = await api.getSources();
+                renderSources(data.sources || []);
+            } catch (e) {
+                document.getElementById('sources-body').innerHTML =
+                    `<div class="empty-state"><div class="text-error">${e.message}</div></div>`;
+            }
+        }
+
+        function renderSources(sources) {
+            const body = document.getElementById('sources-body');
+
+            if (sources.length === 0) {
+                body.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">${t('empty.sources')}</div>
+                        <div class="empty-state-text">${t('empty.sourcesHint')}</div>
+                    </div>`;
+                return;
+            }
+
+            body.innerHTML = sources.map(src => {
+                const toolChips = src.tools.map(tn =>
+                    `<span class="source-tool-chip">${escapeHtml(tn)}</span>`
+                ).join('');
+                return `
+                <div class="source-card">
+                    <div class="source-card-header">
+                        ${renderSourceBadge(src.type)}
+                        <span style="font-weight: 500;">${escapeHtml(src.namespace)}</span>
+                        <span class="text-muted" style="font-size: 0.75rem; margin-left: auto;">${src.enabled_count}/${src.tool_count} ${t('stat.enabled').toLowerCase()}</span>
+                    </div>
+                    ${src.detail ? `<div class="source-detail">${escapeHtml(src.detail)}</div>` : ''}
+                    <div class="source-tools-list">${toolChips}</div>
+                </div>`;
+            }).join('');
+        }
+
+        // ============== Config ==============
+        async function refreshConfig() {
+            try {
+                const config = await api.getConfig();
+                document.getElementById('config-card').style.display = '';
+                renderConfig(config);
+            } catch (e) {
+                // 404 means no config loaded — hide the card
+                document.getElementById('config-card').style.display = 'none';
+            }
+        }
+
+        function renderConfig(config) {
+            const body = document.getElementById('config-body');
+            const disabledList = (config.disabled || []).map(d =>
+                `<span class="source-tool-chip">${escapeHtml(d)}</span>`
+            ).join('') || `<span class="text-muted" style="font-size: 0.75rem;">${t('misc.none')}</span>`;
+            const enabledList = (config.enabled || []).map(e =>
+                `<span class="source-tool-chip">${escapeHtml(e)}</span>`
+            ).join('') || `<span class="text-muted" style="font-size: 0.75rem;">${t('misc.none')}</span>`;
+
+            body.innerHTML = `
+                <div class="config-section">
+                    <div class="metadata-grid">
+                        <div class="meta-item"><span class="meta-label">${t('config.mode')}</span><span class="meta-value"><strong>${escapeHtml(config.mode)}</strong></span></div>
+                        <div class="meta-item"><span class="meta-label">${t('config.filePath')}</span><span class="meta-value" style="word-break: break-all;">${config.source ? escapeHtml(config.source) : `<span class="text-muted">${t('misc.none')}</span>`}</span></div>
+                    </div>
+                    <div class="meta-item mt-2">
+                        <span class="meta-label">${config.mode === 'denylist' ? t('config.disabled') : t('config.enabled')}</span>
+                        <div style="margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px;">
+                            ${config.mode === 'denylist' ? disabledList : enabledList}
+                        </div>
+                    </div>
+                    ${config.source ? `<div class="mt-2">
+                        <button class="btn btn-primary btn-sm" onclick="saveCurrentStateToConfig()">${t('btn.saveToConfig')}</button>
+                        <span class="text-muted" style="font-size: 0.75rem; margin-left: 8px;">${t('config.saveHint')}</span>
+                    </div>` : ''}
+                </div>`;
+        }
+
+        async function saveCurrentStateToConfig() {
+            try {
+                const state = await api.exportState();
+                const disabled = Object.keys(state.disabled || {});
+                const result = await api.updateConfig({ disabled });
+                if (result.saved) {
+                    showToast(t('toast.configSaved'), 'success');
+                    refreshConfig();
+                } else {
+                    showToast(t('toast.configSavedMemory'), 'success');
+                }
+            } catch (e) {
+                showToast(t('toast.configSaveFailed', {error: e.message}), 'error');
+            }
+        }
+
+        function refreshAll() {
+            const activeTab = document.querySelector('.tab.active').dataset.tab;
+            switchTab(activeTab);
+        }
+
+        async function showVersionInfo() {
+            try {
+                const data = await api.getInfo();
+                let lines = [];
+                for (const [k, v] of Object.entries(data)) {
+                    lines.push(`${k}: ${v}`);
+                }
+                alert(lines.join('\\n') || 'No version info available');
+            } catch (e) {
+                alert('Failed to fetch version info');
+            }
+        }
+
+        // ============== Schema Tab ==============
+        let _schemaLoaded = false;
+
+        async function loadSchema(format) {
+            const pre = document.getElementById('schema-content');
+            const meta = document.getElementById('schema-meta');
+            pre.textContent = t('misc.loading');
+            meta.textContent = '';
+            try {
+                const data = await api.getSchema(format);
+                pre.textContent = JSON.stringify(data.schema, null, 2);
+                meta.textContent = t('schema.stats', {
+                    visible: data.count,
+                    deferred: data.deferred_count ?? 0,
+                    disabled: data.disabled_count ?? 0,
+                }) + ' · ' + data.format;
+                _schemaLoaded = true;
+            } catch (e) {
+                pre.textContent = e.message;
+            }
+        }
+
+        async function copySchema() {
+            const pre = document.getElementById('schema-content');
+            try {
+                await navigator.clipboard.writeText(pre.textContent);
+                showToast(t('toast.copied'), 'success');
+            } catch (e) {
+                showToast(t('toast.copyFailed'), 'error');
+            }
+        }
+
+        // ============== Registry Settings (name_sep) ==============
+        async function refreshRegistrySettings() {
+            try {
+                const info = await api.getInfo();
+                renderRegistrySettings(info);
+            } catch (e) {
+                // ignore — info endpoint may not be available in all versions
+            }
+        }
+
+        function renderRegistrySettings(info) {
+            const card = document.getElementById('registry-settings-card');
+            if (!card) return;
+            const nameSep = info.name_sep || '-';
+            document.getElementById('name-sep-select').value = nameSep;
+            card.style.display = '';
+        }
+
+        async function saveNameSep() {
+            const sep = document.getElementById('name-sep-select').value;
+            try {
+                await api.updateConfig({ name_sep: sep });
+                showToast(t('toast.configSavedMemory'), 'success');
+            } catch (e) {
+                showToast(t('toast.configSaveFailed', { error: e.message }), 'error');
+            }
+        }
+
+        // ============== Initialization ==============
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('langSwitcher').value = currentLang;
+            applyI18n();
+            refreshTools();
+            refreshStats();
+        });
+
+        // Handle keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+                closeDetailModal();
+            }
+        });
+    </script>
+</body>
+</html>
 """
-
-import importlib.resources
-
-
-def _load_html() -> str:
-    """Load admin.html from the package data."""
-    package = __package__ or __name__
-    return importlib.resources.files(package).joinpath("admin.html").read_text("utf-8")
-
-
-ADMIN_HTML = _load_html()

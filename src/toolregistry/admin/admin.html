@@ -1858,7 +1858,7 @@
             'toast.detailFailed':'Failed to load tool details: {error}',
             'tab.schema':'Schema',
             'btn.copy':'Copy',
-            'schema.count':'{count} tools visible to LLMs',
+            'schema.stats':'{visible} visible · {deferred} deferred · {disabled} disabled',
             'schema.desc':'Tool schemas visible to LLMs (deferred tools excluded).',
             'toast.copied':'Copied to clipboard',
             'toast.copyFailed':'Copy failed',
@@ -1958,7 +1958,7 @@
             'toast.detailFailed':'\u52a0\u8f7d\u5de5\u5177\u8be6\u60c5\u5931\u8d25\uff1a{error}',
             'tab.schema':'Schema',
             'btn.copy':'\u590d\u5236',
-            'schema.count':'LLM \u53ef\u89c1 {count} \u4e2a\u5de5\u5177',
+            'schema.stats':'\u53ef\u89c1 {visible} \u00b7 \u5ef6\u8fdf {deferred} \u00b7 \u7981\u7528 {disabled}',
             'schema.desc':'\u5de5\u5177 Schema\uff08\u4e0d\u542b\u5ef6\u8fdf\u5de5\u5177\uff09\u3002',
             'toast.copied':'\u5df2\u590d\u5236\u5230\u526a\u8d34\u677f',
             'toast.copyFailed':'\u590d\u5236\u5931\u8d25',
@@ -3183,7 +3183,11 @@
             try {
                 const data = await api.getSchema(format);
                 pre.textContent = JSON.stringify(data.schema, null, 2);
-                meta.textContent = t('schema.count', { count: data.count }) + ' · ' + data.format;
+                meta.textContent = t('schema.stats', {
+                    visible: data.count,
+                    deferred: data.deferred_count ?? 0,
+                    disabled: data.disabled_count ?? 0,
+                }) + ' · ' + data.format;
                 _schemaLoaded = true;
             } catch (e) {
                 pre.textContent = e.message;
