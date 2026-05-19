@@ -965,6 +965,36 @@
             border-radius: 2px 2px 0 0;
         }
 
+        /* ============== Schema Sub-tabs ============== */
+        .schema-subtab-bar {
+            display: flex;
+            gap: 0;
+            margin-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .schema-subtab {
+            padding: 7px 16px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            font-family: inherit;
+            color: var(--text-secondary);
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .schema-subtab:hover {
+            color: var(--text-primary);
+        }
+
+        .schema-subtab.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+
         /* ============== Responsive ============== */
         @media (max-width: 768px) {
             .header {
@@ -1699,25 +1729,48 @@
 
             <!-- Schema Tab -->
             <div id="tab-schema" class="tab-content" style="display: none;">
-                <div class="card">
-                    <div class="card-header">
-                        <h2 class="card-title" data-i18n="tab.schema">Schema</h2>
-                        <div style="display:flex;gap:8px;align-items:center;">
-                            <select id="schema-format-select" class="btn btn-secondary btn-sm" style="padding:4px 8px;cursor:pointer;" onchange="loadSchema(this.value)">
-                                <option value="openai-chat">openai-chat</option>
-                                <option value="openai-response">openai-response</option>
-                                <option value="anthropic">anthropic</option>
-                                <option value="gemini">gemini</option>
-                                <option value="discover">discover_tools</option>
-                            </select>
-                            <button class="btn btn-secondary btn-sm" onclick="loadSchema(document.getElementById('schema-format-select').value)" data-i18n="btn.refresh">Refresh</button>
-                            <button class="btn btn-secondary btn-sm" onclick="copySchema()" data-i18n="btn.copy">Copy</button>
+                <!-- Schema inner sub-tabs -->
+                <div class="schema-subtab-bar">
+                    <button class="schema-subtab active" data-subtab="global" onclick="switchSchemaSubTab('global')" data-i18n="schema.subGlobal">Schema</button>
+                    <button class="schema-subtab" id="schema-subtab-discover" data-subtab="discover" onclick="switchSchemaSubTab('discover')" data-i18n="schema.subDiscover" style="display:none;">Discover Tools</button>
+                </div>
+                <!-- Global API schema sub-tab -->
+                <div id="schema-sub-global" class="schema-subcontent">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title" data-i18n="tab.schema">Schema</h2>
+                            <div style="display:flex;gap:8px;align-items:center;">
+                                <select id="schema-format-select" class="btn btn-secondary btn-sm" style="padding:4px 8px;cursor:pointer;" onchange="loadSchema(this.value)">
+                                    <option value="openai-chat">openai-chat</option>
+                                    <option value="openai-response">openai-response</option>
+                                    <option value="anthropic">anthropic</option>
+                                    <option value="gemini">gemini</option>
+                                </select>
+                                <button class="btn btn-secondary btn-sm" onclick="loadSchema(document.getElementById('schema-format-select').value)" data-i18n="btn.refresh">Refresh</button>
+                                <button class="btn btn-secondary btn-sm" onclick="copySchemaContent('schema-content')" data-i18n="btn.copy">Copy</button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div id="schema-meta" style="margin-bottom:8px;font-size:0.85rem;color:var(--text-muted);"></div>
+                            <pre id="schema-content" style="background:#1B1B18;color:#E8E5E0;padding:16px;border-radius:var(--radius-sm);font-size:0.75rem;overflow:auto;white-space:pre-wrap;font-family:'SF Mono','Fira Code',monospace;max-height:70vh;"></pre>
                         </div>
                     </div>
-                    <div class="card-body">
-                        <div id="schema-meta" style="margin-bottom:8px;font-size:0.85rem;color:var(--text-muted);"></div>
-                        <div id="schema-warnings"></div>
-                        <pre id="schema-content" style="background:#1B1B18;color:#E8E5E0;padding:16px;border-radius:var(--radius-sm);font-size:0.75rem;overflow:auto;white-space:pre-wrap;font-family:'SF Mono','Fira Code',monospace;max-height:70vh;"></pre>
+                </div>
+                <!-- Discover Tools sub-tab -->
+                <div id="schema-sub-discover" class="schema-subcontent" style="display:none;">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title" data-i18n="schema.subDiscover">Discover Tools</h2>
+                            <div style="display:flex;gap:8px;align-items:center;">
+                                <button class="btn btn-secondary btn-sm" onclick="loadDiscover()" data-i18n="btn.refresh">Refresh</button>
+                                <button class="btn btn-secondary btn-sm" onclick="copySchemaContent('discover-content')" data-i18n="btn.copy">Copy</button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div id="discover-meta" style="margin-bottom:8px;font-size:0.85rem;color:var(--text-muted);"></div>
+                            <div id="discover-warnings"></div>
+                            <pre id="discover-content" style="background:#1B1B18;color:#E8E5E0;padding:16px;border-radius:var(--radius-sm);font-size:0.75rem;overflow:auto;white-space:pre-wrap;font-family:'SF Mono','Fira Code',monospace;max-height:70vh;"></pre>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1879,6 +1932,8 @@
             'toast.detailFailed':'Failed to load tool details: {error}',
             'tab.schema':'Schema',
             'btn.copy':'Copy',
+            'schema.subGlobal':'Schema',
+            'schema.subDiscover':'Discover Tools',
             'schema.stats':'{visible} visible · {deferred} deferred · {disabled} disabled',
             'schema.discoverStats':'{deferred} deferred in discover_tools · {disabled} disabled',
             'schema.desc':'Tool schemas visible to LLMs (deferred tools excluded).',
@@ -1990,6 +2045,8 @@
             'toast.detailFailed':'\u52a0\u8f7d\u5de5\u5177\u8be6\u60c5\u5931\u8d25\uff1a{error}',
             'tab.schema':'Schema',
             'btn.copy':'\u590d\u5236',
+            'schema.subGlobal':'Schema',
+            'schema.subDiscover':'\u53d1\u73b0\u5de5\u5177',
             'schema.stats':'\u53ef\u89c1 {visible} \u00b7 \u5ef6\u8fdf {deferred} \u00b7 \u7981\u7528 {disabled}',
             'schema.discoverStats':'discover_tools \u5185\u5ef6\u8fdf {deferred} \u00b7 \u7981\u7528 {disabled}',
             'schema.desc':'\u5de5\u5177 Schema\uff08\u4e0d\u542b\u5ef6\u8fdf\u5de5\u5177\uff09\u3002',
@@ -2041,7 +2098,7 @@
             else if (activeTab === 'namespaces') { refreshNamespaces(); }
             else if (activeTab === 'logs') { refreshLogs(); refreshLogStats(); }
             else if (activeTab === 'permissions') { refreshPermissions(); }
-            else if (activeTab === 'schema') { loadSchema(document.getElementById('schema-format-select').value); }
+            else if (activeTab === 'schema') { switchSchemaSubTab(_activeSchemaSubTab); }
         }
 
         // ============== API Client ==============
@@ -2279,7 +2336,13 @@
                 refreshConfig();
                 refreshRegistrySettings();
             } else if (tabName === 'schema') {
-                loadSchema(document.getElementById('schema-format-select').value);
+                api.getInfo().then(info => {
+                    const enabled = !!info.discover_enabled;
+                    const discoverBtn = document.getElementById('schema-subtab-discover');
+                    if (discoverBtn) discoverBtn.style.display = enabled ? '' : 'none';
+                    if (!enabled && _activeSchemaSubTab === 'discover') _activeSchemaSubTab = 'global';
+                    switchSchemaSubTab(_activeSchemaSubTab);
+                }).catch(() => switchSchemaSubTab(_activeSchemaSubTab));
             }
         }
 
@@ -3258,51 +3321,78 @@
 
         // ============== Schema Tab ==============
         let _schemaLoaded = false;
+        let _activeSchemaSubTab = 'global';
+
+        function switchSchemaSubTab(subtab) {
+            _activeSchemaSubTab = subtab;
+            document.querySelectorAll('.schema-subtab').forEach(b => {
+                b.classList.toggle('active', b.dataset.subtab === subtab);
+            });
+            document.querySelectorAll('.schema-subcontent').forEach(d => {
+                d.style.display = 'none';
+            });
+            const subEl = document.getElementById('schema-sub-' + subtab);
+            if (subEl) subEl.style.display = '';
+            if (subtab === 'discover') {
+                loadDiscover();
+            } else {
+                loadSchema(document.getElementById('schema-format-select').value);
+            }
+        }
 
         async function loadSchema(format) {
             const pre = document.getElementById('schema-content');
             const meta = document.getElementById('schema-meta');
-            const warnDiv = document.getElementById('schema-warnings');
+            pre.textContent = t('misc.loading');
+            meta.textContent = '';
+            try {
+                const data = await api.getSchema(format);
+                pre.textContent = JSON.stringify(data.schema, null, 2);
+                meta.textContent = t('schema.stats', {
+                    visible: data.count,
+                    deferred: data.deferred_count ?? 0,
+                    disabled: data.disabled_count ?? 0,
+                }) + ' · ' + data.format;
+                _schemaLoaded = true;
+            } catch (e) {
+                pre.textContent = e.message;
+            }
+        }
+
+        async function loadDiscover() {
+            const pre = document.getElementById('discover-content');
+            const meta = document.getElementById('discover-meta');
+            const warnDiv = document.getElementById('discover-warnings');
             pre.textContent = t('misc.loading');
             meta.textContent = '';
             warnDiv.innerHTML = '';
             try {
-                const data = await api.getSchema(format);
-                if (data.format === 'discover') {
-                    pre.textContent = data.text || '(discover_tools not enabled)';
-                    meta.textContent = t('schema.discoverStats', {
-                        deferred: data.deferred_count ?? 0,
-                        disabled: data.disabled_count ?? 0,
-                    });
-                    // Warning banner for long-description tools without search_hint
-                    const warnings = (data.tools || []).filter(t => t.long && !t.has_search_hint);
-                    if (warnings.length > 0) {
-                        const items = warnings.map(w => {
-                            const safeId = 'sh-' + w.name.replace(/[^a-zA-Z0-9]/g, '_');
-                            return `<div style="display:flex;align-items:center;gap:6px;margin:4px 0;flex-wrap:wrap;">
-                                <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(w.description)}">
-                                    <strong>${escapeHtml(w.name)}</strong> <span style="opacity:0.7;">(${w.description.length} chars)</span>
-                                </span>
-                                <input type="text" id="${safeId}" placeholder="${t('schema.hintPlaceholder')}"
-                                    style="flex:1;min-width:160px;padding:2px 6px;font-size:0.8rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-secondary);color:var(--text-primary);"
-                                    onkeydown="if(event.key==='Enter')saveSearchHint('${escapeHtml(w.name)}',document.getElementById('${safeId}'),true)">
-                                <button class="btn btn-secondary btn-sm" onclick="saveSearchHint('${escapeHtml(w.name)}',document.getElementById('${safeId}'),true)">${t('btn.apply')}</button>
-                            </div>`;
-                        }).join('');
-                        warnDiv.innerHTML = `<div style="background:var(--bg-secondary);border:1px solid #f59e0b;border-radius:var(--radius-sm);padding:10px 14px;font-size:0.83rem;margin-bottom:10px;">
-                            <span style="color:#d97706;">&#9888;</span> ${t('schema.warnLong', {count: warnings.length})}
-                            <div style="margin-top:6px;">${items}</div>
+                const data = await api.getSchema('discover');
+                pre.textContent = data.text || '(discover_tools not enabled)';
+                meta.textContent = t('schema.discoverStats', {
+                    deferred: data.deferred_count ?? 0,
+                    disabled: data.disabled_count ?? 0,
+                });
+                // Warning banner for long-description tools without search_hint
+                const warnings = (data.tools || []).filter(w => w.long && !w.has_search_hint);
+                if (warnings.length > 0) {
+                    const items = warnings.map(w => {
+                        const safeId = 'sh-' + w.name.replace(/[^a-zA-Z0-9]/g, '_');
+                        return `<div style="display:flex;align-items:center;gap:6px;margin:4px 0;flex-wrap:wrap;">
+                            <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(w.description)}">
+                                <strong>${escapeHtml(w.name)}</strong> <span style="opacity:0.7;">(${w.description.length} chars)</span>
+                            </span>
+                            <input type="text" id="${safeId}" placeholder="${t('schema.hintPlaceholder')}"
+                                style="flex:1;min-width:160px;padding:2px 6px;font-size:0.8rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-secondary);color:var(--text-primary);"
+                                onkeydown="if(event.key==='Enter')saveSearchHint('${escapeHtml(w.name)}',document.getElementById('${safeId}'),true)">
+                            <button class="btn btn-secondary btn-sm" onclick="saveSearchHint('${escapeHtml(w.name)}',document.getElementById('${safeId}'),true)">${t('btn.apply')}</button>
                         </div>`;
-                    }
-                } else {
-                    pre.textContent = JSON.stringify(data.schema, null, 2);
-                    meta.textContent = t('schema.stats', {
-                        visible: data.count,
-                        deferred: data.deferred_count ?? 0,
-                        disabled: data.disabled_count ?? 0,
-                    }) + ' · ' + data.format;
+                    }).join('');
+                    warnDiv.innerHTML = `<div style="background:var(--bg-secondary);border:1px solid #f59e0b;border-radius:var(--radius-sm);padding:10px 14px;font-size:0.83rem;margin-bottom:10px;">
+                        <span style="color:#d97706;">&#9888;</span> ${t('schema.warnLong', {count: warnings.length})}
+                        <div style="margin-top:6px;">${items}</div>
+                    </div>`;
                 }
-                _schemaLoaded = true;
             } catch (e) {
                 pre.textContent = e.message;
             }
@@ -3314,16 +3404,14 @@
                 const result = await api.updateToolMetadata(name, { search_hint: value });
                 const saved = result && result.saved;
                 showToast(saved ? t('schema.hintSaved', {name}) : t('schema.hintUpdated', {name}), 'success');
-                if (reloadDiscover) {
-                    loadSchema('discover');
-                }
+                if (reloadDiscover) loadDiscover();
             } catch (e) {
                 showToast(e.message, 'error');
             }
         }
 
-        async function copySchema() {
-            const pre = document.getElementById('schema-content');
+        async function copySchemaContent(elementId) {
+            const pre = document.getElementById(elementId);
             try {
                 await navigator.clipboard.writeText(pre.textContent);
                 showToast(t('toast.copied'), 'success');
