@@ -846,6 +846,7 @@ def _get_info(request: Request) -> Response:
     info: dict[str, Any] = {
         "toolregistry": toolregistry.__version__,
         "name_sep": getattr(registry, "_name_sep", "-"),
+        "discover_enabled": "discover_tools" in registry._tools,
     }
     try:
         import toolregistry_server
