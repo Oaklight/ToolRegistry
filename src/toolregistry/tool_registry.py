@@ -25,7 +25,11 @@ from .llm.tool_calls import (
 )
 
 from .events import ChangeCallback, ChangeEvent, ChangeEventType
-from .llm.discovery import TOOL_DISCOVERY_NAME, ToolDiscoveryTool
+from .llm.discovery import (
+    TOOL_DISCOVERY_NAME,
+    ToolDiscoveryTool,
+    _BASE_DISCOVERY_DESCRIPTION,
+)
 
 from ._mixins import (
     AdminMixin,
@@ -255,16 +259,13 @@ class ToolRegistry(
         discovery_tool = Tool.from_function(
             discoverer.discover,
             name=TOOL_DISCOVERY_NAME,
-            description=(
-                "Discover registered tools by exact name or natural "
-                "language query. Use this to inspect a specific tool "
-                "by name (returns full schema) or to search for "
-                "relevant tools when you need a capability not "
-                "visible in your current tool list."
-            ),
+            description=_BASE_DISCOVERY_DESCRIPTION,
             metadata=ToolMetadata(defer=False),
         )
         self.register(discovery_tool)
+        # Sync description now that discover_tools is registered and deferred
+        # tools are known.
+        discoverer._sync_description()
 
         def _on_registry_change(event: ChangeEvent) -> None:
             if event.event_type in {

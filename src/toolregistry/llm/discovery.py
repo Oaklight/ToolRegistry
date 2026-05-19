@@ -33,6 +33,13 @@ _SPLIT_RE = re.compile(r"[_\-]+")
 
 TOOL_DISCOVERY_NAME = "discover_tools"
 
+_BASE_DISCOVERY_DESCRIPTION = (
+    "Discover registered tools by exact name or natural language query. "
+    "Use this to inspect a specific tool by name (returns full schema) or "
+    "to search for relevant tools when you need a capability not visible in "
+    "your current tool list."
+)
+
 
 def _tool_name_to_text(name: str) -> str:
     """Convert a tool name like ``read_file`` to ``read file``."""
@@ -100,6 +107,8 @@ class ToolDiscoveryTool:
 
         Clears the existing index and re-indexes every tool currently
         registered in the associated :class:`~toolregistry.ToolRegistry`.
+        Also updates the ``discover_tools`` description with current
+        deferred tool summaries so LLMs are aware of hidden capabilities.
         """
         # Reset index with same config
         self._index = SparseIndex(field_weights=self._field_weights)
@@ -114,6 +123,34 @@ class ToolDiscoveryTool:
                 "deferred": tool.metadata.defer if tool.metadata else False,
             }
             self._index.add(name, fields, metadata=metadata)
+
+        self._sync_description()
+
+    def _sync_description(self) -> None:
+        """Update the ``discover_tools`` description with deferred tool summaries.
+
+        Injects a bullet list of deferred tool names and their one-line
+        descriptions so LLMs know which capabilities exist but are not
+        shown in full.  No-ops if ``discover_tools`` is not yet registered.
+        """
+        discovery_tool = self._registry._tools.get(TOOL_DISCOVERY_NAME)
+        if discovery_tool is None:
+            return
+
+        summaries = self._registry.get_deferred_summaries()
+        if summaries:
+            lines = [
+                _BASE_DISCOVERY_DESCRIPTION,
+                "",
+                "Tools available on demand (call discover_tools for full schema):",
+            ]
+            for s in summaries:
+                desc = s["description"]
+                suffix = f": {desc}" if desc else ""
+                lines.append(f"- {s['name']}{suffix}")
+            discovery_tool.description = "\n".join(lines)
+        else:
+            discovery_tool.description = _BASE_DISCOVERY_DESCRIPTION
 
     def discover(
         self,
