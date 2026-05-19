@@ -1710,6 +1710,7 @@ ADMIN_HTML: str = """<!DOCTYPE html>
                                 <option value="openai-response">openai-response</option>
                                 <option value="anthropic">anthropic</option>
                                 <option value="gemini">gemini</option>
+                                <option value="discover">discover_tools</option>
                             </select>
                             <button class="btn btn-secondary btn-sm" onclick="loadSchema(document.getElementById('schema-format-select').value)" data-i18n="btn.refresh">Refresh</button>
                             <button class="btn btn-secondary btn-sm" onclick="copySchema()" data-i18n="btn.copy">Copy</button>
@@ -1861,6 +1862,7 @@ ADMIN_HTML: str = """<!DOCTYPE html>
             'tab.schema':'Schema',
             'btn.copy':'Copy',
             'schema.stats':'{visible} visible · {deferred} deferred · {disabled} disabled',
+            'schema.discoverStats':'{deferred} deferred in discover_tools · {disabled} disabled',
             'schema.desc':'Tool schemas visible to LLMs (deferred tools excluded).',
             'toast.copied':'Copied to clipboard',
             'toast.copyFailed':'Copy failed',
@@ -1961,6 +1963,7 @@ ADMIN_HTML: str = """<!DOCTYPE html>
             'tab.schema':'Schema',
             'btn.copy':'\\u590d\\u5236',
             'schema.stats':'\\u53ef\\u89c1 {visible} \\u00b7 \\u5ef6\\u8fdf {deferred} \\u00b7 \\u7981\\u7528 {disabled}',
+            'schema.discoverStats':'discover_tools \\u5185\\u5ef6\\u8fdf {deferred} \\u00b7 \\u7981\\u7528 {disabled}',
             'schema.desc':'\\u5de5\\u5177 Schema\\uff08\\u4e0d\\u542b\\u5ef6\\u8fdf\\u5de5\\u5177\\uff09\\u3002',
             'toast.copied':'\\u5df2\\u590d\\u5236\\u5230\\u526a\\u8d34\\u677f',
             'toast.copyFailed':'\\u590d\\u5236\\u5931\\u8d25',
@@ -3184,12 +3187,20 @@ ADMIN_HTML: str = """<!DOCTYPE html>
             meta.textContent = '';
             try {
                 const data = await api.getSchema(format);
-                pre.textContent = JSON.stringify(data.schema, null, 2);
-                meta.textContent = t('schema.stats', {
-                    visible: data.count,
-                    deferred: data.deferred_count ?? 0,
-                    disabled: data.disabled_count ?? 0,
-                }) + ' · ' + data.format;
+                if (data.format === 'discover') {
+                    pre.textContent = data.text || '(discover_tools not enabled)';
+                    meta.textContent = t('schema.discoverStats', {
+                        deferred: data.deferred_count ?? 0,
+                        disabled: data.disabled_count ?? 0,
+                    });
+                } else {
+                    pre.textContent = JSON.stringify(data.schema, null, 2);
+                    meta.textContent = t('schema.stats', {
+                        visible: data.count,
+                        deferred: data.deferred_count ?? 0,
+                        disabled: data.disabled_count ?? 0,
+                    }) + ' · ' + data.format;
+                }
                 _schemaLoaded = true;
             } catch (e) {
                 pre.textContent = e.message;

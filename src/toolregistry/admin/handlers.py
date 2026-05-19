@@ -832,29 +832,15 @@ def _get_info(request: Request) -> Response:
 # ============== Aggregate Schema ==============
 
 
-def _get_schema(request: Request) -> Response:
-    """Return the aggregate tool schema for all enabled, non-deferred tools.
+def _schema_counts(registry: "ToolRegistry") -> tuple[int, int]:
+    """Return (deferred_count, disabled_count) for the registry.
 
-    Query parameters:
-        format: API format for the schema. One of ``openai-chat``
-            (default), ``openai-response``, ``anthropic``, ``gemini``.
+    Args:
+        registry: The tool registry to inspect.
 
     Returns:
-        JSON with ``format``, ``count``, and ``schema`` (list of tool defs).
+        A tuple of (deferred_count, disabled_count).
     """
-    registry = _app(request).registry
-    from ..llm.tool_calls import API_FORMATS
-
-    fmt_str = request.query_params.get("format", ["openai-chat"])[0]
-    valid = {"openai-chat", "openai-response", "anthropic", "gemini"}
-    if fmt_str not in valid:
-        return _error_response(
-            400,
-            "Bad Request",
-            f"Invalid format '{fmt_str}'. Must be one of: {', '.join(sorted(valid))}",
-        )
-    fmt = cast(API_FORMATS, fmt_str)
-    schemas = registry.get_schemas(api_format=fmt, include_deferred=False)
     deferred_count = sum(
         1
         for name, tool in registry._tools.items()
@@ -862,6 +848,54 @@ def _get_schema(request: Request) -> Response:
         and getattr(getattr(tool, "metadata", None), "defer", False)
     )
     disabled_count = sum(1 for name in registry._tools if not registry.is_enabled(name))
+    return deferred_count, disabled_count
+
+
+def _get_schema(request: Request) -> Response:
+    """Return the aggregate tool schema or the discover_tools description.
+
+    Query parameters:
+        format: One of ``openai-chat`` (default), ``openai-response``,
+            ``anthropic``, ``gemini``, or ``discover``.  When ``discover``
+            is specified, the raw ``discover_tools`` description text is
+            returned instead of a schema list.
+
+    Returns:
+        JSON with ``format``, ``count``, ``deferred_count``,
+        ``disabled_count``, and either ``schema`` (list) or ``text`` (str).
+    """
+    registry = _app(request).registry
+    fmt_str = request.query_params.get("format", ["openai-chat"])[0]
+
+    # --- discover_tools description view ---
+    if fmt_str == "discover":
+        discovery_tool = registry._tools.get("discover_tools")
+        if discovery_tool is None:
+            return _error_response(404, "Not Found", "Tool discovery is not enabled")
+        deferred_count, disabled_count = _schema_counts(registry)
+        return _json_response(
+            {
+                "format": "discover",
+                "count": deferred_count,
+                "deferred_count": deferred_count,
+                "disabled_count": disabled_count,
+                "text": discovery_tool.description or "",
+            }
+        )
+
+    # --- LLM schema formats ---
+    from ..llm.tool_calls import API_FORMATS
+
+    valid = {"openai-chat", "openai-response", "anthropic", "gemini"}
+    if fmt_str not in valid:
+        return _error_response(
+            400,
+            "Bad Request",
+            f"Invalid format '{fmt_str}'. Must be one of: {', '.join(sorted(valid | {'discover'}))}",
+        )
+    fmt = cast(API_FORMATS, fmt_str)
+    schemas = registry.get_schemas(api_format=fmt, include_deferred=False)
+    deferred_count, disabled_count = _schema_counts(registry)
     return _json_response(
         {
             "format": fmt_str,
