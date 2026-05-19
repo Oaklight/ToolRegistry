@@ -958,7 +958,14 @@ class ToolRegistry(
         return [
             {
                 "name": t.name,
-                "description": _first_sentence(t.description or ""),
+                # Prefer search_hint as bullet description if set; it is
+                # intentionally curated to be short.  Fall back to the
+                # first sentence of the full description.
+                "description": (
+                    t.metadata.search_hint
+                    if t.metadata and t.metadata.search_hint
+                    else _first_sentence(t.description or "")
+                ),
                 "namespace": t.namespace,
             }
             for t in self._tools.values()
