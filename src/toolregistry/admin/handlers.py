@@ -855,7 +855,22 @@ def _get_schema(request: Request) -> Response:
         )
     fmt = cast(API_FORMATS, fmt_str)
     schemas = registry.get_schemas(api_format=fmt, include_deferred=False)
-    return _json_response({"format": fmt_str, "count": len(schemas), "schema": schemas})
+    deferred_count = sum(
+        1
+        for name, tool in registry._tools.items()
+        if registry.is_enabled(name)
+        and getattr(getattr(tool, "metadata", None), "defer", False)
+    )
+    disabled_count = sum(1 for name in registry._tools if not registry.is_enabled(name))
+    return _json_response(
+        {
+            "format": fmt_str,
+            "count": len(schemas),
+            "deferred_count": deferred_count,
+            "disabled_count": disabled_count,
+            "schema": schemas,
+        }
+    )
 
 
 # ============== Route Setup ==============
