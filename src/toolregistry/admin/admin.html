@@ -1430,6 +1430,7 @@
                 <button class="tab" data-tab="logs" onclick="switchTab('logs')" data-i18n="tab.logs">Logs</button>
                 <button class="tab" data-tab="state" onclick="switchTab('state')" data-i18n="tab.state">State</button>
                 <button class="tab" data-tab="permissions" onclick="switchTab('permissions')" data-i18n="tab.permissions">Permissions</button>
+                <button class="tab" data-tab="schema" onclick="switchTab('schema')" data-i18n="tab.schema">Schema</button>
             </div>
 
             <!-- Tools Tab -->
@@ -1659,6 +1660,27 @@
                             <div class="loading"><div class="spinner"></div><span data-i18n="misc.loading">Loading...</span></div>
                         </div>
                     </div>
+
+                    <div class="card" id="registry-settings-card" style="display: none;">
+                        <div class="card-header">
+                            <h2 class="card-title" data-i18n="config.nameSep">Name Separator</h2>
+                        </div>
+                        <div class="card-body">
+                            <div class="metadata-grid">
+                                <div class="meta-item">
+                                    <span class="meta-label" data-i18n="config.nameSep">Name Separator</span>
+                                    <div style="display:flex;gap:8px;align-items:center;margin-top:4px;">
+                                        <select id="name-sep-select" class="btn btn-secondary btn-sm" style="padding:4px 8px;cursor:pointer;">
+                                            <option value="-">- (hyphen)</option>
+                                            <option value=".">. (dot)</option>
+                                        </select>
+                                        <button class="btn btn-primary btn-sm" onclick="saveNameSep()" data-i18n="btn.apply">Apply</button>
+                                    </div>
+                                    <p class="text-muted mt-2" style="font-size:0.75rem;" data-i18n="config.nameSepHint">Separator between namespace and method name (applies to future registrations only).</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1671,6 +1693,29 @@
                     </div>
                     <div class="card-body" id="permissions-body">
                         <div class="loading"><div class="spinner"></div><span data-i18n="misc.loading">Loading...</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Schema Tab -->
+            <div id="tab-schema" class="tab-content" style="display: none;">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title" data-i18n="tab.schema">Schema</h2>
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <select id="schema-format-select" class="btn btn-secondary btn-sm" style="padding:4px 8px;cursor:pointer;" onchange="loadSchema(this.value)">
+                                <option value="openai-chat">openai-chat</option>
+                                <option value="openai-response">openai-response</option>
+                                <option value="anthropic">anthropic</option>
+                                <option value="gemini">gemini</option>
+                            </select>
+                            <button class="btn btn-secondary btn-sm" onclick="loadSchema(document.getElementById('schema-format-select').value)" data-i18n="btn.refresh">Refresh</button>
+                            <button class="btn btn-secondary btn-sm" onclick="copySchema()" data-i18n="btn.copy">Copy</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="schema-meta" style="margin-bottom:8px;font-size:0.85rem;color:var(--text-muted);"></div>
+                        <pre id="schema-content" style="background:#1B1B18;color:#E8E5E0;padding:16px;border-radius:var(--radius-sm);font-size:0.75rem;overflow:auto;white-space:pre-wrap;font-family:'SF Mono','Fira Code',monospace;max-height:70vh;"></pre>
                     </div>
                 </div>
             </div>
@@ -1811,6 +1856,14 @@
             'toast.configSaved':'Config saved to file', 'toast.configSavedMemory':'Config updated (in memory only)',
             'toast.configSaveFailed':'Failed to save config: {error}',
             'toast.detailFailed':'Failed to load tool details: {error}',
+            'tab.schema':'Schema',
+            'btn.copy':'Copy',
+            'schema.count':'{count} tools visible to LLMs',
+            'schema.desc':'Tool schemas visible to LLMs (deferred tools excluded).',
+            'toast.copied':'Copied to clipboard',
+            'toast.copyFailed':'Copy failed',
+            'config.nameSep':'Name Separator',
+            'config.nameSepHint':'Separator between namespace and method name (applies to future registrations only).',
           },
           zh: {
             'app.title':'ToolRegistry \u7ba1\u7406\u9762\u677f',
@@ -1903,6 +1956,14 @@
             'toast.configSaved':'\u914d\u7f6e\u5df2\u4fdd\u5b58\u5230\u6587\u4ef6', 'toast.configSavedMemory':'\u914d\u7f6e\u5df2\u66f4\u65b0\uff08\u4ec5\u5185\u5b58\uff09',
             'toast.configSaveFailed':'\u4fdd\u5b58\u914d\u7f6e\u5931\u8d25\uff1a{error}',
             'toast.detailFailed':'\u52a0\u8f7d\u5de5\u5177\u8be6\u60c5\u5931\u8d25\uff1a{error}',
+            'tab.schema':'Schema',
+            'btn.copy':'\u590d\u5236',
+            'schema.count':'LLM \u53ef\u89c1 {count} \u4e2a\u5de5\u5177',
+            'schema.desc':'\u5de5\u5177 Schema\uff08\u4e0d\u542b\u5ef6\u8fdf\u5de5\u5177\uff09\u3002',
+            'toast.copied':'\u5df2\u590d\u5236\u5230\u526a\u8d34\u677f',
+            'toast.copyFailed':'\u590d\u5236\u5931\u8d25',
+            'config.nameSep':'\u540d\u79f0\u5206\u9694\u7b26',
+            'config.nameSepHint':'\u547d\u540d\u7a7a\u95f4\u4e0e\u65b9\u6cd5\u540d\u4e4b\u95f4\u7684\u5206\u9694\u7b26\uff08\u4ec5\u5f71\u54cd\u65b0\u6ce8\u518c\u5de5\u5177\uff09\u3002',
           },
         };
 
@@ -1942,6 +2003,7 @@
             else if (activeTab === 'namespaces') { refreshNamespaces(); }
             else if (activeTab === 'logs') { refreshLogs(); refreshLogStats(); }
             else if (activeTab === 'permissions') { refreshPermissions(); }
+            else if (activeTab === 'schema') { loadSchema(document.getElementById('schema-format-select').value); }
         }
 
         // ============== API Client ==============
@@ -2081,6 +2143,14 @@
                     body: JSON.stringify(data)
                 });
             }
+
+            async getInfo() {
+                return this.request('/api/info');
+            }
+
+            async getSchema(format = 'openai-chat') {
+                return this.request('/api/schema?format=' + encodeURIComponent(format));
+            }
         }
 
         const api = new AdminAPI(API_BASE, AUTH_TOKEN);
@@ -2169,6 +2239,9 @@
                 refreshPermissions();
             } else if (tabName === 'state') {
                 refreshConfig();
+                refreshRegistrySettings();
+            } else if (tabName === 'schema') {
+                loadSchema(document.getElementById('schema-format-select').value);
             }
         }
 
@@ -3088,15 +3161,70 @@
 
         async function showVersionInfo() {
             try {
-                const res = await apiFetch('/api/info');
-                const data = await res.json();
+                const data = await api.getInfo();
                 let lines = [];
-                for (const [pkg, ver] of Object.entries(data)) {
-                    lines.push(`${pkg}: ${ver}`);
+                for (const [k, v] of Object.entries(data)) {
+                    lines.push(`${k}: ${v}`);
                 }
                 alert(lines.join('\n') || 'No version info available');
             } catch (e) {
                 alert('Failed to fetch version info');
+            }
+        }
+
+        // ============== Schema Tab ==============
+        let _schemaLoaded = false;
+
+        async function loadSchema(format) {
+            const pre = document.getElementById('schema-content');
+            const meta = document.getElementById('schema-meta');
+            pre.textContent = t('misc.loading');
+            meta.textContent = '';
+            try {
+                const data = await api.getSchema(format);
+                pre.textContent = JSON.stringify(data.schema, null, 2);
+                meta.textContent = t('schema.count', { count: data.count }) + ' · ' + data.format;
+                _schemaLoaded = true;
+            } catch (e) {
+                pre.textContent = e.message;
+            }
+        }
+
+        async function copySchema() {
+            const pre = document.getElementById('schema-content');
+            try {
+                await navigator.clipboard.writeText(pre.textContent);
+                showToast(t('toast.copied'), 'success');
+            } catch (e) {
+                showToast(t('toast.copyFailed'), 'error');
+            }
+        }
+
+        // ============== Registry Settings (name_sep) ==============
+        async function refreshRegistrySettings() {
+            try {
+                const info = await api.getInfo();
+                renderRegistrySettings(info);
+            } catch (e) {
+                // ignore — info endpoint may not be available in all versions
+            }
+        }
+
+        function renderRegistrySettings(info) {
+            const card = document.getElementById('registry-settings-card');
+            if (!card) return;
+            const nameSep = info.name_sep || '-';
+            document.getElementById('name-sep-select').value = nameSep;
+            card.style.display = '';
+        }
+
+        async function saveNameSep() {
+            const sep = document.getElementById('name-sep-select').value;
+            try {
+                await api.updateConfig({ name_sep: sep });
+                showToast(t('toast.configSavedMemory'), 'success');
+            } catch (e) {
+                showToast(t('toast.configSaveFailed', { error: e.message }), 'error');
             }
         }
 

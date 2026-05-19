@@ -237,7 +237,11 @@ class TestToolRegistry:
     def test_execute_tool_calls_with_openai_format(self, populated_registry):
         """Test executing tool calls with OpenAI format."""
         tool_calls = [
-            {"id": "call_1", "type": "function", "function": {"name": "add_numbers", "arguments": '{"a": 5, "b": 3}'}}
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {"name": "add_numbers", "arguments": '{"a": 5, "b": 3}'},
+            }
         ]
 
         results = populated_registry.execute_tool_calls(tool_calls)
@@ -249,7 +253,12 @@ class TestToolRegistry:
     def test_execute_tool_calls_with_response_format(self, populated_registry):
         """Test executing tool calls with Response format."""
         tool_calls = [
-            {"type": "function_call", "call_id": "call_2", "name": "multiply_numbers", "arguments": '{"x": 2.5, "y": 4.0}'}
+            {
+                "type": "function_call",
+                "call_id": "call_2",
+                "name": "multiply_numbers",
+                "arguments": '{"x": 2.5, "y": 4.0}',
+            }
         ]
 
         results = populated_registry.execute_tool_calls(tool_calls)
@@ -261,7 +270,11 @@ class TestToolRegistry:
     def test_execute_tool_calls_with_execution_mode_override(self, populated_registry):
         """Test executing tool calls with execution mode override."""
         tool_calls = [
-            {"id": "call_3", "type": "function", "function": {"name": "add_numbers", "arguments": '{"a": 10, "b": 20}'}}
+            {
+                "id": "call_3",
+                "type": "function",
+                "function": {"name": "add_numbers", "arguments": '{"a": 10, "b": 20}'},
+            }
         ]
 
         results = populated_registry.execute_tool_calls(
@@ -275,7 +288,11 @@ class TestToolRegistry:
     def test_build_tool_call_messages(self, populated_registry):
         """Test recovering assistant message from tool calls."""
         tool_calls = [
-            {"id": "call_1", "type": "function", "function": {"name": "add_numbers", "arguments": '{"a": 5, "b": 3}'}}
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {"name": "add_numbers", "arguments": '{"a": 5, "b": 3}'},
+            }
         ]
 
         tool_responses = {"call_1": "8"}
@@ -543,7 +560,11 @@ class TestToolRegistryResultTruncation:
         )
 
         tool_calls = [
-            {"id": "call_big", "type": "function", "function": {"name": "big_output", "arguments": '{"n": 500}'}}
+            {
+                "id": "call_big",
+                "type": "function",
+                "function": {"name": "big_output", "arguments": '{"n": 500}'},
+            }
         ]
         results = registry.execute_tool_calls(tool_calls)
 
@@ -568,7 +589,11 @@ class TestToolRegistryResultTruncation:
         )
 
         tool_calls = [
-            {"id": "call_small", "type": "function", "function": {"name": "small_output", "arguments": "{}"}}
+            {
+                "id": "call_small",
+                "type": "function",
+                "function": {"name": "small_output", "arguments": "{}"},
+            }
         ]
         results = registry.execute_tool_calls(tool_calls)
 
@@ -585,7 +610,11 @@ class TestToolRegistryResultTruncation:
         registry.register(verbose_output)
 
         tool_calls = [
-            {"id": "call_verbose", "type": "function", "function": {"name": "verbose_output", "arguments": "{}"}}
+            {
+                "id": "call_verbose",
+                "type": "function",
+                "function": {"name": "verbose_output", "arguments": "{}"},
+            }
         ]
         results = registry.execute_tool_calls(tool_calls)
 
@@ -604,7 +633,11 @@ class TestToolRegistryResultTruncation:
         )
 
         tool_calls = [
-            {"id": "call_override", "type": "function", "function": {"name": "output", "arguments": "{}"}}
+            {
+                "id": "call_override",
+                "type": "function",
+                "function": {"name": "output", "arguments": "{}"},
+            }
         ]
         results = registry.execute_tool_calls(tool_calls)
 
@@ -748,7 +781,11 @@ class TestStructuredErrorHandling:
 
     def _make_failing_tool_call(self, call_id="call_fail"):
         """Create a tool call that targets a tool that raises."""
-        return {"id": call_id, "type": "function", "function": {"name": "fail_tool", "arguments": "{}"}}
+        return {
+            "id": call_id,
+            "type": "function",
+            "function": {"name": "fail_tool", "arguments": "{}"},
+        }
 
     def test_execute_tool_calls_logs_structured_error(self):
         """Test that execution errors log exception_type and traceback."""
@@ -814,7 +851,11 @@ class TestStructuredErrorHandling:
         events_received = []
         registry.on_change(lambda e: events_received.append(e))
 
-        tool_call = {"id": "call_ok", "type": "function", "function": {"name": "ok_tool", "arguments": "{}"}}
+        tool_call = {
+            "id": "call_ok",
+            "type": "function",
+            "function": {"name": "ok_tool", "arguments": "{}"},
+        }
         results = registry.execute_tool_calls([tool_call])
 
         assert results["call_ok"] == "ok"

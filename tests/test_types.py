@@ -49,7 +49,9 @@ class TestToolCall:
 
     def test_tool_call_creation(self):
         """Test creating a ToolCall instance directly."""
-        tc = ToolCall(id="call_123", name="test_function", arguments='{"param": "value"}')
+        tc = ToolCall(
+            id="call_123", name="test_function", arguments='{"param": "value"}'
+        )
 
         assert tc.id == "call_123"
         assert tc.name == "test_function"
@@ -131,8 +133,16 @@ class TestConvertToolCalls:
 
     def test_convert_openai_chat_format(self):
         tool_calls = [
-            {"id": "call_1", "type": "function", "function": {"name": "func1", "arguments": '{"a": 1}'}},
-            {"id": "call_2", "type": "function", "function": {"name": "func2", "arguments": '{"b": 2}'}},
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {"name": "func1", "arguments": '{"a": 1}'},
+            },
+            {
+                "id": "call_2",
+                "type": "function",
+                "function": {"name": "func2", "arguments": '{"b": 2}'},
+            },
         ]
 
         converted = convert_tool_calls(tool_calls)
@@ -144,7 +154,12 @@ class TestConvertToolCalls:
 
     def test_convert_openai_response_format(self):
         tool_calls = [
-            {"type": "function_call", "call_id": "call_3", "name": "func3", "arguments": '{"c": 3}'},
+            {
+                "type": "function_call",
+                "call_id": "call_3",
+                "name": "func3",
+                "arguments": '{"c": 3}',
+            },
         ]
 
         converted = convert_tool_calls(tool_calls)
@@ -165,7 +180,9 @@ class TestBuildAssistantMessage:
     """Test cases for the build_assistant_message function."""
 
     def test_openai_chat_format(self):
-        tool_calls = [ToolCall(id="call_1", name="test_function", arguments='{"param": "value"}')]
+        tool_calls = [
+            ToolCall(id="call_1", name="test_function", arguments='{"param": "value"}')
+        ]
 
         messages = build_assistant_message(tool_calls, api_format="openai-chat")
 
@@ -175,7 +192,9 @@ class TestBuildAssistantMessage:
         assert messages[0]["tool_calls"][0]["id"] == "call_1"
 
     def test_openai_response_format(self):
-        tool_calls = [ToolCall(id="call_1", name="test_function", arguments='{"param": "value"}')]
+        tool_calls = [
+            ToolCall(id="call_1", name="test_function", arguments='{"param": "value"}')
+        ]
 
         messages = build_assistant_message(tool_calls, api_format="openai-response")
 
@@ -185,7 +204,9 @@ class TestBuildAssistantMessage:
         assert messages[0]["type"] == "function_call"
 
     def test_anthropic_format(self):
-        tool_calls = [ToolCall(id="call_1", name="test_function", arguments='{"param": "value"}')]
+        tool_calls = [
+            ToolCall(id="call_1", name="test_function", arguments='{"param": "value"}')
+        ]
 
         messages = build_assistant_message(tool_calls, api_format="anthropic")
 
@@ -195,7 +216,9 @@ class TestBuildAssistantMessage:
         assert messages[0]["content"][0]["name"] == "test_function"
 
     def test_gemini_format(self):
-        tool_calls = [ToolCall(id="call_1", name="test_function", arguments='{"param": "value"}')]
+        tool_calls = [
+            ToolCall(id="call_1", name="test_function", arguments='{"param": "value"}')
+        ]
 
         messages = build_assistant_message(tool_calls, api_format="gemini")
 
@@ -252,7 +275,9 @@ class TestBuildToolResponse:
         assert messages[0]["content"] == "Result"
 
     def test_openai_response_format(self):
-        messages = build_tool_response({"call_1": "Result"}, api_format="openai-response")
+        messages = build_tool_response(
+            {"call_1": "Result"}, api_format="openai-response"
+        )
 
         assert len(messages) == 1
         assert messages[0]["type"] == "function_call_output"

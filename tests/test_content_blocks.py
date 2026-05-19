@@ -334,7 +334,11 @@ class TestExecuteToolCallsMultimodal:
         registry.register(image_tool)
 
         tool_calls = [
-            {"id": "call_1", "type": "function", "function": {"name": "image_tool", "arguments": '{"path": "test.png"}'}}
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {"name": "image_tool", "arguments": '{"path": "test.png"}'},
+            }
         ]
 
         results = registry.execute_tool_calls(tool_calls, execution_mode="thread")
@@ -352,7 +356,11 @@ class TestExecuteToolCallsMultimodal:
         registry.register(text_tool)
 
         tool_calls = [
-            {"id": "call_2", "type": "function", "function": {"name": "text_tool", "arguments": '{"x": 42}'}}
+            {
+                "id": "call_2",
+                "type": "function",
+                "function": {"name": "text_tool", "arguments": '{"x": 42}'},
+            }
         ]
 
         results = registry.execute_tool_calls(tool_calls, execution_mode="thread")
@@ -437,7 +445,11 @@ class TestBuildToolCallMessagesMultimodal:
         registry.register(image_tool)
 
         tool_calls = [
-            {"id": "call_1", "type": "function", "function": {"name": "image_tool", "arguments": '{"path": "test.png"}'}}
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {"name": "image_tool", "arguments": '{"path": "test.png"}'},
+            }
         ]
         responses = registry.execute_tool_calls(tool_calls, execution_mode="thread")
         return registry, tool_calls, responses
@@ -508,7 +520,11 @@ class TestBuildToolCallMessagesMultimodal:
         registry.register(text_tool)
 
         tool_calls = [
-            {"id": "call_1", "type": "function", "function": {"name": "text_tool", "arguments": '{"x": 42}'}}
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {"name": "text_tool", "arguments": '{"x": 42}'},
+            }
         ]
         responses = registry.execute_tool_calls(tool_calls, execution_mode="thread")
         messages = registry.build_tool_call_messages(

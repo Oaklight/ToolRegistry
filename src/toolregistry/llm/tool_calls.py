@@ -46,6 +46,7 @@ def _normalize_api_format(api_format: API_FORMATS) -> API_FORMATS:
 
 # ── Rosetta tool ops accessors ─────────────────────────────────────
 
+
 def _get_tool_ops(api_format: API_FORMATS) -> Any:
     """Return the rosetta ToolOps class for the given format.
 
@@ -60,15 +61,19 @@ def _get_tool_ops(api_format: API_FORMATS) -> Any:
     """
     if api_format == "openai-chat":
         from llm_rosetta.converters.openai_chat import OpenAIChatToolOps
+
         return OpenAIChatToolOps
     elif api_format == "openai-response":
         from llm_rosetta.converters.openai_responses import OpenAIResponsesToolOps
+
         return OpenAIResponsesToolOps
     elif api_format == "anthropic":
         from llm_rosetta.converters.anthropic import AnthropicToolOps
+
         return AnthropicToolOps
     elif api_format == "gemini":
         from llm_rosetta.converters.google_genai import GoogleGenAIToolOps
+
         return GoogleGenAIToolOps
     raise ValueError(f"Unsupported API format: {api_format}")
 
@@ -177,7 +182,9 @@ def _ir_to_toolcall(ir: dict[str, Any]) -> ToolCall:
     return ToolCall(
         id=ir["tool_call_id"],
         name=ir["tool_name"],
-        arguments=json.dumps(tool_input) if isinstance(tool_input, dict) else str(tool_input),
+        arguments=json.dumps(tool_input)
+        if isinstance(tool_input, dict)
+        else str(tool_input),
         type=tc_type,
     )
 
@@ -280,7 +287,9 @@ def build_tool_response(
             "type": "tool_result",
             # Gemini requires function name instead of call ID;
             # rosetta's ir_tool_result_to_p uses tool_call_id as the name field
-            "tool_call_id": name_map.get(call_id, call_id) if api_format == "gemini" else call_id,
+            "tool_call_id": name_map.get(call_id, call_id)
+            if api_format == "gemini"
+            else call_id,
             "result": _to_text(result),
         }
         ir_results.append(ir)

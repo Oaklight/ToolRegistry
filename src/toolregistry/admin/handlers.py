@@ -744,9 +744,6 @@ def _update_config(request: Request) -> Response:
     from ..config import save_config
 
     app = _app(request)
-    config = app.config
-    if config is None:
-        return _error_response(404, "Not Found", "No tool configuration is loaded")
 
     if not request.body:
         return _error_response(400, "Bad Request", "Request body is required")
@@ -759,6 +756,14 @@ def _update_config(request: Request) -> Response:
     if not isinstance(data, dict):
         return _error_response(400, "Bad Request", "Body must be a JSON object")
 
+    # name_sep — applies to the registry directly (not to the config file)
+    # Allow this even when no config file is loaded.
+    if "name_sep" in data:
+        sep = data["name_sep"]
+        if sep not in ("-", "."):
+            return _error_response(400, "Bad Request", "name_sep must be '-' or '.'")
+        app.registry._name_sep = sep
+
     updates: dict[str, Any] = {}
     for field in ("mode", "disabled", "enabled"):
         err = _validate_config_field(data, field, updates)
@@ -766,11 +771,18 @@ def _update_config(request: Request) -> Response:
             return err
 
     if not updates:
-        return _error_response(
-            400,
-            "Bad Request",
-            "No valid fields to update. Supported: mode, disabled, enabled.",
-        )
+        if "name_sep" not in data:
+            return _error_response(
+                400,
+                "Bad Request",
+                "No valid fields to update. Supported: mode, disabled, enabled, name_sep.",
+            )
+        # name_sep-only update: return current info
+        return _json_response({"name_sep": data["name_sep"], "saved": False})
+
+    config = app.config
+    if config is None:
+        return _error_response(404, "Not Found", "No tool configuration is loaded")
 
     new_config = replace(config, **updates)
 
@@ -803,7 +815,11 @@ def _get_info(request: Request) -> Response:
     """Return version information for toolregistry and optional dependencies."""
     import toolregistry
 
-    info: dict[str, str] = {"toolregistry": toolregistry.__version__}
+    registry = _app(request).registry
+    info: dict[str, Any] = {
+        "toolregistry": toolregistry.__version__,
+        "name_sep": getattr(registry, "_name_sep", "-"),
+    }
     try:
         import toolregistry_server
 
@@ -811,6 +827,35 @@ def _get_info(request: Request) -> Response:
     except ImportError:
         pass
     return _json_response(info)
+
+
+# ============== Aggregate Schema ==============
+
+
+def _get_schema(request: Request) -> Response:
+    """Return the aggregate tool schema for all enabled, non-deferred tools.
+
+    Query parameters:
+        format: API format for the schema. One of ``openai-chat``
+            (default), ``openai-response``, ``anthropic``, ``gemini``.
+
+    Returns:
+        JSON with ``format``, ``count``, and ``schema`` (list of tool defs).
+    """
+    registry = _app(request).registry
+    from ..llm.tool_calls import API_FORMATS
+
+    fmt_str = request.query_params.get("format", ["openai-chat"])[0]
+    valid = {"openai-chat", "openai-response", "anthropic", "gemini"}
+    if fmt_str not in valid:
+        return _error_response(
+            400,
+            "Bad Request",
+            f"Invalid format '{fmt_str}'. Must be one of: {', '.join(sorted(valid))}",
+        )
+    fmt = cast(API_FORMATS, fmt_str)
+    schemas = registry.get_schemas(api_format=fmt, include_deferred=False)
+    return _json_response({"format": fmt_str, "count": len(schemas), "schema": schemas})
 
 
 # ============== Route Setup ==============
@@ -851,3 +896,4 @@ def setup_routes(app: "AdminApp") -> None:
     app.get("/api/config")(_get_config)
     app.put("/api/config")(_update_config)
     app.get("/api/info")(_get_info)
+    app.get("/api/schema")(_get_schema)
