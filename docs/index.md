@@ -32,6 +32,7 @@ This documentation details how to install, configure, and use the library in rea
 [![PyPI version](https://img.shields.io/pypi/v/toolregistry?color=green)](https://pypi.org/project/toolregistry/)
 [![CI](https://github.com/Oaklight/ToolRegistry/actions/workflows/ci.yml/badge.svg)](https://github.com/Oaklight/ToolRegistry/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![arXiv](https://img.shields.io/badge/arXiv-2507.10593-b31b1b.svg)](https://arxiv.org/abs/2507.10593)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Oaklight/toolregistry)
 
 Quickly start using ToolRegistry by installing it with this command:
@@ -113,7 +114,7 @@ If you use ToolRegistry in your research or project, please consider cite it as:
 }
 
 @article{ding2025toolregistry,
-  title={ToolRegistry: A Protocol-Agnostic Tool Management Library for Function-Calling LLMs},
+  title={Toolregistry: A protocol-agnostic tool management library for function-calling llms},
   author={Ding, Peng},
   journal={arXiv preprint arXiv:2507.10593},
   year={2025}
