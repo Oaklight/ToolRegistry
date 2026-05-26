@@ -84,7 +84,7 @@ pip install toolregistry-hub               # 即用工具集（独立包）
 
 @article{ding2025toolregistry,
   title={Toolregistry: A protocol-agnostic tool management library for function-calling llms},
-  author={Ding, Peng},
+  author={Ding, Peng and Stevens, Rick},
   journal={arXiv preprint arXiv:2507.10593},
   year={2025}
 }
