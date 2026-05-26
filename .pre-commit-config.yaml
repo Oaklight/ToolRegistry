@@ -17,11 +17,10 @@ repos:
         require_serial: true
         types: [python]
 
-  - repo: local
+  - repo: https://github.com/rohaquinlop/complexipy-pre-commit
+    rev: v5.1.0
     hooks:
       - id: complexipy
-        name: complexipy (complexity check)
-        entry: complexipy src/toolregistry tests -e _vendor -mx 20
-        language: system
-        pass_filenames: false
-        always_run: true
+        files: ^src/toolregistry/
+        exclude: ^src/toolregistry/_vendor/
+        args: [-mx, "20"]
