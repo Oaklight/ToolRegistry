@@ -115,7 +115,7 @@ ToolRegistry 是三包生态系统的一部分。详情请参阅[生态系统](e
 
 @article{ding2025toolregistry,
   title={Toolregistry: A protocol-agnostic tool management library for function-calling llms},
-  author={Ding, Peng},
+  author={Ding, Peng and Stevens, Rick},
   journal={arXiv preprint arXiv:2507.10593},
   year={2025}
 }
