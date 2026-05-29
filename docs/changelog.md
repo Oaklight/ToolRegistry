@@ -10,7 +10,38 @@ author: Oaklight
 
 This page documents all notable changes to the ToolRegistry project since the first release.
 
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), with project-specific grouping where useful.
+
 ## [Unreleased]
+
+## [0.11.0] - 2026-05-28
+
+### Added
+
+- **Configurable tool name separator**
+    - Add `name_sep` support to `ToolRegistry` for deployments that need separators other than `/` in qualified tool names.
+    - Expose name-separator configuration through declarative config loading and the admin panel.
+
+- **Admin Schema and Discovery views**
+    - Add a Schema tab in the admin panel with separate Global and Discover sub-tabs.
+    - Add a `discover_tools` view for inspecting discovery-related schemas and state.
+    - Show visible, deferred, and disabled tool counts in the Schema tab.
+
+- **Configurable discovery hints**
+    - Add `search_hint` support in YAML/config, admin editing, persistence, and discovery output.
+    - Prefer `search_hint` over first-sentence extraction in `discover_tools` result bullets.
+
+### Fixed
+
+- Sync `discover_tools` descriptions when tools are enabled or disabled.
+- Support `/` in tool and namespace names in admin API routes.
+- Fix `discover_enabled` logic so it checks `is_enabled`, not only registration state.
+
+### Changed
+
+- Replace the admin version alert with a styled popup modal.
+- Update project citation metadata and contributor workflow docs.
+- Switch the complexipy pre-commit hook to the official `complexipy-pre-commit` hook with explicit file filtering.
 
 ## [0.10.1] - 2026-05-18
 
