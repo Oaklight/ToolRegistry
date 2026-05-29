@@ -10,7 +10,38 @@ author: Oaklight
 
 本页面记录了 ToolRegistry 项目自首个发布版本以来的所有重要变更。
 
-## [Unreleased]
+格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，并在需要时保留项目自身的分类方式。
+
+## [未发布]
+
+## [0.11.0] - 2026-05-28
+
+### 新增
+
+- **可配置的工具名称分隔符**
+    - 为 `ToolRegistry` 增加 `name_sep` 支持，适用于需要使用 `/` 之外分隔符的部署场景。
+    - 在声明式配置加载和管理面板中暴露名称分隔符配置。
+
+- **管理面板 Schema 与 Discovery 视图**
+    - 在管理面板中新增 Schema 标签页，并拆分为 Global 与 Discover 子标签页。
+    - 新增 `discover_tools` 视图，用于检查工具发现相关的 schema 和状态。
+    - 在 Schema 标签页中显示 visible、deferred 和 disabled 工具数量。
+
+- **可配置的工具发现提示**
+    - 支持在 YAML/config、管理面板编辑、持久化和发现输出中配置 `search_hint`。
+    - `discover_tools` 结果摘要优先使用 `search_hint`，而不是从描述中截取首句。
+
+### 修复
+
+- 工具启用或禁用时同步 `discover_tools` 描述。
+- 管理面板 API 路由支持工具名和命名空间中的 `/`。
+- 修复 `discover_enabled` 判断逻辑，使其检查 `is_enabled`，而不仅是注册状态。
+
+### 变更
+
+- 将管理面板版本提示从 alert 替换为样式化弹窗。
+- 更新项目引用元数据和贡献工作流文档。
+- 将 complexipy pre-commit 钩子切换为官方 `complexipy-pre-commit`，并使用明确的文件过滤。
 
 ## [0.10.1] - 2026-05-18
 
