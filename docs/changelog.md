@@ -14,6 +14,15 @@ author: Oaklight
 
 ## [未发布]
 
+## [0.11.1] - 2026-05-31
+
+### 修复
+
+- 增强参数 schema 生成逻辑：当单个注解无法解析或无法表示为 JSON Schema 时，仅对该参数降级，而不是丢弃整个工具 schema。
+- 将空的或非 object 的工具参数 schema 规范化为有效的 object schema。
+- 修复使用 postponed annotations 时 `discover_tools` 的 schema 生成问题。
+- 规范化导入的 MCP input schema，并保留更完整的 OpenAPI schema 细节。
+
 ## [0.11.0] - 2026-05-28
 
 ### 新增
