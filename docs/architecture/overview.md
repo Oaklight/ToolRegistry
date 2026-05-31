@@ -161,7 +161,7 @@ toolregistry/
 | `max_result_size` | 截断阈值（字符数）；超出部分写入临时文件 |
 | `defer` | 从初始 prompt 中排除；可通过 `ToolDiscoveryTool` 发现 |
 | `search_hint` | 额外关键词，提升 BM25 可发现性 |
-| `think_augment` | 单工具级别的思维增强开关 |
+| `think_augment` | 单工具级别是否暴露 `toolcall_reason` 理由字段的覆盖开关 |
 | `extra` | 应用自定义的任意键值对 |
 
 标签驱动权限系统 — 你编写基于标签匹配的规则，而不是工具名称。
@@ -249,14 +249,14 @@ with ToolRegistry() as registry:
 
 搜索后端使用 **BM25F 评分**（内置、零外部依赖），跨多个字段索引：工具名称、描述、标签、参数名和 `search_hint`。详见[工具发现](../usage/tool_discovery.md)。
 
-## 思维增强工具调用
+## 理由增强工具调用
 
-ToolRegistry 可以向每个工具的 JSON Schema 注入 `thought` 属性，提示 LLM 在选择和调用工具时包含逐步推理过程。这在复杂场景下能提升工具选择的准确性。
+ToolRegistry 可以向每个工具的 JSON Schema 注入 `toolcall_reason` 属性，提示 LLM 说明为什么选择该工具，以及预期本次调用完成什么事情。
 
-- 注册表级别：`registry.get_schemas(..., think=True)`
+- 注册表级别：`ToolRegistry(think_augment=True)` 或 `registry.enable_think_augment()`
 - 单工具覆盖：`metadata.think_augment = True / False`
 
-参考文献：[Xu et al., 2025](https://arxiv.org/abs/2601.18282)
+该功能最初以 think-augmented calling 的形式引入，灵感来自 [Xu et al., 2025](https://arxiv.org/abs/2601.18282)。
 
 ## 多格式 Schema 支持
 
