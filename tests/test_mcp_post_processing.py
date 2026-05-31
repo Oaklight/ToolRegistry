@@ -273,6 +273,17 @@ class TestMCPToolFromJson:
         tool = MCPTool.from_tool_json(spec, mock_conn)
         assert tool.callable.params == []
 
+    def test_non_object_input_schema_is_normalized(self):
+        """Non-object MCP input schemas are normalized to empty object schemas."""
+        spec = MCPToolSpec(
+            name="invalid_schema_tool",
+            inputSchema={"type": "string"},
+        )
+        mock_conn = MagicMock()
+        tool = MCPTool.from_tool_json(spec, mock_conn)
+        assert tool.callable.params == []
+        assert tool.parameters["type"] == "object"
+
 
 # ===========================================================================
 # TestMCPToolWrapperEdgeCases

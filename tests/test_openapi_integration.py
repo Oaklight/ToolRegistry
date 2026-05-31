@@ -603,7 +603,69 @@ class TestOpenAPITool:
         """Operation with no parameters has no user-defined properties."""
         spec = {"operationId": "health_check", "parameters": []}
         tool = self._make_tool(spec=spec)
-        assert tool.parameters["required"] == []
+        user_props = set(tool.parameters["properties"]) - {"toolcall_reason"}
+        assert user_props == set()
+        assert "required" not in tool.parameters
+
+    def test_parameter_schema_preserves_constraints(self):
+        """OpenAPI parameter schemas preserve enum, format, defaults, and bounds."""
+        spec = {
+            "operationId": "searchPets",
+            "summary": "Search pets",
+            "parameters": [
+                {
+                    "name": "status",
+                    "in": "query",
+                    "schema": {
+                        "type": "string",
+                        "enum": ["available", "pending", "sold"],
+                        "default": "available",
+                    },
+                    "description": "Pet status",
+                },
+                {
+                    "name": "limit",
+                    "in": "query",
+                    "schema": {"type": "integer", "minimum": 1, "maximum": 100},
+                },
+            ],
+        }
+        tool = self._make_tool(spec=spec)
+        props = tool.parameters["properties"]
+        assert props["status"]["enum"] == ["available", "pending", "sold"]
+        assert props["status"]["default"] == "available"
+        assert props["status"]["description"] == "Pet status"
+        assert props["limit"]["minimum"] == 1
+        assert props["limit"]["maximum"] == 100
+
+    def test_request_body_schema_preserves_nested_objects(self):
+        """OpenAPI request body properties preserve nested schema details."""
+        spec = {
+            "operationId": "createComplexPet",
+            "summary": "Create complex pet",
+            "requestBody": {
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "tags": {"type": "array", "items": {"type": "string"}},
+                                "owner": {
+                                    "type": "object",
+                                    "properties": {"name": {"type": "string"}},
+                                },
+                            },
+                            "required": ["tags"],
+                        }
+                    }
+                }
+            },
+        }
+        tool = self._make_tool(method="post", spec=spec)
+        props = tool.parameters["properties"]
+        assert props["tags"]["items"]["type"] == "string"
+        assert props["owner"]["properties"]["name"]["type"] == "string"
+        assert tool.parameters["required"] == ["tags"]
 
 
 # ===========================================================================
