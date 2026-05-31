@@ -1,54 +1,21 @@
 # Type Definitions
 
-This section documents the type definitions used across the ToolRegistry library for compatibility with various LLM API formats.
+This section documents the type definitions used across ToolRegistry's LLM-facing APIs.
 
-## Common Types
+## Tool Call Types
 
-Universal type definitions used across the library.
+Normalized tool call and tool result models used when converting provider-specific payloads.
 
-::: toolregistry.types
+::: toolregistry.llm.tool_calls
     options:
         show_source: false
         show_root_heading: true
 
-::: toolregistry.types.common
-    options:
-        show_source: false
-        show_root_heading: true
+## Content Blocks
 
-## OpenAI Types
+Helpers for text and multimodal content blocks used when building tool result messages.
 
-Type definitions for OpenAI API compatibility.
-
-::: toolregistry.types.openai
-    options:
-        show_source: false
-        show_root_heading: true
-
-::: toolregistry.types.openai.chat_completion
-    options:
-        show_source: false
-        show_root_heading: true
-
-::: toolregistry.types.openai.response
-    options:
-        show_source: false
-        show_root_heading: true
-
-## Anthropic Types
-
-Type definitions for Anthropic API compatibility.
-
-::: toolregistry.types.anthropic
-    options:
-        show_source: false
-        show_root_heading: true
-
-## Gemini Types
-
-Type definitions for Google Gemini API compatibility.
-
-::: toolregistry.types.gemini
+::: toolregistry.llm.content_blocks
     options:
         show_source: false
         show_root_heading: true

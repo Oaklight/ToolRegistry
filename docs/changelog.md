@@ -4,6 +4,8 @@ summary: Version history and change records for the ToolRegistry project
 description: Detailed documentation of all feature updates, fixes, and improvements in ToolRegistry since version 0.1.0
 keywords: changelog, version history, release notes, changes
 author: Oaklight
+hide:
+    - navigation
 ---
 
 # Changelog
