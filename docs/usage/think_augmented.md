@@ -1,20 +1,22 @@
 ---
-title: Think-Augmented Tool Calling
-summary: Chain-of-thought reasoning injected into tool call schemas
-description: How ToolRegistry injects a thought property into tool schemas so LLMs can reason before acting, and how to configure it at the registry and per-tool level
-keywords: think, thought, chain-of-thought, reasoning, tool calling, THINK_PROPERTY, think_augment
+title: Rationale-Augmented Tool Calling
+summary: toolcall_reason rationale fields injected into tool call schemas
+description: How ToolRegistry injects a toolcall_reason property into tool schemas so LLMs can explain tool choice, and how to configure it at the registry and per-tool level
+keywords: think, toolcall_reason, rationale, reasoning, tool calling, think_augment
 author: Oaklight
 ---
 
-# Think-Augmented Tool Calling
+# Rationale-Augmented Tool Calling
 
-ToolRegistry can inject a `thought` string property into every tool's parameter schema. This gives LLMs a dedicated field to express step-by-step reasoning about **why** they chose a tool and **how** they plan to use it — before the tool actually runs.
+ToolRegistry can inject a `toolcall_reason` string property into every tool's parameter schema. This gives LLMs a dedicated field to explain **why** they chose a tool and **what** they expect from it before the tool actually runs.
 
-Think-augmented calling is **off by default** and can be enabled globally on the registry or per-tool via `ToolMetadata`.
+In the core library, rationale augmentation is **off by default** and can be enabled globally on the registry or per tool via `ToolMetadata`.
+
+!!! note "Hub server default"
+    `toolregistry-hub` enables this by default for its OpenAPI and MCP server commands. Use `--no-think-augment` in the hub CLI to disable it for served tools.
 
 ???+ note "Changelog"
-    New in: [#49](../../pull/49) (Unreleased)
-    Reference: [arXiv:2601.18282](https://arxiv.org/abs/2601.18282)
+    Introduced as think-augmented tool calling in [#49](../../pull/49), inspired by [arXiv:2601.18282](https://arxiv.org/abs/2601.18282).
 
 ## How It Works
 
@@ -22,23 +24,23 @@ Think-augmented calling is **off by default** and can be enabled globally on the
 flowchart LR
     subgraph Schema Generation
         Tool["Tool schema"] --> Check{"think_augment\nenabled?"}
-        Check -->|Yes| Inject["Include 'thought' property"]
-        Check -->|No| Skip["Omit 'thought'"]
+        Check -->|Yes| Inject["Include 'toolcall_reason' property"]
+        Check -->|No| Skip["Omit 'toolcall_reason'"]
         Inject --> LLM["Send to LLM"]
         Skip --> LLM
     end
     subgraph Execution
-        LLM --> Call["LLM calls tool with thought + args"]
-        Call --> Strip["Strip 'thought' from args"]
+        LLM --> Call["LLM calls tool with toolcall_reason + args"]
+        Call --> Strip["Strip 'toolcall_reason' from args"]
         Strip --> Run["Execute tool function"]
     end
 ```
 
-1. **Injection**: Internally, `thought` is always present in the tool's parameter storage. When schemas are generated via `get_schemas()`, the registry resolves whether each tool should include `thought` based on the two-layer configuration.
-2. **LLM response**: When enabled, the LLM fills in the `thought` field with its reasoning alongside the actual arguments.
-3. **Stripping**: Before the tool function executes, ToolRegistry always removes the `thought` parameter so the function receives only its declared arguments — regardless of the toggle.
+1. **Injection**: Internally, `toolcall_reason` is present in the tool's parameter storage when the tool has a `properties` schema. When schemas are generated via `get_schemas()`, the registry resolves whether each tool should expose `toolcall_reason` based on the two-layer configuration.
+2. **LLM response**: When enabled, the LLM fills in the `toolcall_reason` field alongside the actual arguments.
+3. **Stripping**: Before the tool function executes, ToolRegistry removes the `toolcall_reason` parameter so the function receives only its declared arguments.
 
-## Enabling Think-Augmented Calling
+## Enabling Rationale-Augmented Calling
 
 ### At Registry Level
 
@@ -57,26 +59,26 @@ registry.disable_think_augment()
 
 Individual tools can override the registry setting via `ToolMetadata.think_augment`:
 
-| Value   | Behavior                              |
-|---------|---------------------------------------|
-| `None`  | Follow the registry setting (default) |
-| `True`  | Always include `thought` for this tool |
-| `False` | Never include `thought` for this tool |
+| Value   | Behavior                                               |
+|---------|--------------------------------------------------------|
+| `None`  | Follow the registry setting (default)                  |
+| `True`  | Always include `toolcall_reason` for this tool         |
+| `False` | Never include `toolcall_reason` for this tool          |
 
 ```python
 from toolregistry import ToolRegistry
 from toolregistry.tool import Tool, ToolMetadata
 
-registry = ToolRegistry()  # think_augment=False by default
+registry = ToolRegistry()  # think_augment=False by default in core
 
-# This tool always gets thought, even though the registry default is off
+# This tool always gets toolcall_reason, even though the registry default is off
 tool = Tool.from_function(
     my_complex_function,
     metadata=ToolMetadata(think_augment=True),
 )
 registry.register(tool)
 
-# This tool never gets thought, even if registry is enabled later
+# This tool never gets toolcall_reason, even if registry is enabled later
 tool2 = Tool.from_function(
     my_simple_function,
     metadata=ToolMetadata(think_augment=False),
@@ -96,10 +98,10 @@ def get_weather(city: str) -> str:
     """Get the current weather for a city."""
     return f"Sunny in {city}"
 
-# The schema sent to the LLM includes "thought"
+# The schema sent to the LLM includes "toolcall_reason"
 schema = registry.get_schemas()
 print(schema[0]["function"]["parameters"]["properties"].keys())
-# dict_keys(['city', 'thought'])
+# dict_keys(['city', 'toolcall_reason'])
 ```
 
 When the LLM calls this tool, it might produce:
@@ -109,45 +111,37 @@ When the LLM calls this tool, it might produce:
   "name": "get_weather",
   "arguments": {
     "city": "Tokyo",
-    "thought": "The user asked about weather in Tokyo, so I should call get_weather with city=Tokyo."
+    "toolcall_reason": "The user asked about weather in Tokyo, so I should call get_weather with city=Tokyo."
   }
 }
 ```
 
-ToolRegistry strips `thought` before execution — `get_weather` only receives `city="Tokyo"`.
+ToolRegistry strips `toolcall_reason` before execution — `get_weather` only receives `city="Tokyo"`.
 
-## The `thought` Property Schema
+## The `toolcall_reason` Property Schema
 
 The injected property looks like this in the JSON schema:
 
 ```json
 {
-  "thought": {
+  "toolcall_reason": {
     "type": "string",
-    "description": "Your step-by-step reasoning about why you chose this tool and how to use it."
+    "description": "Why you chose this tool and what you expect from it."
   }
 }
 ```
 
 It is **not** marked as `required`, so LLMs may omit it without causing errors.
 
-## Native `thought` Parameters
+## Native `toolcall_reason` Parameters
 
-If your function already has a parameter named `thought`, ToolRegistry preserves it and does **not** override it:
+Avoid declaring a real tool parameter named `toolcall_reason`. ToolRegistry reserves that name for rationale augmentation and strips it before execution.
 
-```python
-@registry.register
-def analyze(data: str, thought: str = "") -> str:
-    """Analyze data with optional reasoning."""
-    # 'thought' is a real parameter here — it will NOT be stripped
-    return f"Analysis of {data} with reasoning: {thought}"
-```
-
-ToolRegistry detects native `thought` parameters via introspection and skips both injection and stripping for that tool.
+If you need a user-facing rationale argument in your own function, use a different parameter name such as `reason`, `explanation`, or `comment`.
 
 ## Scope
 
-Think-augmented injection works across all integration paths:
+Rationale augmentation works across all integration paths:
 
 - Native Python functions (`@registry.register`)
 - MCP tools (`register_from_mcp`)

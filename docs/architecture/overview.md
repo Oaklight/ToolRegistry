@@ -161,7 +161,7 @@ Metadata enriches tools with classification and behavioral hints:
 | `max_result_size` | Truncation threshold (characters); oversized results spill to a temp file |
 | `defer` | Exclude from initial prompt; discoverable via `ToolDiscoveryTool` |
 | `search_hint` | Extra keywords for BM25 discoverability |
-| `think_augment` | Per-tool override for thought-augmented calling |
+| `think_augment` | Per-tool override for exposing the `toolcall_reason` rationale field |
 | `source` | Tool origin: `"native"`, `"mcp"`, `"openapi"`, or `"langchain"` (auto-set by integrations) |
 | `source_detail` | Integration-specific provenance info (transport, URL, class name) |
 | `extra` | Arbitrary key-value pairs for application-specific use |
@@ -251,14 +251,14 @@ When registries grow large, sending all tool schemas in every prompt wastes toke
 
 The search backend uses **BM25F scoring** (vendored, zero external dependencies) across multiple fields: tool name, description, tags, parameter names, and `search_hint`. See [Tool Discovery](../usage/tool_discovery.md) for configuration.
 
-## Think-Augmented Tool Calling
+## Rationale-Augmented Tool Calling
 
-ToolRegistry can inject a `thought` property into every tool's JSON schema, prompting the LLM to include step-by-step reasoning when selecting and calling tools. This improves tool selection accuracy in complex scenarios.
+ToolRegistry can inject a `toolcall_reason` property into every tool's JSON schema, prompting the LLM to state why it chose a tool and what it expects from the call.
 
-- Registry-level: `registry.get_schemas(..., think=True)`
+- Registry-level: `ToolRegistry(think_augment=True)` or `registry.enable_think_augment()`
 - Per-tool override: `metadata.think_augment = True / False`
 
-Reference: [Xu et al., 2025](https://arxiv.org/abs/2601.18282)
+This feature was introduced as think-augmented calling and is inspired by [Xu et al., 2025](https://arxiv.org/abs/2601.18282).
 
 ## Multi-Format Schema Support
 

@@ -33,7 +33,7 @@ The `think_augment` and `defer` properties can be toggled at runtime directly fr
 
 - **Per-tool checkboxes**: Each tool row has dedicated Think and Defer columns with checkboxes
 - **Per-namespace checkboxes**: Namespace header rows include checkboxes that apply to all tools within the namespace
-- Tools with a native `thought` parameter have their Think checkbox grayed out (the parameter is always passed through)
+- The Think checkbox controls whether the generated schema exposes the reserved `toolcall_reason` rationale field
 - Changes take effect immediately without restarting the service
 - Only `think_augment` and `defer` are modifiable at runtime (other metadata fields are read-only for safety)
 
