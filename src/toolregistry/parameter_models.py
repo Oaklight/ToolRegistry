@@ -61,7 +61,7 @@ def _get_typed_annotation(annotation: Any, globalns: dict[str, Any]) -> Any:
         # Manually set the annotation on the dummy function.
         dummy.__annotations__ = {"a": annotation}
         try:
-            hints = get_type_hints(dummy, globalns)
+            hints = get_type_hints(dummy, globalns, include_extras=True)
             return hints["a"]
         except Exception as e:
             raise InvalidSignature(
@@ -100,6 +100,103 @@ def _create_field(
         return (annotation_type | None, field_info)
 
 
+def _warn_parameter_fallback(
+    func: Callable, param_name: str, reason: Exception
+) -> None:
+    """Warn that a parameter annotation fell back to ``Any``."""
+    warnings.warn(
+        f"Parameter '{param_name}' in '{getattr(func, '__name__', '<unknown>')}' "
+        f"has an annotation that cannot be represented in JSON Schema: {reason}. "
+        "Falling back to an unconstrained schema for this parameter.",
+        UserWarning,
+        stacklevel=3,
+    )
+
+
+def _is_json_schema_compatible(
+    param_name: str, field_def: tuple[Any, FieldInfo]
+) -> bool:
+    """Return whether a single field can produce JSON Schema."""
+    try:
+        field_definitions: dict[str, Any] = {param_name: field_def}
+        test_model = create_model(
+            f"_{param_name}SchemaProbe",
+            **field_definitions,
+            __base__=ArgModelBase,
+        )
+        test_model.model_json_schema()
+        return True
+    except Exception:
+        return False
+
+
+def _warn_skipped_variadic_parameter(func: Callable, param: inspect.Parameter) -> None:
+    """Warn that a variadic parameter is excluded from the schema."""
+    label = (
+        f"*{param.name}"
+        if param.kind == inspect.Parameter.VAR_POSITIONAL
+        else f"**{param.name}"
+    )
+    kind = "*args" if param.kind == inspect.Parameter.VAR_POSITIONAL else "**kwargs"
+    warnings.warn(
+        f"Parameter '{label}' ({kind}) in "
+        f"'{getattr(func, '__name__', '<unknown>')}' is not "
+        "representable in JSON Schema and will be excluded "
+        "from the tool schema.",
+        UserWarning,
+        stacklevel=2,
+    )
+
+
+def _field_def_for_parameter(
+    func: Callable,
+    param: inspect.Parameter,
+    globalns: dict[str, Any],
+    resolved_hints: dict[str, Any],
+) -> tuple[Any, FieldInfo]:
+    """Create a schema-safe field definition for one parameter."""
+    if param.annotation is inspect.Parameter.empty:
+        field_def = _create_field(param, Any)
+    elif param.annotation is None:
+        field_def = _create_field(param, None)
+    else:
+        try:
+            annotation = resolved_hints.get(param.name)
+            if annotation is None:
+                annotation = _get_typed_annotation(param.annotation, globalns)
+            field_def = _create_field(param, annotation)
+        except Exception as e:
+            _warn_parameter_fallback(func, param.name, e)
+            field_def = _create_field(param, Any)
+
+    if _is_json_schema_compatible(param.name, field_def):
+        return field_def
+
+    _warn_parameter_fallback(
+        func,
+        param.name,
+        InvalidSignature(f"unsupported annotation {param.annotation!r}"),
+    )
+    return _create_field(param, Any)
+
+
+def _create_parameters_model(
+    func: Callable,
+    field_definitions: dict[str, Any],
+) -> type[ArgModelBase] | None:
+    """Create and validate the final Pydantic parameter model."""
+    try:
+        model = create_model(
+            f"{getattr(func, '__name__', 'unknown')}Parameters",
+            **field_definitions,
+            __base__=ArgModelBase,
+        )
+        model.model_json_schema()
+        return model
+    except Exception:
+        return None
+
+
 def _generate_parameters_model(func: Callable) -> type[ArgModelBase] | None:
     """Generate a Pydantic model from a function's parameters.
 
@@ -116,48 +213,30 @@ def _generate_parameters_model(func: Callable) -> type[ArgModelBase] | None:
     """
     try:
         signature = inspect.signature(func)
-        globalns = getattr(func, "__globals__", {})
-        dynamic_model_creation_dict: dict[str, Any] = {}
-
-        for param in signature.parameters.values():
-            if param.name == "self":
-                continue
-            # Skip *args and **kwargs — they are not individual named parameters
-            if param.kind == inspect.Parameter.VAR_POSITIONAL:
-                warnings.warn(
-                    f"Parameter '*{param.name}' (*args) in "
-                    f"'{getattr(func, '__name__', '<unknown>')}' is not "
-                    "representable in JSON Schema and will be excluded "
-                    "from the tool schema.",
-                    UserWarning,
-                    stacklevel=2,
-                )
-                continue
-            if param.kind == inspect.Parameter.VAR_KEYWORD:
-                warnings.warn(
-                    f"Parameter '**{param.name}' (**kwargs) in "
-                    f"'{getattr(func, '__name__', '<unknown>')}' is not "
-                    "representable in JSON Schema and will be excluded "
-                    "from the tool schema.",
-                    UserWarning,
-                    stacklevel=2,
-                )
-                continue
-
-            annotation = _get_typed_annotation(param.annotation, globalns)
-            if param.annotation is inspect.Parameter.empty:
-                dynamic_model_creation_dict[param.name] = _create_field(param, Any)
-            elif param.annotation is None:
-                dynamic_model_creation_dict[param.name] = _create_field(param, None)
-            else:
-                dynamic_model_creation_dict[param.name] = _create_field(
-                    param, annotation
-                )
-
-        return create_model(
-            f"{getattr(func, '__name__', 'unknown')}Parameters",
-            **dynamic_model_creation_dict,
-            __base__=ArgModelBase,
-        )
     except Exception:
         return None
+
+    globalns = getattr(func, "__globals__", {})
+    try:
+        resolved_hints = get_type_hints(func, globalns, include_extras=True)
+    except Exception:
+        resolved_hints = {}
+
+    field_definitions: dict[str, Any] = {}
+    for param in signature.parameters.values():
+        if param.name == "self":
+            continue
+        if param.kind in (
+            inspect.Parameter.VAR_POSITIONAL,
+            inspect.Parameter.VAR_KEYWORD,
+        ):
+            _warn_skipped_variadic_parameter(func, param)
+            continue
+        field_definitions[param.name] = _field_def_for_parameter(
+            func,
+            param,
+            globalns,
+            resolved_hints,
+        )
+
+    return _create_parameters_model(func, field_definitions)

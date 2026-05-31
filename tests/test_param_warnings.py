@@ -146,7 +146,7 @@ class TestParameterModelGenerationFailureWarning:
         # Tool should still be created, but without parameter validation
         assert tool is not None
         assert tool.parameters_model is None
-        assert tool.parameters == {}
+        assert tool.parameters == {"type": "object", "properties": {}}
 
     def test_generation_failure_warning_includes_func_name(self):
         """Warning message should include the function name."""

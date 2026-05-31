@@ -94,6 +94,23 @@ class TestArgModelBase:
         assert model.custom == custom_obj
         assert model.custom.value == "test"
 
+    def test_arbitrary_type_schema_generation_requires_fallback(self):
+        """Arbitrary runtime types should not block schema generation."""
+
+        class CustomType:
+            pass
+
+        def f(custom: CustomType, name: str) -> None:
+            pass
+
+        with pytest.warns(UserWarning, match="custom.*Falling back"):
+            model = _generate_parameters_model(f)
+
+        assert model is not None
+        schema = model.model_json_schema()
+        assert "custom" in schema["properties"]
+        assert schema["properties"]["name"]["type"] == "string"
+
 
 class TestGetTypedAnnotation:
     """Test cases for the _get_typed_annotation function."""
@@ -366,19 +383,44 @@ class TestGenerateParametersModel:
         assert model.name == "hello"
         assert model.count == 3
 
-    def test_generate_parameters_model_exception_handling(self):
-        """Test that exceptions during model generation are handled gracefully."""
+    def test_generate_parameters_model_unresolved_annotation_falls_back(self):
+        """Unresolved annotations should fall back per parameter instead of failing."""
 
         def problematic_func(x) -> str:
             return str(x)
 
-        # Manually set a problematic annotation that will cause issues
         problematic_func.__annotations__ = {"x": "NonExistentType", "return": str}
 
-        # Should return None instead of raising exception
-        model_class = _generate_parameters_model(problematic_func)
+        with pytest.warns(UserWarning, match="Falling back"):
+            model_class = _generate_parameters_model(problematic_func)
 
-        assert model_class is None
+        assert model_class is not None
+        schema = model_class.model_json_schema()
+        assert schema["type"] == "object"
+        assert "x" in schema["properties"]
+        assert "type" not in schema["properties"]["x"]
+
+    def test_generate_parameters_model_mixed_unresolved_annotation_keeps_valid_fields(
+        self,
+    ):
+        """A bad annotation should not discard other valid parameter schemas."""
+
+        def mixed_func(name: str, value) -> str:
+            return f"{name}:{value}"
+
+        mixed_func.__annotations__ = {
+            "name": str,
+            "value": "MissingRuntimeType",
+            "return": str,
+        }
+
+        with pytest.warns(UserWarning, match="value.*Falling back"):
+            model_class = _generate_parameters_model(mixed_func)
+
+        assert model_class is not None
+        schema = model_class.model_json_schema()
+        assert schema["properties"]["name"]["type"] == "string"
+        assert "value" in schema["properties"]
 
     def test_generate_parameters_model_with_invalid_signature(self):
         """Test generating parameters model with function that has invalid signature."""
