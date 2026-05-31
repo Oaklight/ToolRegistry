@@ -14,6 +14,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-05-31
+
+### Fixed
+
+- Harden parameter schema generation so unresolved or unsupported annotations fall back per parameter instead of dropping the whole tool schema.
+- Normalize empty or non-object tool parameter schemas to valid object schemas.
+- Fix `discover_tools` schema generation for postponed annotations.
+- Normalize imported MCP input schemas and preserve richer OpenAPI schema details.
+
 ## [0.11.0] - 2026-05-28
 
 ### Added
