@@ -230,13 +230,18 @@ class MCPTool(Tool):
         input_schema = getattr(tool_spec, "input_schema", None) or getattr(
             tool_spec, "inputSchema", {}
         )
+        if not isinstance(input_schema, dict) or input_schema.get("type") != "object":
+            input_schema = {"type": "object", "properties": {}}
+        else:
+            properties = input_schema.get("properties")
+            if not isinstance(properties, dict):
+                properties = {}
+            input_schema["properties"] = properties
 
         wrapper = MCPToolWrapper(
             connection=connection,
             name=name,
-            params=(
-                list(input_schema.get("properties", {}).keys()) if input_schema else []
-            ),
+            params=list(input_schema["properties"].keys()),
         )
 
         # Build a human-readable source_detail from the transport config.

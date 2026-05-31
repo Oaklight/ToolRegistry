@@ -105,6 +105,16 @@ class OpenAPIToolWrapper(BaseToolWrapper):
         return response.json()
 
 
+def _copy_json_schema(schema: dict[str, Any], description: str = "") -> dict[str, Any]:
+    """Copy a JSON Schema fragment and merge an OpenAPI description."""
+    copied = dict(schema) if isinstance(schema, dict) else {}
+    if "type" not in copied:
+        copied["type"] = "string"
+    if description and "description" not in copied:
+        copied["description"] = description
+    return copied
+
+
 class OpenAPITool(Tool):
     """Wrapper class for OpenAPI tools preserving function metadata."""
 
@@ -145,10 +155,10 @@ class OpenAPITool(Tool):
         for param in spec.get("parameters", []):
             param_schema = param.get("schema", {})
             param_name = param["name"]
-            parameters["properties"][param_name] = {
-                "type": param_schema.get("type", "string"),
-                "description": param.get("description", ""),
-            }
+            parameters["properties"][param_name] = _copy_json_schema(
+                param_schema,
+                param.get("description", ""),
+            )
             param_names.append(param_name)
             if param.get("required", False):
                 parameters["required"].append(param_name)
@@ -158,13 +168,13 @@ class OpenAPITool(Tool):
             if "application/json" in content:
                 schema = content["application/json"].get("schema", {})
                 for prop_name, prop_schema in schema.get("properties", {}).items():
-                    parameters["properties"][prop_name] = {
-                        "type": prop_schema.get("type", "string"),
-                        "description": prop_schema.get("description", ""),
-                    }
+                    parameters["properties"][prop_name] = _copy_json_schema(prop_schema)
                     param_names.append(prop_name)
                 if "required" in schema:
                     parameters["required"].extend(schema["required"])
+
+        if not parameters["required"]:
+            parameters.pop("required")
 
         wrapper = OpenAPIToolWrapper(
             client_config=client_config,
