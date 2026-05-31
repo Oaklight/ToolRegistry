@@ -298,6 +298,7 @@ class TestToolDiscoveryExact:
         registry.enable_tool_discovery()
 
         discoverer = registry._tool_discovery
+        assert discoverer is not None
         results = discoverer.discover("discover_tools")
         # Should not return discover_tools as an exact match
         names = [r["name"] for r in results]
@@ -341,6 +342,16 @@ class TestToolDiscoveryIntegration:
         schemas = registry.get_schemas()
         names = [s["function"]["name"] for s in schemas]
         assert "discover_tools" in names
+
+    def test_discover_tools_has_object_parameters_schema(self):
+        """discover_tools should have a valid object parameter schema."""
+        registry = ToolRegistry()
+        registry.enable_tool_discovery()
+
+        tool = registry.get_tool("discover_tools")
+        assert tool is not None
+        assert tool.parameters["type"] == "object"
+        assert set(tool.parameters["properties"]) >= {"query", "top_k", "api_format"}
 
     def test_disable_tool_discovery(self):
         """After disable_tool_discovery(), discover_tools is removed."""
@@ -410,6 +421,7 @@ class TestToolDiscoveryIntegration:
         registry.register(second)
 
         discoverer = registry._tool_discovery
+        assert discoverer is not None
         results = discoverer.discover("second tool")
         assert len(results) > 0
         assert results[0]["name"] == "second"
@@ -451,6 +463,7 @@ class TestToolDiscoveryIntegration:
         registry.enable_tool_discovery()
 
         discoverer = registry._tool_discovery
+        assert discoverer is not None
         results = discoverer.discover("discover tools")
         result_names = [r["name"] for r in results]
         assert "discover_tools" not in result_names

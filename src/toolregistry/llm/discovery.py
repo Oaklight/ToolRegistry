@@ -12,14 +12,14 @@ The search backend is a vendored copy of *zerodep*'s ``SparseIndex``
 from __future__ import annotations
 
 import re
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from .._vendor.sparse_search import SparseIndex
+from .tool_calls import API_FORMATS
 
 if TYPE_CHECKING:
     from ..tool import Tool
     from ..tool_registry import ToolRegistry
-    from .tool_calls import API_FORMATS
 
 _DEFAULT_FIELD_WEIGHTS: dict[str, float] = {
     "name": 3.0,

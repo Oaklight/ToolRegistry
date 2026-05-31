@@ -64,6 +64,30 @@ class TestTool:
         assert tool.name == "double"
         assert tool.callable == lambda_func
 
+    def test_tool_creation_normalizes_empty_parameters_schema(self):
+        """Direct Tool construction should always produce object parameters."""
+        tool = Tool(
+            name="bare",
+            description="Bare tool",
+            parameters={},
+            callable=lambda: None,
+            metadata=ToolMetadata(think_augment=False),
+        )
+
+        assert tool.parameters == {"type": "object", "properties": {}}
+
+    def test_tool_creation_normalizes_non_object_parameters_schema(self):
+        """Non-object parameter schemas should be replaced with empty objects."""
+        tool = Tool(
+            name="bad_schema",
+            description="Bad schema tool",
+            parameters={"type": "string"},
+            callable=lambda: None,
+            metadata=ToolMetadata(think_augment=False),
+        )
+
+        assert tool.parameters == {"type": "object", "properties": {}}
+
     def test_get_json_schema_openai_format(self, sample_tool):
         """Test getting JSON schema in OpenAI format."""
         schema = sample_tool.get_schema("openai-chat")
@@ -406,14 +430,14 @@ class TestThinkAugmented:
         assert "toolcall_reason" in tool.parameters["properties"]
 
     def test_toolcall_reason_empty_schema_no_inject(self):
-        """Test that toolcall_reason is not injected when schema has no properties."""
+        """Test that toolcall_reason is not injected into normalized empty schemas."""
         tool = Tool(
             name="empty_tool",
             description="Tool with empty schema",
             parameters={},
             callable=lambda: "ok",
         )
-        assert "properties" not in tool.parameters
+        assert tool.parameters == {"type": "object", "properties": {}}
 
     def test_think_metadata_false_strips_from_schema(self, sample_function):
         """Test that think_augment=False strips toolcall_reason from get_schema output."""

@@ -225,8 +225,14 @@ class Tool(BaseModel):
         The ``toolcall_reason`` field is only added when ``parameters``
         already contains a ``properties`` mapping.
         """
-        props = self.parameters.get("properties")
-        if props is not None and "toolcall_reason" not in props:
+        had_properties = isinstance(self.parameters.get("properties"), dict)
+        if self.parameters.get("type") != "object":
+            self.parameters = {"type": "object", "properties": {}}
+        elif not had_properties:
+            self.parameters["properties"] = {}
+
+        props = self.parameters["properties"]
+        if had_properties and "toolcall_reason" not in props:
             props["toolcall_reason"] = TOOLCALL_REASON_PROPERTY
 
     @property
