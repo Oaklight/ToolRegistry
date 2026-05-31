@@ -1,54 +1,21 @@
 # 类型定义
 
-本节记录了 ToolRegistry 库中使用的类型定义，用于与各种 LLM API 格式的兼容。
+本节记录 ToolRegistry 面向 LLM API 的类型定义。
 
-## 通用类型
+## 工具调用类型
 
-库中通用的类型定义。
+用于转换不同 provider payload 的标准化工具调用和工具结果模型。
 
-::: toolregistry.types
+::: toolregistry.llm.tool_calls
     options:
         show_source: false
         show_root_heading: true
 
-::: toolregistry.types.common
-    options:
-        show_source: false
-        show_root_heading: true
+## Content Blocks
 
-## OpenAI 类型
+用于构建工具结果消息的文本和多模态 content block 辅助类型。
 
-用于 OpenAI API 兼容的类型定义。
-
-::: toolregistry.types.openai
-    options:
-        show_source: false
-        show_root_heading: true
-
-::: toolregistry.types.openai.chat_completion
-    options:
-        show_source: false
-        show_root_heading: true
-
-::: toolregistry.types.openai.response
-    options:
-        show_source: false
-        show_root_heading: true
-
-## Anthropic 类型
-
-用于 Anthropic API 兼容的类型定义。
-
-::: toolregistry.types.anthropic
-    options:
-        show_source: false
-        show_root_heading: true
-
-## Gemini 类型
-
-用于 Google Gemini API 兼容的类型定义。
-
-::: toolregistry.types.gemini
+::: toolregistry.llm.content_blocks
     options:
         show_source: false
         show_root_heading: true

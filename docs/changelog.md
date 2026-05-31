@@ -4,6 +4,8 @@ summary: ToolRegistry 项目的版本更新历史和变更记录
 description: 详细记录了 ToolRegistry 从 0.1.0 版本以来的所有功能更新、修复和改进
 keywords: changelog, 更新日志, 版本历史, 变更记录
 author: Oaklight
+hide:
+    - navigation
 ---
 
 # 更新日志
