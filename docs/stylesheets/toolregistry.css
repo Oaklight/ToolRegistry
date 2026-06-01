@@ -1,0 +1,146 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Sans+SC:wght@400;500;600;700&family=Iosevka:wght@400;500;600;700&display=swap");
+
+:root {
+  --md-text-font: "IBM Plex Sans";
+  --md-code-font: "Iosevka";
+  --md-primary-fg-color: #075985;
+  --md-primary-fg-color--light: #0e7490;
+  --md-primary-fg-color--dark: #0c4a6e;
+  --md-accent-fg-color: #0e7490;
+  --md-typeset-a-color: #075985;
+  --toolregistry-accent: #075985;
+  --toolregistry-accent-dark: #0c4a6e;
+  --toolregistry-slate: #475569;
+  --toolregistry-soft: #f0f9ff;
+  --toolregistry-soft-hover: #e0f2fe;
+  --toolregistry-glow: rgba(7, 89, 133, 0.13);
+  --toolregistry-wash: rgba(71, 85, 105, 0.08);
+}
+
+[data-md-color-scheme="slate"] {
+  --toolregistry-accent: #7dd3fc;
+  --toolregistry-accent-dark: #bae6fd;
+  --toolregistry-slate: #94a3b8;
+  --toolregistry-soft: rgba(125, 211, 252, 0.12);
+  --toolregistry-soft-hover: rgba(125, 211, 252, 0.18);
+  --toolregistry-glow: rgba(125, 211, 252, 0.14);
+  --toolregistry-wash: rgba(148, 163, 184, 0.10);
+}
+
+:root[lang="zh"],
+[lang="zh"] {
+  --md-text-font: "IBM Plex Sans SC";
+}
+
+.md-content__inner:has(> .tr-hero:first-child) {
+  padding-top: 0.2rem;
+}
+
+.md-typeset .tr-hero {
+  display: grid;
+  gap: 1rem;
+  margin: 0.25rem 0 1.8rem;
+  padding: 1.5rem;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 1.1rem;
+  background:
+    radial-gradient(circle at 15% 10%, var(--toolregistry-glow), transparent 34%),
+    linear-gradient(135deg, var(--toolregistry-wash), transparent 62%);
+}
+
+.md-typeset .tr-kicker {
+  margin: 0;
+  color: var(--toolregistry-accent);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.md-typeset .tr-hero h1 {
+  max-width: 48rem;
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 3.25rem);
+  line-height: 1.05;
+}
+
+.md-typeset .tr-hero__desc {
+  max-width: 45rem;
+  margin: 0;
+  color: var(--md-default-fg-color--light);
+  font-size: 1.05rem;
+}
+
+.md-typeset .tr-badges,
+.md-typeset .tr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0.25rem 0 0;
+}
+
+.md-typeset .tr-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.25rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.md-typeset .tr-button--primary {
+  color: #fff;
+  background: var(--toolregistry-accent);
+}
+
+.md-typeset .tr-button--primary:hover {
+  color: #fff;
+  background: var(--toolregistry-accent-dark);
+}
+
+.md-typeset a.tr-button--secondary {
+  color: var(--toolregistry-accent-dark);
+  background: var(--toolregistry-soft);
+}
+
+.md-typeset a.tr-button--secondary:hover {
+  color: var(--toolregistry-accent-dark);
+  background: var(--toolregistry-soft-hover);
+}
+
+.md-typeset .tr-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.8rem;
+  margin: 1.4rem 0;
+}
+
+.md-typeset .tr-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.28rem 0.55rem;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 999px;
+  color: var(--md-default-fg-color--light);
+  background: var(--md-default-bg-color);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.md-typeset .tr-card {
+  padding: 1rem;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.95rem;
+  background: var(--md-default-bg-color);
+}
+
+.md-typeset .tr-card h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+}
+
+.md-typeset .tr-card p {
+  margin: 0;
+  color: var(--md-default-fg-color--light);
+}

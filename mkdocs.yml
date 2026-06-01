@@ -1,5 +1,5 @@
 site_name: ToolRegistry
-site_description: A Protocol-Agnostic Tool Management Library for Function-Calling LLMs (OpenAI, Anthropic, Gemini, LangChain, MCP)
+site_description: Unified management for heterogeneous tools with OpenAI-, Anthropic-, and Gemini-compatible APIs
 site_author: Peng Ding
 site_url: https://toolregistry.readthedocs.io/en/latest
 repo_name: Oaklight/ToolRegistry
@@ -13,15 +13,21 @@ theme:
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
+      primary: cyan
+      accent: cyan
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
+      primary: cyan
+      accent: cyan
       toggle:
         icon: material/brightness-4
         name: Switch to system preference
     - media: "(prefers-color-scheme)"
+      primary: cyan
+      accent: cyan
       toggle:
         icon: material/brightness-auto
         name: Switch to light mode
@@ -45,8 +51,6 @@ theme:
     - content.code.copy
     - content.code.annotate
     - content.code.select
-    - content.action.edit
-    - content.action.view
     - content.tabs.link
     - content.tooltips
     - content.footnote.tooltips
@@ -69,13 +73,15 @@ plugins:
   - llmstxt:
       full_output: llms-full.txt
       sections:
-        Usage:
-          - architecture/overview.md
-          - usage/concurrency_modes.md
-          - usage/namespace.md
+        Get Started:
           - usage/installation.md
           - usage/basics.md
           - usage/function_calling.md
+          - usage/best_practices.md
+        Guides:
+          - architecture/overview.md
+          - usage/concurrency_modes.md
+          - usage/namespace.md
           - usage/integrations/class.md
           - usage/integrations/hub.md
           - usage/integrations/mcp.md
@@ -87,11 +93,6 @@ plugins:
           - usage/permissions.md
           - usage/message_building.md
           - usage/configuration.md
-          - usage/best_practices.md
-          - usage/providers/openai_chat.md
-          - usage/providers/openai_response.md
-          - usage/providers/anthropic.md
-          - usage/providers/gemini.md
         Examples:
           - examples/index.md
           - examples/consecutive_tool_calls.md
@@ -102,7 +103,7 @@ plugins:
           - examples/mcp_calculator.md
           - examples/mcp_diverse_transport.md
           - examples/openapi_calculator.md
-        API Reference:
+        Reference:
           - api/index.md
           - api/core.md
           - api/core/toolregistry.md
@@ -122,7 +123,10 @@ plugins:
           - api/wrappers/langchain.md
           - api/helpers.md
           - api/types.md
-        Admin Panel:
+          - usage/providers/openai_chat.md
+          - usage/providers/openai_response.md
+          - usage/providers/anthropic.md
+          - usage/providers/gemini.md
           - admin/index.md
           - admin/configuration.md
           - admin/execution-logging.md
@@ -130,11 +134,14 @@ plugins:
           - admin/web-ui.md
           - admin/security.md
           - admin/examples.md
-        Resources:
+        Ecosystem:
           - ecosystem.md
           - migration.md
         Changelog:
           - changelog.md
+
+extra_css:
+  - stylesheets/toolregistry.css
 
 markdown_extensions:
   - admonition
@@ -173,32 +180,29 @@ extra:
 
 nav:
   - Home: index.md
-  - Usage:
-      - Architecture:
-          - Overview: architecture/overview.md
+  - Get Started:
+      - Installation: usage/installation.md
+      - Quick Start: usage/basics.md
+      - Function Calling: usage/function_calling.md
+      - Best Practices: usage/best_practices.md
+  - Guides:
+      - Core Concepts:
+          - Architecture: architecture/overview.md
           - Execution Modes: usage/concurrency_modes.md
           - Namespace: usage/namespace.md
-      - Installation: usage/installation.md
-      - Basic Usage: usage/basics.md
-      - Function Calling: usage/function_calling.md
       - Integrations:
           - Class-based Tools: usage/integrations/class.md
-          - Hub Tools: usage/integrations/hub.md
           - MCP Tools: usage/integrations/mcp.md
           - OpenAPI Tools: usage/integrations/openapi.md
           - LangChain Tools: usage/integrations/langchain.md
-      - Tool Discovery: usage/tool_discovery.md
-      - Think-Augmented Calling: usage/think_augmented.md
-      - Result Size Management: usage/result_management.md
-      - Permissions: usage/permissions.md
-      - Message Building: usage/message_building.md
-      - Configuration: usage/configuration.md
-      - Best Practices: usage/best_practices.md
-      - LLM API Formats:
-          - OpenAI Chat: usage/providers/openai_chat.md
-          - OpenAI Response: usage/providers/openai_response.md
-          - Anthropic: usage/providers/anthropic.md
-          - Google Gemini: usage/providers/gemini.md
+          - Hub Tools: usage/integrations/hub.md
+      - Advanced:
+          - Tool Discovery: usage/tool_discovery.md
+          - Rationale-Augmented Calling: usage/think_augmented.md
+          - Result Size Management: usage/result_management.md
+          - Permissions: usage/permissions.md
+          - Message Building: usage/message_building.md
+          - Declarative Configuration: usage/configuration.md
   - Examples:
       - Overview: examples/index.md
       - Consecutive Tool Calls: examples/consecutive_tool_calls.md
@@ -209,9 +213,9 @@ nav:
       - MCP Calculator: examples/mcp_calculator.md
       - MCP Diverse Transport: examples/mcp_diverse_transport.md
       - OpenAPI Calculator: examples/openapi_calculator.md
-  - API Reference:
-      - Overview: api/index.md
-      - Core Classes:
+  - Reference:
+      - API Overview: api/index.md
+      - Core:
           - Overview: api/core.md
           - ToolRegistry: api/core/toolregistry.md
           - Tool: api/core/tool.md
@@ -224,7 +228,7 @@ nav:
           - MCP: api/integrations/mcp.md
           - LangChain: api/integrations/langchain.md
           - Native: api/integrations/native.md
-      - Tool Wrappers:
+      - Wrappers:
           - Overview: api/wrappers.md
           - BaseToolWrapper: api/wrappers/basetoolwrapper.md
           - MCP ToolWrapper: api/wrappers/mcp.md
@@ -232,17 +236,22 @@ nav:
           - LangChain ToolWrapper: api/wrappers/langchain.md
       - Helper Classes: api/helpers.md
       - Types: api/types.md
-  - Admin Panel:
-      - Overview: admin/index.md
-      - Configuration: admin/configuration.md
-      - Execution Logging: admin/execution-logging.md
-      - REST API: admin/rest-api.md
-      - Web UI Guide: admin/web-ui.md
-      - Security: admin/security.md
-      - Examples: admin/examples.md
-  - Resources:
-      - Ecosystem: ecosystem.md
+      - LLM API Formats:
+          - OpenAI Chat: usage/providers/openai_chat.md
+          - OpenAI Response: usage/providers/openai_response.md
+          - Anthropic: usage/providers/anthropic.md
+          - Google Gemini: usage/providers/gemini.md
+      - Admin Panel:
+          - Overview: admin/index.md
+          - Configuration: admin/configuration.md
+          - Execution Logging: admin/execution-logging.md
+          - REST API: admin/rest-api.md
+          - Web UI Guide: admin/web-ui.md
+          - Security: admin/security.md
+          - Examples: admin/examples.md
+  - Ecosystem:
+      - Overview: ecosystem.md
       - Migration: migration.md
+      - Hub Tools: https://toolregistry-hub.readthedocs.io/
+      - Server: https://toolregistry-server.readthedocs.io/
   - Changelog: changelog.md
-  - Hub Tools: https://toolregistry-hub.readthedocs.io/
-  - Server: https://toolregistry-server.readthedocs.io/

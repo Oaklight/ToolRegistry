@@ -3,116 +3,89 @@ title: Home
 author: Oaklight
 hide:
   - navigation
+  - title
 ---
 
-# ToolRegistry: A Protocol-Agnostic Tool Management Library for Function-Calling LLMs
+<div class="tr-hero" markdown>
 
-Welcome to the official documentation for **ToolRegistry**, a Python library designed to register, manage, and execute tools (functions) for Agentic AI and large language model applications. This documentation is organized by topic to help you quickly find and learn about different aspects of the library.
+<p class="tr-kicker">Protocol-agnostic tools for LLM apps</p>
 
-## Overview
+# Unified management for heterogeneous tools.
 
-ToolRegistry is a powerful Python library that simplifies the registration, management, and execution of tools (functions). Whether you're building systems integrated with large language models or need structured tool management, ToolRegistry provides a consistent interface supporting both synchronous and asynchronous tool calls.
+<p class="tr-hero__desc">ToolRegistry unifies tool registration, disclosure, execution, and result handling across native Python, MCP, OpenAPI, and future tool sources — with schema adapters for OpenAI-, Anthropic-, and Gemini-compatible APIs.</p>
 
-### Key Features
+<p class="tr-badges">
+  <a href="https://pypi.org/project/toolregistry/"><img alt="PyPI version" src="https://img.shields.io/pypi/v/toolregistry?labelColor=475569&color=075985"></a>
+  <a href="https://github.com/Oaklight/ToolRegistry/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Oaklight/ToolRegistry/ci.yml?branch=master&label=CI&labelColor=475569&color=0c4a6e"></a>
+  <a href="https://opensource.org/licenses/MIT"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-0c4a6e?labelColor=475569"></a>
+  <a href="https://arxiv.org/abs/2507.10593"><img alt="arXiv" src="https://img.shields.io/badge/arXiv-2507.10593-64748b?labelColor=475569"></a>
+</p>
 
-- **Protocol-Agnostic**: Works with OpenAI, MCP, OpenAPI, LangChain, and more
-- **Multi-Provider Schema**: Generate tool schemas for OpenAI, Anthropic, and Gemini via [llm-rosetta](https://pypi.org/project/llm-rosetta/)
-- **Unified Interface**: Consistent API for sync and async tool execution
-- **Permission System**: Rule-based authorization with composable policies, built-in tag matching, and handler protocols for interactive approval
-- **Enable/Disable Control**: Fine-grained tool availability management with reason tracking
-- **Tool Metadata & Tags**: Classify tools with predefined and custom tags for policy-driven control
-- **Namespace Support**: Organize tools into logical groups with MRO inheritance
-- **Admin Panel**: Built-in web-based administration interface with execution logging, REST API, and Anthropic-style minimalist UI
-- **Callback Mechanism**: Monitor registry changes with event-driven callbacks
+<p class="tr-actions">
+  <a class="tr-button tr-button--primary" href="usage/basics/">Quick Start</a>
+  <a class="tr-button tr-button--secondary" href="usage/function_calling/">Function Calling</a>
+  <a class="tr-button tr-button--secondary" href="ecosystem/">Explore Ecosystem</a>
+</p>
 
-This documentation details how to install, configure, and use the library in real projects. Browse the sections in the left menu to find the information you need.
+</div>
 
-## Getting Started
+## Pick your path
 
-[![PyPI version](https://img.shields.io/pypi/v/toolregistry?color=green)](https://pypi.org/project/toolregistry/)
-[![CI](https://github.com/Oaklight/ToolRegistry/actions/workflows/ci.yml/badge.svg)](https://github.com/Oaklight/ToolRegistry/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
-[![arXiv](https://img.shields.io/badge/arXiv-2507.10593-b31b1b.svg)](https://arxiv.org/abs/2507.10593)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Oaklight/toolregistry)
+<div class="tr-grid" markdown>
 
-Quickly start using ToolRegistry by installing it with this command:
+<div class="tr-card" markdown>
+### Build with Python
+Register normal Python callables and execute them with validation, logging, permissions, and concurrency controls.
+
+[Start here →](usage/basics.md)
+</div>
+
+<div class="tr-card" markdown>
+### Connect LLM providers
+Generate schemas and recover tool calls across OpenAI, Anthropic, Gemini, and OpenAI-compatible APIs.
+
+[Function calling →](usage/function_calling.md)
+</div>
+
+<div class="tr-card" markdown>
+### Bring external tools
+Import tools from MCP servers, OpenAPI specs, native Python classes, and future source adapters.
+
+[Integrations →](usage/integrations/mcp.md)
+</div>
+
+<div class="tr-card" markdown>
+### Serve a registry
+Expose the same registry as OpenAPI or MCP with `toolregistry-server`, or use curated tools from `toolregistry-hub`.
+
+[Architecture →](architecture/overview.md)
+</div>
+
+</div>
+
+## Install
 
 ```bash
 pip install toolregistry
 ```
 
-[Detailed setup instructions →](usage/installation.md)
+Need MCP/OpenAPI integrations?
+
+```bash
+pip install "toolregistry[mcp,openapi]"
+```
 
 ## Ecosystem
 
-ToolRegistry is part of a three-package ecosystem. See the [Ecosystem](ecosystem.md) page for details.
+| Package | Use it when you need |
+|---------|----------------------|
+| **toolregistry** | Core registration, schema generation, execution, permissions, and metadata |
+| [toolregistry-server](https://toolregistry-server.readthedocs.io/) | Serve registries as OpenAPI or MCP services |
+| [toolregistry-hub](https://toolregistry-hub.readthedocs.io/) | Ready-to-use tools for search, fetch, datetime, unit conversion, and more |
 
-| Package | Role |
-|---------|------|
-| **toolregistry** | Core tool management library |
-| [toolregistry-server](https://toolregistry-server.readthedocs.io/) | OpenAPI & MCP server adapters |
-| [toolregistry-hub](https://toolregistry-hub.readthedocs.io/) | Ready-to-use utility tools |
-
-## Documentation Contents
-
-Here are brief introductions and links to each section:
-
-- [**Installation Guide**](usage/installation.md)
-  Detailed instructions for installing ToolRegistry, including basic installation and MCP-supported installation.
-
-- [**Basic Usage Guide**](usage/basics.md)
-  Provides getting started examples and tutorials to help you quickly learn tool registration, invocation, and management.
-
-- [**Function calling via OpenAI Compatible API**](usage/function_calling.md)
-  Explains how to use ToolRegistry with OpenAI compatible API through function calling.
-
-- Register Tools from Various Sources
-
-  - [**MCP Tool Integration**](usage/integrations/mcp.md)
-
-  - [**OpenAPI Tool Integration**](usage/integrations/openapi.md)
-
-  - [**Class-based Tools Collection**](usage/integrations/class.md)
-  
-  - [**Hub Tools Collection**](https://toolregistry-hub.readthedocs.io/)
-
-  - [**LangChain Tool Integration**](usage/integrations/langchain.md)
-
-- [**Permission System**](usage/permissions.md)
-  Control tool execution with composable rules, tag-based policies, and handler protocols.
-
-- [**Concurrency Modes**](usage/concurrency_modes.md)
-  Explains thread and process execution modes and their performance characteristics.
-
-- [**Best Practices on Tool Implementation**](usage/best_practices.md)
-  Offers principles and recommendations for designing and implementing tools.
-
-- [**Examples**](examples/index.md)
-  Demonstrates practical use cases, including consecutive tool call examples.
-
-- [**API References**](api/index.md)
-  Comprehensive API documentation for all classes and methods in ToolRegistry.
-
-???+ note "API changes"
-    Since version 0.4.12, the previously deprecated methods `ToolRegistry.register_static_tools`, `ToolRegistry.register_mcp_tools`, and `ToolRegistry.register_openapi_tools` have been **REMOVED**.
-
-    Users must update their implementations to use the new methods: `ToolRegistry.register_from_class`, `ToolRegistry.register_from_mcp`, and `ToolRegistry.register_from_openapi`.
-    
-    Please ensure your codebase is compatible with this update for uninterrupted functionality.
-
-## Citation
-
-If you use ToolRegistry in your research or project, please consider cite it as:
+## Cite
 
 ```bibtex
-@software{toolregistry2025,
-  title={ToolRegistry: A Protocol-Agnostic Tool Management Library for OpenAI-Compatible LLM Applications},
-  author={Peng Ding},
-  year={2025},
-  url={https://github.com/Oaklight/ToolRegistry},
-  note={A Python library for unified tool registration, execution, and management across multiple protocols in OpenAI-compatible LLM applications}
-}
-
 @article{ding2025toolregistry,
   title={Toolregistry: A protocol-agnostic tool management library for function-calling llms},
   author={Ding, Peng and Stevens, Rick},
@@ -120,7 +93,3 @@ If you use ToolRegistry in your research or project, please consider cite it as:
   year={2025}
 }
 ```
-
-## License
-
-ToolRegistry is licensed under the **MIT License**.
