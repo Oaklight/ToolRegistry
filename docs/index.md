@@ -3,116 +3,89 @@ title: 首页
 author: Oaklight
 hide:
   - navigation
+  - title
 ---
 
-# ToolRegistry：面向函数调用 LLM 的协议无关工具管理库
+<div class="tr-hero" markdown>
 
-欢迎来到 **ToolRegistry** 的官方文档，这是一个专为智能体 AI 和大型语言模型应用设计的 Python 库，用于注册、管理和执行工具（函数）。本文档按主题组织，帮助您快速找到并学习库的不同方面。
+<p class="tr-kicker">面向 LLM 应用的协议无关工具层</p>
 
-## 概览
+# 异构工具的统一管理层。
 
-ToolRegistry 是一个强大的 Python 库，简化了工具（函数）的注册、管理和执行。无论您是在构建与大型语言模型集成的系统，还是需要结构化的工具管理，ToolRegistry 都提供了一致的接口，支持同步和异步工具调用。
+<p class="tr-hero__desc">ToolRegistry 统一管理来自原生 Python、MCP、OpenAPI 以及未来更多来源的工具，覆盖注册、描述、发现、执行与结果返回，并为 OpenAI、Anthropic 和 Gemini 兼容 API 适配工具 schema 与调用格式。</p>
 
-### 核心特性
+<p class="tr-badges">
+  <a href="https://pypi.org/project/toolregistry/"><img alt="PyPI version" src="https://img.shields.io/pypi/v/toolregistry?labelColor=475569&color=075985"></a>
+  <a href="https://github.com/Oaklight/ToolRegistry/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Oaklight/ToolRegistry/ci.yml?branch=master&label=CI&labelColor=475569&color=0c4a6e"></a>
+  <a href="https://opensource.org/licenses/MIT"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-0c4a6e?labelColor=475569"></a>
+  <a href="https://arxiv.org/abs/2507.10593"><img alt="arXiv" src="https://img.shields.io/badge/arXiv-2507.10593-64748b?labelColor=475569"></a>
+</p>
 
-- **协议无关**：支持 OpenAI、MCP、OpenAPI、LangChain 等多种协议
-- **多格式模式生成**：通过 [llm-rosetta](https://pypi.org/project/llm-rosetta/) 为 OpenAI、Anthropic 和 Gemini 生成工具模式
-- **统一接口**：同步和异步工具执行的一致 API
-- **权限系统**：基于规则的授权，支持可组合策略、内置标签匹配和用于交互式审批的处理器协议
-- **启用/禁用控制**：细粒度的工具可用性管理，支持原因追踪
-- **工具元数据与标签**：使用预定义和自定义标签对工具进行分类，实现策略驱动的控制
-- **命名空间支持**：将工具组织成逻辑分组，支持 MRO 继承
-- **管理面板**：内置 Web 管理界面，包含执行日志、REST API 和 Anthropic 风格的极简 UI
-- **回调机制**：通过事件驱动的回调监控注册表变更
+<p class="tr-actions">
+  <a class="tr-button tr-button--primary" href="usage/basics/">快速上手</a>
+  <a class="tr-button tr-button--secondary" href="usage/function_calling/">函数调用</a>
+  <a class="tr-button tr-button--secondary" href="ecosystem/">了解生态系统</a>
+</p>
 
-本文档详细介绍了如何在实际项目中安装、配置和使用该库。浏览左侧菜单中的各个部分以找到您需要的信息。
+</div>
 
-## 快速开始
+## 选择你的路径
 
-[![PyPI version](https://img.shields.io/pypi/v/toolregistry?color=green)](https://pypi.org/project/toolregistry/)
-[![CI](https://github.com/Oaklight/ToolRegistry/actions/workflows/ci.yml/badge.svg)](https://github.com/Oaklight/ToolRegistry/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
-[![arXiv](https://img.shields.io/badge/arXiv-2507.10593-b31b1b.svg)](https://arxiv.org/abs/2507.10593)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Oaklight/toolregistry)
+<div class="tr-grid" markdown>
 
-通过以下命令快速开始使用 ToolRegistry：
+<div class="tr-card" markdown>
+### 用 Python 构建
+注册普通 Python callable，并使用验证、日志、权限和并发控制来执行工具。
+
+[从这里开始 →](usage/basics.md)
+</div>
+
+<div class="tr-card" markdown>
+### 连接 LLM Provider
+为 OpenAI、Anthropic、Gemini 和 OpenAI-compatible API 生成 schema 并恢复工具调用。
+
+[函数调用 →](usage/function_calling.md)
+</div>
+
+<div class="tr-card" markdown>
+### 接入外部工具
+从 MCP server、OpenAPI spec、原生 Python class 以及未来更多 source adapter 导入工具。
+
+[集成指南 →](usage/integrations/mcp.md)
+</div>
+
+<div class="tr-card" markdown>
+### 服务化注册表
+用 `toolregistry-server` 将同一份 registry 暴露为 OpenAPI 或 MCP，或直接使用 `toolregistry-hub` 的现成工具。
+
+[架构概览 →](architecture/overview.md)
+</div>
+
+</div>
+
+## 安装
 
 ```bash
 pip install toolregistry
 ```
 
-[详细安装说明 →](usage/installation.md)
+需要 MCP/OpenAPI 集成？
+
+```bash
+pip install "toolregistry[mcp,openapi]"
+```
 
 ## 生态系统
 
-ToolRegistry 是三包生态系统的一部分。详情请参阅[生态系统](ecosystem.md)页面。
-
-| 包名 | 角色 |
-|------|------|
-| **toolregistry** | 核心工具管理库 |
-| [toolregistry-server](https://toolregistry-server.readthedocs.io/zh/) | OpenAPI 和 MCP 服务器适配器 |
-| [toolregistry-hub](https://toolregistry-hub.readthedocs.io/zh/) | 即用型实用工具 |
-
-## 文档内容
-
-以下是各个部分的简要介绍和链接：
-
-- [**安装指南**](usage/installation.md)
-  详细的 ToolRegistry 安装说明，包括基础安装和支持 MCP 的安装。
-
-- [**基础用法指南**](usage/basics.md)
-  提供入门示例和教程，帮助您快速学习工具注册、调用和管理。
-
-- [**通过 OpenAI 兼容 API 进行函数调用**](usage/function_calling.md)
-  解释如何通过函数调用将 ToolRegistry 与 OpenAI 兼容 API 一起使用。
-
-- 从各种来源注册工具
-
-  - [**MCP 工具集成**](usage/integrations/mcp.md)
-
-  - [**OpenAPI 工具集成**](usage/integrations/openapi.md)
-
-  - [**基于类的工具集合**](usage/integrations/class.md)
-  
-  - [**Hub 工具集合**](https://toolregistry-hub.readthedocs.io/)
-
-  - [**LangChain 工具集成**](usage/integrations/langchain.md)
-
-- [**权限系统**](usage/permissions.md)
-  使用可组合规则、基于标签的策略和处理器协议控制工具执行。
-
-- [**并发模式**](usage/concurrency_modes.md)
-  解释线程和进程执行模式及其性能特征。
-
-- [**工具实现最佳实践**](usage/best_practices.md)
-  提供设计和实现工具的原则和建议。
-
-- [**示例**](examples/index.md)
-  演示实际用例，包括连续工具调用示例。
-
-- [**API 参考**](api/index.md)
-  ToolRegistry 中所有类和方法的全面 API 文档。
-
-???+ note "API 变更"
-    从版本 0.4.12 开始，之前已弃用的方法 `ToolRegistry.register_static_tools`、`ToolRegistry.register_mcp_tools` 和 `ToolRegistry.register_openapi_tools` 已被**移除**。
-
-    用户必须更新其实现以使用新方法：`ToolRegistry.register_from_class`、`ToolRegistry.register_from_mcp` 和 `ToolRegistry.register_from_openapi`。
-    
-    请确保您的代码库与此更新兼容，以保证功能不中断。
+| 包名 | 适用场景 |
+|------|----------|
+| **toolregistry** | 核心注册、schema 生成、执行、权限和元数据管理 |
+| [toolregistry-server](https://toolregistry-server.readthedocs.io/) | 将 registry 服务化为 OpenAPI 或 MCP 服务 |
+| [toolregistry-hub](https://toolregistry-hub.readthedocs.io/) | 搜索、网页抓取、日期时间、单位转换等现成工具 |
 
 ## 引用
 
-如果您在研究或项目中使用 ToolRegistry，请考虑引用它：
-
 ```bibtex
-@software{toolregistry2025,
-  title={ToolRegistry: A Protocol-Agnostic Tool Management Library for OpenAI-Compatible LLM Applications},
-  author={Peng Ding},
-  year={2025},
-  url={https://github.com/Oaklight/ToolRegistry},
-  note={A Python library for unified tool registration, execution, and management across multiple protocols in OpenAI-compatible LLM applications}
-}
-
 @article{ding2025toolregistry,
   title={Toolregistry: A protocol-agnostic tool management library for function-calling llms},
   author={Ding, Peng and Stevens, Rick},
@@ -120,7 +93,3 @@ ToolRegistry 是三包生态系统的一部分。详情请参阅[生态系统](e
   year={2025}
 }
 ```
-
-## 许可证
-
-ToolRegistry 采用 **MIT 许可证**。

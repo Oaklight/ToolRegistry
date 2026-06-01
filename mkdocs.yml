@@ -1,5 +1,5 @@
 site_name: ToolRegistry
-site_description: 面向函数调用 LLM 的协议无关工具管理库（OpenAI、Anthropic、Gemini、LangChain、MCP）
+site_description: 异构工具的统一管理层，适配 OpenAI、Anthropic 和 Gemini 兼容 API
 site_author: Peng Ding
 site_url: https://toolregistry.readthedocs.io/zh-cn/latest
 repo_name: Oaklight/ToolRegistry
@@ -13,15 +13,21 @@ theme:
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
+      primary: cyan
+      accent: cyan
       toggle:
         icon: material/brightness-7
         name: 切换到深色模式
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
+      primary: cyan
+      accent: cyan
       toggle:
         icon: material/brightness-4
         name: 跟随系统偏好
     - media: "(prefers-color-scheme)"
+      primary: cyan
+      accent: cyan
       toggle:
         icon: material/brightness-auto
         name: 切换到浅色模式
@@ -45,8 +51,6 @@ theme:
     - content.code.copy
     - content.code.annotate
     - content.code.select
-    - content.action.edit
-    - content.action.view
     - content.tabs.link
     - content.tooltips
     - content.footnote.tooltips
@@ -69,13 +73,15 @@ plugins:
   - llmstxt:
       full_output: llms-full.txt
       sections:
-        使用指南:
-          - architecture/overview.md
-          - usage/concurrency_modes.md
-          - usage/namespace.md
+        快速开始:
           - usage/installation.md
           - usage/basics.md
           - usage/function_calling.md
+          - usage/best_practices.md
+        指南:
+          - architecture/overview.md
+          - usage/concurrency_modes.md
+          - usage/namespace.md
           - usage/integrations/class.md
           - usage/integrations/hub.md
           - usage/integrations/mcp.md
@@ -87,11 +93,6 @@ plugins:
           - usage/permissions.md
           - usage/message_building.md
           - usage/configuration.md
-          - usage/best_practices.md
-          - usage/providers/openai_chat.md
-          - usage/providers/openai_response.md
-          - usage/providers/anthropic.md
-          - usage/providers/gemini.md
         示例:
           - examples/index.md
           - examples/consecutive_tool_calls.md
@@ -102,7 +103,7 @@ plugins:
           - examples/mcp_calculator.md
           - examples/mcp_diverse_transport.md
           - examples/openapi_calculator.md
-        API 参考:
+        参考:
           - api/index.md
           - api/core.md
           - api/core/toolregistry.md
@@ -122,7 +123,10 @@ plugins:
           - api/wrappers/langchain.md
           - api/helpers.md
           - api/types.md
-        管理面板:
+          - usage/providers/openai_chat.md
+          - usage/providers/openai_response.md
+          - usage/providers/anthropic.md
+          - usage/providers/gemini.md
           - admin/index.md
           - admin/configuration.md
           - admin/execution-logging.md
@@ -130,11 +134,14 @@ plugins:
           - admin/web-ui.md
           - admin/security.md
           - admin/examples.md
-        资源:
+        生态系统:
           - ecosystem.md
           - migration.md
         更新日志:
           - changelog.md
+
+extra_css:
+  - stylesheets/toolregistry.css
 
 markdown_extensions:
   - admonition
@@ -173,32 +180,29 @@ extra:
 
 nav:
   - 首页: index.md
-  - 使用指南:
-      - 架构:
-          - 概览: architecture/overview.md
+  - 快速开始:
+      - 安装: usage/installation.md
+      - 快速上手: usage/basics.md
+      - 函数调用: usage/function_calling.md
+      - 最佳实践: usage/best_practices.md
+  - 指南:
+      - 核心概念:
+          - 架构: architecture/overview.md
           - 执行模式: usage/concurrency_modes.md
           - 命名空间: usage/namespace.md
-      - 安装: usage/installation.md
-      - 基本用法: usage/basics.md
-      - 函数调用: usage/function_calling.md
       - 集成:
           - 基于类的工具: usage/integrations/class.md
-          - Hub 工具: usage/integrations/hub.md
           - MCP 工具: usage/integrations/mcp.md
           - OpenAPI 工具: usage/integrations/openapi.md
           - LangChain 工具: usage/integrations/langchain.md
-      - 工具发现: usage/tool_discovery.md
-      - 思维增强调用: usage/think_augmented.md
-      - 结果大小管理: usage/result_management.md
-      - 权限系统: usage/permissions.md
-      - 消息构建: usage/message_building.md
-      - 声明式配置: usage/configuration.md
-      - 最佳实践: usage/best_practices.md
-      - LLM API 格式:
-          - OpenAI Chat: usage/providers/openai_chat.md
-          - OpenAI Response: usage/providers/openai_response.md
-          - Anthropic: usage/providers/anthropic.md
-          - Google Gemini: usage/providers/gemini.md
+          - Hub 工具: usage/integrations/hub.md
+      - 高级主题:
+          - 工具发现: usage/tool_discovery.md
+          - 理由增强调用: usage/think_augmented.md
+          - 结果大小管理: usage/result_management.md
+          - 权限系统: usage/permissions.md
+          - 消息构建: usage/message_building.md
+          - 声明式配置: usage/configuration.md
   - 示例:
       - 概览: examples/index.md
       - 连续工具调用: examples/consecutive_tool_calls.md
@@ -209,9 +213,9 @@ nav:
       - MCP 计算器: examples/mcp_calculator.md
       - MCP 多样传输: examples/mcp_diverse_transport.md
       - OpenAPI 计算器: examples/openapi_calculator.md
-  - API 参考:
-      - 概览: api/index.md
-      - 核心类:
+  - 参考:
+      - API 概览: api/index.md
+      - 核心:
           - 概览: api/core.md
           - ToolRegistry: api/core/toolregistry.md
           - Tool: api/core/tool.md
@@ -232,17 +236,22 @@ nav:
           - LangChain ToolWrapper: api/wrappers/langchain.md
       - 辅助类: api/helpers.md
       - 类型: api/types.md
-  - 管理面板:
-      - 概览: admin/index.md
-      - 配置: admin/configuration.md
-      - 执行日志: admin/execution-logging.md
-      - REST API: admin/rest-api.md
-      - Web UI 指南: admin/web-ui.md
-      - 安全考虑: admin/security.md
-      - 示例: admin/examples.md
-  - 资源:
-      - 生态系统: ecosystem.md
+      - LLM API 格式:
+          - OpenAI Chat: usage/providers/openai_chat.md
+          - OpenAI Response: usage/providers/openai_response.md
+          - Anthropic: usage/providers/anthropic.md
+          - Google Gemini: usage/providers/gemini.md
+      - 管理面板:
+          - 概览: admin/index.md
+          - 配置: admin/configuration.md
+          - 执行日志: admin/execution-logging.md
+          - REST API: admin/rest-api.md
+          - Web UI 指南: admin/web-ui.md
+          - 安全考虑: admin/security.md
+          - 示例: admin/examples.md
+  - 生态系统:
+      - 概览: ecosystem.md
       - 迁移指南: migration.md
+      - Hub 工具: https://toolregistry-hub.readthedocs.io/
+      - Server: https://toolregistry-server.readthedocs.io/
   - 更新日志: changelog.md
-  - Hub 工具: https://toolregistry-hub.readthedocs.io/
-  - Server: https://toolregistry-server.readthedocs.io/
