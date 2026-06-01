@@ -12,7 +12,7 @@ hide:
 
 # Unified management for heterogeneous tools.
 
-<p class="tr-hero__desc">ToolRegistry unifies tool registration, disclosure, execution, and result handling across native Python, MCP, OpenAPI, and future tool sources — with schema adapters for OpenAI-, Anthropic-, and Gemini-compatible APIs.</p>
+<p class="tr-hero__desc">Register, describe, discover, execute, and return results for native Python, MCP, OpenAPI, and future tool sources — with schema adapters for OpenAI-, Anthropic-, and Gemini-compatible APIs.</p>
 
 <p class="tr-badges">
   <a href="https://pypi.org/project/toolregistry/"><img alt="PyPI version" src="https://img.shields.io/pypi/v/toolregistry?labelColor=475569&color=075985"></a>
