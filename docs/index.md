@@ -12,7 +12,7 @@ hide:
 
 # 异构工具的统一管理层。
 
-<p class="tr-hero__desc">ToolRegistry 统一管理来自原生 Python、MCP、OpenAPI 以及未来更多来源的工具，覆盖注册、描述、发现、执行与结果返回，并为 OpenAI、Anthropic 和 Gemini 兼容 API 适配工具 schema 与调用格式。</p>
+<p class="tr-hero__desc">统一注册、描述、发现、执行并返回来自原生 Python、MCP、OpenAPI 以及未来更多来源的工具，并为 OpenAI、Anthropic 和 Gemini 兼容 API 适配工具 schema 与调用格式。</p>
 
 <p class="tr-badges">
   <a href="https://pypi.org/project/toolregistry/"><img alt="PyPI version" src="https://img.shields.io/pypi/v/toolregistry?labelColor=475569&color=075985"></a>
