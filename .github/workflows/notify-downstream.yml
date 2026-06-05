@@ -5,7 +5,48 @@ on:
     types: [published]
 
 jobs:
+  wait-for-pypi:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+    steps:
+      - name: Resolve version
+        id: resolve
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          VERSION="${VERSION#v}"
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+'; then
+            echo "::error::Invalid version format: '$VERSION'"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for PyPI propagation
+        env:
+          VERSION: ${{ steps.resolve.outputs.version }}
+        # PyPI uploads happen out-of-band from the GitHub release event
+        # (typically by a separate publish workflow). Downstream repos
+        # immediately try `pip install toolregistry==$VERSION` on dispatch,
+        # which fails if PyPI hasn't propagated yet. Probe the JSON API
+        # directly (no pip cache) and gate dispatch on it.
+        run: |
+          attempts=40
+          sleep_s=15
+          for i in $(seq 1 $attempts); do
+            if curl -fsSL "https://pypi.org/pypi/toolregistry/$VERSION/json" >/dev/null 2>&1; then
+              echo "toolregistry==$VERSION is live on PyPI (after $((i-1)) wait(s))"
+              exit 0
+            fi
+            if [ "$i" -eq "$attempts" ]; then
+              echo "::error::toolregistry==$VERSION did not appear on PyPI within $((attempts*sleep_s))s; aborting downstream notify"
+              exit 1
+            fi
+            echo "toolregistry==$VERSION not on PyPI yet, retrying in ${sleep_s}s... ($i/$attempts)"
+            sleep "$sleep_s"
+          done
+
   notify-downstream:
+    needs: wait-for-pypi
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -19,4 +60,4 @@ jobs:
           token: ${{ secrets.DISPATCH_TOKEN }}
           repository: ${{ matrix.repo }}
           event-type: upstream-release
-          client-payload: '{"version": "${{ github.event.release.tag_name }}", "package": "toolregistry"}'
+          client-payload: '{"version": "${{ needs.wait-for-pypi.outputs.version }}", "package": "toolregistry"}'
