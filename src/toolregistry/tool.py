@@ -6,7 +6,7 @@ from collections.abc import Callable
 
 from pydantic import BaseModel, Field, model_validator
 
-from .parameter_models import _generate_parameters_model
+from .parameter_models import _generate_parameters_model, _simplify_nullable_schemas
 from .llm.tool_calls import API_FORMATS
 from .utils import normalize_tool_name
 
@@ -322,7 +322,9 @@ class Tool(BaseModel):
             )
             parameters_model = None
         parameters_schema = (
-            parameters_model.model_json_schema() if parameters_model else {}
+            _simplify_nullable_schemas(parameters_model.model_json_schema())
+            if parameters_model
+            else {}
         )
         tool = cls(
             name=func_name,

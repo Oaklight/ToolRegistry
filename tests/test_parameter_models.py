@@ -194,7 +194,7 @@ class TestCreateField:
         assert field_info.title == "test_param"
 
     def test_create_field_optional_parameter_with_annotation(self):
-        """Test _create_field with optional parameter that has annotation."""
+        """Test _create_field respects the declared annotation (no forced | None)."""
         param = inspect.Parameter(
             name="test_param",
             kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
@@ -204,7 +204,7 @@ class TestCreateField:
 
         annotation_type, field_info = _create_field(param, str)
 
-        assert annotation_type == str | None
+        assert annotation_type is str
         assert isinstance(field_info, FieldInfo)
         assert field_info.default == "default_value"
 
@@ -224,7 +224,7 @@ class TestCreateField:
         assert field_info.title == "test_param"
 
     def test_create_field_with_none_default(self):
-        """Test _create_field with None as default value."""
+        """Test _create_field with None default respects declared annotation."""
         param = inspect.Parameter(
             name="test_param",
             kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
@@ -234,7 +234,8 @@ class TestCreateField:
 
         annotation_type, field_info = _create_field(param, str)
 
-        assert annotation_type == str | None
+        # User wrote `str` not `str | None` — respect the declaration.
+        assert annotation_type is str
         assert field_info.default is None
 
 
