@@ -95,9 +95,13 @@ def _create_field(
         default = param.default
         if param.annotation is inspect.Parameter.empty:
             field_info = Field(default=default, title=param.name)
+            # No annotation — allow None since we can't infer intent.
+            return (annotation_type | None, field_info)
         else:
             field_info = Field(default=default)
-        return (annotation_type | None, field_info)
+            # Respect the user's declared type. If they wrote `str | None`,
+            # annotation_type already includes None. Don't force-add it.
+            return (annotation_type, field_info)
 
 
 def _warn_parameter_fallback(
@@ -178,6 +182,47 @@ def _field_def_for_parameter(
         InvalidSignature(f"unsupported annotation {param.annotation!r}"),
     )
     return _create_field(param, Any)
+
+
+def _simplify_nullable_schemas(schema: dict[str, Any]) -> dict[str, Any]:
+    """Collapse ``anyOf: [{type: T}, {type: null}]`` into ``type: T``.
+
+    Pydantic v2 emits ``anyOf`` for ``Optional`` / ``T | None`` fields.
+    MCP clients (e.g. Claude Code) display these as "unknown" because they
+    don't resolve ``anyOf``.  Since optional parameters are already
+    expressed by omitting them from ``required`` and having a ``default``,
+    the ``null`` variant adds no information and can be safely removed.
+
+    This function mutates *schema* in place and returns it.
+
+    Args:
+        schema: A JSON Schema dict (output of ``model_json_schema()``).
+
+    Returns:
+        The same dict with nullable ``anyOf`` patterns simplified.
+    """
+    props = schema.get("properties")
+    if not props:
+        return schema
+
+    for prop_schema in props.values():
+        any_of = prop_schema.get("anyOf")
+        if not any_of or not isinstance(any_of, list):
+            continue
+        non_null = [v for v in any_of if v != {"type": "null"}]
+        if len(non_null) == len(any_of):
+            continue  # no null branch — nothing to simplify
+        if len(non_null) == 1:
+            # Simple nullable: [{type: T}, {type: null}] → type: T
+            del prop_schema["anyOf"]
+            prop_schema.update(non_null[0])
+        else:
+            # Multi-type nullable: [{type: T1}, {type: T2}, {type: null}]
+            # → anyOf: [{type: T1}, {type: T2}] (null branch removed)
+            prop_schema["anyOf"] = non_null
+        prop_schema["nullable"] = True
+
+    return schema
 
 
 def _create_parameters_model(
