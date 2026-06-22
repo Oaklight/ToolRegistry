@@ -133,7 +133,7 @@ class EnableDisableMixin:
 
     # Fields safe to update at runtime via update_tool_metadata()
     _MUTABLE_METADATA_FIELDS: frozenset[str] = frozenset(
-        {"think_augment", "defer", "search_hint"}
+        {"think_augment", "defer", "search_hint", "tags"}
     )
 
     def update_tool_metadata(self, tool_name: str, **kwargs: object) -> None:
