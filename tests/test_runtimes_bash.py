@@ -2,8 +2,7 @@
 
 import pytest
 
-from toolregistry.runtimes import BashTool
-from toolregistry.runtimes._bashtool import truncate, validate_command
+from toolregistry.runtimes import BashTool, truncate, validate_command
 
 
 class TestBashToolImport:
@@ -13,9 +12,10 @@ class TestBashToolImport:
         assert BashTool is not None
         assert hasattr(BashTool, "execute")
 
-    def test_submodule_internals_accessible(self):
-        """Internal utils are accessible from _bashtool but not from runtimes."""
+    def test_import_validate_command(self):
         assert callable(validate_command)
+
+    def test_import_truncate(self):
         assert callable(truncate)
 
 
