@@ -97,7 +97,20 @@ version = { attr = "toolregistry.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
+exclude = ["toolregistry.runtimes._bashtool.tests*"]
 
 [tool.setuptools.package-data]
 "toolregistry" = ["py.typed"]
 "toolregistry.admin" = ["*.html"]
+
+[tool.setuptools.exclude-package-data]
+"toolregistry.runtimes._bashtool" = [
+    "tests/*",
+    "Makefile",
+    "README.md",
+    "LICENSE",
+    "pyproject.toml",
+    ".pre-commit-config.yaml",
+    ".github/*",
+    ".gitignore",
+]
