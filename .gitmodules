@@ -1,0 +1,3 @@
+[submodule "src/toolregistry/runtimes/_bashtool"]
+	path = src/toolregistry/runtimes/_bashtool
+	url = https://github.com/Oaklight/bashtool.git
