@@ -8,7 +8,6 @@ from collections.abc import Callable
 from ._types import ExecutionContext
 
 
-
 def _unwrap_fn(fn: Callable) -> Callable:
     """Unwrap a tool wrapper to get the underlying function.
 
