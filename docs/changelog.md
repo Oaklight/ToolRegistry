@@ -16,6 +16,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-06-26
+
+### Changed
+
+- **Unified Tool callable layer with `_FunctionToolWrapper`**: all `Tool.callable` values are now `BaseToolWrapper` subclasses, providing uniform `call_sync()`/`call_async()` interfaces regardless of tool origin (native function, MCP, OpenAPI, LangChain).
+- **`Tool.run()` / `Tool.arun()` are now the primary API**: exceptions propagate directly instead of being swallowed and returned as error strings. The old error-swallowing behavior (deprecated since v0.10.0) has been removed.
+- **`Tool.run_raw()` / `Tool.arun_raw()` are now deprecated aliases** for `run()` / `arun()`. They emit `DeprecationWarning` and will be removed in a future version.
+
+### Added
+
+- **`Tool.fn` property**: returns the underlying unwrapped function for native tools, or the wrapper itself for integration tools (MCP, OpenAPI, LangChain).
+- **Sync/async transparency for all tools**: sync tools can now be called via `arun()` (dispatched via `asyncio.to_thread()`), and async tools can be called via `run()` (dispatched via `asyncio.run()`).
+- **Parallel execution support**: mixed sync and async tools can be called concurrently via `asyncio.gather()`.
+
+### Removed
+
+- Removed `make_sync_wrapper()` from executor helpers (dead code after wrapper unification).
+- Removed async detection fallback in `ThreadBackend` and `ProcessPoolBackend` for `BaseToolWrapper` instances (handled internally by wrappers).
+
+### Fixed
+
+- Fixed `arun()`/`arun_raw()` crashing on sync callables with "object can't be used in 'await' expression".
+- Fixed `run()`/`run_raw()` returning bare coroutine objects for async callables instead of awaiting them.
+- Fixed executor context injection (`_ctx` parameter) not detecting parameters through tool wrappers.
+
+## [0.11.2] - 2026-06-22
+
+### Added
+
+- Added `tags` to `_MUTABLE_METADATA_FIELDS` for runtime tag updates.
+
+### Fixed
+
+- Simplified nullable `anyOf` schemas for MCP compatibility.
+
 ## [0.11.1] - 2026-05-31
 
 ### Fixed
