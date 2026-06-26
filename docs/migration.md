@@ -2,35 +2,72 @@
 
 This guide covers breaking changes and migration steps between major ToolRegistry releases.
 
-## 0.8.x → Next
+## 0.11.x → 0.12.0
 
-### `Tool.run()` / `arun()` Error Swallowing Deprecated
+### `Tool.run()` / `arun()` No Longer Swallow Exceptions
 
-`Tool.run()` and `arun()` previously caught all exceptions and returned error strings like `"Error executing tool_name: ..."`. This behavior is now deprecated and emits a `DeprecationWarning`. In a future version, `run()` will also raise exceptions.
+`Tool.run()` and `arun()` previously caught exceptions and returned error strings like `"Error executing tool_name: ..."`. Starting in v0.12.0, they raise exceptions directly — the same behavior `run_raw()`/`arun_raw()` had.
 
-**Before:**
+`run_raw()` and `arun_raw()` are now deprecated aliases for `run()` / `arun()`.
+
+**Before (v0.10–v0.11):**
 
 ```python
 tool = registry.get_tool("divide")
 result = tool.run({"a": 10, "b": 0})
-# result == "Error executing divide: division by zero"
-# No exception raised, no warning
+# result == "Error executing divide: division by zero"  ← no exception
+```
+
+**After (v0.12+):**
+
+```python
+tool = registry.get_tool("divide")
+try:
+    result = tool.run({"a": 10, "b": 0})
+except ZeroDivisionError:
+    print("Cannot divide by zero!")
+
+# run_raw() still works but emits DeprecationWarning
+# Just use run() instead.
+```
+
+### `Tool.callable` Is Now a `BaseToolWrapper`
+
+`Tool.callable` is no longer a bare Python function for native tools. It is always a `BaseToolWrapper` subclass. If you need the original unwrapped function, use the new `tool.fn` property.
+
+**Before:**
+
+```python
+tool = Tool.from_function(my_func)
+assert tool.callable == my_func            # worked
+sig = inspect.signature(tool.callable)     # got real signature
 ```
 
 **After:**
 
 ```python
-# Preferred: use run_raw() for programmatic error handling
-try:
-    result = tool.run_raw({"a": 10, "b": 0})
-except ZeroDivisionError:
-    print("Cannot divide by zero!")
-
-# Legacy: run() still works but emits DeprecationWarning on error
-result = tool.run({"a": 10, "b": 0})
-# DeprecationWarning: Tool.run() caught an exception and returned an error string.
-# This behavior is deprecated; use Tool.run_raw() for exceptions.
+tool = Tool.from_function(my_func)
+assert tool.fn == my_func                  # use .fn instead
+sig = inspect.signature(tool.fn)           # use .fn for introspection
 ```
+
+### Sync/Async Transparent Calling
+
+All tools now support both `run()` and `arun()` regardless of whether the underlying function is sync or async:
+
+```python
+# Sync tool
+sync_tool = Tool.from_function(sync_add)
+sync_tool.run({"a": 1, "b": 2})           # direct call
+await sync_tool.arun({"a": 1, "b": 2})    # via asyncio.to_thread
+
+# Async tool
+async_tool = Tool.from_function(async_add)
+async_tool.run({"a": 1, "b": 2})          # via asyncio.run
+await async_tool.arun({"a": 1, "b": 2})   # direct await
+```
+
+## 0.8.x → 0.10.0
 
 ### `HttpxClientConfig` Renamed to `HttpClientConfig`
 

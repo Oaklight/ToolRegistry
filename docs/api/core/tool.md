@@ -170,12 +170,14 @@ async_tool = Tool(
 )
 ```
 
-### Executing Tools: `run_raw()` vs `run()`
+### Executing Tools
 
-The `Tool` class provides two execution APIs:
+The `Tool` class provides sync and async execution:
 
-- **`run_raw(parameters)` / `arun_raw(parameters)`** — Validates parameters and executes the tool. Raises exceptions on failure, allowing programmatic callers to catch and handle errors.
-- **`run(parameters)` / `arun(parameters)`** *(deprecated error-swallowing behavior)* — Delegates to `run_raw()`/`arun_raw()` but catches exceptions and returns error strings like `"Error executing tool_name: ..."`. This behavior emits a `DeprecationWarning`; in a future version, `run()` will also raise.
+- **`run(parameters)`** — Execute synchronously. Raises exceptions on failure.
+- **`arun(parameters)`** — Execute asynchronously. Raises exceptions on failure.
+
+Both methods handle sync/async callable transparency automatically. A sync tool can be called via `arun()` (dispatched via `asyncio.to_thread()`), and an async tool can be called via `run()` (dispatched via `asyncio.run()`).
 
 ```python
 from toolregistry import Tool
@@ -186,16 +188,28 @@ def divide(a: float, b: float) -> float:
 
 tool = Tool.from_function(divide)
 
-# Preferred: use run_raw() for programmatic error handling
+# Sync execution
 try:
-    result = tool.run_raw({"a": 10, "b": 0})
+    result = tool.run({"a": 10, "b": 0})
 except ZeroDivisionError:
     print("Cannot divide by zero!")
 
-# Legacy: run() catches exceptions and returns error strings (deprecated)
-result = tool.run({"a": 10, "b": 0})
-# result == "Error executing divide: division by zero"
-# ^ emits DeprecationWarning
+# Async execution
+result = await tool.arun({"a": 10, "b": 2})  # returns 5.0
+```
+
+!!! note "`run_raw()` / `arun_raw()` are deprecated"
+    These methods are now aliases for `run()` / `arun()` and emit
+    `DeprecationWarning`. Use `run()` / `arun()` directly.
+
+### Accessing the Underlying Function
+
+Use the `tool.fn` property to get the original unwrapped function:
+
+```python
+tool = Tool.from_function(my_func)
+tool.fn          # → my_func (the original function)
+tool.callable    # → _FunctionToolWrapper (the wrapper, for internal use)
 ```
 
 ## Parameter Schema Format
