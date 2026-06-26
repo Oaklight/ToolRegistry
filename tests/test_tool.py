@@ -1,5 +1,6 @@
 """Unit tests for the Tool class."""
 
+import asyncio
 import inspect
 
 import pytest
@@ -16,7 +17,7 @@ class TestTool:
 
         assert tool.name == "add_numbers"
         assert "Add two numbers together" in tool.description
-        assert tool.callable == sample_function
+        assert tool.fn == sample_function
         assert not tool.is_async
         assert isinstance(tool.parameters, dict)
 
@@ -45,7 +46,7 @@ class TestTool:
 
         assert tool.name == "async_add_numbers"
         assert tool.is_async
-        assert inspect.iscoroutinefunction(tool.callable)
+        assert inspect.iscoroutinefunction(tool.fn)
 
     def test_tool_creation_from_lambda_without_name_raises_error(self):
         """Test that creating a Tool from lambda without name raises ValueError."""
@@ -62,7 +63,7 @@ class TestTool:
         tool = Tool.from_function(lambda_func, name="double")
 
         assert tool.name == "double"
-        assert tool.callable == lambda_func
+        assert tool.fn == lambda_func
 
     def test_tool_creation_normalizes_empty_parameters_schema(self):
         """Direct Tool construction should always produce object parameters."""
@@ -189,27 +190,18 @@ class TestTool:
 
         assert result == 8
 
-    def test_run_raw_with_valid_parameters(self, sample_tool):
-        """Test run_raw returns result on success."""
+    def test_run_raw_deprecated(self, sample_tool):
+        """Test run_raw emits deprecation warning and delegates to run."""
         parameters = {"a": 5, "b": 3}
-        result = sample_tool.run_raw(parameters)
-
+        with pytest.warns(DeprecationWarning, match="run_raw.*deprecated"):
+            result = sample_tool.run_raw(parameters)
         assert result == 8
 
-    def test_run_raw_raises_on_invalid_parameters(self, sample_tool):
-        """Test run_raw raises instead of returning error string."""
+    def test_run_raises_on_invalid_parameters(self, sample_tool):
+        """Test run raises on invalid parameters (no longer swallows exceptions)."""
         parameters = {"invalid": "params"}
         with pytest.raises(Exception):
-            sample_tool.run_raw(parameters)
-
-    def test_run_with_invalid_parameters_returns_error_string(self, sample_tool):
-        """Test running tool with invalid parameters returns error string with deprecation warning."""
-        parameters = {"invalid": "params"}
-        with pytest.warns(DeprecationWarning, match="run_raw"):
-            result = sample_tool.run(parameters)
-
-        assert isinstance(result, str)
-        assert "Error executing" in result
+            sample_tool.run(parameters)
 
     @pytest.mark.asyncio
     async def test_arun_with_async_function(self, async_sample_function):
@@ -221,43 +213,42 @@ class TestTool:
         assert result == 30
 
     @pytest.mark.asyncio
-    async def test_arun_raw_with_async_function(self, async_sample_function):
-        """Test arun_raw returns result on success."""
+    async def test_arun_raw_deprecated(self, async_sample_function):
+        """Test arun_raw emits deprecation warning and delegates to arun."""
         tool = Tool.from_function(async_sample_function)
         parameters = {"a": 10, "b": 20}
-        result = await tool.arun_raw(parameters)
-
+        with pytest.warns(DeprecationWarning, match="arun_raw.*deprecated"):
+            result = await tool.arun_raw(parameters)
         assert result == 30
 
     @pytest.mark.asyncio
-    async def test_arun_raw_raises_on_invalid_parameters(self, async_sample_function):
-        """Test arun_raw raises instead of returning error string."""
+    async def test_arun_with_sync_function(self, sample_tool):
+        """Test async execution of sync tool via asyncio.to_thread."""
+        parameters = {"a": 5, "b": 3}
+        result = await sample_tool.arun(parameters)
+        assert result == 8
+
+    @pytest.mark.asyncio
+    async def test_arun_raises_on_invalid_parameters(self, async_sample_function):
+        """Test arun raises on invalid parameters (no longer swallows exceptions)."""
         tool = Tool.from_function(async_sample_function)
         parameters = {"invalid": "params"}
         with pytest.raises(Exception):
-            await tool.arun_raw(parameters)
+            await tool.arun(parameters)
 
     @pytest.mark.asyncio
-    async def test_arun_with_sync_function_returns_result_or_error(self, sample_tool):
-        """Test async execution of sync tool."""
-        parameters = {"a": 5, "b": 3}
-        result = await sample_tool.arun(parameters)
-
-        # Sync functions called via arun may either succeed or return error
-        assert result == 8 or (isinstance(result, str) and "Error executing" in result)
-
-    @pytest.mark.asyncio
-    async def test_arun_with_invalid_parameters_returns_error_string(
-        self, async_sample_function
+    async def test_arun_parallel_sync_and_async(
+        self, sample_tool, async_sample_function
     ):
-        """Test async execution with invalid parameters returns error string with deprecation warning."""
-        tool = Tool.from_function(async_sample_function)
-        parameters = {"invalid": "params"}
-        with pytest.warns(DeprecationWarning, match="arun_raw"):
-            result = await tool.arun(parameters)
-
-        assert isinstance(result, str)
-        assert "Error executing" in result
+        """Test parallel arun with mixed sync and async tools."""
+        async_tool = Tool.from_function(async_sample_function)
+        results = await asyncio.gather(
+            sample_tool.arun({"a": 1, "b": 1}),
+            sample_tool.arun({"a": 2, "b": 2}),
+            async_tool.arun({"a": 3, "b": 3}),
+            async_tool.arun({"a": 4, "b": 4}),
+        )
+        assert results == [2, 4, 6, 8]
 
     def test_update_namespace_adds_namespace_to_tool_without_existing(
         self, sample_tool

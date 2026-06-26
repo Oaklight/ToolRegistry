@@ -65,7 +65,8 @@ class TestToolRegistry:
         sample_registry.register(test_func)
 
         assert "test_func" in sample_registry
-        assert sample_registry.get_callable("test_func") == test_func
+        tool = sample_registry.get_tool("test_func")
+        assert tool.fn == test_func
 
     def test_register_function_with_custom_name_and_description(self, sample_registry):
         """Test registering a function with custom name and description."""

@@ -1,36 +1,42 @@
 import asyncio
+import inspect
 from abc import ABC, abstractmethod
 from typing import Any
+from collections.abc import Callable
 
 
 class BaseToolWrapper(ABC):
-    """Base class for tool wrappers that provide support for synchronous
-    and asynchronous calls.
+    """Base class for tool wrappers that provide sync/async transparent calls.
+
+    Every ``Tool.callable`` is a ``BaseToolWrapper`` subclass.  This
+    guarantees that ``call_sync()`` and ``call_async()`` are always
+    available regardless of the tool's origin (native function, MCP,
+    OpenAPI, LangChain).
 
     Attributes:
-        name (str): Name of the tool.
-        params (Optional[List[str]]): List of parameter names, default is None.
+        name: Name of the tool.
+        params: List of parameter names, default is None.
     """
 
     def __init__(self, name: str, params: list[str] | None = None) -> None:
-        """Initializes the base tool wrapper.
+        """Initialize the base tool wrapper.
 
         Args:
-            name (str): Name of the tool.
-            params (Optional[List[str]]): List of parameter names, default is None.
+            name: Name of the tool.
+            params: List of parameter names, default is None.
         """
         self.name = name
         self.params = params
 
     def _process_args(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
-        """Processes positional and keyword arguments.
+        """Process positional and keyword arguments into a kwargs dict.
 
         Args:
             *args: Positional arguments.
             **kwargs: Keyword arguments.
 
         Returns:
-            Dict[str, Any]: Dictionary of processed arguments.
+            Merged keyword arguments dict.
 
         Raises:
             ValueError: If tool parameters are not initialized.
@@ -63,14 +69,9 @@ class BaseToolWrapper(ABC):
             **kwargs: Keyword arguments.
 
         Returns:
-            Any: The result of the call.
-
-        Raises:
-            NotImplementedError: Must be implemented by a subclass.
+            The result of the call.
         """
-        raise NotImplementedError(
-            "The 'call_sync' method must be implemented by a subclass."
-        )
+        ...
 
     @abstractmethod
     async def call_async(self, *args: Any, **kwargs: Any) -> Any:
@@ -81,28 +82,73 @@ class BaseToolWrapper(ABC):
             **kwargs: Keyword arguments.
 
         Returns:
-            Any: The result of the call.
-
-        Raises:
-            NotImplementedError: Must be implemented by a subclass.
+            The result of the call.
         """
-        raise NotImplementedError(
-            "The 'call_async' method must be implemented by a subclass."
-        )
+        ...
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        """Makes the wrapper callable and automatically selects between
-        synchronous and asynchronous versions.
+        """Make the wrapper callable, selecting sync or async automatically.
 
         Args:
             *args: Positional arguments.
             **kwargs: Keyword arguments.
 
         Returns:
-            Any: The result of the call.
+            The result of the call (or a coroutine if in async context).
         """
         try:
             asyncio.get_running_loop()
             return self.call_async(*args, **kwargs)
         except RuntimeError:
             return self.call_sync(*args, **kwargs)
+
+
+class _FunctionToolWrapper(BaseToolWrapper):
+    """Wrapper for native Python functions (sync or async).
+
+    Created automatically by ``Tool.from_function()`` so that
+    ``Tool.callable`` is always a ``BaseToolWrapper``.  The underlying
+    function is accessible via the ``.fn`` attribute.
+
+    Args:
+        fn: The Python function to wrap.
+        name: Tool name.
+        params: List of parameter names.
+    """
+
+    def __init__(
+        self,
+        fn: Callable[..., Any],
+        name: str,
+        params: list[str] | None = None,
+    ) -> None:
+        super().__init__(name, params)
+        self.fn = fn
+        self._is_async = inspect.iscoroutinefunction(fn)
+
+    def call_sync(self, *args: Any, **kwargs: Any) -> Any:
+        """Execute the function synchronously.
+
+        Sync functions are called directly.  Async functions are run
+        via ``asyncio.run()``.
+
+        Raises:
+            RuntimeError: If called from within a running event loop
+                with an async function.  Use ``call_async()`` instead.
+        """
+        kwargs = self._process_args(*args, **kwargs)
+        if self._is_async:
+            return asyncio.run(self.fn(**kwargs))
+        return self.fn(**kwargs)
+
+    async def call_async(self, *args: Any, **kwargs: Any) -> Any:
+        """Execute the function asynchronously.
+
+        Async functions are awaited directly.  Sync functions are
+        dispatched via ``asyncio.to_thread()`` to avoid blocking
+        the event loop.
+        """
+        kwargs = self._process_args(*args, **kwargs)
+        if self._is_async:
+            return await self.fn(**kwargs)
+        return await asyncio.to_thread(self.fn, **kwargs)
