@@ -31,8 +31,20 @@ def make_sync_wrapper(async_func: Callable) -> Callable:
     return wrapper
 
 
+def _unwrap_fn(fn: Callable) -> Callable:
+    """Unwrap a tool wrapper to get the underlying function.
+
+    Looks for a ``.fn`` attribute (used by ``_FunctionToolWrapper`` and
+    similar wrappers) without importing any toolregistry types.
+    """
+    return getattr(fn, "fn", fn)
+
+
 def should_inject_context(fn: Callable) -> bool:
     """Check if ``fn`` has a parameter named ``_ctx`` for context injection.
+
+    If *fn* is a tool wrapper with a ``.fn`` attribute, the inner
+    function's signature is inspected instead.
 
     Args:
         fn: The callable to inspect.
@@ -42,6 +54,7 @@ def should_inject_context(fn: Callable) -> bool:
         (or compatible with) ``ExecutionContext``.
     """
     try:
+        fn = _unwrap_fn(fn)
         sig = inspect.signature(fn)
         if "_ctx" not in sig.parameters:
             return False

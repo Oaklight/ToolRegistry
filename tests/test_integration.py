@@ -239,12 +239,12 @@ class TestToolRegistryIntegration:
         failing_tool = registry.get_tool("failing_function")
         good_tool = registry.get_tool("good_function")
 
-        # Test direct tool execution
-        error_result = failing_tool.run({"should_fail": True})
+        # Test direct tool execution — run() now raises on failure
+        with pytest.raises(ValueError, match="Intentional failure"):
+            failing_tool.run({"should_fail": True})
         success_result = failing_tool.run({"should_fail": False})
         good_result = good_tool.run({"x": 5, "y": 3})
 
-        assert "Error executing" in error_result
         assert success_result == "success"
         assert good_result == 8
 
