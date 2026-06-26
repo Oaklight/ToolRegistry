@@ -1,5 +1,6 @@
 """Unit tests for the Tool class."""
 
+import asyncio
 import inspect
 
 import pytest
@@ -196,6 +197,13 @@ class TestTool:
 
         assert result == 8
 
+    def test_run_raw_with_async_function(self, async_sample_function):
+        """Test run_raw runs async callable via asyncio.run."""
+        tool = Tool.from_function(async_sample_function)
+        parameters = {"a": 10, "b": 20}
+        result = tool.run_raw(parameters)
+        assert result == 30
+
     def test_run_raw_raises_on_invalid_parameters(self, sample_tool):
         """Test run_raw raises instead of returning error string."""
         parameters = {"invalid": "params"}
@@ -250,6 +258,20 @@ class TestTool:
         parameters = {"a": 5, "b": 3}
         result = await sample_tool.arun(parameters)
         assert result == 8
+
+    @pytest.mark.asyncio
+    async def test_arun_parallel_sync_and_async(
+        self, sample_tool, async_sample_function
+    ):
+        """Test parallel arun with mixed sync and async tools."""
+        async_tool = Tool.from_function(async_sample_function)
+        results = await asyncio.gather(
+            sample_tool.arun_raw({"a": 1, "b": 1}),
+            sample_tool.arun_raw({"a": 2, "b": 2}),
+            async_tool.arun_raw({"a": 3, "b": 3}),
+            async_tool.arun_raw({"a": 4, "b": 4}),
+        )
+        assert results == [2, 4, 6, 8]
 
     @pytest.mark.asyncio
     async def test_arun_with_invalid_parameters_returns_error_string(

@@ -471,6 +471,9 @@ class Tool(BaseModel):
         Unlike ``run()``, this method does **not** catch exceptions — they
         propagate to the caller, preserving full stack-trace information.
 
+        Sync callables are invoked directly.  Async callables are run via
+        ``asyncio.run()`` so callers never receive a bare coroutine.
+
         Args:
             parameters: Input parameters for the tool.
 
@@ -488,6 +491,10 @@ class Tool(BaseModel):
         """
         parameters = {k: v for k, v in parameters.items() if k != "toolcall_reason"}
         validated_params = self._validate_parameters(parameters)
+
+        if inspect.iscoroutinefunction(self.callable):
+            return asyncio.run(self.callable(**validated_params))
+
         return self.callable(**validated_params)
 
     def run(self, parameters: dict[str, Any]) -> Any:
