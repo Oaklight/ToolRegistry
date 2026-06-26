@@ -230,6 +230,13 @@ class TestTool:
         assert result == 30
 
     @pytest.mark.asyncio
+    async def test_arun_raw_with_sync_function(self, sample_tool):
+        """Test arun_raw dispatches sync callable via asyncio.to_thread."""
+        parameters = {"a": 10, "b": 20}
+        result = await sample_tool.arun_raw(parameters)
+        assert result == 30
+
+    @pytest.mark.asyncio
     async def test_arun_raw_raises_on_invalid_parameters(self, async_sample_function):
         """Test arun_raw raises instead of returning error string."""
         tool = Tool.from_function(async_sample_function)
@@ -238,13 +245,11 @@ class TestTool:
             await tool.arun_raw(parameters)
 
     @pytest.mark.asyncio
-    async def test_arun_with_sync_function_returns_result_or_error(self, sample_tool):
-        """Test async execution of sync tool."""
+    async def test_arun_with_sync_function(self, sample_tool):
+        """Test async execution of sync tool runs via asyncio.to_thread."""
         parameters = {"a": 5, "b": 3}
         result = await sample_tool.arun(parameters)
-
-        # Sync functions called via arun may either succeed or return error
-        assert result == 8 or (isinstance(result, str) and "Error executing" in result)
+        assert result == 8
 
     @pytest.mark.asyncio
     async def test_arun_with_invalid_parameters_returns_error_string(

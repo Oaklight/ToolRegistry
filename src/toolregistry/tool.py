@@ -1,3 +1,4 @@
+import asyncio
 import inspect
 import warnings
 from enum import Enum
@@ -530,6 +531,10 @@ class Tool(BaseModel):
         Unlike ``arun()``, this method does **not** catch exceptions — they
         propagate to the caller, preserving full stack-trace information.
 
+        Async callables are awaited directly.  Sync callables are
+        dispatched via ``asyncio.to_thread()`` so they never block the
+        event loop.
+
         Args:
             parameters: Input parameters for the tool.
 
@@ -537,7 +542,6 @@ class Tool(BaseModel):
             The tool execution result.
 
         Raises:
-            NotImplementedError: If async execution is unsupported.
             Exception: Any exception raised during validation or execution.
 
         Note:
@@ -551,12 +555,10 @@ class Tool(BaseModel):
 
         if inspect.iscoroutinefunction(self.callable):
             return await self.callable(**validated_params)
-        elif hasattr(self.callable, "__call__"):
-            return await self.callable(**validated_params)
-        raise NotImplementedError(
-            "Async execution requires either an async function (coroutine) "
-            "or a callable whose __call__ method is async or returns an awaitable object."
-        )
+
+        # Sync callable — run in a thread to avoid blocking the event loop.
+        fn = self.callable
+        return await asyncio.to_thread(fn, **validated_params)
 
     async def arun(self, parameters: dict[str, Any]) -> Any:
         """Execute tool asynchronously.
@@ -568,7 +570,6 @@ class Tool(BaseModel):
             Any: Tool execution result.
 
         Raises:
-            NotImplementedError: If async execution unsupported.
             Exception: On execution failure.
 
         Note:
