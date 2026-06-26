@@ -13,7 +13,6 @@ from collections.abc import Callable
 
 import cloudpickle
 
-from ._helpers import make_sync_wrapper
 from ._protocol import ExecutionHandle
 from ._types import HandleStatus, ProgressReport
 
@@ -114,9 +113,17 @@ class ProcessPoolBackend:
     ) -> ExecutionHandle:
         exec_id = execution_id or uuid.uuid4().hex
 
-        # Auto-wrap async functions
-        if asyncio.iscoroutinefunction(fn):
-            fn = make_sync_wrapper(fn)
+        # Wrap bare async functions so they can run in the worker process.
+        # Tool wrappers (BaseToolWrapper) handle sync/async internally,
+        # so only wrap bare async callables passed directly.
+        raw_fn = getattr(fn, "fn", fn)
+        if asyncio.iscoroutinefunction(raw_fn) and not hasattr(fn, "call_sync"):
+            async_fn = fn
+
+            def _sync_wrapper(**kw):  # type: ignore[no-untyped-def]
+                return asyncio.run(async_fn(**kw))
+
+            fn = _sync_wrapper
 
         # Serialize the callable with cloudpickle
         serialized_fn = cloudpickle.dumps(fn)
