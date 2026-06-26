@@ -16,6 +16,41 @@ hide:
 
 ## [未发布]
 
+## [0.12.0] - 2026-06-26
+
+### 变更
+
+- **统一 Tool callable 层（`_FunctionToolWrapper`）**：所有 `Tool.callable` 现在都是 `BaseToolWrapper` 子类，无论工具来源（原生函数、MCP、OpenAPI、LangChain）均提供统一的 `call_sync()`/`call_async()` 接口。
+- **`Tool.run()` / `Tool.arun()` 成为主要 API**：异常直接传播，不再被吞掉并返回错误字符串。旧的异常吞没行为（v0.10.0 起已标记废弃）已移除。
+- **`Tool.run_raw()` / `Tool.arun_raw()` 现为废弃别名**：调用时会发出 `DeprecationWarning`，将在未来版本中移除。
+
+### 新增
+
+- **`Tool.fn` 属性**：返回底层未包装的函数（原生工具），或包装器本身（MCP、OpenAPI、LangChain 工具）。
+- **所有工具的 sync/async 透明调用**：同步工具可通过 `arun()` 调用（通过 `asyncio.to_thread()` 分发），异步工具可通过 `run()` 调用（通过 `asyncio.run()` 分发）。
+- **并行执行支持**：混合 sync/async 工具可通过 `asyncio.gather()` 并发调用。
+
+### 移除
+
+- 移除 executor helpers 中的 `make_sync_wrapper()`（wrapper 统一后成为死代码）。
+- 移除 `ThreadBackend` 和 `ProcessPoolBackend` 中针对 `BaseToolWrapper` 实例的异步检测回退（由 wrapper 内部处理）。
+
+### 修复
+
+- 修复 `arun()`/`arun_raw()` 对同步 callable 崩溃的问题（"object can't be used in 'await' expression"）。
+- 修复 `run()`/`run_raw()` 对异步 callable 返回裸 coroutine 对象而非等待结果的问题。
+- 修复 executor 上下文注入（`_ctx` 参数）无法透过 tool wrapper 检测参数的问题。
+
+## [0.11.2] - 2026-06-22
+
+### 新增
+
+- 将 `tags` 添加到 `_MUTABLE_METADATA_FIELDS`，支持运行时标签更新。
+
+### 修复
+
+- 简化 nullable `anyOf` schema 以兼容 MCP。
+
 ## [0.11.1] - 2026-05-31
 
 ### 修复
