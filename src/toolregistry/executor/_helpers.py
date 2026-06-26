@@ -2,33 +2,11 @@
 
 from __future__ import annotations
 
-import asyncio
 import inspect
 from collections.abc import Callable
 
 from ._types import ExecutionContext
 
-
-def make_sync_wrapper(async_func: Callable) -> Callable:
-    """Wrap an async function so it can be called synchronously.
-
-    Args:
-        async_func: An async callable to wrap.
-
-    Returns:
-        A synchronous wrapper that runs the async function.
-    """
-
-    def wrapper(*args, **kwargs):  # noqa: ANN002, ANN003
-        try:
-            asyncio.get_running_loop()
-            return asyncio.get_event_loop().run_until_complete(
-                async_func(*args, **kwargs)
-            )
-        except RuntimeError:
-            return asyncio.run(async_func(*args, **kwargs))
-
-    return wrapper
 
 
 def _unwrap_fn(fn: Callable) -> Callable:

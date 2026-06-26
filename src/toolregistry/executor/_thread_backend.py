@@ -9,7 +9,7 @@ from concurrent.futures import TimeoutError as FuturesTimeoutError
 from typing import Any
 from collections.abc import Callable
 
-from ._helpers import make_sync_wrapper, should_inject_context
+from ._helpers import should_inject_context
 from ._protocol import ExecutionHandle
 from ._types import (
     CancelledError,
@@ -96,9 +96,17 @@ class ThreadBackend:
     ) -> ExecutionHandle:
         exec_id = execution_id or uuid.uuid4().hex
 
-        # Auto-wrap async functions
-        if asyncio.iscoroutinefunction(fn):
-            fn = make_sync_wrapper(fn)
+        # Wrap bare async functions so they can run in the thread pool.
+        # For tool wrappers, unwrap to the inner function for the check;
+        # for bare async callables passed directly, wrap them in-place.
+        raw_fn = getattr(fn, "fn", fn)
+        if asyncio.iscoroutinefunction(raw_fn) and not hasattr(fn, "call_sync"):
+            async_fn = fn
+
+            def _sync_wrapper(**kw):  # type: ignore[no-untyped-def]
+                return asyncio.run(async_fn(**kw))
+
+            fn = _sync_wrapper
 
         # Context injection
         ctx: ExecutionContext | None = None

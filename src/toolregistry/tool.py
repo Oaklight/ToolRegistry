@@ -159,13 +159,12 @@ class Tool(BaseModel):
     callable: Callable[..., Any] = Field(exclude=True)
     """The tool's callable, always a :class:`BaseToolWrapper` at runtime.
 
-    Typed as ``Callable`` for Pydantic compatibility.  Use
-    ``call_sync``/``call_async`` for sync/async transparent execution.
-    """
-    """The underlying function/method that implements the tool's logic.
+    Typed as ``Callable`` for Pydantic compatibility (Pydantic cannot
+    generate a schema for ``BaseToolWrapper``).  Use ``call_sync()`` /
+    ``call_async()`` for sync/async transparent execution.
 
-    This is excluded from serialization to prevent accidental exposure
-    of sensitive implementation details.
+    Excluded from serialization to prevent accidental exposure of
+    implementation details.
     """
 
     metadata: ToolMetadata = Field(default_factory=ToolMetadata)
