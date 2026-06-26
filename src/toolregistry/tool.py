@@ -157,6 +157,11 @@ class Tool(BaseModel):
     """
 
     callable: Callable[..., Any] = Field(exclude=True)
+    """The tool's callable, always a :class:`BaseToolWrapper` at runtime.
+
+    Typed as ``Callable`` for Pydantic compatibility.  Use
+    ``call_sync``/``call_async`` for sync/async transparent execution.
+    """
     """The underlying function/method that implements the tool's logic.
 
     This is excluded from serialization to prevent accidental exposure
@@ -507,7 +512,7 @@ class Tool(BaseModel):
         """
         parameters = {k: v for k, v in parameters.items() if k != "toolcall_reason"}
         validated_params = self._validate_parameters(parameters)
-        return self.callable.call_sync(**validated_params)
+        return self.callable.call_sync(**validated_params)  # ty: ignore[unresolved-attribute]
 
     async def arun(self, parameters: dict[str, Any]) -> Any:
         """Execute tool asynchronously.
@@ -532,7 +537,7 @@ class Tool(BaseModel):
         """
         parameters = {k: v for k, v in parameters.items() if k != "toolcall_reason"}
         validated_params = self._validate_parameters(parameters)
-        return await self.callable.call_async(**validated_params)
+        return await self.callable.call_async(**validated_params)  # ty: ignore[unresolved-attribute]
 
     def run_raw(self, parameters: dict[str, Any]) -> Any:
         """Deprecated alias for ``run()``.
