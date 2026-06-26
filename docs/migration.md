@@ -2,35 +2,72 @@
 
 本指南涵盖 ToolRegistry 主要版本之间的破坏性变更和迁移步骤。
 
-## 0.8.x → 下一版本
+## 0.11.x → 0.12.0
 
-### `Tool.run()` / `arun()` 错误吞没行为已弃用
+### `Tool.run()` / `arun()` 不再吞没异常
 
-`Tool.run()` 和 `arun()` 之前会捕获所有异常并返回类似 `"Error executing tool_name: ..."` 的错误字符串。此行为现已弃用，会发出 `DeprecationWarning`。未来版本中 `run()` 也将直接抛出异常。
+`Tool.run()` 和 `arun()` 之前会捕获异常并返回类似 `"Error executing tool_name: ..."` 的错误字符串。从 v0.12.0 起，它们直接抛出异常——与之前 `run_raw()`/`arun_raw()` 的行为一致。
 
-**之前：**
+`run_raw()` 和 `arun_raw()` 现在是 `run()` / `arun()` 的废弃别名。
+
+**之前（v0.10–v0.11）：**
 
 ```python
 tool = registry.get_tool("divide")
 result = tool.run({"a": 10, "b": 0})
-# result == "Error executing divide: division by zero"
-# 不抛出异常，无警告
+# result == "Error executing divide: division by zero"  ← 不抛异常
+```
+
+**之后（v0.12+）：**
+
+```python
+tool = registry.get_tool("divide")
+try:
+    result = tool.run({"a": 10, "b": 0})
+except ZeroDivisionError:
+    print("不能除以零！")
+
+# run_raw() 仍可用但会发出 DeprecationWarning
+# 直接使用 run() 即可。
+```
+
+### `Tool.callable` 现在是 `BaseToolWrapper`
+
+原生工具的 `Tool.callable` 不再是裸 Python 函数，而是 `BaseToolWrapper` 子类。如需访问原始未包装的函数，使用新的 `tool.fn` 属性。
+
+**之前：**
+
+```python
+tool = Tool.from_function(my_func)
+assert tool.callable == my_func            # 可以
+sig = inspect.signature(tool.callable)     # 拿到真实签名
 ```
 
 **之后：**
 
 ```python
-# 推荐：使用 run_raw() 进行程序化错误处理
-try:
-    result = tool.run_raw({"a": 10, "b": 0})
-except ZeroDivisionError:
-    print("不能除以零！")
-
-# 遗留方式：run() 仍然可用，但出错时会发出 DeprecationWarning
-result = tool.run({"a": 10, "b": 0})
-# DeprecationWarning: Tool.run() caught an exception and returned an error string.
-# This behavior is deprecated; use Tool.run_raw() for exceptions.
+tool = Tool.from_function(my_func)
+assert tool.fn == my_func                  # 使用 .fn
+sig = inspect.signature(tool.fn)           # 使用 .fn 做内省
 ```
+
+### Sync/Async 透明调用
+
+所有工具现在都支持 `run()` 和 `arun()`，无论底层函数是同步还是异步：
+
+```python
+# 同步工具
+sync_tool = Tool.from_function(sync_add)
+sync_tool.run({"a": 1, "b": 2})           # 直接调用
+await sync_tool.arun({"a": 1, "b": 2})    # 通过 asyncio.to_thread
+
+# 异步工具
+async_tool = Tool.from_function(async_add)
+async_tool.run({"a": 1, "b": 2})          # 通过 asyncio.run
+await async_tool.arun({"a": 1, "b": 2})   # 直接 await
+```
+
+## 0.8.x → 0.10.0
 
 ### `HttpxClientConfig` 重命名为 `HttpClientConfig`
 

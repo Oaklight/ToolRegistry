@@ -170,12 +170,14 @@ async_tool = Tool(
 )
 ```
 
-### 执行工具：`run_raw()` 与 `run()`
+### 执行工具
 
-`Tool` 类提供两组执行 API：
+`Tool` 类提供同步和异步两种执行方式：
 
-- **`run_raw(parameters)` / `arun_raw(parameters)`** — 验证参数并执行工具。失败时直接抛出异常，允许程序化调用方捕获和处理错误。
-- **`run(parameters)` / `arun(parameters)`** *（已弃用的错误吞没行为）* — 委托给 `run_raw()`/`arun_raw()`，但会捕获异常并返回类似 `"Error executing tool_name: ..."` 的错误字符串。此行为会发出 `DeprecationWarning`；未来版本中 `run()` 也将直接抛出异常。
+- **`run(parameters)`** — 同步执行。失败时直接抛出异常。
+- **`arun(parameters)`** — 异步执行。失败时直接抛出异常。
+
+两个方法都自动处理 sync/async callable 的透明转换。同步工具可通过 `arun()` 调用（通过 `asyncio.to_thread()` 分发），异步工具可通过 `run()` 调用（通过 `asyncio.run()` 分发）。
 
 ```python
 from toolregistry import Tool
@@ -186,16 +188,28 @@ def divide(a: float, b: float) -> float:
 
 tool = Tool.from_function(divide)
 
-# 推荐：使用 run_raw() 进行程序化错误处理
+# 同步执行
 try:
-    result = tool.run_raw({"a": 10, "b": 0})
+    result = tool.run({"a": 10, "b": 0})
 except ZeroDivisionError:
     print("不能除以零！")
 
-# 遗留方式：run() 捕获异常并返回错误字符串（已弃用）
-result = tool.run({"a": 10, "b": 0})
-# result == "Error executing divide: division by zero"
-# ^ 发出 DeprecationWarning
+# 异步执行
+result = await tool.arun({"a": 10, "b": 2})  # 返回 5.0
+```
+
+!!! note "`run_raw()` / `arun_raw()` 已废弃"
+    这些方法现在是 `run()` / `arun()` 的别名，调用时会发出
+    `DeprecationWarning`。请直接使用 `run()` / `arun()`。
+
+### 访问底层函数
+
+使用 `tool.fn` 属性获取原始未包装的函数：
+
+```python
+tool = Tool.from_function(my_func)
+tool.fn          # → my_func（原始函数）
+tool.callable    # → _FunctionToolWrapper（包装器，内部使用）
 ```
 
 ## 参数模式格式
