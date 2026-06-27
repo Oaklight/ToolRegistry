@@ -9,6 +9,7 @@ from toolregistry.runtimes import (
     CodeRuntime,
     DirectProjection,
     ToolProjection,
+    validate_namespace,
 )
 
 
@@ -145,3 +146,27 @@ class TestCodeRuntime:
         result = asyncio.run(runtime.execute("", ns))
         assert result.stdout == "3"
         assert result.return_code == 0
+
+
+# ---------------------------------------------------------------------------
+# validate_namespace
+# ---------------------------------------------------------------------------
+
+
+class TestValidateNamespace:
+    def test_consistent_namespace(self):
+        ns = {
+            "add": DirectProjection(name="add", fn=lambda a, b: a + b),
+            "mul": DirectProjection(name="mul", fn=lambda a, b: a * b),
+        }
+        validate_namespace(ns)  # should not raise
+
+    def test_empty_namespace(self):
+        validate_namespace({})  # should not raise
+
+    def test_mismatched_key_raises(self):
+        ns = {
+            "wrong_name": DirectProjection(name="add", fn=lambda a, b: a + b),
+        }
+        with pytest.raises(ValueError, match="wrong_name.*add"):
+            validate_namespace(ns)
