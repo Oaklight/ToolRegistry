@@ -17,11 +17,18 @@ Future contents (see issues #176, #177):
 - ``PythonExecutionTool`` — meta-tool exposing CodeRuntime to LLMs
 """
 
-from ._protocol import CodeResult, CodeRuntime, DirectProjection, ToolProjection
+from ._protocol import (
+    CodeResult,
+    CodeRuntime,
+    DirectProjection,
+    ToolProjection,
+    validate_namespace,
+)
 
 __all__ = [
     "CodeResult",
     "CodeRuntime",
     "DirectProjection",
     "ToolProjection",
+    "validate_namespace",
 ]

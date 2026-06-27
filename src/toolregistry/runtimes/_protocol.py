@@ -137,10 +137,36 @@ class DirectProjection:
         Async callables are run via ``asyncio.run()``.  This is
         appropriate for in-process ``exec()`` contexts where the code
         runs synchronously.
+
+        Note:
+            ``asyncio.run()`` cannot be called from within a running
+            event loop.  If the ``CodeRuntime.execute()`` implementation
+            itself runs inside an event loop, it must handle this — e.g.
+            by running ``exec()`` in a separate thread via
+            ``asyncio.to_thread()``.  See issue #176.
         """
         if self._is_async:
             return asyncio.run(self.fn(**kwargs))
         return self.fn(**kwargs)
+
+
+# ---------------------------------------------------------------------------
+# Namespace helpers
+# ---------------------------------------------------------------------------
+
+
+def validate_namespace(namespace: dict[str, ToolProjection]) -> None:
+    """Check that each key matches its ``ToolProjection.name``.
+
+    Raises:
+        ValueError: If any key/name pair is inconsistent.
+    """
+    for key, proj in namespace.items():
+        if key != proj.name:
+            raise ValueError(
+                f"Namespace key {key!r} does not match "
+                f"ToolProjection.name {proj.name!r}"
+            )
 
 
 # ---------------------------------------------------------------------------
