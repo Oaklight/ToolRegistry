@@ -220,6 +220,7 @@ nav:
           - ToolRegistry: api/core/toolregistry.md
           - Tool: api/core/tool.md
           - Executor: api/core/executor.md
+          - Runtimes (PTC): api/core/runtimes.md
           - Events: api/events.md
           - Permissions: api/permissions.md
       - Integrations:

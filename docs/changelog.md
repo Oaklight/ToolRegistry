@@ -16,6 +16,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **PTC protocols** (`runtimes/` subpackage): `CodeResult`, `ToolProjection`, `DirectProjection`, `CodeRuntime` — foundation for Programmatic Tool Calling (#175).
+- `validate_namespace()` helper to catch key/name mismatches in tool namespaces.
+
 ## [0.12.0] - 2026-06-26
 
 ### Changed
