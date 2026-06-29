@@ -220,6 +220,7 @@ nav:
           - ToolRegistry: api/core/toolregistry.md
           - Tool: api/core/tool.md
           - Executor: api/core/executor.md
+          - 运行时 (PTC): api/core/runtimes.md
           - Events: api/events.md
           - 权限: api/permissions.md
       - 集成:

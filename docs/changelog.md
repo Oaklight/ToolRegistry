@@ -16,6 +16,11 @@ hide:
 
 ## [未发布]
 
+### 新增
+
+- **PTC 协议**（`runtimes/` 子包）：`CodeResult`、`ToolProjection`、`DirectProjection`、`CodeRuntime` —— Programmatic Tool Calling 的基础（#175）。
+- `validate_namespace()` 辅助函数，用于检测工具命名空间中键/名称不一致的问题。
+
 ## [0.12.0] - 2026-06-26
 
 ### 变更
