@@ -193,3 +193,4 @@ docs_zh/
 
 # Temporary test artifacts
 test.db
+.complexipy_cache/
