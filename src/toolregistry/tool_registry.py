@@ -369,7 +369,13 @@ class ToolRegistry(
         self._code_execution = None
 
     # ============== Execution ==============
-    def invoke(self, tool_name: str, kwargs: dict[str, Any]) -> Any:
+    def invoke(
+        self,
+        tool_name: str,
+        kwargs: dict[str, Any],
+        *,
+        invocation_id: str | None = None,
+    ) -> Any:
         """Execute a single tool with full pipeline (permissions, logging).
 
         This is the canonical single-tool execution entry point.  It is
@@ -380,11 +386,15 @@ class ToolRegistry(
             1. Check tool exists and is enabled
             2. Permission check (``_resolve_permission``)
             3. Execute via ``tool.run()``
-            4. Log execution result
+            4. Log execution result with ``invocation_id``
 
         Args:
             tool_name: Name of the registered tool.
             kwargs: Keyword arguments to pass to the tool.
+            invocation_id: Optional ID to group related calls.  If
+                ``None``, a ``tr_sig_`` ID is auto-generated.  PTC
+                and batch callers pass their own ``tr_ptc_`` / ``tr_bat_``
+                IDs to correlate all calls in a single execution.
 
         Returns:
             The tool's return value.
@@ -396,6 +406,10 @@ class ToolRegistry(
             Exception: Any exception raised by the tool itself.
         """
         from .admin import ExecutionStatus
+        from .utils import generate_invocation_id
+
+        if invocation_id is None:
+            invocation_id = generate_invocation_id("sig")
 
         tool_obj = self.get_tool(tool_name)
         if tool_obj is None:
@@ -409,6 +423,7 @@ class ToolRegistry(
                 0.0,
                 kwargs,
                 error=reason,
+                invocation_id=invocation_id,
             )
             raise RuntimeError(f"Tool '{tool_name}' is disabled: {reason}")
 
@@ -420,6 +435,7 @@ class ToolRegistry(
                 0.0,
                 kwargs,
                 error="Denied by permission policy",
+                invocation_id=invocation_id,
             )
             raise PermissionError(f"Tool '{tool_name}' denied by permission policy")
 
@@ -433,6 +449,7 @@ class ToolRegistry(
                 duration_ms,
                 kwargs,
                 result=str(result),
+                invocation_id=invocation_id,
             )
             return result
         except Exception as exc:
@@ -444,6 +461,7 @@ class ToolRegistry(
                 kwargs,
                 error=str(exc),
                 exception_type=type(exc).__qualname__,
+                invocation_id=invocation_id,
             )
             raise
 
@@ -636,6 +654,7 @@ class ToolRegistry(
         error: str | None = None,
         exception_type: str | None = None,
         traceback: str | None = None,
+        invocation_id: str | None = None,
     ) -> None:
         """Append an entry to the execution log if logging is enabled.
 
@@ -648,6 +667,7 @@ class ToolRegistry(
             error: Optional error string.
             exception_type: Optional qualified exception class name.
             traceback: Optional formatted traceback string.
+            invocation_id: Optional invocation ID grouping related calls.
         """
         if self._execution_log is None:
             return
@@ -662,6 +682,7 @@ class ToolRegistry(
             error=error,
             exception_type=exception_type,
             traceback=traceback,
+            invocation_id=invocation_id,
         )
         self._execution_log.add(entry)
 

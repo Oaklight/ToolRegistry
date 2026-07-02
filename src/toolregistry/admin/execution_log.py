@@ -53,6 +53,7 @@ class ExecutionLogEntry:
     error: str | None = None
     exception_type: str | None = None
     traceback: str | None = None
+    invocation_id: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -66,6 +67,7 @@ class ExecutionLogEntry:
         error: str | None = None,
         exception_type: str | None = None,
         traceback: str | None = None,
+        invocation_id: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> "ExecutionLogEntry":
         """Create a new ExecutionLogEntry with auto-generated id and timestamp.
@@ -79,6 +81,9 @@ class ExecutionLogEntry:
             error: Error message (for failed executions).
             exception_type: Qualified name of the exception class.
             traceback: Formatted traceback string.
+            invocation_id: Groups related tool calls. Prefixes:
+                ``tr_bat_`` (batch), ``tr_ptc_`` (PTC),
+                ``tr_sig_`` (single invoke).
             metadata: Additional metadata.
 
         Returns:
@@ -95,6 +100,7 @@ class ExecutionLogEntry:
             error=error,
             exception_type=exception_type,
             traceback=traceback,
+            invocation_id=invocation_id,
             metadata=metadata or {},
         )
 
@@ -165,6 +171,7 @@ class ExecutionLog:
         tool_name: str | None = None,
         status: ExecutionStatus | None = None,
         since: datetime | None = None,
+        invocation_id: str | None = None,
     ) -> list[ExecutionLogEntry]:
         """Query log entries with optional filters.
 
@@ -176,6 +183,9 @@ class ExecutionLog:
             tool_name: Filter by tool name. If None, matches all tools.
             status: Filter by execution status. If None, matches all statuses.
             since: Filter entries after this timestamp. If None, no time filter.
+            invocation_id: Filter by invocation ID. Use this to retrieve
+                all tool calls from a single batch (``tr_bat_``), PTC
+                execution (``tr_ptc_``), or standalone invoke (``tr_sig_``).
 
         Returns:
             List of matching ExecutionLogEntry objects, newest first.
@@ -192,6 +202,8 @@ class ExecutionLog:
             filtered = [e for e in filtered if e.status == status]
         if since is not None:
             filtered = [e for e in filtered if e.timestamp >= since]
+        if invocation_id is not None:
+            filtered = [e for e in filtered if e.invocation_id == invocation_id]
 
         # Sort by timestamp descending (newest first)
         filtered.sort(key=lambda e: e.timestamp, reverse=True)
