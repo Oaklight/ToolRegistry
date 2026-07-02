@@ -114,3 +114,9 @@ class TestNamespaceToCallables:
 
     def test_empty(self):
         assert namespace_to_callables({}) == {}
+
+    def test_validates_before_converting(self):
+        """namespace_to_callables should reject mismatched keys."""
+        ns = {"wrong": DirectProjection(name="add", fn=lambda a, b: a + b)}
+        with pytest.raises(ValueError, match="wrong.*add"):
+            namespace_to_callables(ns)
