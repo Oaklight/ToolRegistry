@@ -32,7 +32,7 @@ from .llm.discovery import (
 )
 from .runtimes._code_execution import (
     CODE_EXECUTION_NAME,
-    _CODE_EXECUTION_DESCRIPTION,
+    CODE_EXECUTION_DESCRIPTION,
 )
 
 from ._mixins import (
@@ -353,7 +353,7 @@ class ToolRegistry(
         code_tool = Tool.from_function(
             executor.execute,
             name=CODE_EXECUTION_NAME,
-            description=_CODE_EXECUTION_DESCRIPTION,
+            description=CODE_EXECUTION_DESCRIPTION,
             metadata=ToolMetadata(defer=False),
         )
         self.register(code_tool)
