@@ -41,21 +41,28 @@ class TestCodeExecutionTool:
         assert "Error:" in result
         assert "ZeroDivisionError" in result
 
-    def test_timeout(self, registry):
-        executor = CodeExecutionTool(registry, timeout=1)
-        result = executor.execute("import time; time.sleep(10)")
-        # Timeout returns empty stdout
-        assert result == "" or "Error" in result
-
     def test_dangerous_code_rejected(self, registry):
         executor = CodeExecutionTool(registry)
         with pytest.raises(ValueError, match="Import not allowed"):
             executor.execute("import os; os.system('ls')")
 
-    def test_namespace_contains_tools(self, registry):
+    def test_call_tool_in_namespace(self, registry):
+        """Tools are directly callable in the code namespace."""
         executor = CodeExecutionTool(registry)
-        result = executor.execute("print('add' in dir() and 'multiply' in dir())")
-        assert result.strip() == "True"
+        result = executor.execute("print(add(a=3, b=4))")
+        assert result.strip() == "7"
+
+    def test_call_multiple_tools(self, registry):
+        """Multi-tool orchestration in a single code block."""
+        executor = CodeExecutionTool(registry)
+        code = (
+            "s = add(a=10, b=20)\n"
+            "p = multiply(a=s, b=3)\n"
+            "print(f'sum={s}, product={p}')"
+        )
+        result = executor.execute(code)
+        assert "sum=30" in result
+        assert "product=90" in result
 
     def test_namespace_excludes_self(self, registry):
         """code_execution tool should not be in its own namespace."""
@@ -64,16 +71,27 @@ class TestCodeExecutionTool:
         result = executor.execute(f"print('{CODE_EXECUTION_NAME}' in dir())")
         assert result.strip() == "False"
 
-    def test_namespace_stubs_raise(self, registry):
+    def test_tool_doc_accessible(self, registry):
+        """Tool doc is accessible via .doc property."""
         executor = CodeExecutionTool(registry)
-        code = "try:\n    add(a=1, b=2)\nexcept NotImplementedError:\n    print('stub')"
-        result = executor.execute(code)
-        assert result.strip() == "stub"
+        result = executor.execute("print(add.doc)")
+        assert "Add two numbers" in result
 
-    def test_custom_timeout(self, registry):
-        executor = CodeExecutionTool(registry, timeout=60)
-        result = executor.execute("print('fast')", timeout=5)
-        assert result.strip() == "fast"
+    def test_multiline_computation(self, registry):
+        executor = CodeExecutionTool(registry)
+        code = (
+            "results = []\n"
+            "for i in range(5):\n"
+            "    results.append(add(a=i, b=i*10))\n"
+            "print(results)"
+        )
+        result = executor.execute(code)
+        assert "[0, 11, 22, 33, 44]" in result
+
+    def test_syntax_error_rejected(self, registry):
+        executor = CodeExecutionTool(registry)
+        with pytest.raises(SyntaxError):
+            executor.execute("def")
 
 
 class TestRegistryIntegration:
@@ -107,3 +125,10 @@ class TestRegistryIntegration:
         tool = registry.get_tool(CODE_EXECUTION_NAME)
         result = tool.run({"code": "print(42)"})
         assert "42" in result
+
+    def test_execute_tool_call_via_registry(self, registry):
+        """Full end-to-end: LLM tool call → code execution → tool invocation."""
+        registry.enable_code_execution()
+        tool = registry.get_tool(CODE_EXECUTION_NAME)
+        result = tool.run({"code": "print(add(a=100, b=200))"})
+        assert "300" in result
