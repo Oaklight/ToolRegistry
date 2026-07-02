@@ -369,6 +369,84 @@ class ToolRegistry(
         self._code_execution = None
 
     # ============== Execution ==============
+    def invoke(self, tool_name: str, kwargs: dict[str, Any]) -> Any:
+        """Execute a single tool with full pipeline (permissions, logging).
+
+        This is the canonical single-tool execution entry point.  It is
+        used by :class:`CodeExecutionTool` for IPC callbacks and can be
+        called directly for programmatic tool invocation.
+
+        Pipeline:
+            1. Check tool exists and is enabled
+            2. Permission check (``_resolve_permission``)
+            3. Execute via ``tool.run()``
+            4. Log execution result
+
+        Args:
+            tool_name: Name of the registered tool.
+            kwargs: Keyword arguments to pass to the tool.
+
+        Returns:
+            The tool's return value.
+
+        Raises:
+            KeyError: If the tool is not registered.
+            PermissionError: If the tool is denied by permission policy.
+            RuntimeError: If the tool is disabled.
+            Exception: Any exception raised by the tool itself.
+        """
+        from .admin import ExecutionStatus
+
+        tool_obj = self.get_tool(tool_name)
+        if tool_obj is None:
+            raise KeyError(f"Tool '{tool_name}' is not registered")
+
+        if not self.is_enabled(tool_name):
+            reason = self.get_disable_reason(tool_name) or "Tool is disabled"
+            self._log_entry(
+                tool_name,
+                ExecutionStatus.DISABLED,
+                0.0,
+                kwargs,
+                error=reason,
+            )
+            raise RuntimeError(f"Tool '{tool_name}' is disabled: {reason}")
+
+        decision = self._resolve_permission(tool_obj, kwargs)
+        if decision == PermissionResult.DENY:
+            self._log_entry(
+                tool_name,
+                ExecutionStatus.ERROR,
+                0.0,
+                kwargs,
+                error="Denied by permission policy",
+            )
+            raise PermissionError(f"Tool '{tool_name}' denied by permission policy")
+
+        start = time.perf_counter()
+        try:
+            result = tool_obj.run(kwargs)
+            duration_ms = (time.perf_counter() - start) * 1000
+            self._log_entry(
+                tool_name,
+                ExecutionStatus.SUCCESS,
+                duration_ms,
+                kwargs,
+                result=str(result),
+            )
+            return result
+        except Exception as exc:
+            duration_ms = (time.perf_counter() - start) * 1000
+            self._log_entry(
+                tool_name,
+                ExecutionStatus.ERROR,
+                duration_ms,
+                kwargs,
+                error=str(exc),
+                exception_type=type(exc).__qualname__,
+            )
+            raise
+
     def _finalize_result(self, result: Any, tool_name: str) -> str | list:
         """Convert a raw tool result to a string or content block list.
 

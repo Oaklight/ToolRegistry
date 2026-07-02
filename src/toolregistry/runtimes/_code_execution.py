@@ -203,15 +203,26 @@ class CodeExecutionTool:
         recursive invocation.
         """
         projections: dict[str, ToolProjection] = {}
-        for name in self._registry.list_tools():
+        registry = self._registry
+        for name in registry.list_tools():
             if name == CODE_EXECUTION_NAME:
                 continue
-            tool = self._registry.get_tool(name)
+            tool = registry.get_tool(name)
             if tool is None:
                 continue
-            projections[tool.name] = DirectProjection(
-                name=tool.name,
-                fn=tool.fn,
+            # Use registry.invoke() so tool calls go through the full
+            # pipeline (permissions, logging) instead of bypassing it.
+            tool_name = tool.name
+
+            def _make_invoke_fn(tn: str) -> Callable[..., Any]:
+                def fn(**kwargs: Any) -> Any:
+                    return registry.invoke(tn, kwargs)
+
+                return fn
+
+            projections[tool_name] = DirectProjection(
+                name=tool_name,
+                fn=_make_invoke_fn(tool_name),
                 doc=tool.description,
             )
 
