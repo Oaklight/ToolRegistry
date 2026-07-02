@@ -96,6 +96,12 @@ class DirectProjection:
         """Invoke the tool synchronously.
 
         Async callables are run via ``asyncio.run()``.
+
+        Warning:
+            ``asyncio.run()`` cannot be called from within a running
+            event loop (e.g. Jupyter, FastAPI).  If the caller is
+            already in an async context, use ``await proj.fn(**kwargs)``
+            directly instead.
         """
         if self._is_async:
             return asyncio.run(self.fn(**kwargs))
@@ -128,6 +134,16 @@ def namespace_to_callables(
 
     This is the bridge between toolregistry's ``ToolProjection`` and
     codecell's ``namespace: dict[str, Callable]`` parameter.
+
+    Note:
+        This function does **not** call :func:`validate_namespace`.
+        Callers should validate separately if key/name consistency
+        matters.
+
+    Note:
+        The implementation is intentionally trivial (``dict(namespace)``
+        would also work).  The function exists to carry the type
+        conversion semantics: ``ToolProjection`` → ``Callable``.
 
     Args:
         namespace: Mapping of tool name -> ToolProjection.
