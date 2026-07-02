@@ -30,6 +30,10 @@ from .llm.discovery import (
     ToolDiscoveryTool,
     _BASE_DISCOVERY_DESCRIPTION,
 )
+from .runtimes._code_execution import (
+    CODE_EXECUTION_NAME,
+    _CODE_EXECUTION_DESCRIPTION,
+)
 
 from ._mixins import (
     AdminMixin,
@@ -137,6 +141,7 @@ class ToolRegistry(
         self._name_sep: Literal["-", "."] = name_sep
         self._tool_discovery: ToolDiscoveryTool | None = None
         self._tool_discovery_callback: ChangeCallback | None = None
+        self._code_execution: Any = None  # CodeExecutionTool | None (lazy import)
 
         if tool_discovery:
             self.enable_tool_discovery()
@@ -311,6 +316,57 @@ class ToolRegistry(
             self._tool_discovery_callback = None
 
         self._tool_discovery = None
+
+    # ============== Code execution toggle ==============
+    def enable_code_execution(
+        self,
+        timeout: float = 30,
+    ) -> Any:
+        """Enable PTC code execution and register a ``code_execution`` tool.
+
+        Creates a :class:`~toolregistry.runtimes.CodeExecutionTool`,
+        registers its :meth:`~CodeExecutionTool.execute` method as a
+        callable tool named ``code_execution``.
+
+        PTC (Programmatic Tool Calling) lets LLMs write Python code
+        that orchestrates multiple tool calls in a single code block,
+        reducing round-trips and token consumption.
+
+        Requires the ``[ptc]`` optional dependency::
+
+            pip install toolregistry[ptc]
+
+        Args:
+            timeout: Default execution timeout in seconds.
+
+        Returns:
+            The :class:`~toolregistry.runtimes.CodeExecutionTool` instance.
+        """
+        from .runtimes._code_execution import CodeExecutionTool
+        from .tool import Tool, ToolMetadata
+
+        if self._code_execution is not None:
+            return self._code_execution
+
+        executor = CodeExecutionTool(self, timeout=timeout)
+
+        code_tool = Tool.from_function(
+            executor.execute,
+            name=CODE_EXECUTION_NAME,
+            description=_CODE_EXECUTION_DESCRIPTION,
+            metadata=ToolMetadata(defer=False),
+        )
+        self.register(code_tool)
+
+        self._code_execution = executor
+        return executor
+
+    def disable_code_execution(self) -> None:
+        """Disable PTC code execution and unregister the tool."""
+        if self._code_execution is None:
+            return
+        self._tools.pop(CODE_EXECUTION_NAME, None)
+        self._code_execution = None
 
     # ============== Execution ==============
     def _finalize_result(self, result: Any, tool_name: str) -> str | list:
