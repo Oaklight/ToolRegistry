@@ -80,6 +80,7 @@ class DirectProjection:
         self._name = name
         self.fn = fn
         self._doc = doc
+        self.__doc__ = doc  # makes help() show the tool description
         self._is_async = inspect.iscoroutinefunction(fn)
 
     @property
