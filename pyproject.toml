@@ -44,6 +44,7 @@ dependencies = [
 mcp = ["mcp>=1.0.0,<2.0.0", "httpx>=0.28.1"]
 openapi = []
 langchain = ["langchain-core>=0.3,<0.4", "langchain-community>=0.3,<0.4"]
+ptc = ["codecell>=0.1.0"]
 
 # dev dependencies
 dev = [
