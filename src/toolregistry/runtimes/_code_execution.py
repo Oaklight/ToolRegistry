@@ -33,7 +33,6 @@ Requires the ``[ptc]`` optional dependency: ``pip install toolregistry[ptc]``
 from __future__ import annotations
 
 import io
-import sys
 import traceback
 from typing import TYPE_CHECKING, Any
 from collections.abc import Callable
@@ -153,14 +152,19 @@ class CodeExecutionTool:
 
         ns = self._build_namespace()
 
-        # Build exec globals with namespace tools
-        exec_globals: dict[str, Any] = {"__builtins__": __builtins__}
-        exec_globals.update(ns)
+        # Thread-safe stdout capture: inject a custom print() that
+        # writes to a local buffer instead of sys.stdout.
+        import builtins
 
-        # Capture stdout
-        old_stdout = sys.stdout
         captured = io.StringIO()
-        sys.stdout = captured
+
+        def _print(*args: Any, **kwargs: Any) -> None:
+            kwargs.setdefault("file", captured)
+            builtins.print(*args, **kwargs)
+
+        exec_globals: dict[str, Any] = {"__builtins__": builtins.__dict__}
+        exec_globals["print"] = _print
+        exec_globals.update(ns)
 
         try:
             exec(compile(code, "<code_execution>", "exec"), exec_globals)  # noqa: S102
@@ -168,5 +172,3 @@ class CodeExecutionTool:
         except Exception:
             tb = traceback.format_exc()
             return f"Error:\n{tb}"
-        finally:
-            sys.stdout = old_stdout

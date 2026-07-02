@@ -72,10 +72,14 @@ class TestCodeExecutionTool:
         assert result.strip() == "False"
 
     def test_tool_doc_accessible(self, registry):
-        """Tool doc is accessible via .doc property."""
+        """Tool docstring accessible via both .doc and __doc__."""
         executor = CodeExecutionTool(registry)
+        # .doc property
         result = executor.execute("print(add.doc)")
         assert "Add two numbers" in result
+        # __doc__ (for help())
+        result2 = executor.execute("print(add.__doc__)")
+        assert "Add two numbers" in result2
 
     def test_multiline_computation(self, registry):
         executor = CodeExecutionTool(registry)
