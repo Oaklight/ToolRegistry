@@ -135,15 +135,14 @@ def namespace_to_callables(
     This is the bridge between toolregistry's ``ToolProjection`` and
     codecell's ``namespace: dict[str, Callable]`` parameter.
 
-    Note:
-        This function does **not** call :func:`validate_namespace`.
-        Callers should validate separately if key/name consistency
-        matters.
+    Calls :func:`validate_namespace` first to ensure key/name
+    consistency before conversion.
 
     Note:
-        The implementation is intentionally trivial (``dict(namespace)``
-        would also work).  The function exists to carry the type
-        conversion semantics: ``ToolProjection`` → ``Callable``.
+        The conversion itself is intentionally trivial
+        (``dict(namespace)`` would also work).  The function exists
+        to carry the type conversion semantics and the validation
+        guarantee: ``ToolProjection`` → validated ``Callable``.
 
     Args:
         namespace: Mapping of tool name -> ToolProjection.
@@ -151,5 +150,9 @@ def namespace_to_callables(
     Returns:
         Mapping of tool name -> callable (the ToolProjection itself,
         since it implements ``__call__``).
+
+    Raises:
+        ValueError: If any key does not match its ToolProjection.name.
     """
+    validate_namespace(namespace)
     return {name: proj for name, proj in namespace.items()}
