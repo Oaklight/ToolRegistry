@@ -263,11 +263,11 @@ class CodeExecutionTool:
         finally:
             self.last_trace = trace
 
+        if result.timed_out:
+            return "Error: execution timed out"
+
         if result.return_code != 0:
             error = result.stderr.strip()
             return f"Error:\n{error}" if error else "Error: execution failed"
-
-        if result.timed_out:
-            return "Error: execution timed out"
 
         return result.stdout
