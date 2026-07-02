@@ -1,8 +1,26 @@
 import re
+import uuid
 import warnings
 from typing import Any, Literal, overload
 
 from ._vendor.httpclient import AsyncClient, Client
+
+
+def generate_invocation_id(prefix: Literal["bat", "ptc", "sig"] = "sig") -> str:
+    """Generate a unique invocation ID for grouping related tool calls.
+
+    Prefixes:
+        - ``tr_bat_`` — batch execution via ``execute_tool_calls()``
+        - ``tr_ptc_`` — PTC code execution via ``CodeExecutionTool``
+        - ``tr_sig_`` — single invocation via ``registry.invoke()``
+
+    Args:
+        prefix: One of ``"bat"``, ``"ptc"``, ``"sig"``.
+
+    Returns:
+        A unique ID like ``"tr_bat_a1b2c3d4"``.
+    """
+    return f"tr_{prefix}_{uuid.uuid4().hex[:8]}"
 
 
 class _BaseUrlClient:

@@ -1,4 +1,4 @@
-"""Tests for ToolRegistry.invoke() — single-tool execution with full pipeline."""
+"""Tests for ToolRegistry.invoke() and invocation_id tracking."""
 
 import pytest
 
@@ -69,7 +69,9 @@ class TestInvoke:
         with pytest.raises(ValueError, match="broken"):
             reg.invoke("failing", {"x": 1})
 
-    def test_invoke_logs_success(self):
+
+class TestInvocationId:
+    def test_auto_generates_sig_id(self):
         reg = ToolRegistry()
         reg.enable_logging()
 
@@ -79,13 +81,48 @@ class TestInvoke:
         reg.register(add)
         reg.invoke("add", {"a": 1, "b": 2})
 
-        log = reg.get_execution_log()
-        entries = log.get_entries()
+        entries = reg.get_execution_log().get_entries()
         assert len(entries) == 1
-        assert entries[0].tool_name == "add"
-        assert entries[0].status.value == "success"
+        assert entries[0].invocation_id.startswith("tr_sig_")
 
-    def test_invoke_logs_error(self):
+    def test_custom_invocation_id(self):
+        reg = ToolRegistry()
+        reg.enable_logging()
+
+        def add(a: int, b: int) -> int:
+            return a + b
+
+        reg.register(add)
+        reg.invoke("add", {"a": 1, "b": 2}, invocation_id="tr_ptc_test123")
+
+        entries = reg.get_execution_log().get_entries()
+        assert entries[0].invocation_id == "tr_ptc_test123"
+
+    def test_filter_by_invocation_id(self):
+        reg = ToolRegistry()
+        reg.enable_logging()
+
+        def add(a: int, b: int) -> int:
+            return a + b
+
+        def mul(a: int, b: int) -> int:
+            return a * b
+
+        reg.register(add)
+        reg.register(mul)
+
+        reg.invoke("add", {"a": 1, "b": 2}, invocation_id="tr_ptc_aaa")
+        reg.invoke("mul", {"a": 3, "b": 4}, invocation_id="tr_ptc_aaa")
+        reg.invoke("add", {"a": 5, "b": 6}, invocation_id="tr_sig_bbb")
+
+        log = reg.get_execution_log()
+        ptc_entries = log.get_entries(invocation_id="tr_ptc_aaa")
+        assert len(ptc_entries) == 2
+
+        sig_entries = log.get_entries(invocation_id="tr_sig_bbb")
+        assert len(sig_entries) == 1
+
+    def test_error_logged_with_invocation_id(self):
         reg = ToolRegistry()
         reg.enable_logging()
 
@@ -94,17 +131,15 @@ class TestInvoke:
 
         reg.register(failing)
         with pytest.raises(ValueError):
-            reg.invoke("failing", {"x": 1})
+            reg.invoke("failing", {"x": 1}, invocation_id="tr_sig_err1")
 
-        log = reg.get_execution_log()
-        entries = log.get_entries()
+        entries = reg.get_execution_log().get_entries(invocation_id="tr_sig_err1")
         assert len(entries) == 1
         assert entries[0].status.value == "error"
-        assert "broken" in entries[0].error
 
 
-class TestInvokeWithCodeExecution:
-    """Test that CodeExecutionTool uses invoke() for tool calls."""
+class TestPtcInvocationId:
+    """Test that CodeExecutionTool generates tr_ptc_ IDs."""
 
     @pytest.fixture
     def registry(self):
@@ -118,14 +153,39 @@ class TestInvokeWithCodeExecution:
         reg.enable_logging()
         return reg
 
-    def test_ptc_tool_call_logged(self, registry):
-        """Tool calls via PTC code should appear in execution log."""
+    def test_ptc_generates_invocation_id(self, registry):
         registry.enable_code_execution()
-        tool = registry.get_tool("code_execution")
-        tool.run({"code": "print(add(a=10, b=20))"})
+        executor = registry._code_execution
+        executor.execute("print(add(a=1, b=2))")
 
-        log = registry.get_execution_log()
-        entries = log.get_entries()
-        add_entries = [e for e in entries if e.tool_name == "add"]
-        assert len(add_entries) >= 1
-        assert add_entries[0].status.value == "success"
+        assert executor.last_invocation_id is not None
+        assert executor.last_invocation_id.startswith("tr_ptc_")
+
+    def test_ptc_tool_calls_share_id(self, registry):
+        def mul(a: int, b: int) -> int:
+            """Multiply two numbers."""
+            return a * b
+
+        registry.register(mul)
+        registry.enable_code_execution()
+        executor = registry._code_execution
+
+        executor.execute("s = add(a=1, b=2)\np = mul(a=s, b=3)\nprint(p)")
+
+        inv_id = executor.last_invocation_id
+        entries = registry.get_execution_log().get_entries(invocation_id=inv_id)
+        assert len(entries) == 2
+        tool_names = {e.tool_name for e in entries}
+        assert tool_names == {"add", "mul"}
+
+    def test_separate_executions_have_different_ids(self, registry):
+        registry.enable_code_execution()
+        executor = registry._code_execution
+
+        executor.execute("print(add(a=1, b=2))")
+        id1 = executor.last_invocation_id
+
+        executor.execute("print(add(a=3, b=4))")
+        id2 = executor.last_invocation_id
+
+        assert id1 != id2
