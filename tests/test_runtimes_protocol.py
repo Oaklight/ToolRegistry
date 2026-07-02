@@ -1,45 +1,13 @@
-"""Tests for the PTC protocols and DirectProjection (runtimes subpackage)."""
-
-import asyncio
+"""Tests for the PTC bridge layer (runtimes subpackage)."""
 
 import pytest
 
 from toolregistry.runtimes import (
-    CodeResult,
-    CodeRuntime,
     DirectProjection,
     ToolProjection,
+    namespace_to_callables,
     validate_namespace,
 )
-
-
-# ---------------------------------------------------------------------------
-# CodeResult
-# ---------------------------------------------------------------------------
-
-
-class TestCodeResult:
-    def test_defaults(self):
-        r = CodeResult()
-        assert r.stdout == ""
-        assert r.stderr == ""
-        assert r.return_code == 0
-        assert r.error is None
-
-    def test_success(self):
-        r = CodeResult(stdout="hello\n", return_code=0)
-        assert r.stdout == "hello\n"
-        assert r.return_code == 0
-
-    def test_failure(self):
-        r = CodeResult(stderr="warn", return_code=1, error="ZeroDivisionError")
-        assert r.return_code == 1
-        assert r.error == "ZeroDivisionError"
-
-    def test_frozen(self):
-        r = CodeResult()
-        with pytest.raises(AttributeError):
-            r.stdout = "mutate"  # type: ignore[misc]
 
 
 # ---------------------------------------------------------------------------
@@ -89,7 +57,6 @@ class TestDirectProjection:
         proj = DirectProjection(name="multiply", fn=multiply)
         assert proj.name == "multiply"
         assert proj.doc is None
-        # call_sync dispatches async via asyncio.run
         assert proj(a=3, b=5) == 15
 
     def test_fn_attribute(self):
@@ -103,49 +70,6 @@ class TestDirectProjection:
         proj = DirectProjection(name="t", fn=lambda: 42)
         assert proj.doc is None
         assert proj() == 42
-
-
-# ---------------------------------------------------------------------------
-# CodeRuntime protocol
-# ---------------------------------------------------------------------------
-
-
-class TestCodeRuntime:
-    def test_runtime_checkable(self):
-        class MockRuntime:
-            async def execute(
-                self,
-                code,
-                namespace,
-                *,
-                timeout=None,
-                extra_globals=None,
-            ):
-                return CodeResult(stdout="ok")
-
-        assert isinstance(MockRuntime(), CodeRuntime)
-
-    def test_mock_runtime_executes(self):
-        class MockRuntime:
-            async def execute(
-                self, code, namespace, *, timeout=None, extra_globals=None
-            ):
-                # Simulate executing code that calls a tool
-                tool = namespace.get("add")
-                if tool:
-                    result = tool(a=1, b=2)
-                    return CodeResult(stdout=str(result), return_code=0)
-                return CodeResult(return_code=1, error="no tool")
-
-        runtime = MockRuntime()
-        add_proj = DirectProjection(
-            name="add", fn=lambda a, b: a + b, doc="Add numbers"
-        )
-        ns = {"add": add_proj}
-
-        result = asyncio.run(runtime.execute("", ns))
-        assert result.stdout == "3"
-        assert result.return_code == 0
 
 
 # ---------------------------------------------------------------------------
@@ -170,3 +94,23 @@ class TestValidateNamespace:
         }
         with pytest.raises(ValueError, match="wrong_name.*add"):
             validate_namespace(ns)
+
+
+# ---------------------------------------------------------------------------
+# namespace_to_callables
+# ---------------------------------------------------------------------------
+
+
+class TestNamespaceToCallables:
+    def test_converts_projections(self):
+        add_proj = DirectProjection(name="add", fn=lambda a, b: a + b)
+        mul_proj = DirectProjection(name="mul", fn=lambda a, b: a * b)
+        ns = {"add": add_proj, "mul": mul_proj}
+
+        callables = namespace_to_callables(ns)
+        assert set(callables.keys()) == {"add", "mul"}
+        assert callables["add"](a=2, b=3) == 5
+        assert callables["mul"](a=2, b=3) == 6
+
+    def test_empty(self):
+        assert namespace_to_callables({}) == {}
