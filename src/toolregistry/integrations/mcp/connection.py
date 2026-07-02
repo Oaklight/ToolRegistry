@@ -110,6 +110,30 @@ class MCPConnectionManager:
         async with MCPClient(self._transport, self._headers) as client:
             return await client.call_tool(name, arguments)
 
+    # -- Pickling support (for ProcessPoolBackend) ------------------
+
+    def __getstate__(self) -> dict:
+        """Drop live connection state before pickling.
+
+        The config (transport, headers, persistent flag) is preserved.
+        The live ``_client`` (holding OS sockets) and ``_lock``
+        (event-loop-bound) are dropped.  The worker process will
+        reconnect lazily on first ``call_tool()``.
+        """
+        return {
+            "_transport": self._transport,
+            "_headers": self._headers,
+            "_persistent": self._persistent,
+        }
+
+    def __setstate__(self, state: dict) -> None:
+        """Restore config; connection will be re-established lazily."""
+        self._transport = state["_transport"]
+        self._headers = state["_headers"]
+        self._persistent = state["_persistent"]
+        self._client = None
+        self._lock = asyncio.Lock()
+
     async def close(self) -> None:
         """Close the persistent connection."""
         async with self._lock:

@@ -215,6 +215,35 @@ class HttpClientConfig:
             self._sync_client.close()
             self._sync_client = None
 
+    # -- Pickling support (for ProcessPoolBackend) ------------------
+
+    def __getstate__(self) -> dict:
+        """Drop live HTTP clients before pickling.
+
+        The config (base_url, headers, timeout, auth, extra_options)
+        is preserved.  Live ``_sync_client`` / ``_async_client``
+        (holding thread locks and connection pools) are dropped.
+        The worker process will recreate them lazily via
+        ``get_persistent_client()``.
+        """
+        return {
+            "base_url": self.base_url,
+            "headers": self.headers,
+            "timeout": self.timeout,
+            "auth": self.auth,
+            "extra_options": self.extra_options,
+        }
+
+    def __setstate__(self, state: dict) -> None:
+        """Restore config; clients will be created lazily on first use."""
+        self.base_url = state["base_url"]
+        self.headers = state["headers"]
+        self.timeout = state["timeout"]
+        self.auth = state["auth"]
+        self.extra_options = state["extra_options"]
+        self._sync_client = None
+        self._async_client = None
+
 
 def HttpxClientConfig(*args: Any, **kwargs: Any) -> HttpClientConfig:
     """Deprecated alias for HttpClientConfig.
