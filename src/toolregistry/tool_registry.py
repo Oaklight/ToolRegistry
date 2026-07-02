@@ -582,11 +582,13 @@ class ToolRegistry(
     def _classify_tool_calls(
         self,
         generic_tool_calls: list[Any],
+        invocation_id: str | None = None,
     ) -> tuple[list[Any], dict[str, str | list], dict[str, float], dict[str, dict]]:
         """Separate tool calls into enabled vs disabled/denied, logging rejections.
 
         Args:
             generic_tool_calls: Normalized tool call list.
+            invocation_id: Invocation ID to attach to log entries.
 
         Returns:
             Tuple of (enabled_calls, tool_responses, call_start_times, call_arguments).
@@ -610,6 +612,7 @@ class ToolRegistry(
                     0.0,
                     {},
                     error=f"Tool is disabled. Reason: {reason}",
+                    invocation_id=invocation_id,
                 )
                 continue
 
@@ -635,6 +638,7 @@ class ToolRegistry(
                     0.0,
                     args,
                     error="Denied by permission policy",
+                    invocation_id=invocation_id,
                 )
             else:
                 enabled_calls.append(tc)
@@ -795,10 +799,13 @@ class ToolRegistry(
             multimodal results (e.g. images).
         """
         from .executor import ExecutionHandle
+        from .utils import generate_invocation_id
+
+        batch_inv_id = generate_invocation_id("bat")
 
         generic_tool_calls = convert_tool_calls(tool_calls)
         enabled_calls, tool_responses, call_start_times, call_arguments = (
-            self._classify_tool_calls(generic_tool_calls)
+            self._classify_tool_calls(generic_tool_calls, batch_inv_id)
         )
 
         if not enabled_calls:
@@ -842,7 +849,7 @@ class ToolRegistry(
 
         # Log executed tool calls and emit error events
         self._log_tool_call_results(
-            enabled_calls, raw_results, call_start_times, call_arguments
+            enabled_calls, raw_results, call_start_times, call_arguments, batch_inv_id
         )
 
         return tool_responses
@@ -853,6 +860,7 @@ class ToolRegistry(
         raw_results: dict[str, Any],
         call_start_times: dict[str, float],
         call_arguments: dict[str, dict],
+        invocation_id: str | None = None,
     ) -> None:
         """Log execution results and emit error events for completed tool calls.
 
@@ -861,6 +869,7 @@ class ToolRegistry(
             raw_results: Map of call ID to raw result (_ToolError or success value).
             call_start_times: Map of call ID to start timestamp.
             call_arguments: Map of call ID to parsed arguments.
+            invocation_id: Invocation ID to attach to log entries.
         """
         from .admin import ExecutionStatus
 
@@ -882,6 +891,7 @@ class ToolRegistry(
                     error=raw.message,
                     exception_type=raw.exception_type,
                     traceback=raw.traceback_str,
+                    invocation_id=invocation_id,
                 )
                 self._emit_change(
                     ChangeEvent(
@@ -901,6 +911,7 @@ class ToolRegistry(
                     duration_ms,
                     call_arguments.get(tc.id, {}),
                     result=str(raw) if raw is not None else None,
+                    invocation_id=invocation_id,
                 )
 
     def build_tool_call_messages(
