@@ -38,7 +38,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev,test,mcp]"
+          pip install -e ".[dev,test,mcp,ptc]"
           pip install websockets
 
       - name: Run tests
