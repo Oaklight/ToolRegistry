@@ -2,12 +2,12 @@
 
 Provides :class:`CodeExecutionTool` — a meta-tool that lets LLMs write
 and execute Python code with registered tools directly callable in the
-code namespace.
+code namespace via subprocess IPC.
 
-This is the toolregistry counterpart to Anthropic's ``code_execution``
-server tool.  Instead of a server-side sandbox, toolregistry executes
-code in-process with tool access, relying on AST validation to block
-dangerous constructs.
+Code runs in an isolated subprocess via ``codecell.IpcSubprocessRuntime``.
+Tool calls from the code are forwarded back to the main process via
+bidirectional JSON-over-pipe IPC — tools retain full access to
+connections, env vars, and process-local state.
 
 PTC reduces latency and token consumption for multi-tool workflows:
 instead of N round-trips (one per tool call), the LLM writes one code
@@ -36,11 +36,9 @@ Requires the ``[ptc]`` optional dependency: ``pip install toolregistry[ptc]``
 
 from __future__ import annotations
 
-import io
 import time
-import traceback
-from dataclasses import dataclass, field
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -51,7 +49,7 @@ from ._protocol import DirectProjection, ToolProjection, validate_namespace
 CODE_EXECUTION_NAME = "code_execution"
 
 CODE_EXECUTION_DESCRIPTION = (
-    "Execute Python code in a sandboxed environment. "
+    "Execute Python code in a sandboxed subprocess. "
     "Use this to perform multi-step computations, data transformations, "
     "or orchestrate multiple tool calls in a single code block. "
     "Registered tools are available as callable functions in the code "
@@ -146,10 +144,10 @@ def _make_traced_callable(
 class CodeExecutionTool:
     """Built-in PTC meta-tool: execute Python code with tool access.
 
-    Executes LLM-generated Python code via ``exec()`` with all enabled
-    tools injected as callable functions in the namespace.  Code is
-    validated via AST analysis before execution to block dangerous
-    constructs (file I/O, network, imports of unsafe modules, etc.).
+    Executes LLM-generated Python code in an **isolated subprocess**
+    via ``codecell.IpcSubprocessRuntime``.  Registered tools are
+    callable from the code via bidirectional IPC — tool execution
+    always happens in the main process.
 
     Intermediate tool call results are recorded in
     :attr:`last_trace` for debugging but are **not** returned to the
@@ -159,20 +157,17 @@ class CodeExecutionTool:
     similar to how ``ToolDiscoveryTool`` registers ``discover_tools``.
 
     Safety model:
+        - **Subprocess isolation** — crashes, OOM, infinite loops
+          in code cannot affect the main process
         - **AST validation** blocks dangerous constructs before execution
-        - **Namespace** tools are directly callable
-        - **No file/network access** — all I/O goes through namespace tools
+        - **IPC tool calling** — tools run in main process with full
+          access; code runs in subprocess with no direct access
+        - **No cloudpickle** — tools never cross the process boundary
         - **Trace logging** records all tool calls for debugging
 
     Args:
         registry: The tool registry to pull enabled tools from.
         timeout: Default execution timeout in seconds.
-
-    Note:
-        Code runs in the current process.  When used with
-        ``ProcessPoolBackend`` (the default execution mode), the
-        outer executor provides crash isolation — if ``exec()``
-        crashes, it takes down the worker process, not the main one.
     """
 
     def __init__(
@@ -185,9 +180,10 @@ class CodeExecutionTool:
         self.last_trace: ExecutionTrace | None = None
 
         try:
+            from codecell import IpcSubprocessRuntime
             from codecell.python import PythonValidator
 
-            self._validator = PythonValidator()
+            self._runtime = IpcSubprocessRuntime(PythonValidator())
         except ImportError as exc:
             raise ImportError(
                 "CodeExecutionTool requires the 'codecell' package. "
@@ -227,10 +223,13 @@ class CodeExecutionTool:
         }
 
     def execute(self, code: str, timeout: float | None = None) -> str:
-        """Execute Python code with registered tools in namespace.
+        """Execute Python code in a subprocess with tool access via IPC.
 
         Tools registered in the registry are available as callable
         functions — the LLM can call them directly in the code.
+        Tool execution happens in the main process via IPC; only the
+        code runs in the subprocess.
+
         Use ``print()`` to produce output; only stdout is captured
         and returned.
 
@@ -239,9 +238,8 @@ class CodeExecutionTool:
 
         Args:
             code: Python source code to execute.
-            timeout: Maximum seconds.  Defaults to the value set
-                at construction time.  (Currently advisory — full
-                timeout enforcement is planned.)
+            timeout: Maximum seconds before subprocess is killed.
+                Defaults to the value set at construction time.
 
         Returns:
             Captured stdout on success, or an error message prefixed
@@ -251,31 +249,25 @@ class CodeExecutionTool:
             ValueError: If AST validation rejects the code.
             SyntaxError: If the code cannot be parsed.
         """
-        # Validate before execution
-        self._validator.validate(code)
-
         trace = ExecutionTrace(code=code)
         ns = self._build_namespace(trace)
 
-        # Thread-safe stdout capture: inject a custom print() that
-        # writes to a local buffer instead of sys.stdout.
-        import builtins
-
-        captured = io.StringIO()
-
-        def _print(*args: Any, **kwargs: Any) -> None:
-            kwargs.setdefault("file", captured)
-            builtins.print(*args, **kwargs)
-
-        exec_globals: dict[str, Any] = {"__builtins__": builtins.__dict__}
-        exec_globals["print"] = _print
-        exec_globals.update(ns)
+        effective_timeout = timeout if timeout is not None else self._timeout
 
         try:
-            exec(compile(code, "<code_execution>", "exec"), exec_globals)  # noqa: S102
-            return captured.getvalue()
-        except Exception:
-            tb = traceback.format_exc()
-            return f"Error:\n{tb}"
+            result = self._runtime.execute(
+                code,
+                namespace=ns,
+                timeout=effective_timeout,
+            )
         finally:
             self.last_trace = trace
+
+        if result.return_code != 0:
+            error = result.stderr.strip()
+            return f"Error:\n{error}" if error else "Error: execution failed"
+
+        if result.timed_out:
+            return "Error: execution timed out"
+
+        return result.stdout
