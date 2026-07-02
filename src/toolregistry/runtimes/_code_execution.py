@@ -46,7 +46,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from ..tool_registry import ToolRegistry
 
-from ._protocol import DirectProjection, ToolProjection, namespace_to_callables
+from ._protocol import DirectProjection, ToolProjection, validate_namespace
 
 CODE_EXECUTION_NAME = "code_execution"
 
@@ -115,7 +115,7 @@ def _make_traced_callable(
             trace.tool_calls.append(
                 ToolCallRecord(
                     tool_name=proj.name,
-                    kwargs=kwargs,
+                    kwargs=dict(kwargs),
                     result=result,
                     duration_ms=(time.perf_counter() - t0) * 1000,
                 )
@@ -125,7 +125,7 @@ def _make_traced_callable(
             trace.tool_calls.append(
                 ToolCallRecord(
                     tool_name=proj.name,
-                    kwargs=kwargs,
+                    kwargs=dict(kwargs),
                     error=str(exc),
                     duration_ms=(time.perf_counter() - t0) * 1000,
                 )
@@ -219,7 +219,7 @@ class CodeExecutionTool:
                 doc=tool.description,
             )
 
-        namespace_to_callables(projections)  # validate key/name consistency
+        validate_namespace(projections)
 
         return {
             name: _make_traced_callable(proj, trace)
