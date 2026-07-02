@@ -72,14 +72,10 @@ class TestCodeExecutionTool:
         assert result.strip() == "False"
 
     def test_tool_doc_accessible(self, registry):
-        """Tool docstring accessible via both .doc and __doc__."""
+        """Tool docstring accessible via __doc__ (for help())."""
         executor = CodeExecutionTool(registry)
-        # .doc property
-        result = executor.execute("print(add.doc)")
+        result = executor.execute("print(add.__doc__)")
         assert "Add two numbers" in result
-        # __doc__ (for help())
-        result2 = executor.execute("print(add.__doc__)")
-        assert "Add two numbers" in result2
 
     def test_multiline_computation(self, registry):
         executor = CodeExecutionTool(registry)
@@ -96,6 +92,56 @@ class TestCodeExecutionTool:
         executor = CodeExecutionTool(registry)
         with pytest.raises(SyntaxError):
             executor.execute("def")
+
+
+class TestExecutionTrace:
+    def test_trace_records_tool_calls(self, registry):
+        executor = CodeExecutionTool(registry)
+        executor.execute("x = add(a=1, b=2)\ny = multiply(a=x, b=3)\nprint(y)")
+        trace = executor.last_trace
+        assert trace is not None
+        assert len(trace.tool_calls) == 2
+        assert trace.tool_calls[0].tool_name == "add"
+        assert trace.tool_calls[0].kwargs == {"a": 1, "b": 2}
+        assert trace.tool_calls[0].result == 3
+        assert trace.tool_calls[0].error is None
+        assert trace.tool_calls[1].tool_name == "multiply"
+        assert trace.tool_calls[1].result == 9
+
+    def test_trace_records_errors(self, registry):
+        def failing_tool(x: int) -> int:
+            """Always fails."""
+            raise ValueError("broken")
+
+        registry.register(failing_tool)
+        executor = CodeExecutionTool(registry)
+        executor.execute(
+            "try:\n    failing_tool(x=1)\nexcept ValueError:\n    print('caught')"
+        )
+        trace = executor.last_trace
+        assert len(trace.tool_calls) == 1
+        assert trace.tool_calls[0].error == "broken"
+
+    def test_trace_has_duration(self, registry):
+        executor = CodeExecutionTool(registry)
+        executor.execute("add(a=1, b=2)")
+        assert executor.last_trace.tool_calls[0].duration_ms >= 0
+
+    def test_trace_stores_code(self, registry):
+        code = "print(add(a=5, b=5))"
+        executor = CodeExecutionTool(registry)
+        executor.execute(code)
+        assert executor.last_trace.code == code
+
+    def test_no_trace_before_execution(self, registry):
+        executor = CodeExecutionTool(registry)
+        assert executor.last_trace is None
+
+    def test_trace_empty_when_no_tools_called(self, registry):
+        executor = CodeExecutionTool(registry)
+        executor.execute("print(42)")
+        assert executor.last_trace is not None
+        assert len(executor.last_trace.tool_calls) == 0
 
 
 class TestRegistryIntegration:

@@ -13,6 +13,10 @@ PTC reduces latency and token consumption for multi-tool workflows:
 instead of N round-trips (one per tool call), the LLM writes one code
 block that calls N tools and only the final output is returned.
 
+Intermediate tool call results are recorded in a trace log for
+debugging and error pinpointing, but are **not** included in the
+output returned to the LLM.
+
 Example::
 
     from toolregistry import ToolRegistry
@@ -33,9 +37,11 @@ Requires the ``[ptc]`` optional dependency: ``pip install toolregistry[ptc]``
 from __future__ import annotations
 
 import io
+import time
 import traceback
-from typing import TYPE_CHECKING, Any
+from dataclasses import dataclass, field
 from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ..tool_registry import ToolRegistry
@@ -54,6 +60,89 @@ CODE_EXECUTION_DESCRIPTION = (
 )
 
 
+# ---------------------------------------------------------------------------
+# Tool call trace
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ToolCallRecord:
+    """Record of a single tool invocation during code execution.
+
+    Attributes:
+        tool_name: Name of the tool that was called.
+        kwargs: Keyword arguments passed to the tool.
+        result: Return value from the tool.
+        error: Exception message if the call failed, or ``None``.
+        duration_ms: Wall-clock time in milliseconds.
+    """
+
+    tool_name: str
+    kwargs: dict[str, Any]
+    result: Any = None
+    error: str | None = None
+    duration_ms: float = 0.0
+
+
+@dataclass
+class ExecutionTrace:
+    """Trace of all tool calls made during a single code execution.
+
+    Attributes:
+        tool_calls: Ordered list of tool call records.
+        code: The source code that was executed.
+    """
+
+    code: str = ""
+    tool_calls: list[ToolCallRecord] = field(default_factory=list)
+
+
+def _make_traced_callable(
+    proj: ToolProjection,
+    trace: ExecutionTrace,
+) -> Callable[..., Any]:
+    """Wrap a ToolProjection with call tracing.
+
+    The wrapper records every call (args, result, duration, errors)
+    into the trace, then returns the result normally.  The LLM code
+    sees no difference — it calls tools as usual.
+    """
+
+    def wrapper(**kwargs: Any) -> Any:
+        t0 = time.perf_counter()
+        try:
+            result = proj(**kwargs)
+            trace.tool_calls.append(
+                ToolCallRecord(
+                    tool_name=proj.name,
+                    kwargs=kwargs,
+                    result=result,
+                    duration_ms=(time.perf_counter() - t0) * 1000,
+                )
+            )
+            return result
+        except Exception as exc:
+            trace.tool_calls.append(
+                ToolCallRecord(
+                    tool_name=proj.name,
+                    kwargs=kwargs,
+                    error=str(exc),
+                    duration_ms=(time.perf_counter() - t0) * 1000,
+                )
+            )
+            raise
+
+    # Preserve name and doc for help() discoverability
+    wrapper.__name__ = proj.name
+    wrapper.__doc__ = proj.doc
+    return wrapper
+
+
+# ---------------------------------------------------------------------------
+# CodeExecutionTool
+# ---------------------------------------------------------------------------
+
+
 class CodeExecutionTool:
     """Built-in PTC meta-tool: execute Python code with tool access.
 
@@ -62,15 +151,18 @@ class CodeExecutionTool:
     validated via AST analysis before execution to block dangerous
     constructs (file I/O, network, imports of unsafe modules, etc.).
 
+    Intermediate tool call results are recorded in
+    :attr:`last_trace` for debugging but are **not** returned to the
+    LLM — only ``print()`` output is returned.
+
     The tool is registered as ``code_execution`` in the registry,
     similar to how ``ToolDiscoveryTool`` registers ``discover_tools``.
 
     Safety model:
         - **AST validation** blocks dangerous constructs before execution
-        - **Timeout** kills runaway code via threading
-        - **Namespace** tools are directly callable — the LLM can
-          orchestrate multi-tool workflows in one code block
+        - **Namespace** tools are directly callable
         - **No file/network access** — all I/O goes through namespace tools
+        - **Trace logging** records all tool calls for debugging
 
     Args:
         registry: The tool registry to pull enabled tools from.
@@ -90,6 +182,7 @@ class CodeExecutionTool:
     ) -> None:
         self._registry = registry
         self._timeout = timeout
+        self.last_trace: ExecutionTrace | None = None
 
         try:
             from codecell.python import PythonValidator
@@ -101,12 +194,14 @@ class CodeExecutionTool:
                 "Install it with: pip install toolregistry[ptc]"
             ) from exc
 
-    def _build_namespace(self) -> dict[str, Callable[..., Any]]:
-        """Build a callable namespace from enabled registry tools.
+    def _build_namespace(
+        self,
+        trace: ExecutionTrace,
+    ) -> dict[str, Callable[..., Any]]:
+        """Build a traced callable namespace from enabled registry tools.
 
-        Converts each enabled tool into a :class:`DirectProjection`
-        and then into a plain callable dict via
-        :func:`namespace_to_callables`.
+        Each tool is wrapped with :func:`_make_traced_callable` so
+        that every invocation is recorded in *trace*.
 
         The ``code_execution`` tool itself is excluded to prevent
         recursive invocation.
@@ -123,7 +218,13 @@ class CodeExecutionTool:
                 fn=tool.fn,
                 doc=tool.description,
             )
-        return namespace_to_callables(projections)
+
+        namespace_to_callables(projections)  # validate key/name consistency
+
+        return {
+            name: _make_traced_callable(proj, trace)
+            for name, proj in projections.items()
+        }
 
     def execute(self, code: str, timeout: float | None = None) -> str:
         """Execute Python code with registered tools in namespace.
@@ -132,6 +233,9 @@ class CodeExecutionTool:
         functions — the LLM can call them directly in the code.
         Use ``print()`` to produce output; only stdout is captured
         and returned.
+
+        Intermediate tool call results are recorded in
+        :attr:`last_trace` for debugging and error pinpointing.
 
         Args:
             code: Python source code to execute.
@@ -150,7 +254,8 @@ class CodeExecutionTool:
         # Validate before execution
         self._validator.validate(code)
 
-        ns = self._build_namespace()
+        trace = ExecutionTrace(code=code)
+        ns = self._build_namespace(trace)
 
         # Thread-safe stdout capture: inject a custom print() that
         # writes to a local buffer instead of sys.stdout.
@@ -172,3 +277,5 @@ class CodeExecutionTool:
         except Exception:
             tb = traceback.format_exc()
             return f"Error:\n{tb}"
+        finally:
+            self.last_trace = trace
