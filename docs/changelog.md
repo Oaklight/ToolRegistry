@@ -18,8 +18,24 @@ hide:
 
 ### 新增
 
-- **PTC 协议**（`runtimes/` 子包）：`CodeResult`、`ToolProjection`、`DirectProjection`、`CodeRuntime` —— Programmatic Tool Calling 的基础（#175）。
-- `validate_namespace()` 辅助函数，用于检测工具命名空间中键/名称不一致的问题。
+- **程序化工具调用 (PTC)**：`registry.enable_code_execution()` 注册 `code_execution` 工具，让 LLM 编写 Python 代码在命名空间中调用已注册的工具。
+    - 代码在隔离子进程中运行（通过 `codecell.IpcSubprocessRuntime`）
+    - 工具调用通过双向 IPC 转发到主进程
+    - AST 验证阻止危险构造
+    - 通过 `registry.invoke()` 强制执行权限和日志
+- **`registry.invoke(tool_name, kwargs)`**：单工具执行，走完整 pipeline（权限、日志）。程序化工具调用的规范入口。
+- **调用追踪**：执行日志条目新增 `invocation_id` 字段，前缀 `tr_bat_`（批量）、`tr_ptc_`（PTC）、`tr_sig_`（单次调用）。查询：`log.get_entries(invocation_id=...)`。
+- **`runtimes/` 桥接层**：`ToolProjection`、`DirectProjection`、`validate_namespace()`、`namespace_to_callables()`，用于将 Tool 对象桥接到 codecell。
+- `codecell>=0.2.1` 作为可选 `[ptc]` 依赖。
+
+### 变更
+
+- **统一执行辅助函数**：`_check_tool_access()` 和 `_log_tool_result()` 由 `invoke()` 和 `execute_tool_calls()` 共享——不再有重复的权限/日志逻辑。
+- `runtimes/` 不再包含 `CodeResult` 或 `CodeRuntime`——它们由 `codecell` 包提供。
+
+### 修复
+
+- MCP/OpenAPI 包装器现在通过 `__getstate__`/`__setstate__` 支持 cloudpickle 序列化（#189）。
 
 ## [0.12.0] - 2026-06-26
 

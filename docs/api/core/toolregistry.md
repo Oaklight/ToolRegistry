@@ -40,10 +40,19 @@ ToolRegistry 遵循注册表模式，具有以下核心职责：
 
 ### 执行模型
 
-- **同步执行**：非异步工具的直接执行
-- **异步执行**：异步工具的 async/await 支持
-- **并发执行**：支持并行工具执行
-- **错误处理**：全面的错误处理和日志记录
+- **`invoke(tool_name, kwargs)`**：单工具执行，走完整 pipeline（权限、日志、调用追踪）。PTC 的 IPC 回调使用此方法。
+- **`execute_tool_calls(tool_calls)`**：批量执行，通过 Thread/Process 后端并发。用于 LLM tool_use 响应。
+- **`enable_code_execution()`**：注册 `code_execution` 工具用于[程序化工具调用](../../usage/programmatic_tool_calling.md)。LLM 可以编写 Python 代码编排多个工具调用。
+
+### 调用追踪
+
+所有工具执行都带有 `invocation_id` 前缀记录日志：
+
+- `tr_sig_` — 单次 `invoke()` 调用
+- `tr_bat_` — 批量 `execute_tool_calls()` 调用
+- `tr_ptc_` — PTC 代码执行工具调用
+
+查询：`log.get_entries(invocation_id="tr_ptc_...")`
 
 ## API 参考
 

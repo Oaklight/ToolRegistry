@@ -2,6 +2,57 @@
 
 本指南涵盖 ToolRegistry 主要版本之间的破坏性变更和迁移步骤。
 
+## 0.12.x → 0.13.0
+
+### 新增：程序化工具调用 (PTC)
+
+LLM 现在可以编写 Python 代码调用已注册的工具：
+
+```python
+registry.enable_code_execution()  # 注册 "code_execution" 工具
+# pip install toolregistry[ptc]
+```
+
+详见[程序化工具调用指南](usage/programmatic_tool_calling.md)。
+
+### 新增：`registry.invoke()`
+
+单工具执行，走完整 pipeline（权限、日志）：
+
+```python
+result = registry.invoke("add", {"a": 1, "b": 2})
+```
+
+需要权限检查和日志时，替代直接调用 `tool.run()`。
+
+### 新增：调用追踪
+
+执行日志条目现在有 `invocation_id` 字段：
+
+```python
+registry.enable_logging()
+registry.invoke("add", {"a": 1, "b": 2})
+
+log = registry.get_execution_log()
+entries = log.get_entries(invocation_id="tr_sig_...")
+```
+
+### `runtimes/` 包变更
+
+`CodeResult` 和 `CodeRuntime` 已从 `toolregistry.runtimes` 移除，现由 [`codecell`](https://pypi.org/project/codecell/) 包提供。
+
+**之前：**
+```python
+from toolregistry.runtimes import CodeResult, CodeRuntime  # ← ImportError
+```
+
+**之后：**
+```python
+from codecell import CodeResult, SubprocessRuntime  # pip install codecell
+```
+
+`ToolProjection`、`DirectProjection`、`validate_namespace()` 和 `namespace_to_callables()` 仍在 `toolregistry.runtimes` 中。
+
 ## 0.11.x → 0.12.0
 
 ### `Tool.run()` / `arun()` 不再吞没异常

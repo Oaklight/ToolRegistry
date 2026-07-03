@@ -197,6 +197,7 @@ nav:
           - LangChain 工具: usage/integrations/langchain.md
           - Hub 工具: usage/integrations/hub.md
       - 高级主题:
+          - 程序化工具调用: usage/programmatic_tool_calling.md
           - 工具发现: usage/tool_discovery.md
           - 理由增强调用: usage/think_augmented.md
           - 结果大小管理: usage/result_management.md
