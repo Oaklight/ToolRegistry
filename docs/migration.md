@@ -2,6 +2,57 @@
 
 This guide covers breaking changes and migration steps between major ToolRegistry releases.
 
+## 0.12.x → 0.13.0
+
+### New: Programmatic Tool Calling (PTC)
+
+LLMs can now write Python code that calls registered tools:
+
+```python
+registry.enable_code_execution()  # registers "code_execution" tool
+# pip install toolregistry[ptc]
+```
+
+See [Programmatic Tool Calling guide](usage/programmatic_tool_calling.md) for details.
+
+### New: `registry.invoke()`
+
+Single-tool execution with full pipeline (permissions, logging):
+
+```python
+result = registry.invoke("add", {"a": 1, "b": 2})
+```
+
+Replaces direct `tool.run()` calls when you need permission checks and logging.
+
+### New: Invocation tracking
+
+Execution log entries now have an `invocation_id` field:
+
+```python
+registry.enable_logging()
+registry.invoke("add", {"a": 1, "b": 2})
+
+log = registry.get_execution_log()
+entries = log.get_entries(invocation_id="tr_sig_...")
+```
+
+### `runtimes/` package changes
+
+`CodeResult` and `CodeRuntime` have been removed from `toolregistry.runtimes`. They are now provided by the [`codecell`](https://pypi.org/project/codecell/) package.
+
+**Before:**
+```python
+from toolregistry.runtimes import CodeResult, CodeRuntime  # ← ImportError
+```
+
+**After:**
+```python
+from codecell import CodeResult, SubprocessRuntime  # pip install codecell
+```
+
+`ToolProjection`, `DirectProjection`, `validate_namespace()`, and `namespace_to_callables()` remain in `toolregistry.runtimes`.
+
 ## 0.11.x → 0.12.0
 
 ### `Tool.run()` / `arun()` No Longer Swallow Exceptions

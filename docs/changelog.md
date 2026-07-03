@@ -18,8 +18,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- **PTC protocols** (`runtimes/` subpackage): `CodeResult`, `ToolProjection`, `DirectProjection`, `CodeRuntime` — foundation for Programmatic Tool Calling (#175).
-- `validate_namespace()` helper to catch key/name mismatches in tool namespaces.
+- **Programmatic Tool Calling (PTC)**: `registry.enable_code_execution()` registers a `code_execution` tool that lets LLMs write Python code with registered tools callable in the namespace.
+    - Code runs in isolated subprocess via `codecell.IpcSubprocessRuntime`
+    - Tool calls forwarded to main process via bidirectional IPC
+    - AST validation blocks dangerous constructs
+    - Full permission and logging enforcement via `registry.invoke()`
+- **`registry.invoke(tool_name, kwargs)`**: Single-tool execution with full pipeline (permissions, logging). Canonical entry point for programmatic tool invocation.
+- **Invocation tracking**: `invocation_id` field on execution log entries with prefixes `tr_bat_` (batch), `tr_ptc_` (PTC), `tr_sig_` (single invoke). Query with `log.get_entries(invocation_id=...)`.
+- **`runtimes/` bridge layer**: `ToolProjection`, `DirectProjection`, `validate_namespace()`, `namespace_to_callables()` for bridging Tool objects to codecell.
+- `codecell>=0.2.1` as optional `[ptc]` dependency.
+
+### Changed
+
+- **Unified execution helpers**: `_check_tool_access()` and `_log_tool_result()` shared by both `invoke()` and `execute_tool_calls()` — no duplicated permission/logging logic.
+- `runtimes/` no longer contains `CodeResult` or `CodeRuntime` — these are provided by the `codecell` package.
+
+### Fixed
+
+- MCP/OpenAPI wrappers now survive cloudpickle serialization via `__getstate__`/`__setstate__` (#189).
 
 ## [0.12.0] - 2026-06-26
 

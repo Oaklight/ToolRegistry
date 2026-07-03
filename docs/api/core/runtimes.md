@@ -1,35 +1,50 @@
-# Runtimes
+# Runtimes (PTC)
 
-The `toolregistry.runtimes` subpackage provides the **PTC (Programmatic Tool Calling)** protocols and types. It allows LLMs to write Python code that calls tools programmatically, reducing round-trips and token consumption.
+The `toolregistry.runtimes` subpackage provides the **PTC (Programmatic Tool Calling)** bridge layer. It connects toolregistry's `Tool` model to the [`codecell`](https://pypi.org/project/codecell/) code execution engine.
 
 !!! note "Zero toolregistry imports"
-    This subpackage has no imports from toolregistry internals. It operates
-    exclusively on callables, dicts, and its own protocol types — same
+    This subpackage has no imports from toolregistry internals — same
     constraint as `executor/`.
 
-## CodeResult
+!!! tip "Code execution types"
+    `CodeResult`, `SubprocessRuntime`, `IpcSubprocessRuntime`, and validators
+    are provided by the `codecell` package: `pip install toolregistry[ptc]`
 
-Structured result from code execution.
+## CodeExecutionTool
+
+Built-in PTC meta-tool that lets LLMs write Python code with registered tools callable in the namespace. Registered via `registry.enable_code_execution()`.
 
 ```python
-from toolregistry.runtimes import CodeResult
+from toolregistry import ToolRegistry
 
-result = CodeResult(
-    stdout="42\n",
-    stderr="",
-    return_code=0,
-    error=None,
-)
+registry = ToolRegistry()
+registry.register(search)
+registry.register(summarize)
+registry.enable_code_execution()
+
+# LLM can now generate:
+# tool_use("code_execution", {
+#     "code": "data = search(query='weather')\nprint(summarize(data))"
+# })
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `stdout` | `str` | Captured standard output |
-| `stderr` | `str` | Content written to stderr during execution |
-| `return_code` | `int` | `0` = success, `1` = exception |
-| `error` | `str \| None` | Exception traceback, or `None` if clean exit |
+**How it works:**
 
-`CodeResult` is a frozen dataclass — instances are immutable.
+1. LLM-generated code runs in an **isolated subprocess** via `codecell.IpcSubprocessRuntime`
+2. Tool calls in the code are forwarded back to the **main process** via bidirectional IPC
+3. Tool execution goes through `registry.invoke()` — permissions and logging are enforced
+4. Only `print()` output is returned to the LLM
+
+**Invocation tracking:** Each `execute()` call generates a `tr_ptc_` invocation ID. All tool calls within that execution share the same ID in the execution log:
+
+```python
+executor = registry._code_execution
+executor.execute("print(add(a=1, b=2))")
+
+# Query all tool calls from this execution:
+log = registry.get_execution_log()
+entries = log.get_entries(invocation_id=executor.last_invocation_id)
+```
 
 ## ToolProjection
 
@@ -56,7 +71,7 @@ assert isinstance(MyProjection(), ToolProjection)  # True
 | Member | Description |
 |--------|-------------|
 | `name` (property) | Tool name in the code namespace |
-| `doc` (property) | Docstring for introspection |
+| `doc` (property) | Docstring for introspection (also sets `__doc__`) |
 | `__call__(**kwargs)` | Invoke the tool synchronously |
 
 ## DirectProjection
@@ -79,44 +94,11 @@ proj = DirectProjection(name=tool.name, fn=tool.fn, doc=tool.description)
 - Sync callables are called directly.
 - Async callables are dispatched via `asyncio.run()`.
 
-!!! warning "asyncio.run() nesting"
-    `DirectProjection.__call__` uses `asyncio.run()` for async callables.
-    This cannot be called from within a running event loop. If your
-    `CodeRuntime.execute()` runs inside an event loop, it must handle
-    this — e.g. by running `exec()` in a separate thread.
+## Helper functions
 
-## CodeRuntime
+### validate_namespace
 
-Protocol for code execution engines. Accepts code strings with a tool namespace and returns structured results.
-
-```python
-from toolregistry.runtimes import CodeRuntime, CodeResult, ToolProjection
-
-class MyRuntime:
-    async def execute(
-        self,
-        code: str,
-        namespace: dict[str, ToolProjection],
-        *,
-        timeout: float | None = None,
-        extra_globals: dict[str, Any] | None = None,
-    ) -> CodeResult:
-        # Execute code with tools available...
-        ...
-
-assert isinstance(MyRuntime(), CodeRuntime)  # True
-```
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `code` | `str` | Python source code to execute |
-| `namespace` | `dict[str, ToolProjection]` | Tools injected into execution namespace |
-| `timeout` | `float \| None` | Max wall-clock seconds. `None` = no limit |
-| `extra_globals` | `dict[str, Any] \| None` | Non-tool objects (imports, constants). Tool entries win on collision |
-
-## validate_namespace
-
-Helper to check that namespace keys match their `ToolProjection.name`.
+Check that namespace keys match their `ToolProjection.name`:
 
 ```python
 from toolregistry.runtimes import DirectProjection, validate_namespace
@@ -129,4 +111,15 @@ validate_namespace(ns)  # OK
 
 ns_bad = {"wrong": DirectProjection(name="add", fn=lambda a, b: a + b)}
 validate_namespace(ns_bad)  # raises ValueError
+```
+
+### namespace_to_callables
+
+Convert a `ToolProjection` namespace to a plain callable dict for codecell. Calls `validate_namespace()` first.
+
+```python
+from toolregistry.runtimes import namespace_to_callables
+
+callables = namespace_to_callables(ns)
+# {"add": <callable>, "mul": <callable>}
 ```

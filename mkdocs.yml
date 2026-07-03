@@ -197,6 +197,7 @@ nav:
           - LangChain Tools: usage/integrations/langchain.md
           - Hub Tools: usage/integrations/hub.md
       - Advanced:
+          - Programmatic Tool Calling: usage/programmatic_tool_calling.md
           - Tool Discovery: usage/tool_discovery.md
           - Rationale-Augmented Calling: usage/think_augmented.md
           - Result Size Management: usage/result_management.md

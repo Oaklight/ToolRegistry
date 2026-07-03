@@ -40,10 +40,19 @@ The ToolRegistry follows a registry pattern with the following key responsibilit
 
 ### Execution Models
 
-- **Synchronous Execution**: Direct tool execution for non-async tools
-- **Asynchronous Execution**: Async/await support for async tools
-- **Concurrent Execution**: Support for parallel tool execution
-- **Error Handling**: Comprehensive error handling and logging
+- **`invoke(tool_name, kwargs)`**: Single-tool execution with full pipeline (permissions, logging, invocation tracking). Used by PTC for IPC callbacks.
+- **`execute_tool_calls(tool_calls)`**: Batch execution with concurrency via Thread/Process backends. Used for LLM tool_use responses.
+- **`enable_code_execution()`**: Registers a `code_execution` tool for [Programmatic Tool Calling](../../usage/programmatic_tool_calling.md). LLMs can write Python code that orchestrates multiple tool calls.
+
+### Invocation Tracking
+
+All tool executions are logged with an `invocation_id` prefix:
+
+- `tr_sig_` — single `invoke()` calls
+- `tr_bat_` — batch `execute_tool_calls()` calls
+- `tr_ptc_` — PTC code execution tool calls
+
+Query with `log.get_entries(invocation_id="tr_ptc_...")`.
 
 ## API Reference
 
