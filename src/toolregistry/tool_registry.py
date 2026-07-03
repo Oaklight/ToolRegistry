@@ -368,48 +368,33 @@ class ToolRegistry(
         self._tools.pop(CODE_EXECUTION_NAME, None)
         self._code_execution = None
 
-    # ============== Execution ==============
-    def invoke(
+    # ============== Execution helpers (shared by invoke + execute_tool_calls) ==
+
+    def _check_tool_access(
         self,
         tool_name: str,
         kwargs: dict[str, Any],
-        *,
         invocation_id: str | None = None,
-    ) -> Any:
-        """Execute a single tool with full pipeline (permissions, logging).
+    ):
+        """Check that a tool exists, is enabled, and passes permission.
 
-        This is the canonical single-tool execution entry point.  It is
-        used by :class:`CodeExecutionTool` for IPC callbacks and can be
-        called directly for programmatic tool invocation.
-
-        Pipeline:
-            1. Check tool exists and is enabled
-            2. Permission check (``_resolve_permission``)
-            3. Execute via ``tool.run()``
-            4. Log execution result with ``invocation_id``
+        This is the single callsite for access control — both
+        :meth:`invoke` and :meth:`execute_tool_calls` use it.
 
         Args:
             tool_name: Name of the registered tool.
-            kwargs: Keyword arguments to pass to the tool.
-            invocation_id: Optional ID to group related calls.  If
-                ``None``, a ``tr_sig_`` ID is auto-generated.  PTC
-                and batch callers pass their own ``tr_ptc_`` / ``tr_bat_``
-                IDs to correlate all calls in a single execution.
+            kwargs: Arguments (used for permission evaluation).
+            invocation_id: Invocation ID for log entries.
 
         Returns:
-            The tool's return value.
+            The :class:`Tool` object if access is granted.
 
         Raises:
             KeyError: If the tool is not registered.
-            PermissionError: If the tool is denied by permission policy.
             RuntimeError: If the tool is disabled.
-            Exception: Any exception raised by the tool itself.
+            PermissionError: If denied by permission policy.
         """
         from .admin import ExecutionStatus
-        from .utils import generate_invocation_id
-
-        if invocation_id is None:
-            invocation_id = generate_invocation_id("sig")
 
         tool_obj = self.get_tool(tool_name)
         if tool_obj is None:
@@ -439,28 +424,142 @@ class ToolRegistry(
             )
             raise PermissionError(f"Tool '{tool_name}' denied by permission policy")
 
-        start = time.perf_counter()
-        try:
-            result = tool_obj.run(kwargs)
-            duration_ms = (time.perf_counter() - start) * 1000
+        return tool_obj
+
+    def _log_tool_result(
+        self,
+        tool_name: str,
+        kwargs: dict[str, Any],
+        *,
+        result: Any = None,
+        error: _ToolError | Exception | None = None,
+        duration_ms: float = 0.0,
+        invocation_id: str | None = None,
+    ) -> None:
+        """Log a tool execution result and emit error events.
+
+        This is the single callsite for result logging — both
+        :meth:`invoke` and :meth:`execute_tool_calls` use it.
+
+        Args:
+            tool_name: Name of the executed tool.
+            kwargs: Arguments passed to the tool.
+            result: Return value on success.
+            error: A :class:`_ToolError` or :class:`Exception` on failure.
+            duration_ms: Execution duration in milliseconds.
+            invocation_id: Invocation ID for log grouping.
+        """
+        from .admin import ExecutionStatus
+
+        if error is not None:
+            if isinstance(error, _ToolError):
+                status = (
+                    ExecutionStatus.TIMEOUT
+                    if error.is_timeout
+                    else ExecutionStatus.ERROR
+                )
+                self._log_entry(
+                    tool_name,
+                    status,
+                    duration_ms,
+                    kwargs,
+                    error=error.message,
+                    exception_type=error.exception_type,
+                    traceback=error.traceback_str,
+                    invocation_id=invocation_id,
+                )
+            else:
+                self._log_entry(
+                    tool_name,
+                    ExecutionStatus.ERROR,
+                    duration_ms,
+                    kwargs,
+                    error=str(error),
+                    exception_type=type(error).__qualname__,
+                    traceback=tb_module.format_exc(),
+                    invocation_id=invocation_id,
+                )
+            exc_type = (
+                error.exception_type
+                if isinstance(error, _ToolError)
+                else type(error).__qualname__
+            )
+            self._emit_change(
+                ChangeEvent(
+                    event_type=ChangeEventType.TOOL_ERROR,
+                    tool_name=tool_name,
+                    reason=str(error),
+                    metadata={
+                        "exception_type": exc_type,
+                        "arguments": kwargs,
+                    },
+                )
+            )
+        else:
             self._log_entry(
                 tool_name,
                 ExecutionStatus.SUCCESS,
                 duration_ms,
                 kwargs,
-                result=str(result),
+                result=str(result) if result is not None else None,
+                invocation_id=invocation_id,
+            )
+
+    # ============== Execution ==============
+    def invoke(
+        self,
+        tool_name: str,
+        kwargs: dict[str, Any],
+        *,
+        invocation_id: str | None = None,
+    ) -> Any:
+        """Execute a single tool with full pipeline (permissions, logging).
+
+        This is the canonical single-tool execution entry point.  It is
+        used by :class:`CodeExecutionTool` for IPC callbacks and can be
+        called directly for programmatic tool invocation.
+
+        Args:
+            tool_name: Name of the registered tool.
+            kwargs: Keyword arguments to pass to the tool.
+            invocation_id: Optional ID to group related calls.  If
+                ``None``, a ``tr_sig_`` ID is auto-generated.
+
+        Returns:
+            The tool's return value.
+
+        Raises:
+            KeyError: If the tool is not registered.
+            PermissionError: If the tool is denied by permission policy.
+            RuntimeError: If the tool is disabled.
+            Exception: Any exception raised by the tool itself.
+        """
+        from .utils import generate_invocation_id
+
+        if invocation_id is None:
+            invocation_id = generate_invocation_id("sig")
+
+        tool_obj = self._check_tool_access(tool_name, kwargs, invocation_id)
+
+        start = time.perf_counter()
+        try:
+            result = tool_obj.run(kwargs)
+            duration_ms = (time.perf_counter() - start) * 1000
+            self._log_tool_result(
+                tool_name,
+                kwargs,
+                result=result,
+                duration_ms=duration_ms,
                 invocation_id=invocation_id,
             )
             return result
         except Exception as exc:
             duration_ms = (time.perf_counter() - start) * 1000
-            self._log_entry(
+            self._log_tool_result(
                 tool_name,
-                ExecutionStatus.ERROR,
-                duration_ms,
                 kwargs,
-                error=str(exc),
-                exception_type=type(exc).__qualname__,
+                error=exc,
+                duration_ms=duration_ms,
                 invocation_id=invocation_id,
             )
             raise
@@ -586,6 +685,9 @@ class ToolRegistry(
     ) -> tuple[list[Any], dict[str, str | list], dict[str, float], dict[str, dict]]:
         """Separate tool calls into enabled vs disabled/denied, logging rejections.
 
+        Uses :meth:`_check_tool_access` for permission checks so the
+        access control logic is shared with :meth:`invoke`.
+
         Args:
             generic_tool_calls: Normalized tool call list.
             invocation_id: Invocation ID to attach to log entries.
@@ -593,53 +695,21 @@ class ToolRegistry(
         Returns:
             Tuple of (enabled_calls, tool_responses, call_start_times, call_arguments).
         """
-        from .admin import ExecutionStatus
-
         enabled_calls: list[Any] = []
         tool_responses: dict[str, str | list] = {}
         call_start_times: dict[str, float] = {}
         call_arguments: dict[str, dict] = {}
 
         for tc in generic_tool_calls:
-            if not self.is_enabled(tc.name):
-                reason = self.get_disable_reason(tc.name) or "Tool is disabled"
-                tool_responses[tc.id] = (
-                    f"Error: Tool '{tc.name}' is disabled. Reason: {reason}"
-                )
-                self._log_entry(
-                    tc.name,
-                    ExecutionStatus.DISABLED,
-                    0.0,
-                    {},
-                    error=f"Tool is disabled. Reason: {reason}",
-                    invocation_id=invocation_id,
-                )
-                continue
-
             try:
                 args = json.loads(tc.arguments)
             except (json.JSONDecodeError, TypeError):
                 args = {}
 
-            tool_obj = self.get_tool(tc.name)
-            decision = (
-                self._resolve_permission(tool_obj, args)
-                if tool_obj is not None
-                else PermissionResult.ALLOW
-            )
-
-            if decision == PermissionResult.DENY:
-                tool_responses[tc.id] = (
-                    f"Error: Tool '{tc.name}' denied by permission policy."
-                )
-                self._log_entry(
-                    tc.name,
-                    ExecutionStatus.ERROR,
-                    0.0,
-                    args,
-                    error="Denied by permission policy",
-                    invocation_id=invocation_id,
-                )
+            try:
+                self._check_tool_access(tc.name, args, invocation_id)
+            except (KeyError, RuntimeError, PermissionError) as exc:
+                tool_responses[tc.id] = f"Error: {exc}"
             else:
                 enabled_calls.append(tc)
                 call_start_times[tc.id] = time.perf_counter()
@@ -862,7 +932,7 @@ class ToolRegistry(
         call_arguments: dict[str, dict],
         invocation_id: str | None = None,
     ) -> None:
-        """Log execution results and emit error events for completed tool calls.
+        """Log execution results using :meth:`_log_tool_result`.
 
         Args:
             enabled_calls: List of tool calls that were executed.
@@ -871,46 +941,27 @@ class ToolRegistry(
             call_arguments: Map of call ID to parsed arguments.
             invocation_id: Invocation ID to attach to log entries.
         """
-        from .admin import ExecutionStatus
-
         end_time = time.perf_counter()
         for tc in enabled_calls:
             start_time = call_start_times.get(tc.id, end_time)
             duration_ms = (end_time - start_time) * 1000
             raw = raw_results.get(tc.id)
+            kwargs = call_arguments.get(tc.id, {})
 
             if isinstance(raw, _ToolError):
-                status = (
-                    ExecutionStatus.TIMEOUT if raw.is_timeout else ExecutionStatus.ERROR
-                )
-                self._log_entry(
+                self._log_tool_result(
                     tc.name,
-                    status,
-                    duration_ms,
-                    call_arguments.get(tc.id, {}),
-                    error=raw.message,
-                    exception_type=raw.exception_type,
-                    traceback=raw.traceback_str,
+                    kwargs,
+                    error=raw,
+                    duration_ms=duration_ms,
                     invocation_id=invocation_id,
                 )
-                self._emit_change(
-                    ChangeEvent(
-                        event_type=ChangeEventType.TOOL_ERROR,
-                        tool_name=tc.name,
-                        reason=raw.message,
-                        metadata={
-                            "exception_type": raw.exception_type,
-                            "arguments": call_arguments.get(tc.id, {}),
-                        },
-                    )
-                )
             else:
-                self._log_entry(
+                self._log_tool_result(
                     tc.name,
-                    ExecutionStatus.SUCCESS,
-                    duration_ms,
-                    call_arguments.get(tc.id, {}),
-                    result=str(raw) if raw is not None else None,
+                    kwargs,
+                    result=raw,
+                    duration_ms=duration_ms,
                     invocation_id=invocation_id,
                 )
 
