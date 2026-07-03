@@ -4,6 +4,7 @@ import pytest
 
 from toolregistry import Tool, ToolRegistry
 from toolregistry.permissions import PermissionPolicy, PermissionResult, PermissionRule
+from toolregistry.runtimes import CODE_EXECUTION_NAME
 from toolregistry.tool import ToolMetadata, ToolTag
 
 
@@ -154,12 +155,12 @@ class TestPtcInvocationId:
         return reg
 
     def test_ptc_generates_invocation_id(self, registry):
-        registry.enable_code_execution()
-        executor = registry._code_execution
-        executor.execute("print(add(a=1, b=2))")
+        registry.ptc.enable()
+        tool = registry.get_tool(CODE_EXECUTION_NAME)
+        tool.run({"code": "print(add(a=1, b=2))"})
 
-        assert executor.last_invocation_id is not None
-        assert executor.last_invocation_id.startswith("tr_ptc_")
+        assert registry.ptc.last_invocation_id is not None
+        assert registry.ptc.last_invocation_id.startswith("tr_ptc_")
 
     def test_ptc_tool_calls_share_id(self, registry):
         def mul(a: int, b: int) -> int:
@@ -167,25 +168,25 @@ class TestPtcInvocationId:
             return a * b
 
         registry.register(mul)
-        registry.enable_code_execution()
-        executor = registry._code_execution
+        registry.ptc.enable()
+        tool = registry.get_tool(CODE_EXECUTION_NAME)
 
-        executor.execute("s = add(a=1, b=2)\np = mul(a=s, b=3)\nprint(p)")
+        tool.run({"code": "s = add(a=1, b=2)\np = mul(a=s, b=3)\nprint(p)"})
 
-        inv_id = executor.last_invocation_id
+        inv_id = registry.ptc.last_invocation_id
         entries = registry.get_execution_log().get_entries(invocation_id=inv_id)
         assert len(entries) == 2
         tool_names = {e.tool_name for e in entries}
         assert tool_names == {"add", "mul"}
 
     def test_separate_executions_have_different_ids(self, registry):
-        registry.enable_code_execution()
-        executor = registry._code_execution
+        registry.ptc.enable()
+        tool = registry.get_tool(CODE_EXECUTION_NAME)
 
-        executor.execute("print(add(a=1, b=2))")
-        id1 = executor.last_invocation_id
+        tool.run({"code": "print(add(a=1, b=2))"})
+        id1 = registry.ptc.last_invocation_id
 
-        executor.execute("print(add(a=3, b=4))")
-        id2 = executor.last_invocation_id
+        tool.run({"code": "print(add(a=3, b=4))"})
+        id2 = registry.ptc.last_invocation_id
 
         assert id1 != id2

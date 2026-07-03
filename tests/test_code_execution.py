@@ -66,9 +66,9 @@ class TestCodeExecutionTool:
 
     def test_namespace_excludes_self(self, registry):
         """code_execution tool should not be in its own namespace."""
-        registry.enable_code_execution()
-        executor = registry._code_execution
-        result = executor.execute(f"print('{CODE_EXECUTION_NAME}' in dir())")
+        registry.ptc.enable()
+        tool = registry.get_tool(CODE_EXECUTION_NAME)
+        result = tool.run({"code": f"print('{CODE_EXECUTION_NAME}' in dir())"})
         assert result.strip() == "False"
 
     def test_tool_doc_accessible(self, registry):
@@ -95,40 +95,40 @@ class TestCodeExecutionTool:
 
 
 class TestRegistryIntegration:
-    def test_enable_code_execution(self, registry):
-        executor = registry.enable_code_execution()
+    def test_enable_ptc(self, registry):
+        registry.ptc.enable()
         assert CODE_EXECUTION_NAME in registry
-        assert executor is not None
+        assert registry.ptc.enabled
 
     def test_enable_idempotent(self, registry):
-        e1 = registry.enable_code_execution()
-        e2 = registry.enable_code_execution()
-        assert e1 is e2
+        registry.ptc.enable()
+        registry.ptc.enable()  # should not raise or re-register
+        assert registry.ptc.enabled
 
     def test_disable_code_execution(self, registry):
-        registry.enable_code_execution()
+        registry.ptc.enable()
         assert CODE_EXECUTION_NAME in registry
-        registry.disable_code_execution()
+        registry.ptc.disable()
         assert CODE_EXECUTION_NAME not in registry
 
     def test_disable_noop_when_not_enabled(self, registry):
-        registry.disable_code_execution()  # should not raise
+        registry.ptc.disable()  # should not raise
 
     def test_code_execution_tool_schema(self, registry):
-        registry.enable_code_execution()
+        registry.ptc.enable()
         tool = registry.get_tool(CODE_EXECUTION_NAME)
         assert tool is not None
         assert "code" in tool.parameters.get("properties", {})
 
     def test_execute_via_registry(self, registry):
-        registry.enable_code_execution()
+        registry.ptc.enable()
         tool = registry.get_tool(CODE_EXECUTION_NAME)
         result = tool.run({"code": "print(42)"})
         assert "42" in result
 
     def test_execute_tool_call_via_registry(self, registry):
         """Full end-to-end: LLM tool call → code execution → tool invocation."""
-        registry.enable_code_execution()
+        registry.ptc.enable()
         tool = registry.get_tool(CODE_EXECUTION_NAME)
         result = tool.run({"code": "print(add(a=100, b=200))"})
         assert "300" in result
