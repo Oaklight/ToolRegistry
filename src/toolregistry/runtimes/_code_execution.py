@@ -80,27 +80,33 @@ class CodeExecutionTool:
     Args:
         registry: The tool registry to pull enabled tools from.
         timeout: Default execution timeout in seconds.
+        runtime: Optional codecell runtime instance.  If ``None``,
+            uses ``IpcSubprocessRuntime(PythonValidator())``.
     """
 
     def __init__(
         self,
         registry: ToolRegistry,
         timeout: float = 30,
+        runtime: Any = None,
     ) -> None:
         self._registry = registry
         self._timeout = timeout
         self.last_invocation_id: str | None = None
 
-        try:
-            from codecell import IpcSubprocessRuntime
-            from codecell.python import PythonValidator
+        if runtime is not None:
+            self._runtime = runtime
+        else:
+            try:
+                from codecell import IpcSubprocessRuntime
+                from codecell.python import PythonValidator
 
-            self._runtime = IpcSubprocessRuntime(PythonValidator())
-        except ImportError as exc:
-            raise ImportError(
-                "CodeExecutionTool requires the 'codecell' package. "
-                "Install it with: pip install toolregistry[ptc]"
-            ) from exc
+                self._runtime = IpcSubprocessRuntime(PythonValidator())
+            except ImportError as exc:
+                raise ImportError(
+                    "CodeExecutionTool requires the 'codecell' package. "
+                    "Install it with: pip install toolregistry[ptc]"
+                ) from exc
 
     def _build_namespace(
         self,
