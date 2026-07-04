@@ -1,6 +1,6 @@
 """PTC (Programmatic Tool Calling) controller.
 
-Manages the lifecycle of the ``code_execution`` tool — enable/disable,
+Manages the lifecycle of the ``programmatic_tool_call`` tool — enable/disable,
 runtime injection, invocation tracking.  Exposed as ``registry.ptc``.
 
 Usage::
@@ -25,7 +25,7 @@ class PtcController:
     """Controller for Programmatic Tool Calling (PTC).
 
     Always present on :class:`ToolRegistry` as ``registry.ptc``.
-    Call :meth:`enable` to register the ``code_execution`` tool;
+    Call :meth:`enable` to register the ``programmatic_tool_call`` tool;
     call :meth:`disable` to unregister it.
 
     The controller delegates code execution to a ``codecell``
@@ -66,7 +66,7 @@ class PtcController:
         timeout: float = 30,
         runtime: Any = None,
     ) -> None:
-        """Enable PTC and register the ``code_execution`` tool.
+        """Enable PTC and register the ``programmatic_tool_call`` tool.
 
         Calling ``enable()`` again while already enabled raises
         ``ValueError``.  Call :meth:`disable` first to reconfigure.
@@ -108,7 +108,7 @@ class PtcController:
         self._executor = executor
 
     def disable(self) -> None:
-        """Disable PTC and unregister the ``code_execution`` tool.
+        """Disable PTC and unregister the ``programmatic_tool_call`` tool.
 
         The :attr:`last_invocation_id` is preserved after disable
         so callers can still query the execution log.

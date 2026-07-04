@@ -20,11 +20,11 @@ Example::
     registry = ToolRegistry()
     registry.register(search)
     registry.register(summarize)
-    registry.enable_code_execution()
+    registry.ptc.enable()
     registry.enable_logging()
 
     # LLM generates:
-    # tool_use("code_execution", {
+    # tool_use("programmatic_tool_call", {
     #     "code": "data = search(query='weather')\\nprint(summarize(data))"
     # })
 
@@ -44,15 +44,15 @@ if TYPE_CHECKING:
 
 from ._protocol import DirectProjection, ToolProjection, validate_namespace
 
-CODE_EXECUTION_NAME = "code_execution"
+CODE_EXECUTION_NAME = "programmatic_tool_call"
 
 CODE_EXECUTION_DESCRIPTION = (
-    "Execute Python code in a sandboxed subprocess. "
-    "Use this to perform multi-step computations, data transformations, "
-    "or orchestrate multiple tool calls in a single code block. "
-    "Registered tools are available as callable functions in the code "
-    "namespace — call them directly (e.g. ``result = search(query='...')``). "
-    "Only stdout is captured and returned — use print() for output."
+    "Write Python code to orchestrate multiple tool calls in a single block. "
+    "Registered tools are available as callable functions — call them "
+    "directly (e.g. ``result = search(query='...')``). "
+    "Only print() output is returned to you. "
+    "This is NOT a general Python runtime — file I/O, network access, "
+    "and unsafe imports are blocked."
 )
 
 
@@ -118,7 +118,7 @@ class CodeExecutionTool:
         shared *invocation_id*, ensuring permissions are checked and
         the call is logged.
 
-        The ``code_execution`` tool itself is excluded to prevent
+        The ``programmatic_tool_call`` tool itself is excluded to prevent
         recursive invocation.
         """
         projections: dict[str, ToolProjection] = {}
