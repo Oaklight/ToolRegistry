@@ -757,8 +757,15 @@ class ToolRegistry(
             tool_obj.metadata.timeout if tool_obj and tool_obj.metadata else None
         )
 
+        # Tools with force_thread=True (e.g. PTC) must run in the main
+        # process so they can access the registry for invoke() callbacks.
+        # IPC subprocess isolation is handled inside the tool itself.
+        effective_backend = backend
+        if tool_obj and tool_obj.metadata.force_thread:
+            effective_backend = self._thread_backend
+
         try:
-            return backend.submit(
+            return effective_backend.submit(
                 callable_func,
                 function_args,
                 execution_id=tc.id,

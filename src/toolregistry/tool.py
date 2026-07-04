@@ -108,6 +108,17 @@ class ToolMetadata(BaseModel):
     ``"jupyter notebook ipynb cell"``.
     """
 
+    force_thread: bool = False
+    """Force thread-based execution even when process mode is the default.
+
+    When ``True``, ``execute_tool_calls()`` will always use the
+    ``ThreadBackend`` for this tool, regardless of the registry's
+    default execution mode.  This is required for tools that hold
+    references to the registry or other unpicklable state (e.g.
+    PTC's ``programmatic_tool_call`` tool, which needs
+    ``registry.invoke()`` callbacks to run in the main process).
+    """
+
     think_augment: bool | None = None
     """Control thought-augmented tool calling for this tool.
 

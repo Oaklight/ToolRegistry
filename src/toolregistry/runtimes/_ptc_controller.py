@@ -110,7 +110,7 @@ class PtcController:
             executor.execute,
             name=PTC_TOOL_NAME,
             description=PTC_TOOL_DESCRIPTION,
-            metadata=ToolMetadata(defer=False),
+            metadata=ToolMetadata(defer=False, force_thread=True),
         )
         self._registry.register(code_tool)
 
