@@ -39,7 +39,9 @@ __all__ = [
     "PTC_TOOL_DESCRIPTION",
     "PTC_TOOL_NAME",
     "PtcController",
-    "PtcTool",
+    # PtcTool intentionally excluded — requires codecell [ptc] optional dep.
+    # Use: from toolregistry.runtimes import PtcTool (raises ImportError
+    # with install instructions if codecell is not installed).
     "DirectProjection",
     "ToolProjection",
     "namespace_to_callables",
