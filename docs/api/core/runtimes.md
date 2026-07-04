@@ -12,7 +12,7 @@ The `toolregistry.runtimes` subpackage provides the **PTC (Programmatic Tool Cal
 
 ## CodeExecutionTool
 
-Built-in PTC meta-tool that lets LLMs write Python code with registered tools callable in the namespace. Registered via `registry.enable_code_execution()`.
+Built-in PTC meta-tool that lets LLMs write Python code with registered tools callable in the namespace. Registered via `registry.ptc.enable()`.
 
 ```python
 from toolregistry import ToolRegistry
@@ -20,7 +20,7 @@ from toolregistry import ToolRegistry
 registry = ToolRegistry()
 registry.register(search)
 registry.register(summarize)
-registry.enable_code_execution()
+registry.ptc.enable()
 
 # LLM can now generate:
 # tool_use("code_execution", {
@@ -38,12 +38,12 @@ registry.enable_code_execution()
 **Invocation tracking:** Each `execute()` call generates a `tr_ptc_` invocation ID. All tool calls within that execution share the same ID in the execution log:
 
 ```python
-executor = registry._code_execution
+# registry.ptc.last_invocation_id
 executor.execute("print(add(a=1, b=2))")
 
 # Query all tool calls from this execution:
 log = registry.get_execution_log()
-entries = log.get_entries(invocation_id=executor.last_invocation_id)
+entries = log.get_entries(invocation_id=registry.ptc.last_invocation_id)
 ```
 
 ## ToolProjection

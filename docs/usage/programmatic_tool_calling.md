@@ -10,7 +10,7 @@ from toolregistry import ToolRegistry
 registry = ToolRegistry()
 registry.register(search)
 registry.register(summarize)
-registry.enable_code_execution()  # registers "code_execution" tool
+registry.ptc.enable()  # registers "code_execution" tool
 
 # Now the LLM can generate tool_use("code_execution", {code: "..."})
 ```
@@ -73,14 +73,14 @@ Each PTC execution generates a `tr_ptc_` invocation ID shared by all tool calls 
 
 ```python
 registry.enable_logging()
-registry.enable_code_execution()
+registry.ptc.enable()
 
 tool = registry.get_tool("code_execution")
 tool.run({"code": "print(add(a=1, b=2))"})
 
 # Get the invocation ID
-executor = registry._code_execution
-inv_id = executor.last_invocation_id  # "tr_ptc_a1b2c3d4"
+# registry.ptc.last_invocation_id
+inv_id = registry.ptc.last_invocation_id  # "tr_ptc_a1b2c3d4"
 
 # Query all tool calls from this execution
 log = registry.get_execution_log()
@@ -91,10 +91,10 @@ entries = log.get_entries(invocation_id=inv_id)
 
 ```python
 # Custom timeout (default: 30 seconds)
-registry.enable_code_execution(timeout=60)
+registry.ptc.enable(timeout=60)
 
 # Disable when not needed
-registry.disable_code_execution()
+registry.ptc.disable()
 ```
 
 ## Requirements

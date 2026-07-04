@@ -18,7 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- **Programmatic Tool Calling (PTC)**: `registry.enable_code_execution()` registers a `code_execution` tool that lets LLMs write Python code with registered tools callable in the namespace.
+- **Programmatic Tool Calling (PTC)**: `registry.ptc.enable()` registers a `code_execution` tool that lets LLMs write Python code with registered tools callable in the namespace.
     - Code runs in isolated subprocess via `codecell.IpcSubprocessRuntime`
     - Tool calls forwarded to main process via bidirectional IPC
     - AST validation blocks dangerous constructs
