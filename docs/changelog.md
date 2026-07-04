@@ -18,13 +18,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- **Programmatic Tool Calling (PTC)**: `registry.ptc.enable()` registers a `code_execution` tool that lets LLMs write Python code with registered tools callable in the namespace.
+- **Programmatic Tool Calling (PTC)**: `registry.ptc.enable()` registers a `programmatic_tool_call` tool that lets LLMs write Python code with registered tools callable in the namespace.
     - Code runs in isolated subprocess via `codecell.IpcSubprocessRuntime`
     - Tool calls forwarded to main process via bidirectional IPC
     - AST validation blocks dangerous constructs
     - Full permission and logging enforcement via `registry.invoke()`
+    - Two-layer isolation: ThreadBackend (outer, main process) + IpcSubprocessRuntime (inner, crash isolation)
+- **`registry.ptc` controller**: Always-present sub-object with `enable()`, `disable()`, `enabled`, `last_invocation_id`. Supports runtime injection for custom isolation backends.
 - **`registry.invoke(tool_name, kwargs)`**: Single-tool execution with full pipeline (permissions, logging). Canonical entry point for programmatic tool invocation.
 - **Invocation tracking**: `invocation_id` field on execution log entries with prefixes `tr_bat_` (batch), `tr_ptc_` (PTC), `tr_sig_` (single invoke). Query with `log.get_entries(invocation_id=...)`.
+- **`ToolMetadata.force_thread`**: Forces ThreadBackend for tools that need main-process access (e.g. PTC tool with `registry.invoke()` callbacks).
 - **`runtimes/` bridge layer**: `ToolProjection`, `DirectProjection`, `validate_namespace()`, `namespace_to_callables()` for bridging Tool objects to codecell.
 - `codecell>=0.2.1` as optional `[ptc]` dependency.
 
