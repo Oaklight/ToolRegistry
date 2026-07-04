@@ -10,15 +10,15 @@ from toolregistry import ToolRegistry
 registry = ToolRegistry()
 registry.register(search)
 registry.register(summarize)
-registry.ptc.enable()  # 注册 "code_execution" 工具
+registry.ptc.enable()  # 注册 "programmatic_tool_call" 工具
 
-# LLM 现在可以生成 tool_use("code_execution", {code: "..."})
+# LLM 现在可以生成 tool_use("programmatic_tool_call", {code: "..."})
 ```
 
 ## 工作原理
 
 ```
-LLM: tool_use("code_execution", {code: "..."})
+LLM: tool_use("programmatic_tool_call", {code: "..."})
   → CodeExecutionTool.execute(code)
     → 子进程: exec(code, {search: stub, summarize: stub})
       → search(query="weather")
@@ -75,7 +75,7 @@ print(f"找到 {len(filtered)} 篇近期文章。\n{summary}")
 registry.enable_logging()
 registry.ptc.enable()
 
-tool = registry.get_tool("code_execution")
+tool = registry.get_tool("programmatic_tool_call")
 tool.run({"code": "print(add(a=1, b=2))"})
 
 # 获取调用 ID

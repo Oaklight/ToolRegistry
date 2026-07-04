@@ -9,7 +9,7 @@
 LLM 现在可以编写 Python 代码调用已注册的工具：
 
 ```python
-registry.ptc.enable()  # 注册 "code_execution" 工具
+registry.ptc.enable()  # 注册 "programmatic_tool_call" 工具
 # pip install toolregistry[ptc]
 ```
 

@@ -22,7 +22,7 @@ registry.register(summarize)
 registry.ptc.enable()
 
 # LLM 现在可以生成：
-# tool_use("code_execution", {
+# tool_use("programmatic_tool_call", {
 #     "code": "data = search(query='weather')\nprint(summarize(data))"
 # })
 ```
