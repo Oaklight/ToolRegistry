@@ -15,10 +15,19 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from ._ptc_tool import PTC_TOOL_DESCRIPTION, PTC_TOOL_NAME
-
 if TYPE_CHECKING:
     from ..tool_registry import ToolRegistry
+
+PTC_TOOL_NAME = "programmatic_tool_call"
+
+PTC_TOOL_DESCRIPTION = (
+    "Write Python code to orchestrate multiple tool calls in a single block. "
+    "Registered tools are available as callable functions — call them "
+    "directly (e.g. ``result = search(query='...')``). "
+    "Only print() output is returned to you. "
+    "This is NOT a general Python runtime — file I/O, network access, "
+    "and unsafe imports are blocked."
+)
 
 
 class PtcController:

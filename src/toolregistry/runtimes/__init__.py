@@ -12,25 +12,35 @@ Contents:
 - :func:`namespace_to_callables` — convert ToolProjection dict to
   plain callable dict for codecell
 
-Code execution types (:class:`~codecell.CodeResult`,
-:class:`~codecell.SubprocessRuntime`, etc.) are provided by the
-``codecell`` package (``pip install toolregistry[ptc]``).
+:class:`PtcTool` requires the ``codecell`` package and raises
+``ImportError`` on import if it is not installed
+(``pip install toolregistry[ptc]``).
 """
 
-from ._ptc_tool import PTC_TOOL_NAME, PtcTool
 from ._protocol import (
     DirectProjection,
     ToolProjection,
     namespace_to_callables,
     validate_namespace,
 )
-from ._ptc_controller import PtcController
+from ._ptc_controller import PTC_TOOL_NAME, PTC_TOOL_DESCRIPTION, PtcController
+
+
+def __getattr__(name: str):
+    """Lazy import for PtcTool — raises ImportError if codecell missing."""
+    if name == "PtcTool":
+        from ._ptc_tool import PtcTool
+
+        return PtcTool
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
+    "PTC_TOOL_DESCRIPTION",
     "PTC_TOOL_NAME",
+    "PtcController",
     "PtcTool",
     "DirectProjection",
-    "PtcController",
     "ToolProjection",
     "namespace_to_callables",
     "validate_namespace",

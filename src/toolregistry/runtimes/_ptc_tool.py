@@ -36,6 +36,15 @@ Requires the ``[ptc]`` optional dependency: ``pip install toolregistry[ptc]``
 
 from __future__ import annotations
 
+try:
+    from codecell import IpcSubprocessRuntime  # noqa: F401
+    from codecell.python import PythonValidator  # noqa: F401
+except ImportError as _exc:
+    raise ImportError(
+        "The PTC module requires the 'codecell' package. "
+        "Install it with: pip install toolregistry[ptc]"
+    ) from _exc
+
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
@@ -43,17 +52,7 @@ if TYPE_CHECKING:
     from ..tool_registry import ToolRegistry
 
 from ._protocol import DirectProjection, ToolProjection, validate_namespace
-
-PTC_TOOL_NAME = "programmatic_tool_call"
-
-PTC_TOOL_DESCRIPTION = (
-    "Write Python code to orchestrate multiple tool calls in a single block. "
-    "Registered tools are available as callable functions — call them "
-    "directly (e.g. ``result = search(query='...')``). "
-    "Only print() output is returned to you. "
-    "This is NOT a general Python runtime — file I/O, network access, "
-    "and unsafe imports are blocked."
-)
+from ._ptc_controller import PTC_TOOL_NAME
 
 
 class PtcTool:
@@ -97,16 +96,8 @@ class PtcTool:
         if runtime is not None:
             self._runtime = runtime
         else:
-            try:
-                from codecell import IpcSubprocessRuntime
-                from codecell.python import PythonValidator
-
-                self._runtime = IpcSubprocessRuntime(PythonValidator())
-            except ImportError as exc:
-                raise ImportError(
-                    "PtcTool requires the 'codecell' package. "
-                    "Install it with: pip install toolregistry[ptc]"
-                ) from exc
+            # codecell is guaranteed available — checked at module import
+            self._runtime = IpcSubprocessRuntime(PythonValidator())
 
     def _build_namespace(
         self,
