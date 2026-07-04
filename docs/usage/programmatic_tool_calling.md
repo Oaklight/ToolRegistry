@@ -10,7 +10,7 @@ from toolregistry import ToolRegistry
 registry = ToolRegistry()
 registry.register(search)
 registry.register(summarize)
-registry.enable_code_execution()  # 注册 "code_execution" 工具
+registry.ptc.enable()  # 注册 "code_execution" 工具
 
 # LLM 现在可以生成 tool_use("code_execution", {code: "..."})
 ```
@@ -73,14 +73,14 @@ print(f"找到 {len(filtered)} 篇近期文章。\n{summary}")
 
 ```python
 registry.enable_logging()
-registry.enable_code_execution()
+registry.ptc.enable()
 
 tool = registry.get_tool("code_execution")
 tool.run({"code": "print(add(a=1, b=2))"})
 
 # 获取调用 ID
-executor = registry._code_execution
-inv_id = executor.last_invocation_id  # "tr_ptc_a1b2c3d4"
+# registry.ptc.last_invocation_id
+inv_id = registry.ptc.last_invocation_id  # "tr_ptc_a1b2c3d4"
 
 # 查询此次执行的所有工具调用
 log = registry.get_execution_log()
@@ -91,10 +91,10 @@ entries = log.get_entries(invocation_id=inv_id)
 
 ```python
 # 自定义超时（默认：30 秒）
-registry.enable_code_execution(timeout=60)
+registry.ptc.enable(timeout=60)
 
 # 不需要时禁用
-registry.disable_code_execution()
+registry.ptc.disable()
 ```
 
 ## 依赖

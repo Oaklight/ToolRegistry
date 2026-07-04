@@ -11,7 +11,7 @@
 
 ## CodeExecutionTool
 
-内置 PTC 元工具，让 LLM 编写 Python 代码并在命名空间中调用已注册的工具。通过 `registry.enable_code_execution()` 注册。
+内置 PTC 元工具，让 LLM 编写 Python 代码并在命名空间中调用已注册的工具。通过 `registry.ptc.enable()` 注册。
 
 ```python
 from toolregistry import ToolRegistry
@@ -19,7 +19,7 @@ from toolregistry import ToolRegistry
 registry = ToolRegistry()
 registry.register(search)
 registry.register(summarize)
-registry.enable_code_execution()
+registry.ptc.enable()
 
 # LLM 现在可以生成：
 # tool_use("code_execution", {
@@ -37,12 +37,12 @@ registry.enable_code_execution()
 **调用追踪：** 每次 `execute()` 调用生成一个 `tr_ptc_` 调用 ID。该执行中的所有工具调用共享同一个 ID：
 
 ```python
-executor = registry._code_execution
+# registry.ptc.last_invocation_id
 executor.execute("print(add(a=1, b=2))")
 
 # 查询此次执行的所有工具调用：
 log = registry.get_execution_log()
-entries = log.get_entries(invocation_id=executor.last_invocation_id)
+entries = log.get_entries(invocation_id=registry.ptc.last_invocation_id)
 ```
 
 ## ToolProjection

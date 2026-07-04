@@ -42,7 +42,7 @@ ToolRegistry 遵循注册表模式，具有以下核心职责：
 
 - **`invoke(tool_name, kwargs)`**：单工具执行，走完整 pipeline（权限、日志、调用追踪）。PTC 的 IPC 回调使用此方法。
 - **`execute_tool_calls(tool_calls)`**：批量执行，通过 Thread/Process 后端并发。用于 LLM tool_use 响应。
-- **`enable_code_execution()`**：注册 `code_execution` 工具用于[程序化工具调用](../../usage/programmatic_tool_calling.md)。LLM 可以编写 Python 代码编排多个工具调用。
+- **`registry.ptc.enable()`**：注册 `code_execution` 工具用于[程序化工具调用](../../usage/programmatic_tool_calling.md)。LLM 可以编写 Python 代码编排多个工具调用。
 
 ### 调用追踪
 

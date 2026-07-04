@@ -18,7 +18,7 @@ hide:
 
 ### 新增
 
-- **程序化工具调用 (PTC)**：`registry.enable_code_execution()` 注册 `code_execution` 工具，让 LLM 编写 Python 代码在命名空间中调用已注册的工具。
+- **程序化工具调用 (PTC)**：`registry.ptc.enable()` 注册 `code_execution` 工具，让 LLM 编写 Python 代码在命名空间中调用已注册的工具。
     - 代码在隔离子进程中运行（通过 `codecell.IpcSubprocessRuntime`）
     - 工具调用通过双向 IPC 转发到主进程
     - AST 验证阻止危险构造
