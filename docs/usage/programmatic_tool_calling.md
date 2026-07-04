@@ -58,6 +58,23 @@ summary = summarize(data=filtered)
 print(f"找到 {len(filtered)} 篇近期文章。\n{summary}")
 ```
 
+## 执行模型
+
+PTC 采用**双层隔离**设计：
+
+```
+execute_tool_calls() → ThreadBackend（主进程）
+  → PtcTool.execute(code)
+    → IpcSubprocessRuntime（隔离子进程）
+      → exec(code, tool_stubs)
+        → tool_stub() → IPC → 主进程 → registry.invoke()
+```
+
+- **外层（ThreadBackend）**：PTC 始终在主进程线程中运行，不使用 `ProcessPoolBackend`。这确保 `registry.invoke()` 回调操作的是真实的 registry，而非 pickle 后的副本。`force_thread` 元数据标志自动强制执行此行为。
+- **内层（IpcSubprocessRuntime）**：LLM 生成的代码在隔离子进程中运行。崩溃、OOM 和死循环被隔离。工具调用通过双向 IPC 转发回主进程。
+
+这意味着崩溃隔离来自 `IpcSubprocessRuntime`，而非 executor backend。
+
 ## 安全模型
 
 | 层级 | 保护 |
