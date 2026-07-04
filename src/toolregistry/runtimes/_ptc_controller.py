@@ -40,22 +40,25 @@ class PtcController:
     def __init__(self, registry: ToolRegistry) -> None:
         self._registry = registry
         self._executor: Any = None  # CodeExecutionTool | None
-        self._enabled = False
+        self._last_invocation_id: str | None = None
 
     @property
     def enabled(self) -> bool:
         """Whether PTC is currently enabled."""
-        return self._enabled
+        return self._executor is not None
 
     @property
     def last_invocation_id(self) -> str | None:
         """Invocation ID of the last PTC execution (``tr_ptc_...``).
 
-        Returns ``None`` if PTC has not been used or is disabled.
+        Preserved after :meth:`disable` so callers can still query
+        the execution log for the last run's tool calls.
+
+        Returns ``None`` if PTC has never been used.
         """
-        if self._executor is None:
-            return None
-        return self._executor.last_invocation_id
+        if self._executor is not None:
+            return self._executor.last_invocation_id
+        return self._last_invocation_id
 
     def enable(
         self,
@@ -65,6 +68,9 @@ class PtcController:
     ) -> None:
         """Enable PTC and register the ``code_execution`` tool.
 
+        Calling ``enable()`` again while already enabled raises
+        ``ValueError``.  Call :meth:`disable` first to reconfigure.
+
         Args:
             timeout: Default execution timeout in seconds.
             runtime: Optional codecell runtime instance (must implement
@@ -72,11 +78,15 @@ class PtcController:
                 ``codecell.IpcSubprocessRuntime(PythonValidator())``.
 
         Raises:
+            ValueError: If PTC is already enabled.
             ImportError: If the ``codecell`` package is not installed.
                 Install with ``pip install toolregistry[ptc]``.
         """
-        if self._enabled:
-            return
+        if self.enabled:
+            raise ValueError(
+                "PTC is already enabled. Call registry.ptc.disable() "
+                "first to reconfigure."
+            )
 
         from ._code_execution import CodeExecutionTool
         from ..tool import Tool, ToolMetadata
@@ -96,12 +106,16 @@ class PtcController:
         self._registry.register(code_tool)
 
         self._executor = executor
-        self._enabled = True
 
     def disable(self) -> None:
-        """Disable PTC and unregister the ``code_execution`` tool."""
-        if not self._enabled:
+        """Disable PTC and unregister the ``code_execution`` tool.
+
+        The :attr:`last_invocation_id` is preserved after disable
+        so callers can still query the execution log.
+        """
+        if not self.enabled:
             return
+        # Preserve last invocation ID before clearing executor
+        self._last_invocation_id = self._executor.last_invocation_id
         self._registry._tools.pop(CODE_EXECUTION_NAME, None)
         self._executor = None
-        self._enabled = False

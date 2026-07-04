@@ -100,9 +100,15 @@ class TestRegistryIntegration:
         assert CODE_EXECUTION_NAME in registry
         assert registry.ptc.enabled
 
-    def test_enable_idempotent(self, registry):
+    def test_enable_twice_raises(self, registry):
         registry.ptc.enable()
-        registry.ptc.enable()  # should not raise or re-register
+        with pytest.raises(ValueError, match="already enabled"):
+            registry.ptc.enable()
+
+    def test_re_enable_after_disable(self, registry):
+        registry.ptc.enable(timeout=10)
+        registry.ptc.disable()
+        registry.ptc.enable(timeout=60)  # should work
         assert registry.ptc.enabled
 
     def test_disable_code_execution(self, registry):
@@ -113,6 +119,16 @@ class TestRegistryIntegration:
 
     def test_disable_noop_when_not_enabled(self, registry):
         registry.ptc.disable()  # should not raise
+
+    def test_last_invocation_id_preserved_after_disable(self, registry):
+        registry.ptc.enable()
+        tool = registry.get_tool(CODE_EXECUTION_NAME)
+        tool.run({"code": "print(add(a=1, b=2))"})
+        inv_id = registry.ptc.last_invocation_id
+        assert inv_id is not None
+
+        registry.ptc.disable()
+        assert registry.ptc.last_invocation_id == inv_id
 
     def test_code_execution_tool_schema(self, registry):
         registry.ptc.enable()
