@@ -480,7 +480,7 @@ class ToolRegistry(
         """Execute a single tool with full pipeline (permissions, logging).
 
         This is the canonical single-tool execution entry point.  It is
-        used by :class:`CodeExecutionTool` for IPC callbacks and can be
+        used by :class:`PtcTool` for IPC callbacks and can be
         called directly for programmatic tool invocation.
 
         Args:

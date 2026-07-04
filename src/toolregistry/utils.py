@@ -11,7 +11,7 @@ def generate_invocation_id(prefix: Literal["bat", "ptc", "sig"] = "sig") -> str:
 
     Prefixes:
         - ``tr_bat_`` — batch execution via ``execute_tool_calls()``
-        - ``tr_ptc_`` — PTC code execution via ``CodeExecutionTool``
+        - ``tr_ptc_`` — PTC code execution via ``PtcTool``
         - ``tr_sig_`` — single invocation via ``registry.invoke()``
 
     Args:

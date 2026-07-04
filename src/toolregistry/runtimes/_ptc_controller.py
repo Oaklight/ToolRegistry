@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from ._code_execution import CODE_EXECUTION_DESCRIPTION, CODE_EXECUTION_NAME
+from ._ptc_tool import PTC_TOOL_DESCRIPTION, PTC_TOOL_NAME
 
 if TYPE_CHECKING:
     from ..tool_registry import ToolRegistry
@@ -39,7 +39,7 @@ class PtcController:
 
     def __init__(self, registry: ToolRegistry) -> None:
         self._registry = registry
-        self._executor: Any = None  # CodeExecutionTool | None
+        self._executor: Any = None  # PtcTool | None
         self._last_invocation_id: str | None = None
 
     @property
@@ -88,10 +88,10 @@ class PtcController:
                 "first to reconfigure."
             )
 
-        from ._code_execution import CodeExecutionTool
+        from ._ptc_tool import PtcTool
         from ..tool import Tool, ToolMetadata
 
-        executor = CodeExecutionTool(
+        executor = PtcTool(
             self._registry,
             timeout=timeout,
             runtime=runtime,
@@ -99,8 +99,8 @@ class PtcController:
 
         code_tool = Tool.from_function(
             executor.execute,
-            name=CODE_EXECUTION_NAME,
-            description=CODE_EXECUTION_DESCRIPTION,
+            name=PTC_TOOL_NAME,
+            description=PTC_TOOL_DESCRIPTION,
             metadata=ToolMetadata(defer=False),
         )
         self._registry.register(code_tool)
@@ -117,5 +117,5 @@ class PtcController:
             return
         # Preserve last invocation ID before clearing executor
         self._last_invocation_id = self._executor.last_invocation_id
-        self._registry._tools.pop(CODE_EXECUTION_NAME, None)
+        self._registry._tools.pop(PTC_TOOL_NAME, None)
         self._executor = None

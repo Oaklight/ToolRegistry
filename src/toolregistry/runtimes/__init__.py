@@ -17,7 +17,7 @@ Code execution types (:class:`~codecell.CodeResult`,
 ``codecell`` package (``pip install toolregistry[ptc]``).
 """
 
-from ._code_execution import CODE_EXECUTION_NAME, CodeExecutionTool
+from ._ptc_tool import PTC_TOOL_NAME, PtcTool
 from ._protocol import (
     DirectProjection,
     ToolProjection,
@@ -27,8 +27,8 @@ from ._protocol import (
 from ._ptc_controller import PtcController
 
 __all__ = [
-    "CODE_EXECUTION_NAME",
-    "CodeExecutionTool",
+    "PTC_TOOL_NAME",
+    "PtcTool",
     "DirectProjection",
     "PtcController",
     "ToolProjection",

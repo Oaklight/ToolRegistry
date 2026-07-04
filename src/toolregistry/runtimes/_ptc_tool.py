@@ -1,6 +1,6 @@
 """Built-in code execution tool for Programmatic Tool Calling (PTC).
 
-Provides :class:`CodeExecutionTool` — a meta-tool that lets LLMs write
+Provides :class:`PtcTool` — a meta-tool that lets LLMs write
 and execute Python code with registered tools directly callable in the
 code namespace via subprocess IPC.
 
@@ -44,9 +44,9 @@ if TYPE_CHECKING:
 
 from ._protocol import DirectProjection, ToolProjection, validate_namespace
 
-CODE_EXECUTION_NAME = "programmatic_tool_call"
+PTC_TOOL_NAME = "programmatic_tool_call"
 
-CODE_EXECUTION_DESCRIPTION = (
+PTC_TOOL_DESCRIPTION = (
     "Write Python code to orchestrate multiple tool calls in a single block. "
     "Registered tools are available as callable functions — call them "
     "directly (e.g. ``result = search(query='...')``). "
@@ -56,7 +56,7 @@ CODE_EXECUTION_DESCRIPTION = (
 )
 
 
-class CodeExecutionTool:
+class PtcTool:
     """Built-in PTC meta-tool: execute Python code with tool access.
 
     Executes LLM-generated Python code in an **isolated subprocess**
@@ -104,7 +104,7 @@ class CodeExecutionTool:
                 self._runtime = IpcSubprocessRuntime(PythonValidator())
             except ImportError as exc:
                 raise ImportError(
-                    "CodeExecutionTool requires the 'codecell' package. "
+                    "PtcTool requires the 'codecell' package. "
                     "Install it with: pip install toolregistry[ptc]"
                 ) from exc
 
@@ -124,7 +124,7 @@ class CodeExecutionTool:
         projections: dict[str, ToolProjection] = {}
         registry = self._registry
         for name in registry.list_tools():
-            if name == CODE_EXECUTION_NAME:
+            if name == PTC_TOOL_NAME:
                 continue
             tool = registry.get_tool(name)
             if tool is None:

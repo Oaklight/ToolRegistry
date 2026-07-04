@@ -4,7 +4,7 @@ import pytest
 
 from toolregistry import Tool, ToolRegistry
 from toolregistry.permissions import PermissionPolicy, PermissionResult, PermissionRule
-from toolregistry.runtimes import CODE_EXECUTION_NAME
+from toolregistry.runtimes import PTC_TOOL_NAME
 from toolregistry.tool import ToolMetadata, ToolTag
 
 
@@ -140,7 +140,7 @@ class TestInvocationId:
 
 
 class TestPtcInvocationId:
-    """Test that CodeExecutionTool generates tr_ptc_ IDs."""
+    """Test that PtcTool generates tr_ptc_ IDs."""
 
     @pytest.fixture
     def registry(self):
@@ -156,7 +156,7 @@ class TestPtcInvocationId:
 
     def test_ptc_generates_invocation_id(self, registry):
         registry.ptc.enable()
-        tool = registry.get_tool(CODE_EXECUTION_NAME)
+        tool = registry.get_tool(PTC_TOOL_NAME)
         tool.run({"code": "print(add(a=1, b=2))"})
 
         assert registry.ptc.last_invocation_id is not None
@@ -169,7 +169,7 @@ class TestPtcInvocationId:
 
         registry.register(mul)
         registry.ptc.enable()
-        tool = registry.get_tool(CODE_EXECUTION_NAME)
+        tool = registry.get_tool(PTC_TOOL_NAME)
 
         tool.run({"code": "s = add(a=1, b=2)\np = mul(a=s, b=3)\nprint(p)"})
 
@@ -181,7 +181,7 @@ class TestPtcInvocationId:
 
     def test_separate_executions_have_different_ids(self, registry):
         registry.ptc.enable()
-        tool = registry.get_tool(CODE_EXECUTION_NAME)
+        tool = registry.get_tool(PTC_TOOL_NAME)
 
         tool.run({"code": "print(add(a=1, b=2))"})
         id1 = registry.ptc.last_invocation_id
