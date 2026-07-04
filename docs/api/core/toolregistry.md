@@ -42,7 +42,7 @@ The ToolRegistry follows a registry pattern with the following key responsibilit
 
 - **`invoke(tool_name, kwargs)`**: Single-tool execution with full pipeline (permissions, logging, invocation tracking). Used by PTC for IPC callbacks.
 - **`execute_tool_calls(tool_calls)`**: Batch execution with concurrency via Thread/Process backends. Used for LLM tool_use responses.
-- **`registry.ptc.enable()`**: Registers a `code_execution` tool for [Programmatic Tool Calling](../../usage/programmatic_tool_calling.md). LLMs can write Python code that orchestrates multiple tool calls.
+- **`registry.ptc.enable()`**: Registers a `programmatic_tool_call` tool for [Programmatic Tool Calling](../../usage/programmatic_tool_calling.md). LLMs can write Python code that orchestrates multiple tool calls.
 
 ### Invocation Tracking
 

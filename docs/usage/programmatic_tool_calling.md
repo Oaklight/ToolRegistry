@@ -10,15 +10,15 @@ from toolregistry import ToolRegistry
 registry = ToolRegistry()
 registry.register(search)
 registry.register(summarize)
-registry.ptc.enable()  # registers "code_execution" tool
+registry.ptc.enable()  # registers "programmatic_tool_call" tool
 
-# Now the LLM can generate tool_use("code_execution", {code: "..."})
+# Now the LLM can generate tool_use("programmatic_tool_call", {code: "..."})
 ```
 
 ## How it works
 
 ```
-LLM: tool_use("code_execution", {code: "..."})
+LLM: tool_use("programmatic_tool_call", {code: "..."})
   → CodeExecutionTool.execute(code)
     → Subprocess: exec(code, {search: stub, summarize: stub})
       → search(query="weather")
@@ -75,7 +75,7 @@ Each PTC execution generates a `tr_ptc_` invocation ID shared by all tool calls 
 registry.enable_logging()
 registry.ptc.enable()
 
-tool = registry.get_tool("code_execution")
+tool = registry.get_tool("programmatic_tool_call")
 tool.run({"code": "print(add(a=1, b=2))"})
 
 # Get the invocation ID

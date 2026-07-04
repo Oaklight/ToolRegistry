@@ -23,7 +23,7 @@ registry.register(summarize)
 registry.ptc.enable()
 
 # LLM can now generate:
-# tool_use("code_execution", {
+# tool_use("programmatic_tool_call", {
 #     "code": "data = search(query='weather')\nprint(summarize(data))"
 # })
 ```

@@ -9,7 +9,7 @@ This guide covers breaking changes and migration steps between major ToolRegistr
 LLMs can now write Python code that calls registered tools:
 
 ```python
-registry.ptc.enable()  # registers "code_execution" tool
+registry.ptc.enable()  # registers "programmatic_tool_call" tool
 # pip install toolregistry[ptc]
 ```
 
