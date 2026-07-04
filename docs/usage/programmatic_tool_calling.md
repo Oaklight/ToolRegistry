@@ -58,6 +58,23 @@ summary = summarize(data=filtered)
 print(f"Found {len(filtered)} recent articles.\n{summary}")
 ```
 
+## Execution model
+
+PTC uses a **two-layer isolation** design:
+
+```
+execute_tool_calls() → ThreadBackend (main process)
+  → PtcTool.execute(code)
+    → IpcSubprocessRuntime (isolated subprocess)
+      → exec(code, tool_stubs)
+        → tool_stub() → IPC → main process → registry.invoke()
+```
+
+- **Outer layer (ThreadBackend)**: PTC always runs in the main process thread, never in `ProcessPoolBackend`. This ensures `registry.invoke()` callbacks operate on the real registry — not a pickled copy. The `force_thread` metadata flag enforces this automatically.
+- **Inner layer (IpcSubprocessRuntime)**: LLM-generated code runs in an isolated subprocess. Crashes, OOM, and infinite loops are contained. Tool calls are forwarded back to the main process via bidirectional IPC.
+
+This means crash isolation comes from `IpcSubprocessRuntime`, not from the executor backend.
+
 ## Safety model
 
 | Layer | Protection |
