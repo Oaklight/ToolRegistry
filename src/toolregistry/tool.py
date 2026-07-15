@@ -431,7 +431,9 @@ class Tool(BaseModel):
         )
         ir_tool = _make_ir_tool_definition(self.name, self.description, params)
 
-        if api_format == "openai-chat":
+        if api_format == "rosetta-ir":
+            return ir_tool
+        elif api_format == "openai-chat":
             from .llm._rosetta import _get_openai_chat_tool_ops
 
             return _get_openai_chat_tool_ops().ir_tool_definition_to_p(ir_tool)

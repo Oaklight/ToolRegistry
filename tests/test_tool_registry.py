@@ -195,6 +195,38 @@ class TestToolRegistry:
         assert "name" in gemini_format[0]
         assert "parameters" in gemini_format[0]
 
+    def test_get_schemas_rosetta_ir_format(self, populated_registry):
+        """Test getting schemas in rosetta IR format."""
+        ir_format = populated_registry.get_schemas(api_format="rosetta-ir")
+
+        assert len(ir_format) >= 2
+        assert ir_format[0]["type"] == "function"
+        assert "name" in ir_format[0]
+        assert "description" in ir_format[0]
+        assert "parameters" in ir_format[0]
+
+    def test_build_tool_call_messages_rosetta_ir(self, populated_registry):
+        """Test building messages in rosetta IR format."""
+        tool_calls = [
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {"name": "add_numbers", "arguments": '{"a": 5, "b": 3}'},
+            }
+        ]
+        results = populated_registry.execute_tool_calls(tool_calls)
+        messages = populated_registry.build_tool_call_messages(
+            tool_calls, results, api_format="rosetta-ir"
+        )
+
+        assert len(messages) == 2
+        assert messages[0]["role"] == "assistant"
+        assert messages[0]["parts"][0]["type"] == "tool_call"
+        assert messages[0]["parts"][0]["tool_name"] == "add_numbers"
+        assert messages[1]["role"] == "tool"
+        assert messages[1]["parts"][0]["type"] == "tool_result"
+        assert messages[1]["parts"][0]["result"] == "8"
+
     def test_get_tool(self, populated_registry):
         """Test getting a tool by name."""
         tool = populated_registry.get_tool("add_numbers")
