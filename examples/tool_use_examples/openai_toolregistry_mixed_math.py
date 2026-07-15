@@ -90,12 +90,12 @@ if response.choices[0].message.tool_calls:
     print(tool_calls)
 
     # Execute tool calls
-    tool_responses = mixed_registry.execute_tool_calls(tool_calls)
-    print(tool_responses)
+    results = mixed_registry.execute_tool_calls(tool_calls)
+    print(results)
 
     # Construct assistant messages with results
     assistant_tool_messages = mixed_registry.build_tool_call_messages(
-        tool_calls, tool_responses
+        tool_calls, results
     )
     print(assistant_tool_messages)
 

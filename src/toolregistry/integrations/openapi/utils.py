@@ -72,7 +72,7 @@ def determine_urls(url: str) -> dict[str, Any]:
             try:
                 response = client.get(full_url)
                 if response.status_code == 200:
-                    content_type = response.headers.get("content-type", "").lower()
+                    content_type = (response.headers.get("content-type") or "").lower()
                     if "json" in content_type or "yaml" in content_type:
                         return {
                             "found": True,

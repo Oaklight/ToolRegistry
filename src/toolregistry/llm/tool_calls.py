@@ -1,15 +1,16 @@
 """Unified tool call types and format conversion via llm-rosetta.
 
-Provides :class:`ToolCall` and :class:`ToolCallResult` as toolregistry's
-internal representations, plus thin wrappers around llm-rosetta for
-converting between provider-specific API formats.
+Provides :class:`ToolCall`, :class:`ToolCallResult`, and :class:`ErrorResult`
+as toolregistry's internal representations, plus thin wrappers around
+llm-rosetta for converting between provider-specific API formats.
 """
 
 import json
 import warnings
+from dataclasses import dataclass
 from typing import Any, Literal
 
-from pydantic import BaseModel, field_serializer
+from pydantic import BaseModel
 
 # ── Format registry ────────────────────────────────────────────────
 
@@ -137,18 +138,125 @@ class ToolCall(BaseModel):
         )
 
 
-class ToolCallResult(BaseModel):
-    """Result of a single tool call execution."""
+@dataclass(frozen=True)
+class BaseResult:
+    """Base class for tool call results.
+
+    Fields align with rosetta's ``ToolResultPart`` IR so that
+    conversion is a trivial field mapping.
+    """
 
     id: str
-    """The ID of the tool call."""
-    result: Any
-    """The result of the tool call."""
+    """Tool call ID."""
+    name: str
+    """Tool name."""
 
-    @field_serializer("result")
-    def convert_any_field_to_str(self, value: Any) -> str:
-        """Convert result to string during serialization."""
-        return str(value)
+
+@dataclass(frozen=True)
+class ToolCallResult(BaseResult):
+    """Successful tool call result.
+
+    Attributes:
+        result: The tool output — ``str`` for text results,
+            ``list[ContentBlock]`` for multimodal results.
+    """
+
+    result: str | list = ""
+
+    def __str__(self) -> str:
+        return str(self.result)
+
+    def to_ir(self) -> dict[str, Any]:
+        """Convert to a rosetta ``ToolResultPart`` dict."""
+        return {"type": "tool_result", "tool_call_id": self.id, "result": self.result}
+
+    @classmethod
+    def from_ir(cls, ir: dict[str, Any], name: str = "") -> "ToolCallResult":
+        """Create from a rosetta ``ToolResultPart`` dict."""
+        return cls(
+            id=ir["tool_call_id"],
+            name=name,
+            result=ir.get("result", ""),
+        )
+
+
+@dataclass(frozen=True)
+class ErrorResult(BaseResult):
+    """Failed tool call result.
+
+    The *message* field uses ``"ExceptionType: detail"`` format
+    (like the last line of a Python traceback) so both humans and
+    LLMs can parse it naturally.
+
+    Attributes:
+        message: Error description, e.g. ``"ValueError: division by zero"``.
+    """
+
+    message: str = ""
+
+    def __str__(self) -> str:
+        return self.message
+
+    def to_ir(self) -> dict[str, Any]:
+        """Convert to a rosetta ``ToolResultPart`` dict."""
+        return {
+            "type": "tool_result",
+            "tool_call_id": self.id,
+            "result": self.message,
+            "is_error": True,
+        }
+
+    @classmethod
+    def from_ir(cls, ir: dict[str, Any], name: str = "") -> "ErrorResult":
+        """Create from a rosetta ``ToolResultPart`` dict with ``is_error=True``."""
+        return cls(
+            id=ir["tool_call_id"],
+            name=name,
+            message=ir.get("result", ""),
+        )
+
+
+class ResultList(list):
+    """List subclass with O(1) lookup by tool call ID.
+
+    Returned by :meth:`ToolRegistry.execute_tool_calls`.  Supports
+    normal list iteration *and* fast ``by_id()`` access::
+
+        results = registry.execute_tool_calls(tool_calls)
+        r = results.by_id("call_1")       # O(1)
+        r = results["call_1"]             # same, via __getitem__
+    """
+
+    def __init__(self, items: list | None = None) -> None:
+        super().__init__(items or [])
+        self._index: dict[str, int] = {r.id: i for i, r in enumerate(self)}
+
+    def by_id(self, call_id: str) -> "ToolCallResult | ErrorResult":
+        """Look up a result by tool call ID.
+
+        Args:
+            call_id: The tool call ID.
+
+        Returns:
+            The matching result.
+
+        Raises:
+            KeyError: If no result with the given ID exists.
+        """
+        idx = self._index.get(call_id)
+        if idx is None:
+            raise KeyError(f"No result for tool call ID: {call_id!r}")
+        return list.__getitem__(self, idx)
+
+    def __getitem__(self, key):
+        if isinstance(key, str):
+            return self.by_id(key)
+        return super().__getitem__(key)
+
+    def __contains__(self, key):
+        if isinstance(key, str):
+            return key in self._index
+        return super().__contains__(key)
 
 
 # ── Shim: ToolCall ↔ rosetta IR ────────────────────────────────────

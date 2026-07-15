@@ -20,6 +20,9 @@ from .content_blocks import (
 )
 from .tool_calls import (
     API_FORMATS,
+    BaseResult,
+    ErrorResult,
+    ResultList,
     ToolCall,
     ToolCallResult,
     _normalize_api_format,
@@ -31,6 +34,9 @@ from .tool_calls import (
 __all__ = [
     # Tool call types and functions
     "API_FORMATS",
+    "BaseResult",
+    "ErrorResult",
+    "ResultList",
     "ToolCall",
     "ToolCallResult",
     "_normalize_api_format",

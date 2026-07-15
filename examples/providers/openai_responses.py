@@ -58,12 +58,12 @@ for each in response.output:
 print(tool_calls)
 
 # Execute tool calls
-tool_responses = registry.execute_tool_calls(tool_calls)
-print(tool_responses)
+results = registry.execute_tool_calls(tool_calls)
+print(results)
 
 # Construct assistant messages with results
 assistant_tool_messages = registry.build_tool_call_messages(
-    tool_calls, tool_responses, api_format="openai-response"
+    tool_calls, results, api_format="openai-response"
 )
 print(json.dumps(assistant_tool_messages, indent=2))
 

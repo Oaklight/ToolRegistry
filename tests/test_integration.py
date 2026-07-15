@@ -101,8 +101,9 @@ class TestToolRegistryIntegration:
 
         assert "call_1" in results
         assert "call_2" in results
-        assert float(results["call_1"]) == 15.0
-        assert results["call_2"] == "15.00 square meters"
+        assert float(results["call_1"].result) == 15.0
+        r = results["call_2"]
+        assert r.result == "15.00 square meters"
 
         # Test message recovery
         messages = registry.build_tool_call_messages(tool_calls, results)
@@ -275,11 +276,11 @@ class TestToolRegistryIntegration:
 
         results = registry.execute_tool_calls(tool_calls)
 
-        assert "Error" in results["call_fail"]
-        assert int(results["call_good"]) == 30
-        assert (
-            "not found" in results["call_invalid"].lower()
-            or "Error" in results["call_invalid"]
+        r_fail = results["call_fail"]
+        assert "Error" in str(r_fail)
+        assert int(results["call_good"].result) == 30
+        assert "not found" in str(results["call_invalid"]).lower() or "Error" in str(
+            results["call_invalid"]
         )
 
     def test_complex_parameter_validation_integration(self):
@@ -412,12 +413,16 @@ class TestToolRegistryIntegration:
         process_results = registry.execute_tool_calls(tool_calls)
 
         # Results should be the same regardless of execution mode
-        assert thread_results["call_1"] == process_results["call_1"]
-        assert thread_results["call_2"] == process_results["call_2"]
+        t1 = thread_results["call_1"]
+        t2 = thread_results["call_2"]
+        p1 = process_results["call_1"]
+        p2 = process_results["call_2"]
+        assert t1.result == p1.result
+        assert t2.result == p2.result
 
         # Verify actual calculations
         expected_1 = sum(range(1000))
         expected_2 = sum(range(2000))
 
-        assert int(thread_results["call_1"]) == expected_1
-        assert int(thread_results["call_2"]) == expected_2
+        assert int(t1.result) == expected_1
+        assert int(t2.result) == expected_2

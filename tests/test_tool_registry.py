@@ -247,9 +247,9 @@ class TestToolRegistry:
 
         results = populated_registry.execute_tool_calls(tool_calls)
 
-        assert isinstance(results, dict)
+        assert isinstance(results, list)
         assert "call_1" in results
-        assert int(results["call_1"]) == 8
+        assert int(results["call_1"].result) == 8
 
     def test_execute_tool_calls_with_response_format(self, populated_registry):
         """Test executing tool calls with Response format."""
@@ -264,9 +264,9 @@ class TestToolRegistry:
 
         results = populated_registry.execute_tool_calls(tool_calls)
 
-        assert isinstance(results, dict)
+        assert isinstance(results, list)
         assert "call_2" in results
-        assert float(results["call_2"]) == 10.0
+        assert float(results["call_2"].result) == 10.0
 
     def test_execute_tool_calls_with_execution_mode_override(self, populated_registry):
         """Test executing tool calls with execution mode override."""
@@ -282,12 +282,12 @@ class TestToolRegistry:
             tool_calls, execution_mode="thread"
         )
 
-        assert isinstance(results, dict)
+        assert isinstance(results, list)
         assert "call_3" in results
-        assert int(results["call_3"]) == 30
+        assert int(results["call_3"].result) == 30
 
     def test_build_tool_call_messages(self, populated_registry):
-        """Test recovering assistant message from tool calls."""
+        """Test building messages from structured results."""
         tool_calls = [
             {
                 "id": "call_1",
@@ -296,11 +296,9 @@ class TestToolRegistry:
             }
         ]
 
-        tool_responses = {"call_1": "8"}
+        results = populated_registry.execute_tool_calls(tool_calls)
 
-        messages = populated_registry.build_tool_call_messages(
-            tool_calls, tool_responses
-        )
+        messages = populated_registry.build_tool_call_messages(tool_calls, results)
 
         assert isinstance(messages, list)
         assert len(messages) == 2  # Assistant message + tool response
@@ -569,11 +567,11 @@ class TestToolRegistryResultTruncation:
         ]
         results = registry.execute_tool_calls(tool_calls)
 
-        assert "call_big" in results
-        assert "Truncated" in results["call_big"]
-        assert "500 chars" in results["call_big"]
+        result = results["call_big"]
+        assert "Truncated" in result.result
+        assert "500 chars" in result.result
         # The truncated content should be much shorter than 500
-        assert len(results["call_big"]) < 500
+        assert len(result.result) < 500
 
     def test_execute_tool_calls_no_truncation_when_under_limit(self):
         """Test that small results are not truncated."""
@@ -598,7 +596,8 @@ class TestToolRegistryResultTruncation:
         ]
         results = registry.execute_tool_calls(tool_calls)
 
-        assert results["call_small"] == "hello"
+        result = results["call_small"]
+        assert result.result == "hello"
 
     def test_execute_tool_calls_default_max_result_size(self):
         """Test that registry-level default_max_result_size is applied."""
@@ -619,7 +618,8 @@ class TestToolRegistryResultTruncation:
         ]
         results = registry.execute_tool_calls(tool_calls)
 
-        assert "Truncated" in results["call_verbose"]
+        result = results["call_verbose"]
+        assert "Truncated" in result.result
 
     def test_execute_tool_calls_tool_level_overrides_default(self):
         """Test that tool-level max_result_size takes precedence over default."""
@@ -643,7 +643,8 @@ class TestToolRegistryResultTruncation:
         results = registry.execute_tool_calls(tool_calls)
 
         # 50 chars < 1000 limit, so no truncation
-        assert "Truncated" not in results["call_override"]
+        result = results["call_override"]
+        assert "Truncated" not in result.result
 
 
 class TestThinkAugmentedExecution:
@@ -670,7 +671,8 @@ class TestThinkAugmentedExecution:
             }
         ]
         results = registry.execute_tool_calls(tool_calls)
-        assert results["call_think"] == "Hello, World!"
+        result = results["call_think"]
+        assert result.result == "Hello, World!"
 
     def test_get_schemas_default_no_toolcall_reason(self):
         """Test that get_schemas() excludes toolcall_reason by default (think_augment=False)."""
@@ -802,7 +804,10 @@ class TestStructuredErrorHandling:
 
         results = registry.execute_tool_calls([self._make_failing_tool_call()])
 
-        assert "Error" in results["call_fail"]
+        from toolregistry import ErrorResult
+
+        result = results["call_fail"]
+        assert isinstance(result, ErrorResult)
 
         log = registry.get_execution_log()
         entries = log.get_entries()
@@ -859,7 +864,8 @@ class TestStructuredErrorHandling:
         }
         results = registry.execute_tool_calls([tool_call])
 
-        assert results["call_ok"] == "ok"
+        result = results["call_ok"]
+        assert result.result == "ok"
         error_events = [
             e for e in events_received if e.event_type == ChangeEventType.TOOL_ERROR
         ]

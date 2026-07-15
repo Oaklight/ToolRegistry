@@ -3,6 +3,7 @@
 import pytest
 
 from toolregistry.llm.tool_calls import (
+    ResultList,
     ToolCall,
     ToolCallResult,
     build_assistant_message,
@@ -98,29 +99,94 @@ class TestToolCall:
 
 
 class TestToolCallResult:
-    """Test cases for the ToolCallResult class."""
+    """Test cases for the ToolCallResult dataclass."""
+
+    def _make_tc(self, call_id="call_123"):
+        return ToolCall(id=call_id, name="test_fn", arguments="{}")
 
     def test_tool_call_result_creation(self):
-        tc = ToolCallResult(id="call_123", result="Function result")
+        tc = ToolCallResult(id="call_123", name="test_fn", result="Function result")
 
         assert tc.id == "call_123"
+        assert tc.name == "test_fn"
         assert tc.result == "Function result"
 
-    def test_tool_call_result_serialization_converts_to_string(self):
-        result = ToolCallResult(id="call_123", result=42)
+    def test_tool_call_result_with_list(self):
+        blocks = [{"type": "text", "text": "hello"}]
+        tc = ToolCallResult(id="call_123", name="test_fn", result=blocks)
 
-        serialized = result.model_dump()
+        assert tc.result == blocks
 
-        assert serialized["result"] == "42"
+    def test_tool_call_result_frozen(self):
+        tc = ToolCallResult(id="call_123", name="test_fn", result="ok")
+        import pytest
 
-    def test_tool_call_result_complex_object_serialization(self):
-        class CustomObject:
-            def __str__(self):
-                return "custom_representation"
+        with pytest.raises(AttributeError):
+            tc.result = "changed"
 
-        result = ToolCallResult(id="call_123", result=CustomObject())
 
-        assert result.model_dump()["result"] == "custom_representation"
+class TestErrorResult:
+    """Test cases for the ErrorResult dataclass."""
+
+    def _make_tc(self, call_id="call_err"):
+        return ToolCall(id=call_id, name="fail_fn", arguments="{}")
+
+    def test_error_result_creation(self):
+        from toolregistry.llm.tool_calls import ErrorResult
+
+        err = ErrorResult(id="call_err", name="fail_fn", message="ValueError: boom")
+
+        assert err.id == "call_err"
+        assert err.name == "fail_fn"
+        assert err.message == "ValueError: boom"
+
+    def test_error_result_str_is_json(self):
+        from toolregistry.llm.tool_calls import ErrorResult
+
+        err = ErrorResult(id="call_err", name="fail_fn", message="oops")
+        assert str(err) == "oops"
+
+
+class TestResultList:
+    """Test cases for the ResultList helper."""
+
+    def test_by_id_lookup(self):
+        r1 = ToolCallResult(id="c1", name="fn", result="ok")
+        r2 = ToolCallResult(id="c2", name="fn", result="42")
+        rl = ResultList([r1, r2])
+
+        assert rl.by_id("c1").result == "ok"
+        assert rl.by_id("c2").result == "42"
+
+    def test_getitem_string_key(self):
+        r1 = ToolCallResult(id="c1", name="fn", result="ok")
+        rl = ResultList([r1])
+
+        assert rl["c1"].result == "ok"
+        assert rl[0].result == "ok"
+
+    def test_contains_string_key(self):
+        r1 = ToolCallResult(id="c1", name="fn", result="ok")
+        rl = ResultList([r1])
+
+        assert "c1" in rl
+        assert "missing" not in rl
+
+    def test_by_id_missing_raises_keyerror(self):
+        rl = ResultList([])
+        with pytest.raises(KeyError):
+            rl.by_id("missing")
+
+    def test_is_list_subclass(self):
+        rl = ResultList([])
+        assert isinstance(rl, list)
+
+    def test_iteration(self):
+        r1 = ToolCallResult(id="c1", name="fn", result="a")
+        r2 = ToolCallResult(id="c2", name="fn", result="b")
+        rl = ResultList([r1, r2])
+
+        assert [r.result for r in rl] == ["a", "b"]
 
 
 # ---------------------------------------------------------------------------
