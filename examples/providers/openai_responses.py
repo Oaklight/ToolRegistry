@@ -27,7 +27,7 @@ def subtract(a: int, b: int) -> int:
     return a - b
 
 
-print(json.dumps(registry.get_schemas(api_format="openai-response"), indent=2))
+print(json.dumps(registry.get_schemas(api_format="openai-responses"), indent=2))
 
 # Set up OpenAI client
 client = OpenAI(
@@ -47,7 +47,7 @@ messages = [
 response = client.responses.create(
     model=model_name,
     input=messages,
-    tools=registry.get_schemas(api_format="openai-response"),
+    tools=registry.get_schemas(api_format="openai-responses"),
     tool_choice="auto",
 )
 
@@ -63,7 +63,7 @@ print(results)
 
 # Construct assistant messages with results
 assistant_tool_messages = registry.build_tool_call_messages(
-    tool_calls, results, api_format="openai-response"
+    tool_calls, results, api_format="openai-responses"
 )
 print(json.dumps(assistant_tool_messages, indent=2))
 
@@ -73,7 +73,7 @@ messages.extend(assistant_tool_messages)
 response = client.responses.create(
     model=model_name,
     input=messages,
-    tools=registry.get_schemas(api_format="openai-response"),
+    tools=registry.get_schemas(api_format="openai-responses"),
     tool_choice="auto",
 )
 

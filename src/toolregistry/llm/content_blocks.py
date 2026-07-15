@@ -160,7 +160,7 @@ def build_expanded_user_message(
     Returns:
         A user message dict ready to append to the conversation.
     """
-    if api_format in ("openai-chat", "openai-response"):
+    if api_format in ("openai-chat", "openai-responses"):
         parts = []
         for part in content_parts:
             if part.get("type") == "text":

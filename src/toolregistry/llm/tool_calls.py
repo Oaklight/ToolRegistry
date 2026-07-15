@@ -18,8 +18,9 @@ API_FORMATS = Literal[
     "openai",  # deprecated alias for openai-chat
     "openai-chat",
     "openai-chatcompletion",  # deprecated alias for openai-chat
-    "openai-response",
-    "open-responses",  # alias for openai-response
+    "openai-response",  # deprecated alias for openai-responses
+    "openai-responses",
+    "open-responses",  # alias for openai-responses
     "anthropic",
     "gemini",
     "rosetta-ir",
@@ -28,11 +29,12 @@ API_FORMATS = Literal[
 _DEPRECATED_API_FORMATS: dict[str, API_FORMATS] = {
     "openai": "openai-chat",
     "openai-chatcompletion": "openai-chat",
+    "openai-response": "openai-responses",
 }
 
 
 _API_FORMAT_ALIASES: dict[str, API_FORMATS] = {
-    "open-responses": "openai-response",
+    "open-responses": "openai-responses",
 }
 
 
@@ -77,7 +79,7 @@ def _get_tool_ops(api_format: API_FORMATS) -> Any:
         from llm_rosetta.converters.openai_chat import OpenAIChatToolOps
 
         return OpenAIChatToolOps
-    elif api_format == "openai-response":
+    elif api_format == "openai-responses":
         from llm_rosetta.converters.openai_responses import OpenAIResponsesToolOps
 
         return OpenAIResponsesToolOps
@@ -159,7 +161,7 @@ class ToolCall(BaseModel):
         # Vendor-specific formats (anthropic, gemini) are tried before generic
         # OpenAI formats because the OpenAI parsers are lenient and may
         # successfully (but incorrectly) parse Anthropic/Gemini dicts.
-        for fmt in ("anthropic", "gemini", "openai-chat", "openai-response"):
+        for fmt in ("anthropic", "gemini", "openai-chat", "openai-responses"):
             try:
                 ops = _get_tool_ops(fmt)
                 ir = ops.p_tool_call_to_ir(tc_dict)
@@ -362,7 +364,7 @@ def build_assistant_message(
 
     if api_format == "openai-chat":
         return [{"role": "assistant", "tool_calls": provider_calls}]
-    elif api_format == "openai-response":
+    elif api_format == "openai-responses":
         return provider_calls
     elif api_format == "anthropic":
         return [{"role": "assistant", "content": provider_calls}]
@@ -423,7 +425,7 @@ def build_tool_response(
     if api_format == "openai-chat":
         # Each tool result is a separate message
         return provider_results
-    elif api_format == "openai-response":
+    elif api_format == "openai-responses":
         return provider_results
     elif api_format == "anthropic":
         return [{"role": "user", "content": provider_results}]

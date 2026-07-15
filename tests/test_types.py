@@ -308,7 +308,7 @@ class TestBuildAssistantMessage:
             ToolCall(id="call_1", name="test_function", arguments='{"param": "value"}')
         ]
 
-        messages = build_assistant_message(tool_calls, api_format="openai-response")
+        messages = build_assistant_message(tool_calls, api_format="openai-responses")
 
         assert len(messages) == 1
         assert messages[0]["call_id"] == "call_1"
@@ -388,7 +388,7 @@ class TestBuildToolResponse:
 
     def test_openai_response_format(self):
         messages = build_tool_response(
-            {"call_1": "Result"}, api_format="openai-response"
+            {"call_1": "Result"}, api_format="openai-responses"
         )
 
         assert len(messages) == 1

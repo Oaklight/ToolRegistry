@@ -109,7 +109,7 @@ class TestTool:
 
     def test_get_json_schema_openai_response_format(self, sample_tool):
         """Test getting JSON schema in OpenAI response format."""
-        schema = sample_tool.get_schema("openai-response")
+        schema = sample_tool.get_schema("openai-responses")
 
         assert schema["type"] == "function"
         assert schema["name"] == sample_tool.name
