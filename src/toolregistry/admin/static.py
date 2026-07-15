@@ -1747,6 +1747,7 @@ ADMIN_HTML: str = """<!DOCTYPE html>
                                     <option value="openai-responses">openai-responses</option>
                                     <option value="anthropic">anthropic</option>
                                     <option value="gemini">gemini</option>
+                                    <option value="rosetta-ir">rosetta-ir</option>
                                 </select>
                                 <button class="btn btn-secondary btn-sm" onclick="loadSchema(document.getElementById('schema-format-select').value)" data-i18n="btn.refresh">Refresh</button>
                                 <button class="btn btn-secondary btn-sm" onclick="copySchemaContent('schema-content')" data-i18n="btn.copy">Copy</button>
