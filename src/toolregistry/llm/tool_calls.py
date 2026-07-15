@@ -98,6 +98,31 @@ class ToolCall(BaseModel):
     type: Literal["function", "custom"] = "function"
     """The type of the tool call."""
 
+    def to_ir(self) -> dict[str, Any]:
+        """Convert to a rosetta IR ``ToolCallPart`` dict."""
+        return {
+            "type": "tool_call",
+            "tool_call_id": self.id,
+            "tool_name": self.name,
+            "tool_input": json.loads(self.arguments),
+            "tool_type": self.type,
+        }
+
+    @classmethod
+    def from_ir(cls, ir: dict[str, Any]) -> "ToolCall":
+        """Create from a rosetta IR ``ToolCallPart`` dict."""
+        tool_input = ir.get("tool_input", {})
+        raw_type = ir.get("tool_type", "function")
+        tc_type = raw_type if raw_type in ("function", "custom") else "function"
+        return cls(
+            id=ir["tool_call_id"],
+            name=ir["tool_name"],
+            arguments=json.dumps(tool_input)
+            if isinstance(tool_input, dict)
+            else str(tool_input),
+            type=tc_type,
+        )
+
     @classmethod
     def from_tool_call(cls, tool_call: Any) -> "ToolCall":
         """Convert any provider tool call format to ToolCall.
@@ -263,38 +288,13 @@ class ResultList(list):
 
 
 def _toolcall_to_ir(tc: ToolCall) -> dict[str, Any]:
-    """Convert a ToolCall to a rosetta IR ToolCallPart dict.
-
-    Currently a near-identity transform since the structures are
-    intentionally similar.
-    """
-    return {
-        "type": "tool_call",
-        "tool_call_id": tc.id,
-        "tool_name": tc.name,
-        "tool_input": json.loads(tc.arguments),
-        "tool_type": tc.type,
-    }
+    """Convert a ToolCall to a rosetta IR ToolCallPart dict."""
+    return tc.to_ir()
 
 
 def _ir_to_toolcall(ir: dict[str, Any]) -> ToolCall:
-    """Convert a rosetta IR ToolCallPart dict to a ToolCall.
-
-    Currently a near-identity transform since the structures are
-    intentionally similar.  tool_type values outside the ToolCall
-    Literal ("function" | "custom") are normalized to "function".
-    """
-    tool_input = ir.get("tool_input", {})
-    raw_type = ir.get("tool_type", "function")
-    tc_type = raw_type if raw_type in ("function", "custom") else "function"
-    return ToolCall(
-        id=ir["tool_call_id"],
-        name=ir["tool_name"],
-        arguments=json.dumps(tool_input)
-        if isinstance(tool_input, dict)
-        else str(tool_input),
-        type=tc_type,
-    )
+    """Convert a rosetta IR ToolCallPart dict to a ToolCall."""
+    return ToolCall.from_ir(ir)
 
 
 def _to_dict(obj: Any) -> Any:
@@ -318,7 +318,10 @@ def convert_tool_calls(tool_calls: list[Any]) -> list[ToolCall]:
     Returns:
         Normalized ToolCall list.
     """
-    return [ToolCall.from_tool_call(tc) for tc in tool_calls]
+    return [
+        tc if isinstance(tc, ToolCall) else ToolCall.from_tool_call(tc)
+        for tc in tool_calls
+    ]
 
 
 def build_assistant_message(

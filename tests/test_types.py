@@ -92,6 +92,52 @@ class TestToolCall:
         with pytest.raises(TypeError, match="Unsupported tool call format"):
             ToolCall.from_tool_call("not_a_tool_call")
 
+    def test_to_ir(self):
+        """Test converting ToolCall to rosetta IR ToolCallPart."""
+        tc = ToolCall(id="c1", name="fn", arguments='{"x": 1}')
+        ir = tc.to_ir()
+
+        assert ir["type"] == "tool_call"
+        assert ir["tool_call_id"] == "c1"
+        assert ir["tool_name"] == "fn"
+        assert ir["tool_input"] == {"x": 1}
+        assert ir["tool_type"] == "function"
+
+    def test_from_ir(self):
+        """Test creating ToolCall from rosetta IR ToolCallPart."""
+        ir = {
+            "type": "tool_call",
+            "tool_call_id": "c1",
+            "tool_name": "fn",
+            "tool_input": {"x": 1},
+            "tool_type": "function",
+        }
+        tc = ToolCall.from_ir(ir)
+
+        assert tc.id == "c1"
+        assert tc.name == "fn"
+        assert tc.arguments == '{"x": 1}'
+        assert tc.type == "function"
+
+    def test_to_ir_from_ir_roundtrip(self):
+        """Test that to_ir -> from_ir preserves data."""
+        tc = ToolCall(id="c1", name="fn", arguments='{"a": 1, "b": "hello"}')
+        tc2 = ToolCall.from_ir(tc.to_ir())
+
+        assert tc2.id == tc.id
+        assert tc2.name == tc.name
+        assert tc2.arguments == tc.arguments
+
+    def test_convert_tool_calls_shortcircuit(self):
+        """Test that convert_tool_calls passes through ToolCall instances."""
+        from toolregistry.llm.tool_calls import convert_tool_calls
+
+        tc = ToolCall(id="c1", name="fn", arguments='{"x": 42}')
+        converted = convert_tool_calls([tc])
+
+        assert converted[0] is tc
+        assert converted[0].arguments == '{"x": 42}'
+
 
 # ---------------------------------------------------------------------------
 # ToolCallResult
