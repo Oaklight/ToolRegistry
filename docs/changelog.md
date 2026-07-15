@@ -46,6 +46,11 @@ hide:
 ### 修复
 
 - MCP/OpenAPI 包装器现在通过 `__getstate__`/`__setstate__` 支持 cloudpickle 序列化（#189）。
+- 修复 `integrations/openapi/utils.py` 中的 `ty` 类型错误——`headers.get()` 空值保护。
+
+### 内部
+
+- 更新 vendored `httpclient` 模块 0.4.1 → 0.4.4（zerodep）。
 
 ## [0.12.0] - 2026-06-26
 
