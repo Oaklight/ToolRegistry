@@ -3,6 +3,7 @@
 import pytest
 
 from toolregistry.llm.tool_calls import (
+    ResultList,
     ToolCall,
     ToolCallResult,
     build_assistant_message,
@@ -151,6 +152,51 @@ class TestErrorResult:
         assert data["is_error"] is True
         assert data["message"] == "oops"
         assert data["tool_name"] == "fail_fn"
+
+
+class TestResultList:
+    """Test cases for the ResultList helper."""
+
+    def _make_tc(self, call_id="c1", name="fn"):
+        return ToolCall(id=call_id, name=name, arguments="{}")
+
+    def test_by_id_lookup(self):
+        r1 = ToolCallResult(tool_call=self._make_tc("c1"), result="ok")
+        r2 = ToolCallResult(tool_call=self._make_tc("c2"), result="42")
+        rl = ResultList([r1, r2])
+
+        assert rl.by_id("c1").result == "ok"
+        assert rl.by_id("c2").result == "42"
+
+    def test_getitem_string_key(self):
+        r1 = ToolCallResult(tool_call=self._make_tc("c1"), result="ok")
+        rl = ResultList([r1])
+
+        assert rl["c1"].result == "ok"
+        assert rl[0].result == "ok"
+
+    def test_contains_string_key(self):
+        r1 = ToolCallResult(tool_call=self._make_tc("c1"), result="ok")
+        rl = ResultList([r1])
+
+        assert "c1" in rl
+        assert "missing" not in rl
+
+    def test_by_id_missing_raises_keyerror(self):
+        rl = ResultList([])
+        with pytest.raises(KeyError):
+            rl.by_id("missing")
+
+    def test_is_list_subclass(self):
+        rl = ResultList([])
+        assert isinstance(rl, list)
+
+    def test_iteration(self):
+        r1 = ToolCallResult(tool_call=self._make_tc("c1"), result="a")
+        r2 = ToolCallResult(tool_call=self._make_tc("c2"), result="b")
+        rl = ResultList([r1, r2])
+
+        assert [r.result for r in rl] == ["a", "b"]
 
 
 # ---------------------------------------------------------------------------

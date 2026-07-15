@@ -171,6 +171,9 @@ class ToolCallResult(BaseResult):
 
     result: str | list = ""
 
+    def __str__(self) -> str:
+        return str(self.result)
+
 
 @dataclass(frozen=True)
 class ErrorResult(BaseResult):
@@ -194,6 +197,49 @@ class ErrorResult(BaseResult):
                 "is_error": True,
             }
         )
+
+
+class ResultList(list):
+    """List subclass with O(1) lookup by tool call ID.
+
+    Returned by :meth:`ToolRegistry.execute_tool_calls`.  Supports
+    normal list iteration *and* fast ``by_id()`` access::
+
+        results = registry.execute_tool_calls(tool_calls)
+        r = results.by_id("call_1")       # O(1)
+        r = results["call_1"]             # same, via __getitem__
+    """
+
+    def __init__(self, items: list | None = None) -> None:
+        super().__init__(items or [])
+        self._index: dict[str, int] = {r.id: i for i, r in enumerate(self)}
+
+    def by_id(self, call_id: str) -> "ToolCallResult | ErrorResult":
+        """Look up a result by tool call ID.
+
+        Args:
+            call_id: The tool call ID.
+
+        Returns:
+            The matching result.
+
+        Raises:
+            KeyError: If no result with the given ID exists.
+        """
+        idx = self._index.get(call_id)
+        if idx is None:
+            raise KeyError(f"No result for tool call ID: {call_id!r}")
+        return list.__getitem__(self, idx)
+
+    def __getitem__(self, key):
+        if isinstance(key, str):
+            return self.by_id(key)
+        return super().__getitem__(key)
+
+    def __contains__(self, key):
+        if isinstance(key, str):
+            return key in self._index
+        return super().__contains__(key)
 
 
 # ── Shim: ToolCall ↔ rosetta IR ────────────────────────────────────

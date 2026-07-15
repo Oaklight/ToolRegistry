@@ -22,12 +22,13 @@ from .permissions import (
     PermissionRule,
 )
 from .llm.discovery import ToolDiscoveryTool
-from .llm.tool_calls import ErrorResult, ToolCallResult
+from .llm.tool_calls import ErrorResult, ResultList, ToolCallResult
 from .tool import Tool, ToolMetadata, ToolTag
 from .tool_registry import ToolRegistry
 
 __all__ = [
     "ErrorResult",
+    "ResultList",
     "ToolCallResult",
     "AdminInfo",
     "AdminServer",

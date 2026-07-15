@@ -297,7 +297,7 @@ class TestExecuteToolCallsDisabled:
 
         tool_call = self._make_tool_call("add", {"a": 3, "b": 4})
         results = registry.execute_tool_calls([tool_call])
-        r = next(r for r in results if r.id == "call_1")
+        r = results["call_1"]
         assert str(r.result) == "7"
 
     def test_execute_disabled_tool_returns_error(self):
@@ -307,7 +307,7 @@ class TestExecuteToolCallsDisabled:
 
         tool_call = self._make_tool_call("add", {"a": 3, "b": 4})
         results = registry.execute_tool_calls([tool_call])
-        r = next(r for r in results if r.id == "call_1")
+        r = results["call_1"]
         assert "disabled" in str(r).lower()
         assert "under maintenance" in str(r)
 
@@ -322,9 +322,9 @@ class TestExecuteToolCallsDisabled:
         tc_sub = self._make_tool_call("subtract", {"a": 5, "b": 3}, call_id="call_sub")
         results = registry.execute_tool_calls([tc_add, tc_sub])
 
-        r_add = next(r for r in results if r.id == "call_add")
+        r_add = results["call_add"]
         assert str(r_add.result) == "3"
-        r_sub = next(r for r in results if r.id == "call_sub")
+        r_sub = results["call_sub"]
         assert "disabled" in str(r_sub).lower()
         assert "deprecated" in str(r_sub)
 
@@ -335,7 +335,7 @@ class TestExecuteToolCallsDisabled:
 
         tool_call = self._make_tool_call("add", {"a": 1, "b": 2})
         results = registry.execute_tool_calls([tool_call])
-        r = next(r for r in results if r.id == "call_1")
+        r = results["call_1"]
         assert "disabled" in str(r).lower()
 
 

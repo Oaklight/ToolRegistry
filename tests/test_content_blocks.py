@@ -342,7 +342,7 @@ class TestExecuteToolCallsMultimodal:
         ]
 
         results = registry.execute_tool_calls(tool_calls, execution_mode="thread")
-        result = next(r for r in results if r.id == "call_1")
+        result = results["call_1"]
         assert isinstance(result.result, list)
         assert result.result[0]["type"] == "text"
         assert result.result[1]["type"] == "image"
@@ -365,7 +365,7 @@ class TestExecuteToolCallsMultimodal:
         ]
 
         results = registry.execute_tool_calls(tool_calls, execution_mode="thread")
-        result = next(r for r in results if r.id == "call_2")
+        result = results["call_2"]
         assert isinstance(result.result, str)
         assert result.result == "result: 42"
 

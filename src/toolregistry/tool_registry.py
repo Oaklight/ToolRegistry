@@ -20,6 +20,7 @@ from .permissions import (
 from .llm.tool_calls import (
     API_FORMATS,
     ErrorResult,
+    ResultList,
     ToolCallResult,
     build_assistant_message,
     build_tool_response,
@@ -837,7 +838,7 @@ class ToolRegistry(
         self,
         tool_calls: list[Any],
         execution_mode: Literal["process", "thread"] | None = None,
-    ) -> list[ToolCallResult | ErrorResult]:
+    ) -> ResultList:
         """Execute tool calls and return structured results.
 
         Disabled tools are rejected with an :class:`ErrorResult` instead
@@ -909,16 +910,18 @@ class ToolRegistry(
     def _wrap_results(
         tool_calls: list[Any],
         tool_responses: dict[str, Any],
-    ) -> list[ToolCallResult | ErrorResult]:
+    ) -> ResultList:
         """Convert the internal responses dict into structured result objects."""
-        results: list[ToolCallResult | ErrorResult] = []
+        items: list[ToolCallResult | ErrorResult] = []
         for tc in tool_calls:
             val = tool_responses.get(tc.id)
             if isinstance(val, _ToolError):
-                results.append(val.to_error_result(tc))
+                items.append(val.to_error_result(tc))
             elif val is not None:
-                results.append(ToolCallResult(tool_call=tc, result=val))
-        return results
+                items.append(ToolCallResult(tool_call=tc, result=val))
+            else:
+                items.append(ErrorResult(tool_call=tc, message="No result produced"))
+        return ResultList(items)
 
     def _log_tool_call_results(
         self,
@@ -1012,7 +1015,7 @@ class ToolRegistry(
         response_dict: dict[str, str | list] = {}
         for r in results:
             if isinstance(r, ErrorResult):
-                response_dict[r.id] = str(r)
+                response_dict[r.id] = r.message
             else:
                 response_dict[r.id] = r.result
 
