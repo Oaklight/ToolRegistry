@@ -112,7 +112,7 @@ class TestGetJsonSchemaOpenAI:
 
     def test_openai_response_format(self):
         tool = _sample_tool()
-        schema = tool.get_schema(api_format="openai-response")
+        schema = tool.get_schema(api_format="openai-responses")
         assert schema["type"] == "function"
         assert schema["name"] == "add"
         assert "Add two numbers" in schema["description"]

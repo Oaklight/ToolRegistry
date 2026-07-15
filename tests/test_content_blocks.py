@@ -232,7 +232,7 @@ class TestBuildExpandedUserMessage:
         assert image_parts[0]["image_url"]["url"].startswith("data:image/png;base64,")
 
     def test_openai_response_format(self, sample_parts):
-        msg = build_expanded_user_message(sample_parts, "openai-response")
+        msg = build_expanded_user_message(sample_parts, "openai-responses")
         assert msg["role"] == "user"
         # Same format as openai-chat
         image_parts = [p for p in msg["content"] if p["type"] == "image_url"]
@@ -400,7 +400,7 @@ class TestBuildToolResponseMultimodal:
 
     def test_openai_response_uses_text_fallback(self, multimodal_responses):
         messages = build_tool_response(
-            multimodal_responses, api_format="openai-response"
+            multimodal_responses, api_format="openai-responses"
         )
         output = messages[0]["output"]
         assert isinstance(output, str)

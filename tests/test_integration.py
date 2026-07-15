@@ -344,7 +344,7 @@ class TestToolRegistryIntegration:
         # Test different API formats
         openai_format = registry.get_schemas(api_format="openai-chat")
         openai_chat_format = registry.get_schemas(api_format="openai-chat")
-        response_format = registry.get_schemas(api_format="openai-response")
+        response_format = registry.get_schemas(api_format="openai-responses")
         anthropic_format = registry.get_schemas(api_format="anthropic")
         gemini_format = registry.get_schemas(api_format="gemini")
 

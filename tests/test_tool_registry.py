@@ -168,7 +168,7 @@ class TestToolRegistry:
     def test_get_schemas_different_api_formats(self, populated_registry):
         """Test getting JSON schema in different API formats."""
         openai_format = populated_registry.get_schemas(api_format="openai-chat")
-        response_format = populated_registry.get_schemas(api_format="openai-response")
+        response_format = populated_registry.get_schemas(api_format="openai-responses")
 
         assert len(openai_format) == len(response_format)
 

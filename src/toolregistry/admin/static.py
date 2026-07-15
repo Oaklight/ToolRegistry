@@ -1744,7 +1744,7 @@ ADMIN_HTML: str = """<!DOCTYPE html>
                             <div style="display:flex;gap:8px;align-items:center;">
                                 <select id="schema-format-select" class="btn btn-secondary btn-sm" style="padding:4px 8px;cursor:pointer;" onchange="loadSchema(this.value)">
                                     <option value="openai-chat">openai-chat</option>
-                                    <option value="openai-response">openai-response</option>
+                                    <option value="openai-responses">openai-responses</option>
                                     <option value="anthropic">anthropic</option>
                                     <option value="gemini">gemini</option>
                                 </select>

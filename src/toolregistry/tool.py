@@ -400,7 +400,7 @@ class Tool(BaseModel):
 
         Args:
             api_format: Target API format. One of ``"openai-chat"``,
-                ``"openai-response"``, ``"anthropic"``, ``"gemini"``.
+                ``"openai-responses"``, ``"anthropic"``, ``"gemini"``.
             _think_augment: Internal override for toolcall_reason injection.
                 When ``None`` (default), falls back to
                 ``self.metadata.think_augment``.  Used by
@@ -437,7 +437,7 @@ class Tool(BaseModel):
             from .llm._rosetta import _get_openai_chat_tool_ops
 
             return _get_openai_chat_tool_ops().ir_tool_definition_to_p(ir_tool)
-        elif api_format == "openai-response":
+        elif api_format == "openai-responses":
             from .llm._rosetta import _get_openai_responses_tool_ops
 
             return _get_openai_responses_tool_ops().ir_tool_definition_to_p(ir_tool)
