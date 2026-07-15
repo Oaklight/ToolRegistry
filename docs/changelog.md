@@ -46,6 +46,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 - MCP/OpenAPI wrappers now survive cloudpickle serialization via `__getstate__`/`__setstate__` (#189).
+- Fix `ty` type error in `integrations/openapi/utils.py` — `headers.get()` None guard.
+
+### Internal
+
+- Update vendored `httpclient` module from 0.4.1 to 0.4.4 (zerodep).
 
 ## [0.12.0] - 2026-06-26
 
