@@ -19,6 +19,8 @@ from .permissions import (
 )
 from .llm.tool_calls import (
     API_FORMATS,
+    ErrorResult,
+    ToolCallResult,
     build_assistant_message,
     build_tool_response,
     convert_tool_calls,
@@ -58,6 +60,14 @@ class _ToolError:
     exception_type: str | None = None
     traceback_str: str | None = None
     is_timeout: bool = False
+
+    def to_error_result(self, tool_call: Any) -> "ErrorResult":
+        """Convert to a public ErrorResult."""
+        return ErrorResult(
+            tool_call=tool_call,
+            message=self.message,
+            error_type=self.exception_type,
+        )
 
 
 class ToolRegistry(
@@ -646,7 +656,7 @@ class ToolRegistry(
         self,
         generic_tool_calls: list[Any],
         invocation_id: str | None = None,
-    ) -> tuple[list[Any], dict[str, str | list], dict[str, float], dict[str, dict]]:
+    ) -> tuple[list[Any], dict[str, Any], dict[str, float], dict[str, dict]]:
         """Separate tool calls into enabled vs disabled/denied, logging rejections.
 
         Uses :meth:`_check_tool_access` for permission checks so the
@@ -660,7 +670,7 @@ class ToolRegistry(
             Tuple of (enabled_calls, tool_responses, call_start_times, call_arguments).
         """
         enabled_calls: list[Any] = []
-        tool_responses: dict[str, str | list] = {}
+        tool_responses: dict[str, Any] = {}
         call_start_times: dict[str, float] = {}
         call_arguments: dict[str, dict] = {}
 
@@ -673,7 +683,10 @@ class ToolRegistry(
             try:
                 self._check_tool_access(tc.name, args, invocation_id)
             except (KeyError, RuntimeError, PermissionError) as exc:
-                tool_responses[tc.id] = f"Error: {exc}"
+                tool_responses[tc.id] = _ToolError(
+                    message=f"Error: {exc}",
+                    exception_type=type(exc).__qualname__,
+                )
             else:
                 enabled_calls.append(tc)
                 call_start_times[tc.id] = time.perf_counter()
@@ -824,20 +837,21 @@ class ToolRegistry(
         self,
         tool_calls: list[Any],
         execution_mode: Literal["process", "thread"] | None = None,
-    ) -> dict[str, str | list]:
-        """Execute tool calls with concurrency using cloudpickle for serialization.
+    ) -> list[ToolCallResult | ErrorResult]:
+        """Execute tool calls and return structured results.
 
-        Disabled tools are rejected with an error message instead of being
-        executed. If logging is enabled, execution details are recorded.
+        Disabled tools are rejected with an :class:`ErrorResult` instead
+        of being executed.  If logging is enabled, execution details are
+        recorded.
 
         Args:
             tool_calls: List of tool calls to be executed in any supported format.
             execution_mode: Execution mode to use; defaults to the Executor's current mode.
 
         Returns:
-            Dictionary mapping tool call IDs to their results.  Values
-            are ``str`` for normal results or ``list[ContentBlock]`` for
-            multimodal results (e.g. images).
+            List of results in the same order as *tool_calls*.  Each
+            element is a :class:`ToolCallResult` (success) or
+            :class:`ErrorResult` (failure).
         """
         from .executor import ExecutionHandle
         from .utils import generate_invocation_id
@@ -850,7 +864,7 @@ class ToolRegistry(
         )
 
         if not enabled_calls:
-            return tool_responses
+            return self._wrap_results(generic_tool_calls, tool_responses)
 
         mode = execution_mode or self._execution_mode
         backend = self._thread_backend if mode == "thread" else self._process_backend
@@ -862,38 +876,49 @@ class ToolRegistry(
         )
 
         handles: list[tuple[Any, ExecutionHandle]] = []
-        # Map call ID → raw result (_ToolError or success value)
         raw_results: dict[str, Any] = {}
 
         for tc in enabled_calls:
             handle_or_error = self._submit_tool_call(tc, backend, call_arguments, mode)
             if isinstance(handle_or_error, _ToolError):
                 raw_results[tc.id] = handle_or_error
-                tool_responses[tc.id] = handle_or_error.message
+                tool_responses[tc.id] = handle_or_error
                 continue
 
             if has_unsafe:
                 result = self._collect_handle_result(handle_or_error, tc.name)
-                raw_results[tc.id] = result
-                tool_responses[tc.id] = (
-                    result.message if isinstance(result, _ToolError) else result
+                raw_results[tc.id] = (
+                    result if isinstance(result, _ToolError) else result
                 )
+                tool_responses[tc.id] = result
             else:
                 handles.append((tc, handle_or_error))
 
         for tc, handle in handles:
             result = self._collect_handle_result(handle, tc.name)
-            raw_results[tc.id] = result
-            tool_responses[tc.id] = (
-                result.message if isinstance(result, _ToolError) else result
-            )
+            raw_results[tc.id] = result if isinstance(result, _ToolError) else result
+            tool_responses[tc.id] = result
 
-        # Log executed tool calls and emit error events
         self._log_tool_call_results(
             enabled_calls, raw_results, call_start_times, call_arguments, batch_inv_id
         )
 
-        return tool_responses
+        return self._wrap_results(generic_tool_calls, tool_responses)
+
+    @staticmethod
+    def _wrap_results(
+        tool_calls: list[Any],
+        tool_responses: dict[str, Any],
+    ) -> list[ToolCallResult | ErrorResult]:
+        """Convert the internal responses dict into structured result objects."""
+        results: list[ToolCallResult | ErrorResult] = []
+        for tc in tool_calls:
+            val = tool_responses.get(tc.id)
+            if isinstance(val, _ToolError):
+                results.append(val.to_error_result(tc))
+            elif val is not None:
+                results.append(ToolCallResult(tool_call=tc, result=val))
+        return results
 
     def _log_tool_call_results(
         self,
@@ -938,32 +963,22 @@ class ToolRegistry(
 
     def build_tool_call_messages(
         self,
-        tool_calls: list[Any],
-        tool_responses: dict[str, str | list],
+        results_or_tool_calls: list[Any],
+        tool_responses: dict[str, str | list] | None = None,
         api_format: API_FORMATS = "openai-chat",
     ) -> list[dict[str, Any]]:
         """Build conversation messages for a tool-calling round-trip.
 
-        Combines the assistant message (tool call requests) and the tool
-        result messages into the format required by the next LLM turn.
-
-        This is a convenience method wrapping :func:`build_assistant_message`
-        and :func:`build_tool_response`.  It handles Gemini-specific ID
-        alignment automatically (position-based remapping).
-
-        .. important::
-
-            Do **not** reorder ``tool_calls`` between
-            :meth:`execute_tool_calls` and this method.  Gemini format
-            relies on positional alignment between ``tool_calls`` and
-            ``tool_responses`` because Gemini does not provide tool call
-            IDs upstream.
+        Accepts either structured results from :meth:`execute_tool_calls`
+        (new API) or the legacy ``(tool_calls, tool_responses)`` pair.
 
         Args:
-            tool_calls: Tool call objects in any supported format.
-            tool_responses: Mapping of tool call IDs to results,
-                as returned by :meth:`execute_tool_calls`.  Values are
-                ``str`` or ``list[ContentBlock]`` for multimodal results.
+            results_or_tool_calls: A ``list[ToolCallResult | ErrorResult]``
+                from :meth:`execute_tool_calls`, **or** raw tool call
+                objects when using the deprecated two-argument form.
+            tool_responses: *(Deprecated)* Mapping of tool call IDs to
+                results.  Pass ``None`` (default) when using the new
+                structured-results form.
             api_format: Target API format. Defaults to ``"openai-chat"``.
 
         Returns:
@@ -971,6 +986,20 @@ class ToolRegistry(
             When multimodal content is present, an additional user
             message is appended containing the expanded content.
         """
+        if tool_responses is not None:
+            return self._build_tool_call_messages_legacy(
+                results_or_tool_calls, tool_responses, api_format
+            )
+        return self._build_tool_call_messages_from_results(
+            results_or_tool_calls, api_format
+        )
+
+    def _build_tool_call_messages_from_results(
+        self,
+        results: list[Any],
+        api_format: API_FORMATS = "openai-chat",
+    ) -> list[dict[str, Any]]:
+        """Build messages from structured result objects."""
         from .llm.tool_calls import _normalize_api_format
         from .llm.content_blocks import (
             build_expanded_user_message,
@@ -979,19 +1008,52 @@ class ToolRegistry(
 
         api_format = _normalize_api_format(api_format)
 
-        messages = []
+        tool_calls = [r.tool_call for r in results]
+        response_dict: dict[str, str | list] = {}
+        for r in results:
+            if isinstance(r, ErrorResult):
+                response_dict[r.id] = str(r)
+            else:
+                response_dict[r.id] = r.result
+
+        text_responses, extra_user_content = expand_content_blocks(response_dict)
+
+        messages: list[dict[str, Any]] = []
+        messages.extend(build_assistant_message(tool_calls, api_format=api_format))
+        messages.extend(
+            build_tool_response(
+                text_responses, api_format=api_format, tool_calls=tool_calls
+            )
+        )
+
+        if extra_user_content:
+            messages.append(build_expanded_user_message(extra_user_content, api_format))
+
+        return messages
+
+    def _build_tool_call_messages_legacy(
+        self,
+        tool_calls: list[Any],
+        tool_responses: dict[str, str | list],
+        api_format: API_FORMATS = "openai-chat",
+    ) -> list[dict[str, Any]]:
+        """Build messages from the legacy (tool_calls, dict) signature."""
+        from .llm.tool_calls import _normalize_api_format
+        from .llm.content_blocks import (
+            build_expanded_user_message,
+            expand_content_blocks,
+        )
+
+        api_format = _normalize_api_format(api_format)
+
+        messages: list[dict[str, Any]] = []
         generic_tool_calls = convert_tool_calls(tool_calls)
 
-        # Align IDs: convert_tool_calls may generate new IDs (e.g. Gemini
-        # format has no upstream ID), but tool_responses already carries
-        # the IDs produced by execute_tool_calls.  Remap by position so
-        # the assistant and tool messages reference the same IDs.
         response_ids = list(tool_responses.keys())
         for i, tc in enumerate(generic_tool_calls):
             if i < len(response_ids):
                 tc.id = response_ids[i]
 
-        # Expand multimodal content blocks into a separate user message
         text_responses, extra_user_content = expand_content_blocks(tool_responses)
 
         messages.extend(
@@ -1021,7 +1083,9 @@ class ToolRegistry(
             DeprecationWarning,
             stacklevel=2,
         )
-        return self.build_tool_call_messages(tool_calls, tool_responses, api_format)
+        return self._build_tool_call_messages_legacy(
+            tool_calls, tool_responses, api_format
+        )
 
     # ============== Presentation ==============
     def list_tools(self, include_disabled: bool = False) -> list[str]:

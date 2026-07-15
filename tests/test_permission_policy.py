@@ -218,7 +218,8 @@ class TestRegistryPolicyIntegration:
         reg, name = _registry_with_tool()
         tc = _make_tool_call(name, {"a": 1, "b": 2})
         results = reg.execute_tool_calls([tc])
-        assert str(results[f"call_{name}"]) == "3"
+        r = next(r for r in results if r.id == f"call_{name}")
+        assert str(r.result) == "3"
 
     def test_deny_rule_blocks_execution(self):
         reg, name = _registry_with_tool(tags={ToolTag.DESTRUCTIVE})
@@ -236,7 +237,8 @@ class TestRegistryPolicyIntegration:
         )
         tc = _make_tool_call(name, {"a": 1, "b": 2})
         results = reg.execute_tool_calls([tc])
-        assert "denied by permission policy" in results[f"call_{name}"].lower()
+        r_err = next(r for r in results if r.id == f"call_{name}")
+        assert "denied by permission policy" in str(r_err).lower()
 
     def test_allow_rule_permits_execution(self):
         reg, name = _registry_with_tool(tags={ToolTag.READ_ONLY})
@@ -248,7 +250,8 @@ class TestRegistryPolicyIntegration:
         )
         tc = _make_tool_call(name, {"a": 1, "b": 2})
         results = reg.execute_tool_calls([tc])
-        assert str(results[f"call_{name}"]) == "3"
+        r = next(r for r in results if r.id == f"call_{name}")
+        assert str(r.result) == "3"
 
     def test_ask_with_handler_allow(self):
         reg, name = _registry_with_tool(tags={ToolTag.DESTRUCTIVE})
@@ -261,7 +264,8 @@ class TestRegistryPolicyIntegration:
         )
         tc = _make_tool_call(name, {"a": 1, "b": 2})
         results = reg.execute_tool_calls([tc])
-        assert str(results[f"call_{name}"]) == "3"
+        r = next(r for r in results if r.id == f"call_{name}")
+        assert str(r.result) == "3"
         assert len(handler.requests) == 1
         assert handler.requests[0].tool_name == name
 
@@ -276,7 +280,8 @@ class TestRegistryPolicyIntegration:
         )
         tc = _make_tool_call(name, {"a": 1, "b": 2})
         results = reg.execute_tool_calls([tc])
-        assert "denied" in results[f"call_{name}"].lower()
+        r_err = next(r for r in results if r.id == f"call_{name}")
+        assert "denied" in str(r_err).lower()
 
     def test_ask_no_handler_uses_fallback(self):
         reg, name = _registry_with_tool(tags={ToolTag.DESTRUCTIVE})
@@ -288,7 +293,8 @@ class TestRegistryPolicyIntegration:
         )
         tc = _make_tool_call(name, {"a": 1, "b": 2})
         results = reg.execute_tool_calls([tc])
-        assert "denied" in results[f"call_{name}"].lower()
+        r_err = next(r for r in results if r.id == f"call_{name}")
+        assert "denied" in str(r_err).lower()
 
     def test_ask_uses_registry_handler_when_policy_has_none(self):
         reg, name = _registry_with_tool(tags={ToolTag.DESTRUCTIVE})
@@ -297,7 +303,8 @@ class TestRegistryPolicyIntegration:
         reg.set_permission_policy(PermissionPolicy(rules=[ASK_DESTRUCTIVE]))
         tc = _make_tool_call(name, {"a": 1, "b": 2})
         results = reg.execute_tool_calls([tc])
-        assert str(results[f"call_{name}"]) == "3"
+        r = next(r for r in results if r.id == f"call_{name}")
+        assert str(r.result) == "3"
         assert len(handler.requests) == 1
 
     def test_policy_handler_takes_precedence(self):
@@ -314,7 +321,8 @@ class TestRegistryPolicyIntegration:
         tc = _make_tool_call(name, {"a": 1, "b": 2})
         results = reg.execute_tool_calls([tc])
         # Policy handler should be used, not registry handler
-        assert str(results[f"call_{name}"]) == "3"
+        r = next(r for r in results if r.id == f"call_{name}")
+        assert str(r.result) == "3"
         assert len(policy_handler.requests) == 1
         assert len(registry_handler.requests) == 0
 
@@ -334,7 +342,8 @@ class TestRegistryPolicyIntegration:
         reg.remove_permission_policy()
         tc = _make_tool_call(name, {"a": 1, "b": 2})
         results = reg.execute_tool_calls([tc])
-        assert str(results[f"call_{name}"]) == "3"
+        r = next(r for r in results if r.id == f"call_{name}")
+        assert str(r.result) == "3"
 
     def test_fallback_no_match_no_handler(self):
         reg, name = _registry_with_tool()
@@ -352,7 +361,8 @@ class TestRegistryPolicyIntegration:
         )
         tc = _make_tool_call(name, {"a": 1, "b": 2})
         results = reg.execute_tool_calls([tc])
-        assert "denied" in results[f"call_{name}"].lower()
+        r_err = next(r for r in results if r.id == f"call_{name}")
+        assert "denied" in str(r_err).lower()
 
 
 # ---------------------------------------------------------------------------

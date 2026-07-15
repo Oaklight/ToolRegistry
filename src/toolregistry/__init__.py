@@ -21,11 +21,14 @@ from .permissions import (
     PermissionResult,
     PermissionRule,
 )
+from .llm.discovery import ToolDiscoveryTool
+from .llm.tool_calls import ErrorResult, ToolCallResult
 from .tool import Tool, ToolMetadata, ToolTag
 from .tool_registry import ToolRegistry
-from .llm.discovery import ToolDiscoveryTool
 
 __all__ = [
+    "ErrorResult",
+    "ToolCallResult",
     "AdminInfo",
     "AdminServer",
     "AsyncPermissionHandler",

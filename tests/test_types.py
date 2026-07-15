@@ -98,29 +98,59 @@ class TestToolCall:
 
 
 class TestToolCallResult:
-    """Test cases for the ToolCallResult class."""
+    """Test cases for the ToolCallResult dataclass."""
+
+    def _make_tc(self, call_id="call_123"):
+        return ToolCall(id=call_id, name="test_fn", arguments="{}")
 
     def test_tool_call_result_creation(self):
-        tc = ToolCallResult(id="call_123", result="Function result")
+        tc = ToolCallResult(tool_call=self._make_tc(), result="Function result")
 
         assert tc.id == "call_123"
+        assert tc.name == "test_fn"
         assert tc.result == "Function result"
 
-    def test_tool_call_result_serialization_converts_to_string(self):
-        result = ToolCallResult(id="call_123", result=42)
+    def test_tool_call_result_with_list(self):
+        blocks = [{"type": "text", "text": "hello"}]
+        tc = ToolCallResult(tool_call=self._make_tc(), result=blocks)
 
-        serialized = result.model_dump()
+        assert tc.result == blocks
 
-        assert serialized["result"] == "42"
+    def test_tool_call_result_frozen(self):
+        tc = ToolCallResult(tool_call=self._make_tc(), result="ok")
+        import pytest
 
-    def test_tool_call_result_complex_object_serialization(self):
-        class CustomObject:
-            def __str__(self):
-                return "custom_representation"
+        with pytest.raises(AttributeError):
+            tc.result = "changed"
 
-        result = ToolCallResult(id="call_123", result=CustomObject())
 
-        assert result.model_dump()["result"] == "custom_representation"
+class TestErrorResult:
+    """Test cases for the ErrorResult dataclass."""
+
+    def _make_tc(self, call_id="call_err"):
+        return ToolCall(id=call_id, name="fail_fn", arguments="{}")
+
+    def test_error_result_creation(self):
+        from toolregistry.llm.tool_calls import ErrorResult
+
+        err = ErrorResult(
+            tool_call=self._make_tc(), message="boom", error_type="ValueError"
+        )
+
+        assert err.id == "call_err"
+        assert err.name == "fail_fn"
+        assert err.message == "boom"
+        assert err.error_type == "ValueError"
+
+    def test_error_result_str_is_json(self):
+        import json
+        from toolregistry.llm.tool_calls import ErrorResult
+
+        err = ErrorResult(tool_call=self._make_tc(), message="oops")
+        data = json.loads(str(err))
+        assert data["is_error"] is True
+        assert data["message"] == "oops"
+        assert data["tool_name"] == "fail_fn"
 
 
 # ---------------------------------------------------------------------------

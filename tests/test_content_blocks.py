@@ -342,9 +342,10 @@ class TestExecuteToolCallsMultimodal:
         ]
 
         results = registry.execute_tool_calls(tool_calls, execution_mode="thread")
-        assert isinstance(results["call_1"], list)
-        assert results["call_1"][0]["type"] == "text"
-        assert results["call_1"][1]["type"] == "image"
+        result = next(r for r in results if r.id == "call_1")
+        assert isinstance(result.result, list)
+        assert result.result[0]["type"] == "text"
+        assert result.result[1]["type"] == "image"
 
     def test_string_tool_returns_string(self):
         registry = ToolRegistry(name="test")
@@ -364,8 +365,9 @@ class TestExecuteToolCallsMultimodal:
         ]
 
         results = registry.execute_tool_calls(tool_calls, execution_mode="thread")
-        assert isinstance(results["call_2"], str)
-        assert results["call_2"] == "result: 42"
+        result = next(r for r in results if r.id == "call_2")
+        assert isinstance(result.result, str)
+        assert result.result == "result: 42"
 
 
 # ---------------------------------------------------------------------------
@@ -451,14 +453,12 @@ class TestBuildToolCallMessagesMultimodal:
                 "function": {"name": "image_tool", "arguments": '{"path": "test.png"}'},
             }
         ]
-        responses = registry.execute_tool_calls(tool_calls, execution_mode="thread")
-        return registry, tool_calls, responses
+        results = registry.execute_tool_calls(tool_calls, execution_mode="thread")
+        return registry, results
 
     def test_anthropic_end_to_end(self):
-        registry, tool_calls, responses = self._setup_image_tool()
-        messages = registry.build_tool_call_messages(
-            tool_calls, responses, api_format="anthropic"
-        )
+        registry, results = self._setup_image_tool()
+        messages = registry.build_tool_call_messages(results, api_format="anthropic")
 
         # Should have: assistant msg, tool result msg, expanded user msg
         user_msgs = [m for m in messages if m.get("role") == "user"]
@@ -479,10 +479,8 @@ class TestBuildToolCallMessagesMultimodal:
         assert len(image_blocks) == 1
 
     def test_openai_chat_end_to_end(self):
-        registry, tool_calls, responses = self._setup_image_tool()
-        messages = registry.build_tool_call_messages(
-            tool_calls, responses, api_format="openai-chat"
-        )
+        registry, results = self._setup_image_tool()
+        messages = registry.build_tool_call_messages(results, api_format="openai-chat")
 
         # Tool result has placeholder
         tool_msgs = [m for m in messages if m.get("role") == "tool"]
@@ -498,10 +496,8 @@ class TestBuildToolCallMessagesMultimodal:
         assert len(image_parts) == 1
 
     def test_gemini_end_to_end(self):
-        registry, tool_calls, responses = self._setup_image_tool()
-        messages = registry.build_tool_call_messages(
-            tool_calls, responses, api_format="gemini"
-        )
+        registry, results = self._setup_image_tool()
+        messages = registry.build_tool_call_messages(results, api_format="gemini")
 
         # Expanded user message has inline_data
         user_msgs = [m for m in messages if m.get("role") == "user"]
@@ -526,10 +522,8 @@ class TestBuildToolCallMessagesMultimodal:
                 "function": {"name": "text_tool", "arguments": '{"x": 42}'},
             }
         ]
-        responses = registry.execute_tool_calls(tool_calls, execution_mode="thread")
-        messages = registry.build_tool_call_messages(
-            tool_calls, responses, api_format="openai-chat"
-        )
+        results = registry.execute_tool_calls(tool_calls, execution_mode="thread")
+        messages = registry.build_tool_call_messages(results, api_format="openai-chat")
 
         # No expanded user message for text-only results
         user_msgs = [m for m in messages if m.get("role") == "user"]

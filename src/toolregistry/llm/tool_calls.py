@@ -1,15 +1,16 @@
 """Unified tool call types and format conversion via llm-rosetta.
 
-Provides :class:`ToolCall` and :class:`ToolCallResult` as toolregistry's
-internal representations, plus thin wrappers around llm-rosetta for
-converting between provider-specific API formats.
+Provides :class:`ToolCall`, :class:`ToolCallResult`, and :class:`ErrorResult`
+as toolregistry's internal representations, plus thin wrappers around
+llm-rosetta for converting between provider-specific API formats.
 """
 
 import json
 import warnings
+from dataclasses import dataclass
 from typing import Any, Literal
 
-from pydantic import BaseModel, field_serializer
+from pydantic import BaseModel
 
 # ── Format registry ────────────────────────────────────────────────
 
@@ -137,18 +138,62 @@ class ToolCall(BaseModel):
         )
 
 
-class ToolCallResult(BaseModel):
-    """Result of a single tool call execution."""
+@dataclass(frozen=True)
+class BaseResult:
+    """Base class for tool call results.
 
-    id: str
-    """The ID of the tool call."""
-    result: Any
-    """The result of the tool call."""
+    Stores the full normalized :class:`ToolCall` so that downstream
+    consumers (e.g. :meth:`build_tool_call_messages`) can reconstruct
+    assistant messages without needing the original provider objects.
+    """
 
-    @field_serializer("result")
-    def convert_any_field_to_str(self, value: Any) -> str:
-        """Convert result to string during serialization."""
-        return str(value)
+    tool_call: ToolCall
+
+    @property
+    def id(self) -> str:
+        """Tool call ID."""
+        return self.tool_call.id
+
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return self.tool_call.name
+
+
+@dataclass(frozen=True)
+class ToolCallResult(BaseResult):
+    """Successful tool call result.
+
+    Attributes:
+        result: The tool output — ``str`` for text results,
+            ``list[ContentBlock]`` for multimodal results.
+    """
+
+    result: str | list = ""
+
+
+@dataclass(frozen=True)
+class ErrorResult(BaseResult):
+    """Failed tool call result.
+
+    Attributes:
+        message: Human-readable error message.
+        error_type: Qualified exception class name, if available.
+    """
+
+    message: str = ""
+    error_type: str | None = None
+
+    def __str__(self) -> str:
+        """JSON representation for LLM consumption."""
+        return json.dumps(
+            {
+                "message": self.message,
+                "tool_name": self.name,
+                "error_type": self.error_type,
+                "is_error": True,
+            }
+        )
 
 
 # ── Shim: ToolCall ↔ rosetta IR ────────────────────────────────────

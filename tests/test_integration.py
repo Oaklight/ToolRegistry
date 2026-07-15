@@ -99,13 +99,14 @@ class TestToolRegistryIntegration:
         # Execute tool calls
         results = registry.execute_tool_calls(tool_calls)
 
-        assert "call_1" in results
-        assert "call_2" in results
-        assert float(results["call_1"]) == 15.0
-        assert results["call_2"] == "15.00 square meters"
+        assert any(r.id == "call_1" for r in results)
+        assert any(r.id == "call_2" for r in results)
+        assert float(next(r for r in results if r.id == "call_1").result) == 15.0
+        r = next(r for r in results if r.id == "call_2")
+        assert r.result == "15.00 square meters"
 
         # Test message recovery
-        messages = registry.build_tool_call_messages(tool_calls, results)
+        messages = registry.build_tool_call_messages(results)
 
         assert len(messages) == 3  # Assistant message + 2 tool responses
         assert messages[0]["role"] == "assistant"
@@ -275,12 +276,12 @@ class TestToolRegistryIntegration:
 
         results = registry.execute_tool_calls(tool_calls)
 
-        assert "Error" in results["call_fail"]
-        assert int(results["call_good"]) == 30
-        assert (
-            "not found" in results["call_invalid"].lower()
-            or "Error" in results["call_invalid"]
-        )
+        r_fail = next(r for r in results if r.id == "call_fail")
+        assert "Error" in str(r_fail)
+        assert int(next(r for r in results if r.id == "call_good").result) == 30
+        assert "not found" in str(
+            next(r for r in results if r.id == "call_invalid")
+        ).lower() or "Error" in str(next(r for r in results if r.id == "call_invalid"))
 
     def test_complex_parameter_validation_integration(self):
         """Test integration with complex parameter validation."""
@@ -412,12 +413,16 @@ class TestToolRegistryIntegration:
         process_results = registry.execute_tool_calls(tool_calls)
 
         # Results should be the same regardless of execution mode
-        assert thread_results["call_1"] == process_results["call_1"]
-        assert thread_results["call_2"] == process_results["call_2"]
+        t1 = next(r for r in thread_results if r.id == "call_1")
+        t2 = next(r for r in thread_results if r.id == "call_2")
+        p1 = next(r for r in process_results if r.id == "call_1")
+        p2 = next(r for r in process_results if r.id == "call_2")
+        assert t1.result == p1.result
+        assert t2.result == p2.result
 
         # Verify actual calculations
         expected_1 = sum(range(1000))
         expected_2 = sum(range(2000))
 
-        assert int(thread_results["call_1"]) == expected_1
-        assert int(thread_results["call_2"]) == expected_2
+        assert int(t1.result) == expected_1
+        assert int(t2.result) == expected_2
