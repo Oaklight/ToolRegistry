@@ -1014,6 +1014,14 @@ class ToolRegistry(
             else:
                 response_dict[r.id] = r.result
 
+        if api_format == "rosetta-ir":
+            ir_calls = [tc.to_ir() for tc in generic_tool_calls]
+            ir_results = [r.to_ir() for r in results]
+            return [
+                {"role": "assistant", "parts": ir_calls},
+                {"role": "tool", "parts": ir_results},
+            ]
+
         text_responses, extra_user_content = expand_content_blocks(response_dict)
 
         messages: list[dict[str, Any]] = []

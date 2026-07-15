@@ -21,6 +21,7 @@ API_FORMATS = Literal[
     "openai-response",
     "anthropic",
     "gemini",
+    "rosetta-ir",
 ]
 
 _DEPRECATED_API_FORMATS: dict[str, API_FORMATS] = {
