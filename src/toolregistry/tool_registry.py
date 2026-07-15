@@ -64,10 +64,11 @@ class _ToolError:
 
     def to_error_result(self, tool_call: Any) -> "ErrorResult":
         """Convert to a public ErrorResult."""
+        prefix = f"{self.exception_type}: " if self.exception_type else ""
         return ErrorResult(
-            tool_call=tool_call,
-            message=self.message,
-            error_type=self.exception_type,
+            id=tool_call.id,
+            name=tool_call.name,
+            message=f"{prefix}{self.message}",
         )
 
 
@@ -918,9 +919,11 @@ class ToolRegistry(
             if isinstance(val, _ToolError):
                 items.append(val.to_error_result(tc))
             elif val is not None:
-                items.append(ToolCallResult(tool_call=tc, result=val))
+                items.append(ToolCallResult(id=tc.id, name=tc.name, result=val))
             else:
-                items.append(ErrorResult(tool_call=tc, message="No result produced"))
+                items.append(
+                    ErrorResult(id=tc.id, name=tc.name, message="No result produced")
+                )
         return ResultList(items)
 
     def _log_tool_call_results(
@@ -966,22 +969,19 @@ class ToolRegistry(
 
     def build_tool_call_messages(
         self,
-        results_or_tool_calls: list[Any],
-        tool_responses: dict[str, str | list] | None = None,
+        tool_calls: list[Any],
+        results: list[Any],
         api_format: API_FORMATS = "openai-chat",
     ) -> list[dict[str, Any]]:
         """Build conversation messages for a tool-calling round-trip.
 
-        Accepts either structured results from :meth:`execute_tool_calls`
-        (new API) or the legacy ``(tool_calls, tool_responses)`` pair.
+        Combines the assistant message (tool call requests) and the tool
+        result messages into the format required by the next LLM turn.
 
         Args:
-            results_or_tool_calls: A ``list[ToolCallResult | ErrorResult]``
-                from :meth:`execute_tool_calls`, **or** raw tool call
-                objects when using the deprecated two-argument form.
-            tool_responses: *(Deprecated)* Mapping of tool call IDs to
-                results.  Pass ``None`` (default) when using the new
-                structured-results form.
+            tool_calls: Tool call objects in any supported format
+                (as received from the LLM).
+            results: Structured results from :meth:`execute_tool_calls`.
             api_format: Target API format. Defaults to ``"openai-chat"``.
 
         Returns:
@@ -989,20 +989,6 @@ class ToolRegistry(
             When multimodal content is present, an additional user
             message is appended containing the expanded content.
         """
-        if tool_responses is not None:
-            return self._build_tool_call_messages_legacy(
-                results_or_tool_calls, tool_responses, api_format
-            )
-        return self._build_tool_call_messages_from_results(
-            results_or_tool_calls, api_format
-        )
-
-    def _build_tool_call_messages_from_results(
-        self,
-        results: list[Any],
-        api_format: API_FORMATS = "openai-chat",
-    ) -> list[dict[str, Any]]:
-        """Build messages from structured result objects."""
         from .llm.tool_calls import _normalize_api_format
         from .llm.content_blocks import (
             build_expanded_user_message,
@@ -1011,54 +997,26 @@ class ToolRegistry(
 
         api_format = _normalize_api_format(api_format)
 
-        tool_calls = [r.tool_call for r in results]
+        generic_tool_calls = convert_tool_calls(tool_calls)
+
+        # Align IDs: results carry the IDs from execute_tool_calls,
+        # but convert_tool_calls may regenerate them (e.g. Gemini).
+        result_ids = [r.id for r in results]
+        for i, tc in enumerate(generic_tool_calls):
+            if i < len(result_ids):
+                tc.id = result_ids[i]
+
+        # Build response dict from structured results
         response_dict: dict[str, str | list] = {}
         for r in results:
             if isinstance(r, ErrorResult):
-                response_dict[r.id] = r.message
+                response_dict[r.id] = str(r)
             else:
                 response_dict[r.id] = r.result
 
         text_responses, extra_user_content = expand_content_blocks(response_dict)
 
         messages: list[dict[str, Any]] = []
-        messages.extend(build_assistant_message(tool_calls, api_format=api_format))
-        messages.extend(
-            build_tool_response(
-                text_responses, api_format=api_format, tool_calls=tool_calls
-            )
-        )
-
-        if extra_user_content:
-            messages.append(build_expanded_user_message(extra_user_content, api_format))
-
-        return messages
-
-    def _build_tool_call_messages_legacy(
-        self,
-        tool_calls: list[Any],
-        tool_responses: dict[str, str | list],
-        api_format: API_FORMATS = "openai-chat",
-    ) -> list[dict[str, Any]]:
-        """Build messages from the legacy (tool_calls, dict) signature."""
-        from .llm.tool_calls import _normalize_api_format
-        from .llm.content_blocks import (
-            build_expanded_user_message,
-            expand_content_blocks,
-        )
-
-        api_format = _normalize_api_format(api_format)
-
-        messages: list[dict[str, Any]] = []
-        generic_tool_calls = convert_tool_calls(tool_calls)
-
-        response_ids = list(tool_responses.keys())
-        for i, tc in enumerate(generic_tool_calls):
-            if i < len(response_ids):
-                tc.id = response_ids[i]
-
-        text_responses, extra_user_content = expand_content_blocks(tool_responses)
-
         messages.extend(
             build_assistant_message(generic_tool_calls, api_format=api_format)
         )
@@ -1076,7 +1034,7 @@ class ToolRegistry(
     def recover_tool_call_assistant_message(
         self,
         tool_calls: list[Any],
-        tool_responses: dict[str, str | list],
+        results: list[Any],
         api_format: API_FORMATS = "openai-chat",
     ) -> list[dict[str, Any]]:
         """Deprecated: use :meth:`build_tool_call_messages` instead."""
@@ -1086,9 +1044,7 @@ class ToolRegistry(
             DeprecationWarning,
             stacklevel=2,
         )
-        return self._build_tool_call_messages_legacy(
-            tool_calls, tool_responses, api_format
-        )
+        return self.build_tool_call_messages(tool_calls, results, api_format)
 
     # ============== Presentation ==============
     def list_tools(self, include_disabled: bool = False) -> list[str]:

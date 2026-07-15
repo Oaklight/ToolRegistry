@@ -63,7 +63,7 @@ print(results)
 
 # Construct assistant messages with results
 assistant_tool_messages = registry.build_tool_call_messages(
-    results, api_format="openai-response"
+    tool_calls, results, api_format="openai-response"
 )
 print(json.dumps(assistant_tool_messages, indent=2))
 

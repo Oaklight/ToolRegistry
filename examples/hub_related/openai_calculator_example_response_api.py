@@ -48,7 +48,7 @@ def handle_tool_calls_response(response, messages):
 
         # Construct assistant messages with results
         assistant_tool_messages = tool_registry.build_tool_call_messages(
-            results, api_format="openai-response"
+            tool_calls, results, api_format="openai-response"
         )
 
         messages.extend(assistant_tool_messages)

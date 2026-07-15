@@ -454,11 +454,13 @@ class TestBuildToolCallMessagesMultimodal:
             }
         ]
         results = registry.execute_tool_calls(tool_calls, execution_mode="thread")
-        return registry, results
+        return registry, tool_calls, results
 
     def test_anthropic_end_to_end(self):
-        registry, results = self._setup_image_tool()
-        messages = registry.build_tool_call_messages(results, api_format="anthropic")
+        registry, tool_calls, results = self._setup_image_tool()
+        messages = registry.build_tool_call_messages(
+            tool_calls, results, api_format="anthropic"
+        )
 
         # Should have: assistant msg, tool result msg, expanded user msg
         user_msgs = [m for m in messages if m.get("role") == "user"]
@@ -479,8 +481,10 @@ class TestBuildToolCallMessagesMultimodal:
         assert len(image_blocks) == 1
 
     def test_openai_chat_end_to_end(self):
-        registry, results = self._setup_image_tool()
-        messages = registry.build_tool_call_messages(results, api_format="openai-chat")
+        registry, tool_calls, results = self._setup_image_tool()
+        messages = registry.build_tool_call_messages(
+            tool_calls, results, api_format="openai-chat"
+        )
 
         # Tool result has placeholder
         tool_msgs = [m for m in messages if m.get("role") == "tool"]
@@ -496,8 +500,10 @@ class TestBuildToolCallMessagesMultimodal:
         assert len(image_parts) == 1
 
     def test_gemini_end_to_end(self):
-        registry, results = self._setup_image_tool()
-        messages = registry.build_tool_call_messages(results, api_format="gemini")
+        registry, tool_calls, results = self._setup_image_tool()
+        messages = registry.build_tool_call_messages(
+            tool_calls, results, api_format="gemini"
+        )
 
         # Expanded user message has inline_data
         user_msgs = [m for m in messages if m.get("role") == "user"]
@@ -523,7 +529,9 @@ class TestBuildToolCallMessagesMultimodal:
             }
         ]
         results = registry.execute_tool_calls(tool_calls, execution_mode="thread")
-        messages = registry.build_tool_call_messages(results, api_format="openai-chat")
+        messages = registry.build_tool_call_messages(
+            tool_calls, results, api_format="openai-chat"
+        )
 
         # No expanded user message for text-only results
         user_msgs = [m for m in messages if m.get("role") == "user"]

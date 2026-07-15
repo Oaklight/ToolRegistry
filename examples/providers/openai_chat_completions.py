@@ -60,7 +60,7 @@ if response.choices[0].message.tool_calls:
 
     # Construct assistant messages with results
     assistant_tool_messages = registry.build_tool_call_messages(
-        results, api_format="openai-chat"
+        tool_calls, results, api_format="openai-chat"
     )
     print(json.dumps(assistant_tool_messages, indent=2))
 

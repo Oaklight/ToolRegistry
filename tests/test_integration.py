@@ -106,7 +106,7 @@ class TestToolRegistryIntegration:
         assert r.result == "15.00 square meters"
 
         # Test message recovery
-        messages = registry.build_tool_call_messages(results)
+        messages = registry.build_tool_call_messages(tool_calls, results)
 
         assert len(messages) == 3  # Assistant message + 2 tool responses
         assert messages[0]["role"] == "assistant"

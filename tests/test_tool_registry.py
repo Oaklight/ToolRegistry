@@ -287,7 +287,7 @@ class TestToolRegistry:
         assert int(results["call_3"].result) == 30
 
     def test_build_tool_call_messages(self, populated_registry):
-        """Test recovering assistant message from tool calls."""
+        """Test building messages from structured results."""
         tool_calls = [
             {
                 "id": "call_1",
@@ -296,11 +296,9 @@ class TestToolRegistry:
             }
         ]
 
-        tool_responses = {"call_1": "8"}
+        results = populated_registry.execute_tool_calls(tool_calls)
 
-        messages = populated_registry.build_tool_call_messages(
-            tool_calls, tool_responses
-        )
+        messages = populated_registry.build_tool_call_messages(tool_calls, results)
 
         assert isinstance(messages, list)
         assert len(messages) == 2  # Assistant message + tool response

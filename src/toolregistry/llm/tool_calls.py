@@ -142,22 +142,14 @@ class ToolCall(BaseModel):
 class BaseResult:
     """Base class for tool call results.
 
-    Stores the full normalized :class:`ToolCall` so that downstream
-    consumers (e.g. :meth:`build_tool_call_messages`) can reconstruct
-    assistant messages without needing the original provider objects.
+    Fields align with rosetta's ``ToolResultPart`` IR so that
+    conversion is a trivial field mapping.
     """
 
-    tool_call: ToolCall
-
-    @property
-    def id(self) -> str:
-        """Tool call ID."""
-        return self.tool_call.id
-
-    @property
-    def name(self) -> str:
-        """Tool name."""
-        return self.tool_call.name
+    id: str
+    """Tool call ID."""
+    name: str
+    """Tool name."""
 
 
 @dataclass(frozen=True)
@@ -174,28 +166,53 @@ class ToolCallResult(BaseResult):
     def __str__(self) -> str:
         return str(self.result)
 
+    def to_ir(self) -> dict[str, Any]:
+        """Convert to a rosetta ``ToolResultPart`` dict."""
+        return {"type": "tool_result", "tool_call_id": self.id, "result": self.result}
+
+    @classmethod
+    def from_ir(cls, ir: dict[str, Any], name: str = "") -> "ToolCallResult":
+        """Create from a rosetta ``ToolResultPart`` dict."""
+        return cls(
+            id=ir["tool_call_id"],
+            name=name,
+            result=ir.get("result", ""),
+        )
+
 
 @dataclass(frozen=True)
 class ErrorResult(BaseResult):
     """Failed tool call result.
 
+    The *message* field uses ``"ExceptionType: detail"`` format
+    (like the last line of a Python traceback) so both humans and
+    LLMs can parse it naturally.
+
     Attributes:
-        message: Human-readable error message.
-        error_type: Qualified exception class name, if available.
+        message: Error description, e.g. ``"ValueError: division by zero"``.
     """
 
     message: str = ""
-    error_type: str | None = None
 
     def __str__(self) -> str:
-        """JSON representation for LLM consumption."""
-        return json.dumps(
-            {
-                "message": self.message,
-                "tool_name": self.name,
-                "error_type": self.error_type,
-                "is_error": True,
-            }
+        return self.message
+
+    def to_ir(self) -> dict[str, Any]:
+        """Convert to a rosetta ``ToolResultPart`` dict."""
+        return {
+            "type": "tool_result",
+            "tool_call_id": self.id,
+            "result": self.message,
+            "is_error": True,
+        }
+
+    @classmethod
+    def from_ir(cls, ir: dict[str, Any], name: str = "") -> "ErrorResult":
+        """Create from a rosetta ``ToolResultPart`` dict with ``is_error=True``."""
+        return cls(
+            id=ir["tool_call_id"],
+            name=name,
+            message=ir.get("result", ""),
         )
 
 

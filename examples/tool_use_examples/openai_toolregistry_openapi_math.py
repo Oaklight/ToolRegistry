@@ -74,7 +74,7 @@ if response.choices[0].message.tool_calls:
     print(results)
 
     # Construct assistant messages with results
-    assistant_tool_messages = registry.build_tool_call_messages(results)
+    assistant_tool_messages = registry.build_tool_call_messages(tool_calls, results)
     print(assistant_tool_messages)
 
     # Send the results back to the model

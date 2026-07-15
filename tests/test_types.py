@@ -105,7 +105,7 @@ class TestToolCallResult:
         return ToolCall(id=call_id, name="test_fn", arguments="{}")
 
     def test_tool_call_result_creation(self):
-        tc = ToolCallResult(tool_call=self._make_tc(), result="Function result")
+        tc = ToolCallResult(id="call_123", name="test_fn", result="Function result")
 
         assert tc.id == "call_123"
         assert tc.name == "test_fn"
@@ -113,12 +113,12 @@ class TestToolCallResult:
 
     def test_tool_call_result_with_list(self):
         blocks = [{"type": "text", "text": "hello"}]
-        tc = ToolCallResult(tool_call=self._make_tc(), result=blocks)
+        tc = ToolCallResult(id="call_123", name="test_fn", result=blocks)
 
         assert tc.result == blocks
 
     def test_tool_call_result_frozen(self):
-        tc = ToolCallResult(tool_call=self._make_tc(), result="ok")
+        tc = ToolCallResult(id="call_123", name="test_fn", result="ok")
         import pytest
 
         with pytest.raises(AttributeError):
@@ -134,49 +134,39 @@ class TestErrorResult:
     def test_error_result_creation(self):
         from toolregistry.llm.tool_calls import ErrorResult
 
-        err = ErrorResult(
-            tool_call=self._make_tc(), message="boom", error_type="ValueError"
-        )
+        err = ErrorResult(id="call_err", name="fail_fn", message="ValueError: boom")
 
         assert err.id == "call_err"
         assert err.name == "fail_fn"
-        assert err.message == "boom"
-        assert err.error_type == "ValueError"
+        assert err.message == "ValueError: boom"
 
     def test_error_result_str_is_json(self):
-        import json
         from toolregistry.llm.tool_calls import ErrorResult
 
-        err = ErrorResult(tool_call=self._make_tc(), message="oops")
-        data = json.loads(str(err))
-        assert data["is_error"] is True
-        assert data["message"] == "oops"
-        assert data["tool_name"] == "fail_fn"
+        err = ErrorResult(id="call_err", name="fail_fn", message="oops")
+        assert str(err) == "oops"
 
 
 class TestResultList:
     """Test cases for the ResultList helper."""
 
-    def _make_tc(self, call_id="c1", name="fn"):
-        return ToolCall(id=call_id, name=name, arguments="{}")
-
     def test_by_id_lookup(self):
-        r1 = ToolCallResult(tool_call=self._make_tc("c1"), result="ok")
-        r2 = ToolCallResult(tool_call=self._make_tc("c2"), result="42")
+        r1 = ToolCallResult(id="c1", name="fn", result="ok")
+        r2 = ToolCallResult(id="c2", name="fn", result="42")
         rl = ResultList([r1, r2])
 
         assert rl.by_id("c1").result == "ok"
         assert rl.by_id("c2").result == "42"
 
     def test_getitem_string_key(self):
-        r1 = ToolCallResult(tool_call=self._make_tc("c1"), result="ok")
+        r1 = ToolCallResult(id="c1", name="fn", result="ok")
         rl = ResultList([r1])
 
         assert rl["c1"].result == "ok"
         assert rl[0].result == "ok"
 
     def test_contains_string_key(self):
-        r1 = ToolCallResult(tool_call=self._make_tc("c1"), result="ok")
+        r1 = ToolCallResult(id="c1", name="fn", result="ok")
         rl = ResultList([r1])
 
         assert "c1" in rl
@@ -192,8 +182,8 @@ class TestResultList:
         assert isinstance(rl, list)
 
     def test_iteration(self):
-        r1 = ToolCallResult(tool_call=self._make_tc("c1"), result="a")
-        r2 = ToolCallResult(tool_call=self._make_tc("c2"), result="b")
+        r1 = ToolCallResult(id="c1", name="fn", result="a")
+        r2 = ToolCallResult(id="c2", name="fn", result="b")
         rl = ResultList([r1, r2])
 
         assert [r.result for r in rl] == ["a", "b"]

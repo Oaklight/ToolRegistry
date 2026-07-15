@@ -78,7 +78,9 @@ def handle_tool_calls(response, messages):
         results = tool_registry.execute_tool_calls(tool_calls)
 
         # Construct assistant messages with results
-        assistant_tool_messages = tool_registry.build_tool_call_messages(results)
+        assistant_tool_messages = tool_registry.build_tool_call_messages(
+            tool_calls, results
+        )
 
         messages.extend(assistant_tool_messages)
 
