@@ -35,6 +35,13 @@ hide:
 
 - **统一执行辅助函数**：`_check_tool_access()` 和 `_log_tool_result()` 由 `invoke()` 和 `execute_tool_calls()` 共享——不再有重复的权限/日志逻辑。
 - `runtimes/` 不再包含 `CodeResult` 或 `CodeRuntime`——它们由 `codecell` 包提供。
+- **`execute_tool_calls()` 结构化返回类型**（#202）：返回 `ResultList`（`ToolCallResult | ErrorResult` 列表）而非 `dict[str, str | list]`。
+    - `ToolCallResult`：成功结果，包含 `id`、`name`、`result` 字段
+    - `ErrorResult`：失败结果，包含 `id`、`name`、`message`（使用 `"Type: detail"` 格式，类似 Python traceback）
+    - `ResultList`：`list` 子类，支持 O(1) `by_id()` 和 `results["call_id"]` 访问
+    - `to_ir()` / `from_ir()` 方法用于 rosetta `ToolResultPart` 转换
+    - `build_tool_call_messages(tool_calls, results)` 简化签名，移除旧的 dict 路径
+- 将 Pydantic `ToolCallResult` 模型和 `ErrorResult(str)` 子类替换为 frozen dataclass。
 
 ### 修复
 
