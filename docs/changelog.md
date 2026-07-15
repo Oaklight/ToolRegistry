@@ -35,6 +35,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **Unified execution helpers**: `_check_tool_access()` and `_log_tool_result()` shared by both `invoke()` and `execute_tool_calls()` — no duplicated permission/logging logic.
 - `runtimes/` no longer contains `CodeResult` or `CodeRuntime` — these are provided by the `codecell` package.
+- **Structured result types for `execute_tool_calls()`** (#202): returns `ResultList` of `ToolCallResult | ErrorResult` instead of `dict[str, str | list]`.
+    - `ToolCallResult`: successful result with `id`, `name`, `result` fields
+    - `ErrorResult`: failed result with `id`, `name`, `message` (uses `"Type: detail"` format like Python traceback)
+    - `ResultList`: `list` subclass with O(1) `by_id()` and `results["call_id"]` access
+    - `to_ir()` / `from_ir()` methods for rosetta `ToolResultPart` conversion
+    - `build_tool_call_messages(tool_calls, results)` — simplified signature, no legacy dict path
+- Replaced Pydantic `ToolCallResult` model and `ErrorResult(str)` subclass with frozen dataclasses.
 
 ### Fixed
 
