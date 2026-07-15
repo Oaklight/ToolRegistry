@@ -19,6 +19,7 @@ API_FORMATS = Literal[
     "openai-chat",
     "openai-chatcompletion",  # deprecated alias for openai-chat
     "openai-response",
+    "open-responses",  # alias for openai-response
     "anthropic",
     "gemini",
     "rosetta-ir",
@@ -30,11 +31,22 @@ _DEPRECATED_API_FORMATS: dict[str, API_FORMATS] = {
 }
 
 
+_API_FORMAT_ALIASES: dict[str, API_FORMATS] = {
+    "open-responses": "openai-response",
+}
+
+
 def _normalize_api_format(api_format: API_FORMATS) -> API_FORMATS:
-    """Map deprecated format names to their canonical equivalents.
+    """Map deprecated and aliased format names to their canonical equivalents.
 
     Emits a ``DeprecationWarning`` when a deprecated name is used.
+    Aliases are resolved silently.
     """
+    # Silent aliases (no warning)
+    aliased = _API_FORMAT_ALIASES.get(api_format)
+    if aliased is not None:
+        return aliased
+    # Deprecated names (with warning)
     canonical = _DEPRECATED_API_FORMATS.get(api_format)
     if canonical is not None:
         warnings.warn(
