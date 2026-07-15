@@ -945,7 +945,7 @@ def _get_schema(request: Request) -> Response:
     # --- LLM schema formats ---
     from ..llm.tool_calls import API_FORMATS
 
-    valid = {"openai-chat", "openai-responses", "anthropic", "gemini"}
+    valid = {"openai-chat", "openai-responses", "anthropic", "gemini", "rosetta-ir"}
     if fmt_str not in valid:
         return _error_response(
             400,
