@@ -6,13 +6,14 @@ mirrors the Anthropic API format.
 
 All API formats receive text-only tool results.  Multimodal content
 is delivered via a subsequent user message produced by
-:func:`expand_content_blocks`.  This uniform approach eliminates
+:func:`extract_multimodal_content`.  This uniform approach eliminates
 per-provider differences in tool result handling.
 """
 
 from __future__ import annotations
 
 import base64
+import warnings
 from typing import Any, Literal, TypedDict, Union
 
 
@@ -94,7 +95,7 @@ def content_blocks_to_text(blocks: list[ContentBlock]) -> str:
     return "\n".join(parts)
 
 
-def expand_content_blocks(
+def extract_multimodal_content(
     tool_responses: dict[str, str | list],
 ) -> tuple[dict[str, str | list], list[dict[str, Any]]]:
     """Separate multimodal content from tool responses for uniform handling.
@@ -142,7 +143,7 @@ def expand_content_blocks(
     return text_only, extra_parts
 
 
-def build_expanded_user_message(
+def build_multimodal_user_message(
     content_parts: list[dict[str, Any]],
     api_format: str,
 ) -> dict[str, Any]:
@@ -153,7 +154,7 @@ def build_expanded_user_message(
 
     Args:
         content_parts: List of content block dicts produced by
-            :func:`expand_content_blocks`.
+            :func:`extract_multimodal_content`.
         api_format: Target API format (e.g. ``"openai-chat"``,
             ``"anthropic"``, ``"gemini"``).
 
@@ -195,3 +196,28 @@ def build_expanded_user_message(
     # Fallback: text only
     texts = [p["text"] for p in content_parts if p.get("type") == "text"]
     return {"role": "user", "content": "\n".join(texts)}
+
+
+# ── Deprecated aliases ─────────────────────────────────────────────
+
+
+def expand_content_blocks(
+    tool_responses: dict[str, str | list],
+) -> tuple[dict[str, str | list], list[dict[str, Any]]]:
+    """Deprecated: use :func:`extract_multimodal_content` instead."""
+    warnings.warn(
+        "expand_content_blocks() is deprecated, use extract_multimodal_content() instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return extract_multimodal_content(tool_responses)
+
+
+def build_expanded_user_message(extra_content: list, api_format: Any) -> dict[str, Any]:
+    """Deprecated: use :func:`build_multimodal_user_message` instead."""
+    warnings.warn(
+        "build_expanded_user_message() is deprecated, use build_multimodal_user_message() instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return build_multimodal_user_message(extra_content, api_format)

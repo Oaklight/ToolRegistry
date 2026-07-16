@@ -22,8 +22,8 @@ from .llm.tool_calls import (
     ErrorResult,
     ResultList,
     ToolCallResult,
-    build_assistant_message,
-    build_tool_response,
+    build_assistant_messages,
+    build_tool_result_messages,
     convert_tool_calls,
 )
 
@@ -991,8 +991,8 @@ class ToolRegistry(
         """
         from .llm.tool_calls import _normalize_api_format
         from .llm.content_blocks import (
-            build_expanded_user_message,
-            expand_content_blocks,
+            build_multimodal_user_message,
+            extract_multimodal_content,
         )
 
         api_format = _normalize_api_format(api_format)
@@ -1022,20 +1022,22 @@ class ToolRegistry(
                 {"role": "tool", "parts": ir_results},
             ]
 
-        text_responses, extra_user_content = expand_content_blocks(response_dict)
+        text_responses, extra_user_content = extract_multimodal_content(response_dict)
 
         messages: list[dict[str, Any]] = []
         messages.extend(
-            build_assistant_message(generic_tool_calls, api_format=api_format)
+            build_assistant_messages(generic_tool_calls, api_format=api_format)
         )
         messages.extend(
-            build_tool_response(
+            build_tool_result_messages(
                 text_responses, api_format=api_format, tool_calls=generic_tool_calls
             )
         )
 
         if extra_user_content:
-            messages.append(build_expanded_user_message(extra_user_content, api_format))
+            messages.append(
+                build_multimodal_user_message(extra_user_content, api_format)
+            )
 
         return messages
 
