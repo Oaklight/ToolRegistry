@@ -92,6 +92,7 @@ class RegistrationMixin:
         transport: str | dict[str, Any] | Path,
         namespace: bool | str = False,
         persistent: bool = True,
+        headers: dict[str, str] | None = None,
         **kwargs,
     ):
         """Register all tools from an MCP server (synchronous entry point).
@@ -110,6 +111,9 @@ class RegistrationMixin:
                 Defaults to False.
             persistent (bool): If True (default), keep the connection open
                 across tool calls. If False, create a new connection per call.
+            headers (Optional[Dict[str, str]]): HTTP headers to send with
+                SSE or streamable-http requests (e.g. for authentication).
+                Ignored for stdio and WebSocket transports.
 
         Examples:
             ```python
@@ -118,6 +122,12 @@ class RegistrationMixin:
 
             # WebSocket server URL
             registry.register_from_mcp("ws://localhost:9000")
+
+            # With authentication
+            registry.register_from_mcp(
+                "https://api.example.com/mcp",
+                headers={"Authorization": "Bearer token"},
+            )
 
             # Path to Python server script
             registry.register_from_mcp("my_mcp_server.py")
@@ -129,7 +139,7 @@ class RegistrationMixin:
         namespace = _resolve_namespace_compat(namespace, kwargs)
         MCPIntegration = _import_mcp_integration()
         mcp = MCPIntegration(cast("ToolRegistry", self))
-        mcp.register_mcp_tools(transport, namespace, persistent)
+        mcp.register_mcp_tools(transport, namespace, persistent, headers=headers)
         self._mcp_integrations.append(mcp)
 
     async def register_from_mcp_async(
@@ -137,6 +147,7 @@ class RegistrationMixin:
         transport: str | dict[str, Any] | Path,
         namespace: bool | str = False,
         persistent: bool = True,
+        headers: dict[str, str] | None = None,
         **kwargs,
     ):
         """Async implementation to register all tools from an MCP server.
@@ -155,6 +166,9 @@ class RegistrationMixin:
                 Defaults to False.
             persistent (bool): If True (default), keep the connection open
                 across tool calls. If False, create a new connection per call.
+            headers (Optional[Dict[str, str]]): HTTP headers to send with
+                SSE or streamable-http requests (e.g. for authentication).
+                Ignored for stdio and WebSocket transports.
 
         Examples:
             ```python
@@ -163,6 +177,12 @@ class RegistrationMixin:
 
             # WebSocket server URL
             await registry.register_from_mcp_async("ws://localhost:9000")
+
+            # With authentication
+            await registry.register_from_mcp_async(
+                "https://api.example.com/mcp",
+                headers={"Authorization": "Bearer token"},
+            )
 
             # Path to Python server script
             await registry.register_from_mcp_async("my_mcp_server.py")
@@ -174,7 +194,9 @@ class RegistrationMixin:
         namespace = _resolve_namespace_compat(namespace, kwargs)
         MCPIntegration = _import_mcp_integration()
         mcp = MCPIntegration(cast("ToolRegistry", self))
-        await mcp.register_mcp_tools_async(transport, namespace, persistent)
+        await mcp.register_mcp_tools_async(
+            transport, namespace, persistent, headers=headers
+        )
         self._mcp_integrations.append(mcp)
 
     def register_from_openapi(

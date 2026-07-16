@@ -287,6 +287,7 @@ class MCPIntegration:
         transport: str | dict[str, Any] | Path,
         namespace: bool | str = False,
         persistent: bool = True,
+        headers: dict[str, str] | None = None,
     ) -> None:
         """Async implementation to register all tools from an MCP server.
 
@@ -302,6 +303,8 @@ class MCPIntegration:
                 Defaults to False.
             persistent (bool): If True (default), keep the connection open
                 across tool calls. If False, create a new connection per call.
+            headers (Optional[Dict[str, str]]): HTTP headers for SSE or
+                streamable-http transports (e.g. authentication).
 
         Raises:
             RuntimeError: If connection to server fails.
@@ -309,11 +312,12 @@ class MCPIntegration:
         connection = MCPConnectionManager(
             transport=transport,
             persistent=persistent,
+            headers=headers,
         )
         self._connections.append(connection)
 
         # Use a temporary connection for tool discovery
-        async with MCPClient(transport) as client:
+        async with MCPClient(transport, headers=headers) as client:
             server_info: Implementation | None = client.server_info
 
             if isinstance(namespace, str):
@@ -341,6 +345,7 @@ class MCPIntegration:
         transport: str | dict[str, Any] | Path,
         namespace: bool | str = False,
         persistent: bool = True,
+        headers: dict[str, str] | None = None,
     ) -> None:
         """Register all tools from an MCP server (synchronous entry point).
 
@@ -356,11 +361,15 @@ class MCPIntegration:
                 Defaults to False.
             persistent (bool): If True (default), keep the connection open
                 across tool calls. If False, create a new connection per call.
+            headers (Optional[Dict[str, str]]): HTTP headers for SSE or
+                streamable-http transports (e.g. authentication).
         """
         loop = asyncio.new_event_loop()
         try:
             loop.run_until_complete(
-                self.register_mcp_tools_async(transport, namespace, persistent)
+                self.register_mcp_tools_async(
+                    transport, namespace, persistent, headers=headers
+                )
             )
         finally:
             loop.close()
