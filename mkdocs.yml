@@ -82,6 +82,7 @@ plugins:
           - architecture/overview.md
           - usage/concurrency_modes.md
           - usage/namespace.md
+          - usage/integrations/native.md
           - usage/integrations/class.md
           - usage/integrations/hub.md
           - usage/integrations/mcp.md
@@ -191,6 +192,7 @@ nav:
           - 执行模式: usage/concurrency_modes.md
           - 命名空间: usage/namespace.md
       - 集成:
+          - 原生 Python: usage/integrations/native.md
           - 基于类的工具: usage/integrations/class.md
           - MCP 工具: usage/integrations/mcp.md
           - OpenAPI 工具: usage/integrations/openapi.md
