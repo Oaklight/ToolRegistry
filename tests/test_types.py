@@ -6,8 +6,8 @@ from toolregistry.llm.tool_calls import (
     ResultList,
     ToolCall,
     ToolCallResult,
-    build_assistant_message,
-    build_tool_response,
+    build_assistant_messages,
+    build_tool_result_messages,
     convert_tool_calls,
 )
 
@@ -284,19 +284,19 @@ class TestConvertToolCalls:
 
 
 # ---------------------------------------------------------------------------
-# build_assistant_message
+# build_assistant_messages
 # ---------------------------------------------------------------------------
 
 
 class TestBuildAssistantMessage:
-    """Test cases for the build_assistant_message function."""
+    """Test cases for the build_assistant_messages function."""
 
     def test_openai_chat_format(self):
         tool_calls = [
             ToolCall(id="call_1", name="test_function", arguments='{"param": "value"}')
         ]
 
-        messages = build_assistant_message(tool_calls, api_format="openai-chat")
+        messages = build_assistant_messages(tool_calls, api_format="openai-chat")
 
         assert len(messages) == 1
         assert messages[0]["role"] == "assistant"
@@ -308,7 +308,7 @@ class TestBuildAssistantMessage:
             ToolCall(id="call_1", name="test_function", arguments='{"param": "value"}')
         ]
 
-        messages = build_assistant_message(tool_calls, api_format="openai-responses")
+        messages = build_assistant_messages(tool_calls, api_format="openai-responses")
 
         assert len(messages) == 1
         assert messages[0]["call_id"] == "call_1"
@@ -320,7 +320,7 @@ class TestBuildAssistantMessage:
             ToolCall(id="call_1", name="test_function", arguments='{"param": "value"}')
         ]
 
-        messages = build_assistant_message(tool_calls, api_format="anthropic")
+        messages = build_assistant_messages(tool_calls, api_format="anthropic")
 
         assert len(messages) == 1
         assert messages[0]["role"] == "assistant"
@@ -332,7 +332,7 @@ class TestBuildAssistantMessage:
             ToolCall(id="call_1", name="test_function", arguments='{"param": "value"}')
         ]
 
-        messages = build_assistant_message(tool_calls, api_format="gemini")
+        messages = build_assistant_messages(tool_calls, api_format="gemini")
 
         assert len(messages) == 1
         assert messages[0]["role"] == "model"
@@ -346,7 +346,7 @@ class TestBuildAssistantMessage:
             ToolCall(id="call_3", name="valid2", arguments=""),
         ]
 
-        messages = build_assistant_message(tool_calls, api_format="openai-chat")
+        messages = build_assistant_messages(tool_calls, api_format="openai-chat")
 
         assert len(messages[0]["tool_calls"]) == 1
         assert messages[0]["tool_calls"][0]["id"] == "call_1"
@@ -355,19 +355,19 @@ class TestBuildAssistantMessage:
         tool_calls = [ToolCall(id="call_1", name="test", arguments="{}")]
 
         with pytest.raises(ValueError, match="Unsupported API format"):
-            build_assistant_message(tool_calls, api_format="unsupported")
+            build_assistant_messages(tool_calls, api_format="unsupported")
 
 
 # ---------------------------------------------------------------------------
-# build_tool_response
+# build_tool_result_messages
 # ---------------------------------------------------------------------------
 
 
 class TestBuildToolResponse:
-    """Test cases for the build_tool_response function."""
+    """Test cases for the build_tool_result_messages function."""
 
     def test_openai_chat_format(self):
-        messages = build_tool_response(
+        messages = build_tool_result_messages(
             {"call_1": "Result 1", "call_2": "Result 2"}, api_format="openai-chat"
         )
 
@@ -381,13 +381,15 @@ class TestBuildToolResponse:
         assert "call_2" in call_ids
 
     def test_openai_chat_content(self):
-        messages = build_tool_response({"call_1": "Result"}, api_format="openai-chat")
+        messages = build_tool_result_messages(
+            {"call_1": "Result"}, api_format="openai-chat"
+        )
 
         assert messages[0]["tool_call_id"] == "call_1"
         assert messages[0]["content"] == "Result"
 
     def test_openai_response_format(self):
-        messages = build_tool_response(
+        messages = build_tool_result_messages(
             {"call_1": "Result"}, api_format="openai-responses"
         )
 
@@ -397,7 +399,9 @@ class TestBuildToolResponse:
         assert messages[0]["output"] == "Result"
 
     def test_anthropic_format(self):
-        messages = build_tool_response({"call_1": "result"}, api_format="anthropic")
+        messages = build_tool_result_messages(
+            {"call_1": "result"}, api_format="anthropic"
+        )
 
         assert messages[0]["role"] == "user"
         assert messages[0]["content"][0]["type"] == "tool_result"
@@ -405,7 +409,7 @@ class TestBuildToolResponse:
 
     def test_gemini_format(self):
         tool_calls = [ToolCall(id="call_1", name="my_func", arguments="{}")]
-        messages = build_tool_response(
+        messages = build_tool_result_messages(
             {"call_1": "result"}, api_format="gemini", tool_calls=tool_calls
         )
 
@@ -414,7 +418,7 @@ class TestBuildToolResponse:
         assert messages[0]["parts"][0]["functionResponse"]["name"] == "my_func"
 
     def test_non_string_results_converted(self):
-        messages = build_tool_response(
+        messages = build_tool_result_messages(
             {"call_1": 42, "call_2": {"key": "val"}, "call_3": [1, 2, 3]},
             api_format="openai-chat",
         )
@@ -425,7 +429,7 @@ class TestBuildToolResponse:
 
     def test_unsupported_format_raises_error(self):
         with pytest.raises(ValueError, match="Unsupported API format"):
-            build_tool_response({"call_1": "result"}, api_format="unsupported")
+            build_tool_result_messages({"call_1": "result"}, api_format="unsupported")
 
     def test_empty_responses(self):
-        assert build_tool_response({}, api_format="openai-chat") == []
+        assert build_tool_result_messages({}, api_format="openai-chat") == []

@@ -8,13 +8,13 @@ from toolregistry import ToolRegistry
 from toolregistry.tool import Tool, ToolMetadata
 from toolregistry.llm.content_blocks import (
     ContentBlock,
-    build_expanded_user_message,
+    build_multimodal_user_message,
     content_blocks_to_text,
-    expand_content_blocks,
+    extract_multimodal_content,
     is_content_block_list,
 )
 from toolregistry.llm.tool_calls import (
-    build_tool_response,
+    build_tool_result_messages,
 )
 
 # ---------------------------------------------------------------------------
@@ -115,16 +115,16 @@ class TestContentBlocksToText:
 
 
 # ---------------------------------------------------------------------------
-# expand_content_blocks
+# extract_multimodal_content
 # ---------------------------------------------------------------------------
 
 
 class TestExpandContentBlocks:
-    """Tests for expand_content_blocks()."""
+    """Tests for extract_multimodal_content()."""
 
     def test_multimodal_response_gets_placeholder(self):
         responses = {"call_1": _make_multimodal_blocks()}
-        text_only, extra = expand_content_blocks(responses)
+        text_only, extra = extract_multimodal_content(responses)
 
         assert isinstance(text_only["call_1"], str)
         assert '<tool-content call-id="call_1">' in text_only["call_1"]
@@ -132,14 +132,14 @@ class TestExpandContentBlocks:
 
     def test_string_response_passes_through(self):
         responses = {"call_1": "plain text"}
-        text_only, extra = expand_content_blocks(responses)
+        text_only, extra = extract_multimodal_content(responses)
 
         assert text_only["call_1"] == "plain text"
         assert extra == []
 
     def test_extra_content_has_xml_tags(self):
         responses = {"call_1": _make_multimodal_blocks()}
-        _, extra = expand_content_blocks(responses)
+        _, extra = extract_multimodal_content(responses)
 
         # Opening tag
         assert extra[0]["type"] == "text"
@@ -151,7 +151,7 @@ class TestExpandContentBlocks:
     def test_extra_content_contains_blocks(self):
         blocks = _make_multimodal_blocks()
         responses = {"call_1": blocks}
-        _, extra = expand_content_blocks(responses)
+        _, extra = extract_multimodal_content(responses)
 
         # Between open/close tags: text block + image block
         assert extra[1]["type"] == "text"
@@ -164,7 +164,7 @@ class TestExpandContentBlocks:
             "call_2": _make_multimodal_blocks(),
             "call_3": "more text",
         }
-        text_only, extra = expand_content_blocks(responses)
+        text_only, extra = extract_multimodal_content(responses)
 
         assert text_only["call_1"] == "plain text"
         assert text_only["call_3"] == "more text"
@@ -172,13 +172,13 @@ class TestExpandContentBlocks:
         assert len(extra) > 0
 
     def test_empty_responses(self):
-        text_only, extra = expand_content_blocks({})
+        text_only, extra = extract_multimodal_content({})
         assert text_only == {}
         assert extra == []
 
     def test_non_string_non_list_response(self):
         responses = {"call_1": 42}
-        text_only, extra = expand_content_blocks(responses)
+        text_only, extra = extract_multimodal_content(responses)
 
         assert text_only["call_1"] == "42"
         assert extra == []
@@ -188,7 +188,7 @@ class TestExpandContentBlocks:
             "call_1": _make_multimodal_blocks(),
             "call_2": [_make_image_block()],
         }
-        text_only, extra = expand_content_blocks(responses)
+        text_only, extra = extract_multimodal_content(responses)
 
         assert '<tool-content call-id="call_1">' in text_only["call_1"]
         assert '<tool-content call-id="call_2">' in text_only["call_2"]
@@ -202,12 +202,12 @@ class TestExpandContentBlocks:
 
 
 # ---------------------------------------------------------------------------
-# build_expanded_user_message
+# build_multimodal_user_message
 # ---------------------------------------------------------------------------
 
 
 class TestBuildExpandedUserMessage:
-    """Tests for build_expanded_user_message()."""
+    """Tests for build_multimodal_user_message()."""
 
     @pytest.fixture()
     def sample_parts(self) -> list[dict]:
@@ -219,7 +219,7 @@ class TestBuildExpandedUserMessage:
         ]
 
     def test_openai_chat_format(self, sample_parts):
-        msg = build_expanded_user_message(sample_parts, "openai-chat")
+        msg = build_multimodal_user_message(sample_parts, "openai-chat")
         assert msg["role"] == "user"
         content = msg["content"]
         assert isinstance(content, list)
@@ -232,20 +232,20 @@ class TestBuildExpandedUserMessage:
         assert image_parts[0]["image_url"]["url"].startswith("data:image/png;base64,")
 
     def test_openai_response_format(self, sample_parts):
-        msg = build_expanded_user_message(sample_parts, "openai-responses")
+        msg = build_multimodal_user_message(sample_parts, "openai-responses")
         assert msg["role"] == "user"
         # Same format as openai-chat
         image_parts = [p for p in msg["content"] if p["type"] == "image_url"]
         assert len(image_parts) == 1
 
     def test_anthropic_format(self, sample_parts):
-        msg = build_expanded_user_message(sample_parts, "anthropic")
+        msg = build_multimodal_user_message(sample_parts, "anthropic")
         assert msg["role"] == "user"
         # Anthropic uses canonical format directly
         assert msg["content"] is sample_parts
 
     def test_gemini_format(self, sample_parts):
-        msg = build_expanded_user_message(sample_parts, "gemini")
+        msg = build_multimodal_user_message(sample_parts, "gemini")
         assert msg["role"] == "user"
         parts = msg["parts"]
         text_parts = [p for p in parts if "text" in p]
@@ -255,7 +255,7 @@ class TestBuildExpandedUserMessage:
         assert image_parts[0]["inline_data"]["mime_type"] == "image/png"
 
     def test_unknown_format_text_fallback(self, sample_parts):
-        msg = build_expanded_user_message(sample_parts, "unknown-api")
+        msg = build_multimodal_user_message(sample_parts, "unknown-api")
         assert msg["role"] == "user"
         assert isinstance(msg["content"], str)
 
@@ -371,19 +371,21 @@ class TestExecuteToolCallsMultimodal:
 
 
 # ---------------------------------------------------------------------------
-# build_tool_response — all formats now use text fallback
+# build_tool_result_messages — all formats now use text fallback
 # ---------------------------------------------------------------------------
 
 
 class TestBuildToolResponseMultimodal:
-    """Tests for build_tool_response() — all formats use text fallback."""
+    """Tests for build_tool_result_messages() — all formats use text fallback."""
 
     @pytest.fixture()
     def multimodal_responses(self) -> dict[str, list]:
         return {"call_1": _make_multimodal_blocks()}
 
     def test_anthropic_uses_text_fallback(self, multimodal_responses):
-        messages = build_tool_response(multimodal_responses, api_format="anthropic")
+        messages = build_tool_result_messages(
+            multimodal_responses, api_format="anthropic"
+        )
         tool_result = messages[0]["content"][0]
         assert tool_result["type"] == "tool_result"
         # Now returns text, not content blocks
@@ -392,14 +394,16 @@ class TestBuildToolResponseMultimodal:
         assert "[Image:" in tool_result["content"]
 
     def test_openai_chat_uses_text_fallback(self, multimodal_responses):
-        messages = build_tool_response(multimodal_responses, api_format="openai-chat")
+        messages = build_tool_result_messages(
+            multimodal_responses, api_format="openai-chat"
+        )
         content = messages[0]["content"]
         assert isinstance(content, str)
         assert "Here is an image:" in content
         assert "[Image:" in content
 
     def test_openai_response_uses_text_fallback(self, multimodal_responses):
-        messages = build_tool_response(
+        messages = build_tool_result_messages(
             multimodal_responses, api_format="openai-responses"
         )
         output = messages[0]["output"]
@@ -410,7 +414,7 @@ class TestBuildToolResponseMultimodal:
         from toolregistry.llm.tool_calls import ToolCall
 
         tc = ToolCall(id="call_1", name="image_tool", arguments="{}")
-        messages = build_tool_response(
+        messages = build_tool_result_messages(
             multimodal_responses, api_format="gemini", tool_calls=[tc]
         )
         output = messages[0]["parts"][0]["functionResponse"]["response"]["output"]
@@ -419,13 +423,13 @@ class TestBuildToolResponseMultimodal:
 
     def test_anthropic_string_result_unchanged(self):
         responses = {"call_1": "plain text result"}
-        messages = build_tool_response(responses, api_format="anthropic")
+        messages = build_tool_result_messages(responses, api_format="anthropic")
         tool_result = messages[0]["content"][0]
         assert tool_result["content"] == "plain text result"
 
     def test_openai_string_result_unchanged(self):
         responses = {"call_1": "plain text result"}
-        messages = build_tool_response(responses, api_format="openai-chat")
+        messages = build_tool_result_messages(responses, api_format="openai-chat")
         assert messages[0]["content"] == "plain text result"
 
 

@@ -339,7 +339,7 @@ def convert_tool_calls(tool_calls: list[Any]) -> list[ToolCall]:
     ]
 
 
-def build_assistant_message(
+def build_assistant_messages(
     tool_calls: list[ToolCall],
     *,
     api_format: API_FORMATS = "openai-chat",
@@ -373,7 +373,7 @@ def build_assistant_message(
     raise ValueError(f"Unsupported API format: {api_format}")
 
 
-def build_tool_response(
+def build_tool_result_messages(
     tool_responses: dict[str, str | list],
     *,
     api_format: API_FORMATS = "openai-chat",
@@ -442,13 +442,13 @@ def recover_assistant_message(
     *,
     api_format: API_FORMATS = "openai-chat",
 ) -> list[dict[str, Any]]:
-    """Deprecated: use :func:`build_assistant_message` instead."""
+    """Deprecated: use :func:`build_assistant_messages` instead."""
     warnings.warn(
-        "recover_assistant_message() is deprecated, use build_assistant_message() instead.",
+        "recover_assistant_message() is deprecated, use build_assistant_messages() instead.",
         DeprecationWarning,
         stacklevel=2,
     )
-    return build_assistant_message(tool_calls, api_format=api_format)
+    return build_assistant_messages(tool_calls, api_format=api_format)
 
 
 def recover_tool_message(
@@ -457,12 +457,43 @@ def recover_tool_message(
     api_format: API_FORMATS = "openai-chat",
     tool_calls: list[ToolCall] | None = None,
 ) -> list[dict[str, Any]]:
-    """Deprecated: use :func:`build_tool_response` instead."""
+    """Deprecated: use :func:`build_tool_result_messages` instead."""
     warnings.warn(
-        "recover_tool_message() is deprecated, use build_tool_response() instead.",
+        "recover_tool_message() is deprecated, use build_tool_result_messages() instead.",
         DeprecationWarning,
         stacklevel=2,
     )
-    return build_tool_response(
+    return build_tool_result_messages(
+        tool_responses, api_format=api_format, tool_calls=tool_calls
+    )
+
+
+def build_assistant_message(
+    tool_calls: list[ToolCall],
+    *,
+    api_format: API_FORMATS = "openai-chat",
+) -> list[dict[str, Any]]:
+    """Deprecated: use :func:`build_assistant_messages` instead."""
+    warnings.warn(
+        "build_assistant_message() is deprecated, use build_assistant_messages() instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return build_assistant_messages(tool_calls, api_format=api_format)
+
+
+def build_tool_response(
+    tool_responses: dict[str, str | list],
+    *,
+    api_format: API_FORMATS = "openai-chat",
+    tool_calls: list[ToolCall] | None = None,
+) -> list[dict[str, Any]]:
+    """Deprecated: use :func:`build_tool_result_messages` instead."""
+    warnings.warn(
+        "build_tool_response() is deprecated, use build_tool_result_messages() instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return build_tool_result_messages(
         tool_responses, api_format=api_format, tool_calls=tool_calls
     )
