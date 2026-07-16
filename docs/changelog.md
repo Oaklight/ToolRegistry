@@ -52,8 +52,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
     - `build_expanded_user_message` → `build_multimodal_user_message`
     - Old names preserved as deprecated aliases with `DeprecationWarning`.
 
+### Added
+
+- **`headers` parameter for `register_from_mcp`** (#212): pass custom HTTP headers (e.g. `Authorization: Bearer ...`) to MCP servers using SSE or streamable-http transports. Available on both `register_from_mcp()` and `register_from_mcp_async()`.
+
 ### Fixed
 
+- **Persistent MCP connection breaks in sync mode** (#211): each sync tool call created and destroyed an ephemeral event loop, killing the persistent MCP transport bound to the previous loop. `MCPConnectionManager` now lazily starts a daemon thread with a persistent event loop on first sync call, keeping the connection alive across calls. Async callers are unaffected.
 - MCP/OpenAPI wrappers now survive cloudpickle serialization via `__getstate__`/`__setstate__` (#189).
 - Fix `ty` type error in `integrations/openapi/utils.py` — `headers.get()` None guard.
 - **`convert_tool_calls()` argument loss** (#205): passing an already-normalized `ToolCall` no longer re-parses through provider detection, which was losing arguments.
@@ -61,6 +66,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Internal
 
 - Update vendored `httpclient` module from 0.4.1 to 0.4.4 (zerodep).
+- Update vendored `httpserver` module from 0.1.0 to 0.2.1 (zerodep).
 
 ## [0.12.0] - 2026-06-26
 

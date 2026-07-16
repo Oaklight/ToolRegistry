@@ -132,12 +132,36 @@ asyncio.run(call_async_add_func())
 asyncio.run(call_async_add_tool())
 ```
 
+## Authentication Headers
+
+???+ note "Changelog"
+    New in version: 0.13.x
+
+For MCP servers that require authentication (e.g. behind an API gateway or OAuth proxy), pass custom HTTP headers via the `headers` parameter:
+
+```python
+registry.register_from_mcp(
+    "https://mcp.example.com/mcp",
+    headers={"Authorization": "Bearer sk-your-token"},
+)
+
+# Also works with async registration
+await registry.register_from_mcp_async(
+    "https://mcp.example.com/mcp",
+    headers={"Authorization": "Bearer sk-your-token"},
+)
+```
+
+Headers are forwarded to both the initial tool discovery connection and the persistent connection used for tool calls. This is only relevant for HTTP-based transports (streamable-http, SSE) — stdio transports do not use HTTP headers.
+
 ## Persistent Connections
 
 ???+ note "Changelog"
-    New in version: 0.7.0
+    New in version: 0.7.0. Sync-mode fix in 0.13.x (#211).
 
 By default, MCP connections are now **persistent** — the connection to the MCP server stays open across multiple tool calls, avoiding repeated handshake overhead. This is managed by `MCPConnectionManager` internally.
+
+Both sync and async callers share the same persistent connection logic. In sync mode, `MCPConnectionManager` lazily starts a background daemon thread with its own event loop to keep the MCP transport alive across calls.
 
 ### Context Manager Usage
 
