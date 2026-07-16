@@ -135,7 +135,7 @@ asyncio.run(call_async_add_tool())
 ## Authentication Headers
 
 ???+ note "Changelog"
-    New in version: 0.13.x
+    New in version: 0.14.0
 
 For MCP servers that require authentication (e.g. behind an API gateway or OAuth proxy), pass custom HTTP headers via the `headers` parameter:
 
@@ -157,7 +157,7 @@ Headers are forwarded to both the initial tool discovery connection and the pers
 ## Persistent Connections
 
 ???+ note "Changelog"
-    New in version: 0.7.0. Sync-mode fix in 0.13.x (#211).
+    New in version: 0.7.0. Sync-mode fix in 0.14.0 (#211).
 
 By default, MCP connections are now **persistent** — the connection to the MCP server stays open across multiple tool calls, avoiding repeated handshake overhead. This is managed by `MCPConnectionManager` internally.
 

@@ -11,7 +11,7 @@ author: Oaklight
 When a registry contains dozens or hundreds of tools, sending every tool schema in the initial prompt wastes tokens and degrades LLM performance. **ToolDiscoveryTool** lets the LLM discover relevant tools on demand via exact name lookup or natural language queries, powered by BM25F (Best Matching 25 with Field weighting) sparse search.
 
 ???+ note "Changelog"
-    New in: [#108](../../pull/108) (Unreleased)
+    New in version: 0.7.0 ([#108](../../pull/108))
     Updated in: [#114](../../pull/114) — `enable_tool_search()`, `include_deferred`, schema in search results
     Updated in: [#118](../../pull/118) — Renamed to `ToolDiscoveryTool` / `discover_tools`, added exact match, `get_deferred_summaries()`
 
