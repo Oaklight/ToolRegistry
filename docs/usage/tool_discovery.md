@@ -11,7 +11,7 @@ author: Oaklight
 当注册表包含数十甚至数百个工具时，在初始提示中发送所有工具 schema 会浪费 token 并降低 LLM 性能。**ToolDiscoveryTool** 允许 LLM 通过精确名称查找或自然语言查询按需发现相关工具，底层使用 BM25F（带字段加权的最佳匹配 25）稀疏搜索。
 
 ???+ note "更新日志"
-    新增于：[#108](../../pull/108)（Unreleased）
+    新增于版本：0.7.0（[#108](../../pull/108)）
     更新于：[#114](../../pull/114) — `enable_tool_search()`、`include_deferred`、搜索结果包含 schema
     更新于：[#118](../../pull/118) — 重命名为 `ToolDiscoveryTool` / `discover_tools`，新增精确匹配、`get_deferred_summaries()`
 
