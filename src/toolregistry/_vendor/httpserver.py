@@ -1,9 +1,9 @@
 # /// zerodep
-# version = "0.1.0"
+# version = "0.2.1"
 # deps = []
 # tier = "subsystem"
 # category = "network"
-# note = "Install/update via `zerodep add httpserver`"
+# note = "Install/update via: https://zerodep.readthedocs.io/en/latest/guide/cli/"
 # ///
 
 """Zero-dependency async HTTP server with decorator-based routing.
@@ -299,9 +299,10 @@ class JSONResponse(Response):
 class StreamingResponse:
     """HTTP response streamed from an async generator.
 
-    Writes chunks using ``Transfer-Encoding: chunked`` unless
-    ``content_type`` is ``text/event-stream`` (SSE), in which case raw
-    bytes are flushed directly for maximum compatibility with SSE clients.
+    All streaming responses use ``Transfer-Encoding: chunked`` for
+    maximum compatibility with reverse proxies and intermediaries.
+    SSE (``text/event-stream``) responses additionally set
+    ``Cache-Control: no-cache``.
 
     Args:
         generator: Async iterator yielding ``bytes`` or ``str`` chunks.
@@ -330,9 +331,8 @@ class StreamingResponse:
         is_sse = self.content_type.startswith("text/event-stream")
 
         self.headers["Content-Type"] = self.content_type
-        if not is_sse:
-            self.headers.setdefault("Transfer-Encoding", "chunked")
-        else:
+        self.headers.setdefault("Transfer-Encoding", "chunked")
+        if is_sse:
             self.headers.setdefault("Cache-Control", "no-cache")
         self.headers.setdefault("Date", _http_date())
         self.headers.setdefault("Connection", "close")
@@ -349,16 +349,12 @@ class StreamingResponse:
             async for chunk in self._generator:
                 if isinstance(chunk, str):
                     chunk = chunk.encode("utf-8")
-                if is_sse:
-                    writer.write(chunk)
-                else:
-                    writer.write(f"{len(chunk):x}\r\n".encode("latin-1"))
-                    writer.write(chunk)
-                    writer.write(b"\r\n")
+                writer.write(f"{len(chunk):x}\r\n".encode("latin-1"))
+                writer.write(chunk)
+                writer.write(b"\r\n")
                 await writer.drain()
-            if not is_sse:
-                writer.write(b"0\r\n\r\n")
-                await writer.drain()
+            writer.write(b"0\r\n\r\n")
+            await writer.drain()
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             logger.debug("Client disconnected during streaming")
         finally:
@@ -878,6 +874,22 @@ class App:
 
     # ── Connection Handling ───────────────────────────────────────────────
 
+    @staticmethod
+    async def _send_error_and_close(
+        writer: asyncio.StreamWriter,
+        response: Response | JSONResponse,
+    ) -> None:
+        """Write an error response to the client and close the connection.
+
+        Swallows broken-pipe / reset errors that occur when the client has
+        already disconnected.
+        """
+        try:
+            await response._write(writer)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+        writer.close()
+
     async def _handle_connection(
         self,
         reader: asyncio.StreamReader,
@@ -893,30 +905,43 @@ class App:
             )
         except _BadRequest as exc:
             logger.debug("Bad request from %s: %s", client_addr, exc)
-            response = Response(
-                body=str(exc),
-                status_code=400,
-                content_type="text/plain; charset=utf-8",
+            await self._send_error_and_close(
+                writer,
+                Response(
+                    body=str(exc),
+                    status_code=400,
+                    content_type="text/plain; charset=utf-8",
+                ),
             )
-            try:
-                await response._write(writer)
-            except (BrokenPipeError, ConnectionResetError):
-                pass
-            writer.close()
             return
         except HTTPException as exc:
-            response = JSONResponse({"error": exc.message}, status_code=exc.status_code)
-            try:
-                await response._write(writer)
-            except (BrokenPipeError, ConnectionResetError):
-                pass
-            writer.close()
+            await self._send_error_and_close(
+                writer,
+                JSONResponse({"error": exc.message}, status_code=exc.status_code),
+            )
             return
-        except (asyncio.TimeoutError, asyncio.IncompleteReadError):
-            writer.close()
+        except asyncio.TimeoutError:
+            logger.debug("Request read timed out from %s", client_addr)
+            await self._send_error_and_close(
+                writer,
+                JSONResponse({"error": "Request Timeout"}, status_code=408),
+            )
+            return
+        except asyncio.IncompleteReadError:
+            logger.debug("Incomplete request body from %s", client_addr)
+            await self._send_error_and_close(
+                writer,
+                JSONResponse(
+                    {"error": "Bad Request: incomplete body"}, status_code=400
+                ),
+            )
             return
         except Exception:
-            writer.close()
+            logger.debug("Failed to read request from %s", client_addr, exc_info=True)
+            await self._send_error_and_close(
+                writer,
+                JSONResponse({"error": "Internal Server Error"}, status_code=500),
+            )
             return
 
         request = Request(
@@ -951,33 +976,44 @@ class App:
         self,
         host: str = DEFAULT_HOST,
         port: int = DEFAULT_PORT,
+        *,
+        socket: str | None = None,
     ) -> None:
         """Start the server (blocking).
 
         Args:
-            host: Bind address.
-            port: Bind port. Use ``0`` for OS-assigned port.
+            host: Bind address (ignored when *socket* is set).
+            port: Bind port. Use ``0`` for OS-assigned port (ignored when
+                *socket* is set).
+            socket: Unix domain socket path. When set, the server listens
+                on a Unix socket instead of TCP. The socket file permissions
+                are restricted to owner-only (``0o600``) after creation.
+                Only available on Unix-like systems.
         """
         try:
-            asyncio.run(self._serve(host, port))
+            asyncio.run(self._serve(host, port, socket=socket))
         except KeyboardInterrupt:
             pass
 
-    async def _serve(self, host: str, port: int) -> None:
+    async def _serve(self, host: str, port: int, *, socket: str | None = None) -> None:
         """Internal async server loop."""
         self._shutdown_event = asyncio.Event()
+        self._socket_path: str | None = None
 
-        server = await asyncio.start_server(
-            self._handle_connection,
-            host,
-            port,
-        )
+        if socket:
+            server = await self._start_unix_socket(socket)
+        else:
+            server = await asyncio.start_server(
+                self._handle_connection,
+                host,
+                port,
+            )
+            addrs = server.sockets[0].getsockname() if server.sockets else (host, port)
+            self.host = addrs[0]
+            self.port = addrs[1]
+            logger.info("Serving on %s:%d", self.host, self.port)
 
         self._server = server
-        addrs = server.sockets[0].getsockname() if server.sockets else (host, port)
-        self.host = addrs[0]
-        self.port = addrs[1]
-        logger.info("Serving on %s:%d", self.host, self.port)
 
         loop = asyncio.get_running_loop()
         if sys.platform != "win32":
@@ -987,6 +1023,70 @@ class App:
         async with server:
             await self._shutdown_event.wait()
             logger.info("Shutting down server")
+            if self._socket_path:
+                self._cleanup_socket()
+
+    async def _start_unix_socket(self, socket_path: str) -> asyncio.Server:
+        """Start listening on a Unix domain socket.
+
+        Handles stale socket cleanup, permission hardening (``0o600``),
+        and registers the path for shutdown cleanup.
+
+        Args:
+            socket_path: Path for the Unix domain socket file.
+
+        Returns:
+            The ``asyncio.Server`` instance.
+
+        Raises:
+            SystemExit: If the path exists but is not a socket, or the
+                parent directory does not exist.
+        """
+        import stat as stat_mod
+
+        path = os.path.realpath(socket_path)
+
+        # Remove stale socket if present
+        if os.path.exists(path):
+            try:
+                st = os.stat(path)
+                if stat_mod.S_ISSOCK(st.st_mode):
+                    os.unlink(path)
+                    logger.info("Removed stale socket: %s", path)
+                else:
+                    logger.error("Socket path exists and is not a socket: %s", path)
+                    sys.exit(1)
+            except OSError as exc:
+                logger.error("Cannot remove stale socket %s: %s", path, exc)
+                sys.exit(1)
+
+        # Ensure parent directory exists
+        parent = os.path.dirname(path)
+        if not os.path.isdir(parent):
+            logger.error("Socket parent directory does not exist: %s", parent)
+            sys.exit(1)
+
+        server = await asyncio.start_unix_server(
+            self._handle_connection,
+            path=path,
+        )
+
+        # Restrict permissions to owner-only
+        if os.path.exists(path):
+            os.chmod(path, 0o600)
+
+        self._socket_path = path
+        logger.info("Serving on unix:%s (mode 0600)", path)
+        return server
+
+    def _cleanup_socket(self) -> None:
+        """Remove the Unix socket file on shutdown."""
+        if self._socket_path and os.path.exists(self._socket_path):
+            try:
+                os.unlink(self._socket_path)
+                logger.info("Removed socket: %s", self._socket_path)
+            except OSError:
+                pass
 
     def shutdown(self) -> None:
         """Request a graceful server shutdown.
