@@ -213,11 +213,13 @@ def expand_content_blocks(
     return extract_multimodal_content(tool_responses)
 
 
-def build_expanded_user_message(extra_content: list, api_format: Any) -> dict[str, Any]:
+def build_expanded_user_message(
+    content_parts: list[dict[str, Any]], api_format: str
+) -> dict[str, Any]:
     """Deprecated: use :func:`build_multimodal_user_message` instead."""
     warnings.warn(
         "build_expanded_user_message() is deprecated, use build_multimodal_user_message() instead.",
         DeprecationWarning,
         stacklevel=2,
     )
-    return build_multimodal_user_message(extra_content, api_format)
+    return build_multimodal_user_message(content_parts, api_format)
