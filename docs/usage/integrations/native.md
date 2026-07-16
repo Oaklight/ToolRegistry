@@ -1,10 +1,10 @@
-# 原生 Python 工具
+# 函数工具
 
-ToolRegistry 支持直接注册 Python 函数和类——无需外部协议或适配器。
+将 Python 函数注册为工具——ToolRegistry 中最常见、最简单的工具创建方式。
 
-## 函数
+## 装饰器注册
 
-最简单的工具创建方式。使用 `@registry.register` 或 `registry.register(func)`：
+使用 `@registry.register` 直接注册函数：
 
 ```python
 from toolregistry import ToolRegistry
@@ -15,37 +15,68 @@ registry = ToolRegistry()
 def add(a: int, b: int) -> int:
     """两数相加。"""
     return a + b
+```
 
-# 或显式注册
+## 显式注册
+
+通过编程方式注册函数，可选覆盖名称和描述：
+
+```python
 def multiply(x: float, y: float) -> float:
     """两数相乘。"""
     return x * y
 
 registry.register(multiply)
+
+# 自定义名称和描述
+registry.register(multiply, name="mul", description="x 乘以 y")
 ```
 
-类型标注自动生成 JSON Schema 参数。Docstring 作为工具描述。
+## 工作原理
 
-完整教程请参阅[快速开始](../basics.md)和[函数调用](../function_calling.md)。
-
-## 类
-
-使用 `register_from_class()` 一次性注册 Python 类的所有方法。方法自动按类名分配命名空间。
+- **类型标注** → JSON Schema 参数（例如 `a: int` 变为 `{"type": "integer"}`）
+- **Docstring** → 提供给 LLM 的工具描述
+- **返回类型** → 不包含在 schema 中，但用于文档
+- **默认值** → 反映在 schema 中，参数变为可选
 
 ```python
-class MathTools:
-    @staticmethod
-    def add(a: int, b: int) -> int:
-        """两数相加。"""
-        return a + b
+def search(query: str, max_results: int = 10) -> list:
+    """搜索匹配查询的项目。
 
-    @staticmethod
-    def subtract(a: int, b: int) -> int:
-        """a 减 b。"""
-        return a - b
-
-registry.register_from_class(MathTools)
-# 注册: math-tools-add, math-tools-subtract
+    Args:
+        query: 搜索词。
+        max_results: 返回的最大结果数。
+    """
+    ...
 ```
 
-支持静态方法和实例方法。详细用法（实例类、构造参数、MRO 遍历）请参阅[基于类的工具](class.md)。
+生成的 schema 中 `query` 为必填参数，`max_results` 为可选参数，默认值为 `10`。
+
+## 命名空间
+
+使用 `namespace` 参数对相关函数进行分组：
+
+```python
+registry.register(add, namespace="math")
+registry.register(subtract, namespace="math")
+# 注册为: math-add, math-subtract
+```
+
+详见[命名空间指南](../namespace.md)。
+
+## Tool 实例
+
+也可以注册预构建的 `Tool` 对象：
+
+```python
+from toolregistry import Tool
+
+tool = Tool.from_function(add, description="自定义描述")
+registry.register(tool)
+```
+
+## 下一步
+
+- [函数调用](../function_calling.md) — 与 LLM API 的端到端教程
+- [基于类的工具](class.md) — 一次性注册 Python 类的所有方法
+- [最佳实践](../best_practices.md) — 编写优质工具函数的建议

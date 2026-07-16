@@ -193,7 +193,7 @@ nav:
           - 命名空间: usage/namespace.md
       - 集成:
           - 原生 Python:
-              - usage/integrations/native.md
+              - 函数工具: usage/integrations/native.md
               - 基于类的工具: usage/integrations/class.md
           - MCP 工具: usage/integrations/mcp.md
           - OpenAPI 工具: usage/integrations/openapi.md
