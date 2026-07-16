@@ -433,3 +433,38 @@ class TestBuildToolResponse:
 
     def test_empty_responses(self):
         assert build_tool_result_messages({}, api_format="openai-chat") == []
+
+
+# ---------------------------------------------------------------------------
+# Deprecated aliases
+# ---------------------------------------------------------------------------
+
+
+class TestDeprecatedAliases:
+    """Verify deprecated function aliases emit DeprecationWarning."""
+
+    def test_build_assistant_message_deprecated(self):
+        from toolregistry.llm.tool_calls import build_assistant_message
+
+        tc = [ToolCall(id="c1", name="fn", arguments='{"x": 1}')]
+        with pytest.warns(DeprecationWarning, match="build_assistant_messages"):
+            build_assistant_message(tc, api_format="openai-chat")
+
+    def test_build_tool_response_deprecated(self):
+        from toolregistry.llm.tool_calls import build_tool_response
+
+        with pytest.warns(DeprecationWarning, match="build_tool_result_messages"):
+            build_tool_response({"c1": "ok"}, api_format="openai-chat")
+
+    def test_expand_content_blocks_deprecated(self):
+        from toolregistry.llm.content_blocks import expand_content_blocks
+
+        with pytest.warns(DeprecationWarning, match="extract_multimodal_content"):
+            expand_content_blocks({"c1": "text"})
+
+    def test_build_expanded_user_message_deprecated(self):
+        from toolregistry.llm.content_blocks import build_expanded_user_message
+
+        parts = [{"type": "text", "text": "hello"}]
+        with pytest.warns(DeprecationWarning, match="build_multimodal_user_message"):
+            build_expanded_user_message(parts, "openai-chat")
