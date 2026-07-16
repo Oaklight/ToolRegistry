@@ -16,6 +16,8 @@ hide:
 
 ## [未发布]
 
+## [0.14.0] - 2026-07-16
+
 ### 新增
 
 - **程序化工具调用 (PTC)**：`registry.ptc.enable()` 注册 `programmatic_tool_call` 工具，让 LLM 编写 Python 代码在命名空间中调用已注册的工具。
@@ -30,6 +32,7 @@ hide:
 - **`ToolMetadata.force_thread`**：强制工具使用 ThreadBackend 执行，用于需要主进程访问的工具（如 PTC 工具的 `registry.invoke()` 回调）。
 - **`runtimes/` 桥接层**：`ToolProjection`、`DirectProjection`、`validate_namespace()`、`namespace_to_callables()`，用于将 Tool 对象桥接到 codecell。
 - `codecell>=0.2.1` 作为可选 `[ptc]` 依赖。
+- **`register_from_mcp` 新增 `headers` 参数**（#212）：支持向 SSE 或 streamable-http 传输的 MCP 服务器传递自定义 HTTP 头（如 `Authorization: Bearer ...`）。`register_from_mcp()` 和 `register_from_mcp_async()` 均可使用。
 
 ### 变更
 
@@ -52,16 +55,16 @@ hide:
     - `build_expanded_user_message` → `build_multimodal_user_message`
     - 旧名称保留为 deprecated alias 并发出 `DeprecationWarning`。
 
-### 新增
-
-- **`register_from_mcp` 新增 `headers` 参数**（#212）：支持向 SSE 或 streamable-http 传输的 MCP 服务器传递自定义 HTTP 头（如 `Authorization: Bearer ...`）。`register_from_mcp()` 和 `register_from_mcp_async()` 均可使用。
-
 ### 修复
 
 - **同步模式下持久 MCP 连接断开**（#211）：之前每次同步工具调用都会创建并销毁一个临时 event loop，导致绑定在旧 loop 上的持久 MCP 传输被杀死。`MCPConnectionManager` 现在在首次同步调用时惰性启动一个后台守护线程，保持 event loop 持续运行，连接跨调用保持存活。异步调用不受影响。
 - MCP/OpenAPI 包装器现在通过 `__getstate__`/`__setstate__` 支持 cloudpickle 序列化（#189）。
 - 修复 `integrations/openapi/utils.py` 中的 `ty` 类型错误——`headers.get()` 空值保护。
 - **`convert_tool_calls()` 参数丢失**（#205）：传入已归一化的 `ToolCall` 不再重新经过 provider 检测解析，之前会导致 arguments 丢失。
+
+### 依赖
+
+- 将 `llm-rosetta` 最低版本从 `>=0.5.1,<0.7.0` 提升至 `>=0.7.1,<0.8.0`。
 
 ### 内部
 
