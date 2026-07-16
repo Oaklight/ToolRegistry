@@ -268,7 +268,7 @@ schemas = registry.get_schemas(api_format="gemini")
 
 # 现有格式仍然有效
 schemas = registry.get_schemas()  # 默认：OpenAI chat completion
-schemas = registry.get_schemas(api_format="openai-response")
+schemas = registry.get_schemas(api_format="openai-responses")
 ```
 
 ---

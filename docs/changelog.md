@@ -42,11 +42,21 @@ hide:
     - `to_ir()` / `from_ir()` 方法用于 rosetta `ToolResultPart` 转换
     - `build_tool_call_messages(tool_calls, results)` 简化签名，移除旧的 dict 路径
 - 将 Pydantic `ToolCallResult` 模型和 `ErrorResult(str)` 子类替换为 frozen dataclass。
+- **`ToolCall.to_ir()` / `ToolCall.from_ir()`**（#204）：`ToolCall` 上的 rosetta IR `ToolCallPart` 直接转换方法，与 result 类型对称。
+- **`api_format="rosetta-ir"`**（#207）：`get_schemas()` 和 `build_tool_call_messages()` 现在可以直接返回 rosetta IR 类型，跳过 provider 转换。
+- **规范化 `"openai-responses"` 格式名称**：从 `"openai-response"`（单数）重命名以对齐 rosetta 约定。旧名称保留为 deprecated alias。添加 `"open-responses"` 静默别名。
+- **重命名 LLM 构建函数**以提升清晰度：
+    - `build_assistant_message` → `build_assistant_messages`
+    - `build_tool_response` → `build_tool_result_messages`
+    - `expand_content_blocks` → `extract_multimodal_content`
+    - `build_expanded_user_message` → `build_multimodal_user_message`
+    - 旧名称保留为 deprecated alias 并发出 `DeprecationWarning`。
 
 ### 修复
 
 - MCP/OpenAPI 包装器现在通过 `__getstate__`/`__setstate__` 支持 cloudpickle 序列化（#189）。
 - 修复 `integrations/openapi/utils.py` 中的 `ty` 类型错误——`headers.get()` 空值保护。
+- **`convert_tool_calls()` 参数丢失**（#205）：传入已归一化的 `ToolCall` 不再重新经过 provider 检测解析，之前会导致 arguments 丢失。
 
 ### 内部
 

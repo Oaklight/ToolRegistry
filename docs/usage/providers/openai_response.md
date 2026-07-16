@@ -27,7 +27,7 @@ def subtract(a: float, b: float) -> float:
 ## 导出工具 Schema
 
 ```python
-schemas = registry.get_schemas(api_format="openai-response") # available since v0.4.13
+schemas = registry.get_schemas(api_format="openai-responses") # available since v0.4.13
 ```
 
 格式化后的 JSON Schema 如下：
@@ -87,7 +87,7 @@ schemas = registry.get_schemas(api_format="openai-response") # available since v
 
 注意与 Chat Completion 格式的区别：
 
-- `openai-response` 格式将函数信息（`name`、`description`、`parameters`）作为顶层字段暴露，而非嵌套在 `function` 对象内部。
+- `openai-responses` 格式将函数信息（`name`、`description`、`parameters`）作为顶层字段暴露，而非嵌套在 `function` 对象内部。
 - 包含一个 `strict` 字段，值为 `false`。请勿修改此值，因为在严格模式下，所有可选参数都会变为必填参数，这与自动 Schema 生成的预期行为不符。
 
 ## 使用工具 Schema 发送查询
@@ -175,7 +175,7 @@ tool_responses = registry.execute_tool_calls(tool_calls)
 ```python
 # Construct assistant messages with results
 assistant_tool_messages = registry.build_tool_call_messages(
-    tool_calls, tool_responses, api_format="openai-response"
+    tool_calls, tool_responses, api_format="openai-responses"
 )
 ```
 
@@ -206,7 +206,7 @@ messages.extend(assistant_tool_messages)
 response = client.responses.create(
     model="gpt-4.1-mini",
     input=messages,
-    tools=registry.get_schemas(api_format="openai-response"),
+    tools=registry.get_schemas(api_format="openai-responses"),
     tool_choice="auto",
 )
 
@@ -267,7 +267,7 @@ def subtract(a: float, b: float) -> float:
     return a - b
 
 
-print(json.dumps(registry.get_schemas(api_format="openai-response"), indent=2))
+print(json.dumps(registry.get_schemas(api_format="openai-responses"), indent=2))
 
 # Set up OpenAI client
 client = OpenAI(
@@ -287,7 +287,7 @@ messages = [
 response = client.responses.create(
     model=model_name,
     input=messages,
-    tools=registry.get_schemas(api_format="openai-response"),
+    tools=registry.get_schemas(api_format="openai-responses"),
     tool_choice="auto",
 )
 
@@ -303,7 +303,7 @@ print(tool_responses)
 
 # Construct assistant messages with results
 assistant_tool_messages = registry.build_tool_call_messages(
-    tool_calls, tool_responses, api_format="openai-response"
+    tool_calls, tool_responses, api_format="openai-responses"
 )
 print(json.dumps(assistant_tool_messages, indent=2))
 
@@ -313,7 +313,7 @@ messages.extend(assistant_tool_messages)
 response = client.responses.create(
     model=model_name,
     input=messages,
-    tools=registry.get_schemas(api_format="openai-response"),
+    tools=registry.get_schemas(api_format="openai-responses"),
     tool_choice="auto",
 )
 

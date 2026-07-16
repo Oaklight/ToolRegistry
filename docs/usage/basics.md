@@ -87,9 +87,10 @@ tools_json = registry.get_schemas(api_format="openai-chat")
 api_format 可以是以下之一：
 
 - [x] `openai-chat`（默认）
-- [x] `openai-response`（从 v0.4.13 开始）
+- [x] `openai-responses`（从 v0.4.13 开始；也接受别名 `open-responses`）
 - [x] `anthropic`（从 v0.6.2 开始，通过 [llm-rosetta](https://pypi.org/project/llm-rosetta/)）
 - [x] `gemini`（从 v0.6.2 开始，通过 [llm-rosetta](https://pypi.org/project/llm-rosetta/)）
+- [x] `rosetta-ir` — 直接返回 rosetta IR 类型，跳过 provider 转换
 
 例如 `openai-chat`，您将看到以下内容。同时，您可以看到函数 `add` 和 `subtract` 中参数 `a` 的 `type` 差异，一个是 `number`，另一个是 `integer`。
 
