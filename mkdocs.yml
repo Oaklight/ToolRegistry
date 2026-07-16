@@ -192,8 +192,9 @@ nav:
           - 执行模式: usage/concurrency_modes.md
           - 命名空间: usage/namespace.md
       - 集成:
-          - 原生 Python: usage/integrations/native.md
-          - 基于类的工具: usage/integrations/class.md
+          - 原生 Python:
+              - usage/integrations/native.md
+              - 基于类的工具: usage/integrations/class.md
           - MCP 工具: usage/integrations/mcp.md
           - OpenAPI 工具: usage/integrations/openapi.md
           - LangChain 工具: usage/integrations/langchain.md
