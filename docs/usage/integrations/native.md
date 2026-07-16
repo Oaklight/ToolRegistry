@@ -1,10 +1,10 @@
-# Native Python Tools
+# Function Tools
 
-ToolRegistry supports registering plain Python functions and classes directly — no external protocols or adapters required.
+Register plain Python functions as tools — the most common and simplest way to create tools in ToolRegistry.
 
-## Functions
+## Decorator Registration
 
-The simplest way to create tools. Use `@registry.register` or `registry.register(func)`:
+Use `@registry.register` to register a function directly:
 
 ```python
 from toolregistry import ToolRegistry
@@ -15,37 +15,68 @@ registry = ToolRegistry()
 def add(a: int, b: int) -> int:
     """Add two numbers."""
     return a + b
+```
 
-# Or register explicitly
+## Explicit Registration
+
+Register functions programmatically with optional name and description overrides:
+
+```python
 def multiply(x: float, y: float) -> float:
     """Multiply two numbers."""
     return x * y
 
 registry.register(multiply)
+
+# With custom name and description
+registry.register(multiply, name="mul", description="Multiply x by y")
 ```
 
-Type annotations are used to generate JSON Schema parameters automatically. Docstrings become tool descriptions.
+## How It Works
 
-For a complete walkthrough including schema generation and LLM integration, see [Quick Start](../basics.md) and [Function Calling](../function_calling.md).
-
-## Classes
-
-Register all methods from a Python class at once using `register_from_class()`. Methods are automatically namespaced by class name.
+- **Type annotations** → JSON Schema parameters (e.g. `a: int` becomes `{"type": "integer"}`)
+- **Docstrings** → tool description for the LLM
+- **Return type** → not included in schema, but used for documentation
+- **Default values** → reflected in schema, parameter becomes optional
 
 ```python
-class MathTools:
-    @staticmethod
-    def add(a: int, b: int) -> int:
-        """Add two numbers."""
-        return a + b
+def search(query: str, max_results: int = 10) -> list:
+    """Search for items matching the query.
 
-    @staticmethod
-    def subtract(a: int, b: int) -> int:
-        """Subtract b from a."""
-        return a - b
-
-registry.register_from_class(MathTools)
-# Registers: math-tools-add, math-tools-subtract
+    Args:
+        query: The search term.
+        max_results: Maximum number of results to return.
+    """
+    ...
 ```
 
-Both static methods and instance methods are supported. For detailed usage including instance classes, constructor arguments, and MRO traversal, see [Class-based Tools](class.md).
+This generates a schema where `query` is required and `max_results` is optional with default `10`.
+
+## Namespaces
+
+Use the `namespace` parameter to group related functions:
+
+```python
+registry.register(add, namespace="math")
+registry.register(subtract, namespace="math")
+# Registers: math-add, math-subtract
+```
+
+See [Namespace Guide](../namespace.md) for details.
+
+## Tool Instances
+
+You can also register pre-built `Tool` objects:
+
+```python
+from toolregistry import Tool
+
+tool = Tool.from_function(add, description="Custom description")
+registry.register(tool)
+```
+
+## What's Next
+
+- [Function Calling](../function_calling.md) — end-to-end walkthrough with an LLM API
+- [Class-based Tools](class.md) — register all methods from a Python class at once
+- [Best Practices](../best_practices.md) — tips for writing good tool functions

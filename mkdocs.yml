@@ -193,7 +193,7 @@ nav:
           - Namespace: usage/namespace.md
       - Integrations:
           - Native Python:
-              - usage/integrations/native.md
+              - Function Tools: usage/integrations/native.md
               - Class-based Tools: usage/integrations/class.md
           - MCP Tools: usage/integrations/mcp.md
           - OpenAPI Tools: usage/integrations/openapi.md
