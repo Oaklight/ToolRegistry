@@ -45,6 +45,7 @@ class MCPConnectionManager:
 
         self._sync_loop: asyncio.AbstractEventLoop | None = None
         self._sync_thread: threading.Thread | None = None
+        self._sync_init_lock = threading.Lock()
 
     @property
     def transport(self) -> str | dict | Path:
@@ -126,23 +127,29 @@ class MCPConnectionManager:
     def _ensure_sync_loop(self) -> asyncio.AbstractEventLoop:
         """Start the background event-loop thread if not already running.
 
+        Thread-safe: concurrent callers will not create duplicate loops.
+
         Returns:
             The persistent event loop running in the daemon thread.
         """
         if self._sync_loop is not None and self._sync_loop.is_running():
             return self._sync_loop
 
-        loop = asyncio.new_event_loop()
-        self._sync_loop = loop
+        with self._sync_init_lock:
+            if self._sync_loop is not None and self._sync_loop.is_running():
+                return self._sync_loop
 
-        def _run() -> None:
-            asyncio.set_event_loop(loop)
-            loop.run_forever()
+            loop = asyncio.new_event_loop()
+            self._sync_loop = loop
 
-        t = threading.Thread(target=_run, daemon=True)
-        t.start()
-        self._sync_thread = t
-        return loop
+            def _run() -> None:
+                asyncio.set_event_loop(loop)
+                loop.run_forever()
+
+            t = threading.Thread(target=_run, daemon=True)
+            t.start()
+            self._sync_thread = t
+            return loop
 
     def call_tool_sync(self, name: str, arguments: dict[str, Any]) -> CallToolResult:
         """Call a tool synchronously using a persistent background loop.

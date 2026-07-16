@@ -53,6 +53,22 @@ class MCPToolWrapper(BaseToolWrapper):
         """Transport source, for backward compatibility."""
         return self._connection.transport
 
+    def _validate_and_extract(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        """Validate name and extract parameters from args/kwargs.
+
+        Shared by both ``call_sync`` and ``call_async`` to ensure
+        identical parameter handling.
+        """
+        if not self.name:
+            raise ValueError("Tool name must be set before calling")
+        kwargs = self._process_args(*args, **kwargs)
+        validated: dict[str, Any] = {}
+        if self.params:
+            for param_name in self.params:
+                if param_name in kwargs:
+                    validated[param_name] = kwargs[param_name]
+        return validated
+
     def call_sync(self, *args: Any, **kwargs: Any) -> Any:
         """Synchronous implementation of MCP tool call.
 
@@ -71,18 +87,17 @@ class MCPToolWrapper(BaseToolWrapper):
             ValueError: If name not set.
             Exception: If tool execution fails.
         """
-        if not self.name:
-            raise ValueError("Tool name must be set before calling")
+        try:
+            validated_params = self._validate_and_extract(*args, **kwargs)
+            result = self._connection.call_tool_sync(self.name, validated_params)
+            return self._post_process_result(result)
+        except Exception:
+            import traceback
 
-        kwargs = self._process_args(*args, **kwargs)
-        validated_params: dict[str, Any] = {}
-        if self.params:
-            for param_name in self.params:
-                if param_name in kwargs:
-                    validated_params[param_name] = kwargs[param_name]
-
-        result = self._connection.call_tool_sync(self.name, validated_params)
-        return self._post_process_result(result)
+            logger.error(
+                f"Original Exception happens at {self.name}:\n{traceback.format_exc()}"
+            )
+            raise
 
     async def call_async(self, *args: Any, **kwargs: Any) -> Any:
         """Async implementation of MCP tool call.
@@ -99,19 +114,9 @@ class MCPToolWrapper(BaseToolWrapper):
             Exception: If tool execution fails.
         """
         try:
-            if not self.name:
-                raise ValueError("Tool name must be set before calling")
-
-            validated_params: dict[str, Any] = {}
-            kwargs = self._process_args(*args, **kwargs)
-            if self.params:
-                for param_name in self.params:
-                    if param_name in kwargs:
-                        validated_params[param_name] = kwargs[param_name]
-
+            validated_params = self._validate_and_extract(*args, **kwargs)
             result = await self._connection.call_tool(self.name, validated_params)
             return self._post_process_result(result)
-
         except Exception:
             import traceback
 
