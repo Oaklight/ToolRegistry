@@ -277,7 +277,7 @@ schemas = registry.get_schemas(api_format="gemini")
 
 # Existing formats still work
 schemas = registry.get_schemas()  # default: OpenAI chat completion
-schemas = registry.get_schemas(api_format="openai-response")
+schemas = registry.get_schemas(api_format="openai-responses")
 ```
 
 ---

@@ -87,9 +87,10 @@ Since v0.4.13, we added a new parameter `api_format` to `get_schemas` method, wh
 api_format can be one of the following:
 
 - [x] `openai-chat` (default; also accepts deprecated aliases `openai` and `openai-chatcompletion`)
-- [x] `openai-response` (since v0.4.13)
+- [x] `openai-responses` (since v0.4.13; also accepts alias `open-responses`)
 - [x] `anthropic` (since v0.6.2, via [llm-rosetta](https://pypi.org/project/llm-rosetta/))
 - [x] `gemini` (since v0.6.2, via [llm-rosetta](https://pypi.org/project/llm-rosetta/))
+- [x] `rosetta-ir` — returns rosetta IR types directly, skipping provider conversion
 
 For example of `openai-chat`, you will see the following. Meanwhile, you can see the difference of parameter `a`'s `type` in function `add` and `subtract`, one as `number`, another as `integer`.
 

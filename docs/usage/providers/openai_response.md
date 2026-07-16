@@ -27,7 +27,7 @@ def subtract(a: float, b: float) -> float:
 ## Exposing Tool Schemas
 
 ```python
-schemas = registry.get_schemas(api_format="openai-response") # available since v0.4.13
+schemas = registry.get_schemas(api_format="openai-responses") # available since v0.4.13
 ```
 
 Here is the pretty printed JSON schema:
@@ -87,7 +87,7 @@ Here is the pretty printed JSON schema:
 
 Note the difference:
 
-- The `openai-response` function tool format exposes the function information (`name`, `description`, `parameters`) as top-level objects, instead of nested inside a `function` object.
+- The `openai-responses` function tool format exposes the function information (`name`, `description`, `parameters`) as top-level objects, instead of nested inside a `function` object.
 - There is a `strict` field that is set to `false`. Do NOT change this value, since in strict mode, all optional parameters will be required, which is not the desired behavior for automatic schema generation.
 
 ## Supply Query with Tool Schema
@@ -175,7 +175,7 @@ To maintain the tool-calling context for subsequent LLM interactions, we need to
 ```python
 # Construct assistant messages with results
 assistant_tool_messages = registry.build_tool_call_messages(
-    tool_calls, tool_responses, api_format="openai-response"
+    tool_calls, tool_responses, api_format="openai-responses"
 )
 ```
 
@@ -206,7 +206,7 @@ messages.extend(assistant_tool_messages)
 response = client.responses.create(
     model="gpt-4.1-mini",
     input=messages,
-    tools=registry.get_schemas(api_format="openai-response"),
+    tools=registry.get_schemas(api_format="openai-responses"),
     tool_choice="auto",
 )
 
@@ -267,7 +267,7 @@ def subtract(a: float, b: float) -> float:
     return a - b
 
 
-print(json.dumps(registry.get_schemas(api_format="openai-response"), indent=2))
+print(json.dumps(registry.get_schemas(api_format="openai-responses"), indent=2))
 
 # Set up OpenAI client
 client = OpenAI(
@@ -287,7 +287,7 @@ messages = [
 response = client.responses.create(
     model=model_name,
     input=messages,
-    tools=registry.get_schemas(api_format="openai-response"),
+    tools=registry.get_schemas(api_format="openai-responses"),
     tool_choice="auto",
 )
 
@@ -303,7 +303,7 @@ print(tool_responses)
 
 # Construct assistant messages with results
 assistant_tool_messages = registry.build_tool_call_messages(
-    tool_calls, tool_responses, api_format="openai-response"
+    tool_calls, tool_responses, api_format="openai-responses"
 )
 print(json.dumps(assistant_tool_messages, indent=2))
 
@@ -313,7 +313,7 @@ messages.extend(assistant_tool_messages)
 response = client.responses.create(
     model=model_name,
     input=messages,
-    tools=registry.get_schemas(api_format="openai-response"),
+    tools=registry.get_schemas(api_format="openai-responses"),
     tool_choice="auto",
 )
 

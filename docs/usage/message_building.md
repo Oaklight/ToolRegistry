@@ -1,7 +1,7 @@
 ---
 title: Message Building
 summary: Build conversation messages for tool-calling round-trips
-description: How to use build_assistant_message, build_tool_response, and build_tool_call_messages to construct LLM conversation history
+description: How to use build_assistant_messages, build_tool_result_messages, and build_tool_call_messages to construct LLM conversation history
 keywords: message building, tool calls, assistant message, tool response, conversation history
 author: Oaklight
 ---
@@ -14,8 +14,8 @@ After executing tool calls, you need to construct conversation messages so the L
 
 | Function | Level | Input | Output |
 |----------|-------|-------|--------|
-| `build_assistant_message()` | Module | `list[ToolCall]` | Assistant message with tool call requests |
-| `build_tool_response()` | Module | `dict[str, str]` | Tool result messages |
+| `build_assistant_messages()` | Module | `list[ToolCall]` | Assistant message with tool call requests |
+| `build_tool_result_messages()` | Module | `dict[str, str]` | Tool result messages |
 | `build_tool_call_messages()` | `ToolRegistry` method | Raw tool calls + responses | Combined assistant + tool messages |
 
 In most cases, you only need `build_tool_call_messages()` — the high-level convenience method that handles everything.
@@ -53,19 +53,19 @@ Gemini does not provide tool call IDs upstream — ToolRegistry generates them i
 !!! warning "Do not reorder tool_calls"
     You **must not** reorder the `tool_calls` list between calling `execute_tool_calls()` and `build_tool_call_messages()`. Both methods process tool calls in the same order, and Gemini format relies on this positional alignment. Reordering would cause mismatched function names in the output.
 
-## `build_assistant_message()`
+## `build_assistant_messages()`
 
 Low-level function that reconstructs just the assistant-side message containing tool call requests.
 
 ```python
-from toolregistry.types.common import build_assistant_message, ToolCall
+from toolregistry.types.common import build_assistant_messages, ToolCall
 
 tool_calls = [
     ToolCall(id="call_1", name="add", arguments='{"a": 1, "b": 2}')
 ]
 
 # Returns the assistant message in the target format
-assistant_msg = build_assistant_message(tool_calls, api_format="openai-chat")
+assistant_msg = build_assistant_messages(tool_calls, api_format="openai-chat")
 ```
 
 ### Scope and Boundaries
@@ -79,17 +79,17 @@ This function **only handles tool calls**. It does not handle:
 
 If the LLM returns mixed content (text + tool calls), you must preserve non-tool-call fields yourself from the original response.
 
-## `build_tool_response()`
+## `build_tool_result_messages()`
 
 Low-level function that reconstructs tool result messages from execution responses.
 
 ```python
-from toolregistry.types.common import build_tool_response
+from toolregistry.types.common import build_tool_result_messages
 
 tool_responses = {"call_1": "3.0", "call_2": "7.0"}
 
 # Returns tool result messages in the target format
-tool_msgs = build_tool_response(tool_responses, api_format="openai-chat")
+tool_msgs = build_tool_result_messages(tool_responses, api_format="openai-chat")
 ```
 
 ### Gemini Name Resolution
@@ -97,7 +97,7 @@ tool_msgs = build_tool_response(tool_responses, api_format="openai-chat")
 For Gemini format, `functionResponse` requires the function **name** (not the call ID). Pass `tool_calls` to enable name resolution:
 
 ```python
-tool_msgs = build_tool_response(
+tool_msgs = build_tool_result_messages(
     tool_responses,
     api_format="gemini",
     tool_calls=generic_tool_calls,  # Required for Gemini
@@ -113,11 +113,14 @@ The `api_format` parameter accepts these values:
 | Value | Description |
 |-------|-------------|
 | `"openai-chat"` | OpenAI Chat Completion format (default, canonical) |
-| `"openai-response"` | OpenAI Response API format |
+| `"openai-responses"` | OpenAI Response API format |
 | `"anthropic"` | Anthropic Messages API format |
 | `"gemini"` | Google Gemini API format |
+| `"rosetta-ir"` | Rosetta IR format (provider-agnostic) |
+| `"open-responses"` | Alias for `"openai-responses"` |
 | `"openai"` | **Deprecated** — alias for `"openai-chat"` |
 | `"openai-chatcompletion"` | **Deprecated** — alias for `"openai-chat"` |
+| `"openai-response"` | **Deprecated** — alias for `"openai-responses"` |
 
 Using deprecated format names emits a `DeprecationWarning`.
 
@@ -126,8 +129,8 @@ Using deprecated format names emits a `DeprecationWarning`.
 | Risk | Affected Function | Mitigation |
 |------|-------------------|------------|
 | Reordering `tool_calls` breaks Gemini ID alignment | `build_tool_call_messages()` | Never reorder between `execute_tool_calls()` and `build_tool_call_messages()` |
-| Missing `tool_calls` param produces wrong Gemini names | `build_tool_response()` | Always pass `tool_calls` for Gemini format |
-| Mixed content (text + tool calls) silently dropped | `build_assistant_message()` | Preserve non-tool-call content from original response yourself |
+| Missing `tool_calls` param produces wrong Gemini names | `build_tool_result_messages()` | Always pass `tool_calls` for Gemini format |
+| Mixed content (text + tool calls) silently dropped | `build_assistant_messages()` | Preserve non-tool-call content from original response yourself |
 | `tool_responses` dict order matters for Gemini | `build_tool_call_messages()` | Python 3.7+ dicts preserve insertion order; do not reconstruct the dict |
 
 ## Deprecated Names
@@ -136,7 +139,7 @@ The following old names still work but emit `DeprecationWarning`:
 
 | Old Name | New Name |
 |----------|----------|
-| `recover_assistant_message()` | `build_assistant_message()` |
-| `recover_tool_message()` | `build_tool_response()` |
+| `recover_assistant_message()` | `build_assistant_messages()` |
+| `recover_tool_message()` | `build_tool_result_messages()` |
 | `registry.recover_tool_call_assistant_message()` | `registry.build_tool_call_messages()` |
 | `registry.get_tools_json()` | `registry.get_schemas()` |

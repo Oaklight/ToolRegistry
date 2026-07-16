@@ -269,7 +269,7 @@ ToolRegistry generates tool schemas for multiple LLM API formats via [llm-rosett
 registry.get_schemas(api_format="openai-chat")
 
 # OpenAI Response API format
-registry.get_schemas(api_format="openai-response")
+registry.get_schemas(api_format="openai-responses")
 
 # Anthropic format
 registry.get_schemas(api_format="anthropic")
@@ -278,7 +278,7 @@ registry.get_schemas(api_format="anthropic")
 registry.get_schemas(api_format="gemini")
 ```
 
-Message builders (`build_assistant_message`, `build_tool_response`) are also format-aware, so multi-turn conversations work uniformly across providers.
+Message builders (`build_assistant_messages`, `build_tool_result_messages`) are also format-aware, so multi-turn conversations work uniformly across providers.
 
 ## Multimodal Content Blocks
 

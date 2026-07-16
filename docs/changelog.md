@@ -42,11 +42,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
     - `to_ir()` / `from_ir()` methods for rosetta `ToolResultPart` conversion
     - `build_tool_call_messages(tool_calls, results)` — simplified signature, no legacy dict path
 - Replaced Pydantic `ToolCallResult` model and `ErrorResult(str)` subclass with frozen dataclasses.
+- **`ToolCall.to_ir()` / `ToolCall.from_ir()`** (#204): direct rosetta IR `ToolCallPart` conversion on `ToolCall`, symmetric with result types.
+- **`api_format="rosetta-ir"`** (#207): `get_schemas()` and `build_tool_call_messages()` can now return rosetta IR types directly, skipping provider conversion.
+- **Canonical `"openai-responses"` format name**: renamed from `"openai-response"` (singular) to align with rosetta convention. Old name preserved as deprecated alias. `"open-responses"` added as silent alias.
+- **Renamed LLM builder functions** for clarity:
+    - `build_assistant_message` → `build_assistant_messages`
+    - `build_tool_response` → `build_tool_result_messages`
+    - `expand_content_blocks` → `extract_multimodal_content`
+    - `build_expanded_user_message` → `build_multimodal_user_message`
+    - Old names preserved as deprecated aliases with `DeprecationWarning`.
 
 ### Fixed
 
 - MCP/OpenAPI wrappers now survive cloudpickle serialization via `__getstate__`/`__setstate__` (#189).
 - Fix `ty` type error in `integrations/openapi/utils.py` — `headers.get()` None guard.
+- **`convert_tool_calls()` argument loss** (#205): passing an already-normalized `ToolCall` no longer re-parses through provider detection, which was losing arguments.
 
 ### Internal
 
