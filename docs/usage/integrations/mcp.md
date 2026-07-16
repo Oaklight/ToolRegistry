@@ -132,12 +132,36 @@ asyncio.run(call_async_add_func())
 asyncio.run(call_async_add_tool())
 ```
 
+## 认证头
+
+???+ note "变更日志"
+    新增于版本：0.13.x
+
+对于需要认证的 MCP 服务器（如位于 API 网关或 OAuth 代理后面的服务器），可通过 `headers` 参数传递自定义 HTTP 头：
+
+```python
+registry.register_from_mcp(
+    "https://mcp.example.com/mcp",
+    headers={"Authorization": "Bearer sk-your-token"},
+)
+
+# 异步注册同样支持
+await registry.register_from_mcp_async(
+    "https://mcp.example.com/mcp",
+    headers={"Authorization": "Bearer sk-your-token"},
+)
+```
+
+Headers 会同时转发到初始工具发现连接和用于工具调用的持久连接。此功能仅适用于基于 HTTP 的传输方式（streamable-http、SSE）——stdio 传输不使用 HTTP 头。
+
 ## 持久连接
 
 ???+ note "变更日志"
-    新增于版本：0.7.0
+    新增于版本：0.7.0。同步模式修复于 0.13.x（#211）。
 
 默认情况下，MCP 连接现在是**持久的**——与 MCP 服务器的连接在多次工具调用之间保持打开状态，避免了重复握手的开销。这由内部的 `MCPConnectionManager` 管理。
+
+同步和异步调用共享相同的持久连接逻辑。在同步模式下，`MCPConnectionManager` 会惰性启动一个后台守护线程及其 event loop，保持 MCP 传输跨调用存活。
 
 ### 上下文管理器用法
 

@@ -52,8 +52,13 @@ hide:
     - `build_expanded_user_message` → `build_multimodal_user_message`
     - 旧名称保留为 deprecated alias 并发出 `DeprecationWarning`。
 
+### 新增
+
+- **`register_from_mcp` 新增 `headers` 参数**（#212）：支持向 SSE 或 streamable-http 传输的 MCP 服务器传递自定义 HTTP 头（如 `Authorization: Bearer ...`）。`register_from_mcp()` 和 `register_from_mcp_async()` 均可使用。
+
 ### 修复
 
+- **同步模式下持久 MCP 连接断开**（#211）：之前每次同步工具调用都会创建并销毁一个临时 event loop，导致绑定在旧 loop 上的持久 MCP 传输被杀死。`MCPConnectionManager` 现在在首次同步调用时惰性启动一个后台守护线程，保持 event loop 持续运行，连接跨调用保持存活。异步调用不受影响。
 - MCP/OpenAPI 包装器现在通过 `__getstate__`/`__setstate__` 支持 cloudpickle 序列化（#189）。
 - 修复 `integrations/openapi/utils.py` 中的 `ty` 类型错误——`headers.get()` 空值保护。
 - **`convert_tool_calls()` 参数丢失**（#205）：传入已归一化的 `ToolCall` 不再重新经过 provider 检测解析，之前会导致 arguments 丢失。
@@ -61,6 +66,7 @@ hide:
 ### 内部
 
 - 更新 vendored `httpclient` 模块 0.4.1 → 0.4.4（zerodep）。
+- 更新 vendored `httpserver` 模块 0.1.0 → 0.2.1（zerodep）。
 
 ## [0.12.0] - 2026-06-26
 
