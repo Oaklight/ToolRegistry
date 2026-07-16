@@ -290,3 +290,126 @@ class TestToolRegistryMCPIntegration:
         assert len(reg._mcp_integrations) == 1
         await reg.close_async()
         assert len(reg._mcp_integrations) == 0
+
+
+# ---------------------------------------------------------------------------
+# Sync-mode persistent connection tests (issue #211)
+# ---------------------------------------------------------------------------
+
+
+class TestMCPConnectionManagerSyncLoop:
+    """Tests for the background event loop thread used by sync callers."""
+
+    def test_sync_loop_starts_lazily(self):
+        """Background thread should not exist until call_tool_sync is used."""
+        mgr = MCPConnectionManager("http://localhost:9999/mcp")
+        assert mgr._sync_loop is None
+        assert mgr._sync_thread is None
+
+    def test_close_sync_without_loop(self):
+        """close_sync() should be safe when no sync loop was started."""
+        mgr = MCPConnectionManager("http://localhost:9999/mcp")
+        mgr.close_sync()
+
+    def test_sync_multiple_calls_reuse_connection(self):
+        """Sync tool calls should reuse the persistent connection (no reconnect)."""
+        config = {
+            "command": sys.executable,
+            "args": [_SERVER_SCRIPT, "--transport", "stdio"],
+        }
+        mgr = MCPConnectionManager(config, persistent=True)
+        try:
+            r1 = mgr.call_tool_sync("add", {"a": 1, "b": 2})
+            assert mgr._sync_loop is not None
+            assert mgr._sync_thread is not None
+            assert mgr._sync_thread.is_alive()
+            assert mgr.is_connected
+
+            r2 = mgr.call_tool_sync("add", {"a": 10, "b": 20})
+            assert mgr.is_connected
+
+            assert json.loads(r1.content[0].text) == {"result": 3}
+            assert json.loads(r2.content[0].text) == {"result": 30}
+        finally:
+            mgr.close_sync()
+
+        assert mgr._sync_loop is None
+        assert mgr._sync_thread is None
+
+    def test_close_sync_stops_thread(self):
+        """close_sync() should stop the background thread and close the loop."""
+        config = {
+            "command": sys.executable,
+            "args": [_SERVER_SCRIPT, "--transport", "stdio"],
+        }
+        mgr = MCPConnectionManager(config, persistent=True)
+        mgr.call_tool_sync("echo", {"message": "hi"})
+        thread = mgr._sync_thread
+        assert thread is not None and thread.is_alive()
+
+        mgr.close_sync()
+        assert not thread.is_alive()
+        assert mgr._sync_loop is None
+
+    def test_pickling_drops_sync_loop(self):
+        """Pickle round-trip should drop sync loop state."""
+        import pickle
+
+        mgr = MCPConnectionManager("http://localhost:9999/mcp")
+        data = pickle.dumps(mgr)
+        restored = pickle.loads(data)
+        assert restored._sync_loop is None
+        assert restored._sync_thread is None
+
+
+class TestToolRegistrySyncMCPIntegration:
+    """End-to-end sync-mode MCP integration tests (issue #211)."""
+
+    def test_sync_register_and_call(self):
+        """register_from_mcp + invoke should work without reconnecting."""
+        config = {
+            "command": sys.executable,
+            "args": [_SERVER_SCRIPT, "--transport", "stdio"],
+        }
+        with ToolRegistry() as reg:
+            reg.register_from_mcp(config, persistent=True)
+            assert "add" in reg
+            assert "echo" in reg
+
+            r1 = reg.invoke("add", {"a": 5, "b": 3})
+            r2 = reg.invoke("add", {"a": 10, "b": 1})
+            assert r1 == '{"result": 8}'
+            assert r2 == '{"result": 11}'
+
+    def test_sync_register_non_persistent(self):
+        """Non-persistent mode should still work in sync."""
+        config = {
+            "command": sys.executable,
+            "args": [_SERVER_SCRIPT, "--transport", "stdio"],
+        }
+        with ToolRegistry() as reg:
+            reg.register_from_mcp(config, persistent=False)
+            assert "echo" in reg
+            result = reg.invoke("echo", {"message": "hello"})
+            assert result == "hello"
+
+    def test_sync_close_cleans_up(self):
+        """close() should clean up MCP integrations and background threads."""
+        config = {
+            "command": sys.executable,
+            "args": [_SERVER_SCRIPT, "--transport", "stdio"],
+        }
+        reg = ToolRegistry()
+        reg.register_from_mcp(config, persistent=True)
+        assert len(reg._mcp_integrations) == 1
+
+        reg.invoke("echo", {"message": "test"})
+
+        connections = list(reg._mcp_integrations[0]._connections)
+        threads = [c._sync_thread for c in connections if c._sync_thread]
+        assert len(threads) > 0
+
+        reg.close()
+        assert len(reg._mcp_integrations) == 0
+        for t in threads:
+            assert not t.is_alive()

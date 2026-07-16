@@ -1,4 +1,3 @@
-import asyncio
 import json
 import logging
 import random
@@ -209,11 +208,12 @@ class ToolRegistry(
 
     def close(self) -> None:
         """Close all persistent connections (sync)."""
-        loop = asyncio.new_event_loop()
-        try:
-            loop.run_until_complete(self.close_async())
-        finally:
-            loop.close()
+        for integration in self._mcp_integrations:
+            integration.close_sync()
+        self._mcp_integrations.clear()
+        for integration in self._openapi_integrations:
+            integration.close()
+        self._openapi_integrations.clear()
 
     async def __aenter__(self) -> "ToolRegistry":
         return self

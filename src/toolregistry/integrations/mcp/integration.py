@@ -56,6 +56,10 @@ class MCPToolWrapper(BaseToolWrapper):
     def call_sync(self, *args: Any, **kwargs: Any) -> Any:
         """Synchronous implementation of MCP tool call.
 
+        Delegates to the connection manager's ``call_tool_sync`` which
+        runs the coroutine on a persistent background event loop,
+        keeping the MCP transport alive across calls.
+
         Args:
             args (Any): Positional arguments to pass to the tool.
             kwargs (Any): Keyword arguments to pass to the tool.
@@ -64,16 +68,21 @@ class MCPToolWrapper(BaseToolWrapper):
             Any: Result from tool execution.
 
         Raises:
-            ValueError: If URL or name not set.
+            ValueError: If name not set.
             Exception: If tool execution fails.
         """
-        kwargs = self._process_args(*args, **kwargs)
+        if not self.name:
+            raise ValueError("Tool name must be set before calling")
 
-        loop = asyncio.new_event_loop()
-        try:
-            return loop.run_until_complete(self.call_async(**kwargs))
-        finally:
-            loop.close()
+        kwargs = self._process_args(*args, **kwargs)
+        validated_params: dict[str, Any] = {}
+        if self.params:
+            for param_name in self.params:
+                if param_name in kwargs:
+                    validated_params[param_name] = kwargs[param_name]
+
+        result = self._connection.call_tool_sync(self.name, validated_params)
+        return self._post_process_result(result)
 
     async def call_async(self, *args: Any, **kwargs: Any) -> Any:
         """Async implementation of MCP tool call.
@@ -375,7 +384,17 @@ class MCPIntegration:
             loop.close()
 
     async def close(self) -> None:
-        """Close all persistent connections."""
+        """Close all persistent connections (async)."""
         for connection in self._connections:
             await connection.close()
+        self._connections.clear()
+
+    def close_sync(self) -> None:
+        """Close all persistent connections (sync).
+
+        Shuts down background loop threads without requiring an
+        event loop in the calling thread.
+        """
+        for connection in self._connections:
+            connection.close_sync()
         self._connections.clear()
