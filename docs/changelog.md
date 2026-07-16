@@ -16,6 +16,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-07-16
+
 ### Added
 
 - **Programmatic Tool Calling (PTC)**: `registry.ptc.enable()` registers a `programmatic_tool_call` tool that lets LLMs write Python code with registered tools callable in the namespace.
@@ -30,6 +32,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **`ToolMetadata.force_thread`**: Forces ThreadBackend for tools that need main-process access (e.g. PTC tool with `registry.invoke()` callbacks).
 - **`runtimes/` bridge layer**: `ToolProjection`, `DirectProjection`, `validate_namespace()`, `namespace_to_callables()` for bridging Tool objects to codecell.
 - `codecell>=0.2.1` as optional `[ptc]` dependency.
+- **`headers` parameter for `register_from_mcp`** (#212): pass custom HTTP headers (e.g. `Authorization: Bearer ...`) to MCP servers using SSE or streamable-http transports. Available on both `register_from_mcp()` and `register_from_mcp_async()`.
 
 ### Changed
 
@@ -52,16 +55,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
     - `build_expanded_user_message` → `build_multimodal_user_message`
     - Old names preserved as deprecated aliases with `DeprecationWarning`.
 
-### Added
-
-- **`headers` parameter for `register_from_mcp`** (#212): pass custom HTTP headers (e.g. `Authorization: Bearer ...`) to MCP servers using SSE or streamable-http transports. Available on both `register_from_mcp()` and `register_from_mcp_async()`.
-
 ### Fixed
 
 - **Persistent MCP connection breaks in sync mode** (#211): each sync tool call created and destroyed an ephemeral event loop, killing the persistent MCP transport bound to the previous loop. `MCPConnectionManager` now lazily starts a daemon thread with a persistent event loop on first sync call, keeping the connection alive across calls. Async callers are unaffected.
 - MCP/OpenAPI wrappers now survive cloudpickle serialization via `__getstate__`/`__setstate__` (#189).
 - Fix `ty` type error in `integrations/openapi/utils.py` — `headers.get()` None guard.
 - **`convert_tool_calls()` argument loss** (#205): passing an already-normalized `ToolCall` no longer re-parses through provider detection, which was losing arguments.
+
+### Dependencies
+
+- Bump `llm-rosetta` minimum from `>=0.5.1,<0.7.0` to `>=0.7.1,<0.8.0`.
 
 ### Internal
 
