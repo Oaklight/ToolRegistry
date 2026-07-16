@@ -82,6 +82,7 @@ plugins:
           - architecture/overview.md
           - usage/concurrency_modes.md
           - usage/namespace.md
+          - usage/integrations/native.md
           - usage/integrations/class.md
           - usage/integrations/hub.md
           - usage/integrations/mcp.md
@@ -191,6 +192,7 @@ nav:
           - Execution Modes: usage/concurrency_modes.md
           - Namespace: usage/namespace.md
       - Integrations:
+          - Native Python: usage/integrations/native.md
           - Class-based Tools: usage/integrations/class.md
           - MCP Tools: usage/integrations/mcp.md
           - OpenAPI Tools: usage/integrations/openapi.md
