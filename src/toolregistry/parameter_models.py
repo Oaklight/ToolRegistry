@@ -195,6 +195,13 @@ def _simplify_nullable_schemas(schema: dict[str, Any]) -> dict[str, Any]:
 
     This function mutates *schema* in place and returns it.
 
+    .. note::
+
+       Earlier versions added ``"nullable": True`` to simplified
+       properties.  That key is not part of standard JSON Schema
+       draft 2020-12 and is rejected by many LLM providers
+       (Anthropic, Vertex AI).  It is no longer emitted.
+
     Args:
         schema: A JSON Schema dict (output of ``model_json_schema()``).
 
@@ -220,7 +227,6 @@ def _simplify_nullable_schemas(schema: dict[str, Any]) -> dict[str, Any]:
             # Multi-type nullable: [{type: T1}, {type: T2}, {type: null}]
             # → anyOf: [{type: T1}, {type: T2}] (null branch removed)
             prop_schema["anyOf"] = non_null
-        prop_schema["nullable"] = True
 
     return schema
 

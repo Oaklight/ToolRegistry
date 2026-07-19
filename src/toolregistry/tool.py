@@ -386,6 +386,11 @@ class Tool(BaseModel):
             props.pop("toolcall_reason", None)
         return params
 
+    #: Schema keys stripped during ``get_schema()`` sanitization.
+    #: ``title`` and ``nullable`` are Pydantic v2 artifacts that most LLM
+    #: providers either reject or misinterpret.
+    _EXTRA_STRIP_KEYS: set[str] = {"title", "nullable"}
+
     def get_schema(
         self,
         api_format: API_FORMATS = "openai-chat",
@@ -397,6 +402,12 @@ class Tool(BaseModel):
         All formats are produced via llm-rosetta converters, which also
         apply schema sanitization (stripping unsupported JSON Schema
         keywords like ``$ref``, ``$schema``, ``anyOf``, etc.).
+
+        Before conversion, the parameter schema is run through
+        :func:`~toolregistry._vendor.jsonschema.flatten_schema` to
+        resolve ``$ref``, merge ``allOf``, collapse ``anyOf``/``oneOf``
+        nullable patterns, and strip Pydantic v2 artifacts (``title``,
+        ``nullable``) that most LLM providers reject.
 
         Args:
             api_format: Target API format. One of ``"openai-chat"``,
@@ -412,6 +423,7 @@ class Tool(BaseModel):
         """
         from .llm._rosetta import _make_ir_tool_definition
         from .llm.tool_calls import _normalize_api_format
+        from ._vendor.jsonschema import flatten_schema
 
         api_format = _normalize_api_format(api_format)
 
@@ -429,6 +441,12 @@ class Tool(BaseModel):
             if should_include_reason
             else self._parameters_without_toolcall_reason()
         )
+
+        # Sanitize: resolve $ref, merge allOf, collapse anyOf/oneOf nullable
+        # patterns, and strip Pydantic v2 artifacts (title, nullable) that
+        # LLM providers reject or misinterpret.
+        params = flatten_schema(params, strip_keys=self._EXTRA_STRIP_KEYS)
+
         ir_tool = _make_ir_tool_definition(self.name, self.description, params)
 
         if api_format == "rosetta-ir":
