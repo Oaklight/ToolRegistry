@@ -101,7 +101,7 @@ def _detect_format(path: Path) -> Literal["jsonc", "yaml"]:
 def _parse_file(path: Path, fmt: Literal["jsonc", "yaml"]) -> dict[str, Any]:
     text = path.read_text(encoding="utf-8")
     if fmt == "jsonc":
-        from .._vendor.jsonc import loads as jsonc_loads
+        from .._vendor.jsonx import loads as jsonc_loads
 
         data = jsonc_loads(text)
     else:
