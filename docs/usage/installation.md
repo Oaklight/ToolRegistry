@@ -16,6 +16,9 @@ This installs the core functionality needed for basic tool registration and exec
 
 ToolRegistry supports various integrations that require additional dependencies. You can install these using the following commands:
 
+!!! tip
+    **zsh users** (default on macOS): wrap the package name in quotes, e.g. `pip install 'toolregistry[mcp]'` — zsh treats `[]` as glob patterns.
+
 ### MCP Support
 
 For Model Context Protocol (MCP) integration:
