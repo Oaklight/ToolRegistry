@@ -16,6 +16,9 @@ pip install toolregistry
 
 ToolRegistry 支持各种需要额外依赖的集成。您可以使用以下命令安装这些依赖：
 
+!!! tip
+    **zsh 用户**（macOS 默认 shell）：需要用引号包裹包名，例如 `pip install 'toolregistry[mcp]'` — zsh 会将 `[]` 解释为通配符。
+
 ### MCP 支持
 
 用于模型上下文协议 (MCP) 集成：
