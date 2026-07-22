@@ -298,21 +298,17 @@ class TestToolRegistryMCPIntegration:
 
 
 class TestMCPConnectionManagerSyncLoop:
-    """Tests for the background event loop thread used by sync callers."""
+    """Tests for sync tool calls via the shared AsyncRuntime."""
 
-    def test_sync_loop_starts_lazily(self):
-        """Background thread should not exist until call_tool_sync is used."""
-        mgr = MCPConnectionManager("http://localhost:9999/mcp")
-        assert mgr._sync_loop is None
-        assert mgr._sync_thread is None
-
-    def test_close_sync_without_loop(self):
-        """close_sync() should be safe when no sync loop was started."""
+    def test_close_sync_without_prior_calls(self):
+        """close_sync() should be safe when no sync calls were made."""
         mgr = MCPConnectionManager("http://localhost:9999/mcp")
         mgr.close_sync()
 
     def test_sync_multiple_calls_reuse_connection(self):
         """Sync tool calls should reuse the persistent connection (no reconnect)."""
+        from toolregistry._async_runtime import AsyncRuntime
+
         config = {
             "command": sys.executable,
             "args": [_SERVER_SCRIPT, "--transport", "stdio"],
@@ -320,9 +316,9 @@ class TestMCPConnectionManagerSyncLoop:
         mgr = MCPConnectionManager(config, persistent=True)
         try:
             r1 = mgr.call_tool_sync("add", {"a": 1, "b": 2})
-            assert mgr._sync_loop is not None
-            assert mgr._sync_thread is not None
-            assert mgr._sync_thread.is_alive()
+            # Shared runtime loop should be running
+            assert AsyncRuntime._loop is not None
+            assert AsyncRuntime._loop.is_running()
             assert mgr.is_connected
 
             r2 = mgr.call_tool_sync("add", {"a": 10, "b": 20})
@@ -333,33 +329,28 @@ class TestMCPConnectionManagerSyncLoop:
         finally:
             mgr.close_sync()
 
-        assert mgr._sync_loop is None
-        assert mgr._sync_thread is None
-
-    def test_close_sync_stops_thread(self):
-        """close_sync() should stop the background thread and close the loop."""
+    def test_close_sync_cleans_up_connection(self):
+        """close_sync() should close the MCP client."""
         config = {
             "command": sys.executable,
             "args": [_SERVER_SCRIPT, "--transport", "stdio"],
         }
         mgr = MCPConnectionManager(config, persistent=True)
         mgr.call_tool_sync("echo", {"message": "hi"})
-        thread = mgr._sync_thread
-        assert thread is not None and thread.is_alive()
+        assert mgr.is_connected
 
         mgr.close_sync()
-        assert not thread.is_alive()
-        assert mgr._sync_loop is None
+        assert not mgr.is_connected
 
-    def test_pickling_drops_sync_loop(self):
-        """Pickle round-trip should drop sync loop state."""
+    def test_pickling_drops_connection_state(self):
+        """Pickle round-trip should drop live connection state."""
         import pickle
 
         mgr = MCPConnectionManager("http://localhost:9999/mcp")
         data = pickle.dumps(mgr)
         restored = pickle.loads(data)
-        assert restored._sync_loop is None
-        assert restored._sync_thread is None
+        assert restored._client is None
+        assert restored._transport == "http://localhost:9999/mcp"
 
 
 class TestToolRegistrySyncMCPIntegration:
@@ -394,7 +385,7 @@ class TestToolRegistrySyncMCPIntegration:
             assert result == "hello"
 
     def test_sync_close_cleans_up(self):
-        """close() should clean up MCP integrations and background threads."""
+        """close() should clean up MCP integrations and connections."""
         config = {
             "command": sys.executable,
             "args": [_SERVER_SCRIPT, "--transport", "stdio"],
@@ -406,10 +397,53 @@ class TestToolRegistrySyncMCPIntegration:
         reg.invoke("echo", {"message": "test"})
 
         connections = list(reg._mcp_integrations[0]._connections)
-        threads = [c._sync_thread for c in connections if c._sync_thread]
-        assert len(threads) > 0
+        assert len(connections) > 0
 
         reg.close()
         assert len(reg._mcp_integrations) == 0
-        for t in threads:
-            assert not t.is_alive()
+        for c in connections:
+            assert not c.is_connected
+
+    def test_sync_multiple_registrations_shared_loop(self):
+        """Multiple sync registrations should share a loop (issue #217).
+
+        Previously each register_mcp_tools() created and destroyed its
+        own event loop, which polluted anyio process-level state and
+        caused CancelledError on the second registration.
+        """
+        config = {
+            "command": sys.executable,
+            "args": [_SERVER_SCRIPT, "--transport", "stdio"],
+        }
+        with ToolRegistry() as reg:
+            # First registration
+            reg.register_from_mcp(config, namespace="ns1", persistent=True)
+            assert "ns1-add" in reg
+
+            # Second registration — same server but different namespace.
+            # Before #217 this would raise CancelledError.
+            reg.register_from_mcp(config, namespace="ns2", persistent=True)
+            assert "ns2-add" in reg
+
+            # Both should work
+            r1 = reg.invoke("ns1-add", {"a": 1, "b": 2})
+            r2 = reg.invoke("ns2-add", {"a": 3, "b": 4})
+            assert r1 == '{"result": 3}'
+            assert r2 == '{"result": 7}'
+
+    def test_async_runtime_shared_across_registrations(self):
+        """All sync registrations share the same AsyncRuntime loop (#217)."""
+        from toolregistry._async_runtime import AsyncRuntime
+
+        config = {
+            "command": sys.executable,
+            "args": [_SERVER_SCRIPT, "--transport", "stdio"],
+        }
+        with ToolRegistry() as reg:
+            reg.register_from_mcp(config, namespace="a", persistent=True)
+            loop_after_first = AsyncRuntime.get_loop()
+            reg.register_from_mcp(config, namespace="b", persistent=True)
+            loop_after_second = AsyncRuntime.get_loop()
+            # Both registrations used the same loop
+            assert loop_after_first is loop_after_second
+            assert loop_after_first.is_running()
