@@ -1,4 +1,3 @@
-import asyncio
 from pathlib import Path
 from typing import Any
 from collections.abc import Callable
@@ -378,15 +377,13 @@ class MCPIntegration:
             headers (Optional[Dict[str, str]]): HTTP headers for SSE or
                 streamable-http transports (e.g. authentication).
         """
-        loop = asyncio.new_event_loop()
-        try:
-            loop.run_until_complete(
-                self.register_mcp_tools_async(
-                    transport, namespace, persistent, headers=headers
-                )
+        from ..._async_runtime import AsyncRuntime
+
+        AsyncRuntime.run_sync(
+            self.register_mcp_tools_async(
+                transport, namespace, persistent, headers=headers
             )
-        finally:
-            loop.close()
+        )
 
     async def close(self) -> None:
         """Close all persistent connections (async)."""

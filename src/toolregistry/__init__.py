@@ -1,3 +1,4 @@
+from ._async_runtime import AsyncRuntime
 from .admin import (
     AdminInfo,
     AdminServer,
@@ -27,6 +28,7 @@ from .tool import Tool, ToolMetadata, ToolTag
 from .tool_registry import ToolRegistry
 
 __all__ = [
+    "AsyncRuntime",
     "ErrorResult",
     "ResultList",
     "ToolCallResult",
