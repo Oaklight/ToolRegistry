@@ -73,6 +73,15 @@ class InlineBackend:
     backend suited to tools that are already isolated elsewhere
     (e.g. MCP servers, remote HTTP APIs), where pooling or pickling
     the target would be wrong or impossible.
+
+    Note:
+        A *bare* async callable (one without a ``call_sync`` method) is
+        driven via ``asyncio.run``, which cannot run while an event loop
+        is already active in the calling thread.  Submitting such a
+        callable from inside a running loop raises ``RuntimeError`` with
+        a clear message — call the coroutine's async path directly
+        instead.  Tool wrappers (``BaseToolWrapper``) expose
+        ``call_sync``/``call_async`` and are unaffected.
     """
 
     def submit(
@@ -83,6 +92,9 @@ class InlineBackend:
         execution_id: str | None = None,
         timeout: float | None = None,
     ) -> ExecutionHandle:
+        # ``timeout`` is part of the backend interface but has no effect
+        # here: inline execution is eager and synchronous, so there is
+        # no pending future to time out against.
         exec_id = execution_id or uuid.uuid4().hex
 
         # Wrap bare async functions so they can run inline.  Tool
@@ -93,7 +105,16 @@ class InlineBackend:
             async_fn = fn
 
             def _sync_wrapper(**kw):  # type: ignore[no-untyped-def]
-                return asyncio.run(async_fn(**kw))
+                try:
+                    asyncio.get_running_loop()
+                except RuntimeError:
+                    return asyncio.run(async_fn(**kw))
+                raise RuntimeError(
+                    "InlineBackend cannot run a bare async callable while an "
+                    "event loop is already running in this thread. Await the "
+                    "coroutine directly (e.g. via the tool's async path) "
+                    "instead of submitting it to InlineBackend."
+                )
 
             fn = _sync_wrapper
 
