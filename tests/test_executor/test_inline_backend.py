@@ -88,3 +88,31 @@ class TestInlineBackend:
     def test_shutdown_noop(self):
         backend = InlineBackend()
         backend.shutdown()  # should not raise
+
+    def test_bare_async_from_sync_context_runs(self):
+        """A bare async callable runs fine when no loop is active."""
+        backend = InlineBackend()
+
+        async def double(x: int) -> int:
+            return x * 2
+
+        handle = backend.submit(double, {"x": 21})
+        assert handle.result() == 42
+
+    @pytest.mark.asyncio
+    async def test_bare_async_from_running_loop_raises_clear_error(self):
+        """Submitting a bare async callable inside a running loop raises.
+
+        InlineBackend drives bare coroutines via ``asyncio.run``, which
+        cannot run under an active loop.  It should fail fast with a
+        clear message rather than an opaque RuntimeError.
+        """
+        backend = InlineBackend()
+
+        async def double(x: int) -> int:
+            return x * 2
+
+        # The exception is captured at submit and re-raised on result().
+        handle = backend.submit(double, {"x": 21})
+        with pytest.raises(RuntimeError, match="event loop is already running"):
+            handle.result()

@@ -2,6 +2,7 @@
 
 import asyncio
 import time
+from collections.abc import Iterator
 
 import pytest
 
@@ -25,57 +26,52 @@ def _slow() -> str:
     return "done"
 
 
+def _make_backend(name: str):
+    if name == "thread":
+        return ThreadBackend(max_workers=2)
+    if name == "process":
+        return ProcessPoolBackend(max_workers=2)
+    return InlineBackend()
+
+
+@pytest.fixture(params=["thread", "process", "inline"])
+def backend(request) -> Iterator:
+    b = _make_backend(request.param)
+    try:
+        yield b
+    finally:
+        b.shutdown(wait=False)
+
+
+# Pool-only backends: those with a pending future that a timeout can
+# race against. InlineBackend runs eagerly/synchronously, so there is
+# no future to time out.
+@pytest.fixture(params=["thread", "process"])
+def pool_backend(request) -> Iterator:
+    b = _make_backend(request.param)
+    try:
+        yield b
+    finally:
+        b.shutdown(wait=False)
+
+
 class TestResultAsync:
     @pytest.mark.asyncio
-    async def test_thread_result_async(self):
-        backend = ThreadBackend(max_workers=2)
-        try:
-            handle = backend.submit(_add, {"x": 3, "y": 4})
-            assert await handle.result_async() == 7
-        finally:
-            backend.shutdown()
+    async def test_result_async_returns_value(self, backend):
+        handle = backend.submit(_add, {"x": 3, "y": 4})
+        assert await handle.result_async() == 7
 
     @pytest.mark.asyncio
-    async def test_process_result_async(self):
-        backend = ProcessPoolBackend(max_workers=2)
-        try:
-            handle = backend.submit(_add, {"x": 10, "y": 20})
-            assert await handle.result_async() == 30
-        finally:
-            backend.shutdown()
-
-    @pytest.mark.asyncio
-    async def test_inline_result_async(self):
-        backend = InlineBackend()
-        handle = backend.submit(_add, {"x": 1, "y": 2})
-        assert await handle.result_async() == 3
-
-    @pytest.mark.asyncio
-    async def test_thread_result_async_propagates_exception(self):
-        backend = ThreadBackend(max_workers=2)
-        try:
-            handle = backend.submit(_fail, {})
-            with pytest.raises(ValueError, match="boom"):
-                await handle.result_async()
-        finally:
-            backend.shutdown()
-
-    @pytest.mark.asyncio
-    async def test_inline_result_async_propagates_exception(self):
-        backend = InlineBackend()
+    async def test_result_async_propagates_exception(self, backend):
         handle = backend.submit(_fail, {})
         with pytest.raises(ValueError, match="boom"):
             await handle.result_async()
 
     @pytest.mark.asyncio
-    async def test_thread_result_async_timeout(self):
-        backend = ThreadBackend(max_workers=2)
-        try:
-            handle = backend.submit(_slow, {}, timeout=0.05)
-            with pytest.raises(TimeoutError):
-                await handle.result_async()
-        finally:
-            backend.shutdown(wait=False)
+    async def test_result_async_timeout(self, pool_backend):
+        handle = pool_backend.submit(_slow, {}, timeout=0.05)
+        with pytest.raises(TimeoutError):
+            await handle.result_async()
 
     @pytest.mark.asyncio
     async def test_result_async_does_not_block_loop(self):
