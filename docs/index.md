@@ -31,35 +31,39 @@ hide:
 
 ## 选择你的路径
 
-<div class="tr-grid" markdown>
+<div class="grid cards" markdown>
 
-<div class="tr-card" markdown>
-### 用 Python 构建
-注册普通 Python callable，并使用验证、日志、权限和并发控制来执行工具。
+-   :material-language-python:{ .lg .middle } **用 Python 构建**
 
-[从这里开始 →](usage/basics.md)
-</div>
+    ---
 
-<div class="tr-card" markdown>
-### 连接 LLM Provider
-为 OpenAI、Anthropic、Gemini 和 OpenAI-compatible API 生成 schema 并恢复工具调用。
+    注册普通 Python callable，并使用验证、日志、权限和并发控制来执行工具。
 
-[函数调用 →](usage/function_calling.md)
-</div>
+    [:octicons-arrow-right-24: 从这里开始](usage/basics.md)
 
-<div class="tr-card" markdown>
-### 接入外部工具
-从 MCP server、OpenAPI spec、原生 Python class 以及未来更多 source adapter 导入工具。
+-   :material-robot:{ .lg .middle } **连接 LLM Provider**
 
-[集成指南 →](usage/integrations/mcp.md)
-</div>
+    ---
 
-<div class="tr-card" markdown>
-### 服务化注册表
-用 `toolregistry-server` 将同一份 registry 暴露为 OpenAPI 或 MCP，或直接使用 `toolregistry-hub` 的现成工具。
+    为 OpenAI、Anthropic、Gemini 和 OpenAI-compatible API 生成 schema 并恢复工具调用。
 
-[架构概览 →](architecture/overview.md)
-</div>
+    [:octicons-arrow-right-24: 函数调用](usage/function_calling.md)
+
+-   :material-puzzle:{ .lg .middle } **接入外部工具**
+
+    ---
+
+    从 MCP server、OpenAPI spec、原生 Python class 以及未来更多 source adapter 导入工具。
+
+    [:octicons-arrow-right-24: 集成指南](usage/integrations/mcp.md)
+
+-   :material-server-network:{ .lg .middle } **服务化注册表**
+
+    ---
+
+    用 `toolregistry-server` 将同一份 registry 暴露为 OpenAPI 或 MCP，或直接使用 `toolregistry-hub` 的现成工具。
+
+    [:octicons-arrow-right-24: 架构概览](architecture/overview.md)
 
 </div>
 
