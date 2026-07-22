@@ -125,7 +125,11 @@ class PtcTool:
 
             def _make_invoke_fn(tn: str) -> Callable[..., Any]:
                 def fn(**kwargs: Any) -> Any:
-                    return registry.invoke(tn, kwargs, invocation_id=invocation_id)
+                    # Use the raw path: LLM-authored PTC code composes tool
+                    # outputs as real Python values (e.g. ``s = add(...) + 1``)
+                    # and relies on exceptions, so it must not receive the
+                    # finalized Result that the public invoke() returns.
+                    return registry._invoke_raw(tn, kwargs, invocation_id=invocation_id)
 
                 return fn
 

@@ -130,6 +130,19 @@ class ToolMetadata(BaseModel):
     Reference: https://arxiv.org/abs/2601.18282
     """
 
+    natural_backend: Literal["inline", "thread", "process"] | None = None
+    """Preferred execution backend for this tool.
+
+    Resolved by ``ToolRegistry`` when no explicit ``execution_mode`` is
+    given by the caller. ``None`` (default) means the registry chooses:
+    single-tool ``invoke``/``ainvoke`` default to the inline backend,
+    while ``execute_tool_calls`` uses the registry's default mode.
+
+    Integration tools that are already isolated (MCP servers, remote
+    HTTP APIs) set this to ``"inline"`` because pooling or pickling
+    their transport would be wrong or impossible.
+    """
+
     @property
     def all_tags(self) -> set[str]:
         """Union of predefined and custom tags (all as str)."""

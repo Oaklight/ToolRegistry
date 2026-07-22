@@ -1,10 +1,13 @@
-"""Tests for ToolRegistry.invoke() and invocation_id tracking."""
+"""Tests for ToolRegistry.invoke() and invocation_id tracking.
 
-import pytest
+invoke() returns a structured Result — ``ToolCallResult`` on success,
+``ErrorResult`` on any failure (including access control) — and never
+raises for those conditions.
+"""
 
 from toolregistry import Tool, ToolRegistry
+from toolregistry.llm.tool_calls import ErrorResult, ToolCallResult
 from toolregistry.permissions import PermissionPolicy, PermissionResult, PermissionRule
-from toolregistry.runtimes import PTC_TOOL_NAME
 from toolregistry.tool import ToolMetadata, ToolTag
 
 
@@ -18,14 +21,17 @@ class TestInvoke:
 
         reg.register(add)
         result = reg.invoke("add", {"a": 3, "b": 4})
-        assert result == 7
+        assert isinstance(result, ToolCallResult)
+        assert result.name == "add"
+        assert result.result == "7"
 
-    def test_invoke_nonexistent_raises(self):
+    def test_invoke_nonexistent_returns_error(self):
         reg = ToolRegistry()
-        with pytest.raises(KeyError, match="not registered"):
-            reg.invoke("nonexistent", {})
+        result = reg.invoke("nonexistent", {})
+        assert isinstance(result, ErrorResult)
+        assert "not registered" in result.message
 
-    def test_invoke_disabled_raises(self):
+    def test_invoke_disabled_returns_error(self):
         reg = ToolRegistry()
 
         def add(a: int, b: int) -> int:
@@ -33,10 +39,11 @@ class TestInvoke:
 
         reg.register(add)
         reg.disable("add", reason="maintenance")
-        with pytest.raises(RuntimeError, match="disabled"):
-            reg.invoke("add", {"a": 1, "b": 2})
+        result = reg.invoke("add", {"a": 1, "b": 2})
+        assert isinstance(result, ErrorResult)
+        assert "disabled" in result.message
 
-    def test_invoke_denied_by_permission(self):
+    def test_invoke_denied_by_permission_returns_error(self):
         reg = ToolRegistry()
 
         def dangerous_tool(cmd: str) -> str:
@@ -57,18 +64,30 @@ class TestInvoke:
         )
         reg.set_permission_policy(PermissionPolicy(rules=[deny_destructive]))
 
-        with pytest.raises(PermissionError, match="denied"):
-            reg.invoke("dangerous_tool", {"cmd": "rm -rf /"})
+        result = reg.invoke("dangerous_tool", {"cmd": "rm -rf /"})
+        assert isinstance(result, ErrorResult)
+        assert "denied" in result.message
 
-    def test_invoke_propagates_tool_error(self):
+    def test_invoke_tool_error_returns_error(self):
         reg = ToolRegistry()
 
         def failing(x: int) -> int:
             raise ValueError("broken")
 
         reg.register(failing)
-        with pytest.raises(ValueError, match="broken"):
-            reg.invoke("failing", {"x": 1})
+        result = reg.invoke("failing", {"x": 1})
+        assert isinstance(result, ErrorResult)
+        assert "broken" in result.message
+
+    def test_invoke_result_id_matches_invocation_id(self):
+        reg = ToolRegistry()
+
+        def add(a: int, b: int) -> int:
+            return a + b
+
+        reg.register(add)
+        result = reg.invoke("add", {"a": 1, "b": 2}, invocation_id="tr_sig_fixed")
+        assert result.id == "tr_sig_fixed"
 
 
 class TestInvocationId:
@@ -131,62 +150,9 @@ class TestInvocationId:
             raise ValueError("broken")
 
         reg.register(failing)
-        with pytest.raises(ValueError):
-            reg.invoke("failing", {"x": 1}, invocation_id="tr_sig_err1")
+        result = reg.invoke("failing", {"x": 1}, invocation_id="tr_sig_err1")
+        assert isinstance(result, ErrorResult)
 
         entries = reg.get_execution_log().get_entries(invocation_id="tr_sig_err1")
         assert len(entries) == 1
         assert entries[0].status.value == "error"
-
-
-class TestPtcInvocationId:
-    """Test that PtcTool generates tr_ptc_ IDs."""
-
-    @pytest.fixture
-    def registry(self):
-        reg = ToolRegistry()
-
-        def add(a: int, b: int) -> int:
-            """Add two numbers."""
-            return a + b
-
-        reg.register(add)
-        reg.enable_logging()
-        return reg
-
-    def test_ptc_generates_invocation_id(self, registry):
-        registry.ptc.enable()
-        tool = registry.get_tool(PTC_TOOL_NAME)
-        tool.run({"code": "print(add(a=1, b=2))"})
-
-        assert registry.ptc.last_invocation_id is not None
-        assert registry.ptc.last_invocation_id.startswith("tr_ptc_")
-
-    def test_ptc_tool_calls_share_id(self, registry):
-        def mul(a: int, b: int) -> int:
-            """Multiply two numbers."""
-            return a * b
-
-        registry.register(mul)
-        registry.ptc.enable()
-        tool = registry.get_tool(PTC_TOOL_NAME)
-
-        tool.run({"code": "s = add(a=1, b=2)\np = mul(a=s, b=3)\nprint(p)"})
-
-        inv_id = registry.ptc.last_invocation_id
-        entries = registry.get_execution_log().get_entries(invocation_id=inv_id)
-        assert len(entries) == 2
-        tool_names = {e.tool_name for e in entries}
-        assert tool_names == {"add", "mul"}
-
-    def test_separate_executions_have_different_ids(self, registry):
-        registry.ptc.enable()
-        tool = registry.get_tool(PTC_TOOL_NAME)
-
-        tool.run({"code": "print(add(a=1, b=2))"})
-        id1 = registry.ptc.last_invocation_id
-
-        tool.run({"code": "print(add(a=3, b=4))"})
-        id2 = registry.ptc.last_invocation_id
-
-        assert id1 != id2

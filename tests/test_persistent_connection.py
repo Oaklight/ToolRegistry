@@ -370,8 +370,8 @@ class TestToolRegistrySyncMCPIntegration:
 
             r1 = reg.invoke("add", {"a": 5, "b": 3})
             r2 = reg.invoke("add", {"a": 10, "b": 1})
-            assert r1 == '{"result": 8}'
-            assert r2 == '{"result": 11}'
+            assert r1.result == '{"result": 8}'
+            assert r2.result == '{"result": 11}'
 
     def test_sync_register_non_persistent(self):
         """Non-persistent mode should still work in sync."""
@@ -383,7 +383,7 @@ class TestToolRegistrySyncMCPIntegration:
             reg.register_from_mcp(config, persistent=False)
             assert "echo" in reg
             result = reg.invoke("echo", {"message": "hello"})
-            assert result == "hello"
+            assert result.result == "hello"
 
     def test_sync_multiple_registrations_shared_loop(self):
         """Multiple sequential sync registrations share one loop (#217).
@@ -409,8 +409,8 @@ class TestToolRegistrySyncMCPIntegration:
             # Both work and share the same runtime loop.
             r1 = reg.invoke("ns1-add", {"a": 1, "b": 2})
             r2 = reg.invoke("ns2-add", {"a": 3, "b": 4})
-            assert r1 == '{"result": 3}'
-            assert r2 == '{"result": 7}'
+            assert r1.result == '{"result": 3}'
+            assert r2.result == '{"result": 7}'
 
             loop = AsyncRuntime.get_loop()
             assert loop.is_running()

@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 from collections.abc import Callable
 
-from .executor import ProcessPoolBackend, ThreadBackend
+from .executor import InlineBackend, ProcessPoolBackend, ThreadBackend
 from .tool import ToolTag
 from .llm.truncation import truncate_result
 from .llm.content_blocks import is_content_block_list
@@ -143,6 +143,7 @@ class ToolRegistry(
         self.name = name
         self._thread_backend = ThreadBackend()
         self._process_backend = ProcessPoolBackend()
+        self._inline_backend = InlineBackend()
         self._execution_mode: Literal["process", "thread"] = "process"
         self._default_max_result_size = default_max_result_size
         self._think_augment = think_augment
@@ -346,6 +347,45 @@ class ToolRegistry(
 
     # ============== Execution helpers (shared by invoke + execute_tool_calls) ==
 
+    def _resolve_backend(self, tool: Any, execution_mode: str | None = None) -> Any:
+        """Resolve the execution backend for a single tool.
+
+        This is the seam that decouples the calling interface from the
+        execution backend.  Resolution order:
+
+        1. Explicit caller ``execution_mode`` (``"thread"``/``"process"``).
+        2. The tool's ``metadata.natural_backend`` hint.
+        3. The inline backend (default for single-tool ``invoke``).
+
+        Future isolation backends (e.g. a sandbox) plug in here without
+        touching ``invoke``/``ainvoke``.
+
+        Args:
+            tool: The :class:`Tool` to execute.
+            execution_mode: Optional caller override.
+
+        Returns:
+            An execution backend instance.
+        """
+        if execution_mode == "thread":
+            return self._thread_backend
+        if execution_mode == "process":
+            return self._process_backend
+
+        # force_thread still wins until Phase 3 removes it (PTC needs the
+        # main process for registry.invoke() IPC callbacks).
+        metadata = getattr(tool, "metadata", None)
+        if metadata is not None and getattr(metadata, "force_thread", False):
+            return self._thread_backend
+
+        natural = getattr(metadata, "natural_backend", None) if metadata else None
+        if natural == "thread":
+            return self._thread_backend
+        if natural == "process":
+            return self._process_backend
+
+        return self._inline_backend
+
     def _check_tool_access(
         self,
         tool_name: str,
@@ -482,32 +522,47 @@ class ToolRegistry(
             )
 
     # ============== Execution ==============
-    def invoke(
+    def _prepare_call(
+        self,
+        tool_name: str,
+        kwargs: dict[str, Any],
+        invocation_id: str | None,
+    ) -> Any | _ToolError:
+        """Run access control for a single call.
+
+        Returns the :class:`Tool` when access is granted, or a
+        :class:`_ToolError` when the tool is missing, disabled, or denied
+        — so callers can produce an ``ErrorResult`` instead of raising.
+        """
+        try:
+            return self._check_tool_access(tool_name, kwargs, invocation_id)
+        except (KeyError, RuntimeError, PermissionError) as exc:
+            return _ToolError(
+                message=str(exc),
+                exception_type=type(exc).__qualname__,
+            )
+
+    def _invoke_raw(
         self,
         tool_name: str,
         kwargs: dict[str, Any],
         *,
         invocation_id: str | None = None,
+        execution_mode: Literal["thread", "process"] | None = None,
     ) -> Any:
-        """Execute a single tool with full pipeline (permissions, logging).
+        """Execute a single tool and return the **raw** result.
 
-        This is the canonical single-tool execution entry point.  It is
-        used by :class:`PtcTool` for IPC callbacks and can be
-        called directly for programmatic tool invocation.
+        Internal variant of :meth:`invoke` that runs the same pipeline
+        (permission check, backend seam, logging) but returns the tool's
+        raw Python value and **raises** on failure — instead of wrapping
+        into a ``Result``.
 
-        Args:
-            tool_name: Name of the registered tool.
-            kwargs: Keyword arguments to pass to the tool.
-            invocation_id: Optional ID to group related calls.  If
-                ``None``, a ``tr_sig_`` ID is auto-generated.
-
-        Returns:
-            The tool's return value.
+        Used by PTC, whose LLM-authored code composes tool outputs
+        naturally (e.g. ``s = add(a=1, b=2) + tax``) and therefore needs
+        real Python values, not finalized strings.
 
         Raises:
-            KeyError: If the tool is not registered.
-            PermissionError: If the tool is denied by permission policy.
-            RuntimeError: If the tool is disabled.
+            KeyError / RuntimeError / PermissionError: On access failure.
             Exception: Any exception raised by the tool itself.
         """
         from .utils import generate_invocation_id
@@ -515,11 +570,21 @@ class ToolRegistry(
         if invocation_id is None:
             invocation_id = generate_invocation_id("sig")
 
+        # Access control raises here (raw path), matching legacy invoke().
         tool_obj = self._check_tool_access(tool_name, kwargs, invocation_id)
+        backend = self._resolve_backend(tool_obj, execution_mode)
+        clean_kwargs = {k: v for k, v in kwargs.items() if k != "toolcall_reason"}
+        per_call_timeout = tool_obj.metadata.timeout if tool_obj.metadata else None
 
         start = time.perf_counter()
         try:
-            result = tool_obj.run(kwargs)
+            handle = backend.submit(
+                lambda **kw: tool_obj.run(kw),
+                clean_kwargs,
+                execution_id=invocation_id,
+                timeout=per_call_timeout,
+            )
+            result = handle.result()
             duration_ms = (time.perf_counter() - start) * 1000
             self._log_tool_result(
                 tool_name,
@@ -539,6 +604,262 @@ class ToolRegistry(
                 invocation_id=invocation_id,
             )
             raise
+
+    def invoke(
+        self,
+        tool_name: str,
+        kwargs: dict[str, Any],
+        *,
+        invocation_id: str | None = None,
+        execution_mode: Literal["thread", "process"] | None = None,
+    ) -> ToolCallResult | ErrorResult:
+        """Execute a single tool and return a structured result.
+
+        Canonical single-tool entry point.  Runs the full pipeline
+        (permissions, execution via the resolved backend, logging) and
+        returns a :class:`ToolCallResult` on success or an
+        :class:`ErrorResult` on any failure — including access-control
+        failures (missing/disabled/denied).  **Never raises** for those
+        conditions, mirroring :meth:`execute_tool_calls`.
+
+        Args:
+            tool_name: Name of the registered tool.
+            kwargs: Keyword arguments to pass to the tool.
+            invocation_id: Optional ID to group related calls.  If
+                ``None``, a ``tr_sig_`` ID is auto-generated and used as
+                the result ``id``.
+            execution_mode: Optional backend override
+                (``"thread"``/``"process"``).  Defaults to the tool's
+                natural backend (inline for most single calls).
+
+        Returns:
+            ``ToolCallResult`` on success, ``ErrorResult`` on failure.
+        """
+        from .utils import generate_invocation_id
+
+        if invocation_id is None:
+            invocation_id = generate_invocation_id("sig")
+
+        prepared = self._prepare_call(tool_name, kwargs, invocation_id)
+        if isinstance(prepared, _ToolError):
+            return ErrorResult(
+                id=invocation_id,
+                name=tool_name,
+                message=f"{prepared.exception_type}: {prepared.message}"
+                if prepared.exception_type
+                else prepared.message,
+            )
+
+        tool_obj = prepared
+        backend = self._resolve_backend(tool_obj, execution_mode)
+        clean_kwargs = {k: v for k, v in kwargs.items() if k != "toolcall_reason"}
+        per_call_timeout = tool_obj.metadata.timeout if tool_obj.metadata else None
+
+        start = time.perf_counter()
+        # Submit tool_obj.run so the sync path is forced regardless of any
+        # ambient event loop (BaseToolWrapper.__call__ would auto-select
+        # async based on a running loop).  The backend calls fn(**kwargs),
+        # so the thunk collects them back into the dict run() expects.
+        handle = backend.submit(
+            lambda **kw: tool_obj.run(kw),
+            clean_kwargs,
+            execution_id=invocation_id,
+            timeout=per_call_timeout,
+        )
+        outcome = self._collect_handle_result(handle, tool_name)
+        duration_ms = (time.perf_counter() - start) * 1000
+
+        if isinstance(outcome, _ToolError):
+            self._log_tool_result(
+                tool_name,
+                kwargs,
+                error=outcome,
+                duration_ms=duration_ms,
+                invocation_id=invocation_id,
+            )
+            return ErrorResult(
+                id=invocation_id,
+                name=tool_name,
+                message=f"{outcome.exception_type}: {outcome.message}"
+                if outcome.exception_type
+                else outcome.message,
+            )
+
+        self._log_tool_result(
+            tool_name,
+            kwargs,
+            result=outcome,
+            duration_ms=duration_ms,
+            invocation_id=invocation_id,
+        )
+        return ToolCallResult(id=invocation_id, name=tool_name, result=outcome)
+
+    async def _acheck_tool_access(
+        self,
+        tool_name: str,
+        kwargs: dict[str, Any],
+        invocation_id: str | None = None,
+    ):
+        """Async access control using :meth:`_aresolve_permission`.
+
+        Mirrors :meth:`_check_tool_access` but awaits async permission
+        handlers natively instead of bridging through a thread pool.
+
+        Returns the :class:`Tool` on success; raises ``KeyError`` /
+        ``RuntimeError`` / ``PermissionError`` on failure.
+        """
+        from .admin import ExecutionStatus
+
+        tool_obj = self.get_tool(tool_name)
+        if tool_obj is None:
+            raise KeyError(f"Tool '{tool_name}' is not registered")
+
+        if not self.is_enabled(tool_name):
+            reason = self.get_disable_reason(tool_name) or "Tool is disabled"
+            self._log_entry(
+                tool_name,
+                ExecutionStatus.DISABLED,
+                0.0,
+                kwargs,
+                error=reason,
+                invocation_id=invocation_id,
+            )
+            raise RuntimeError(f"Tool '{tool_name}' is disabled: {reason}")
+
+        decision = await self._aresolve_permission(tool_obj, kwargs)
+        if decision == PermissionResult.DENY:
+            self._log_entry(
+                tool_name,
+                ExecutionStatus.ERROR,
+                0.0,
+                kwargs,
+                error="Denied by permission policy",
+                invocation_id=invocation_id,
+            )
+            raise PermissionError(f"Tool '{tool_name}' denied by permission policy")
+
+        return tool_obj
+
+    async def _aprepare_call(
+        self,
+        tool_name: str,
+        kwargs: dict[str, Any],
+        invocation_id: str | None,
+    ) -> Any | _ToolError:
+        """Async access control returning ``Tool`` or ``_ToolError``."""
+        try:
+            return await self._acheck_tool_access(tool_name, kwargs, invocation_id)
+        except (KeyError, RuntimeError, PermissionError) as exc:
+            return _ToolError(
+                message=str(exc),
+                exception_type=type(exc).__qualname__,
+            )
+
+    async def ainvoke(
+        self,
+        tool_name: str,
+        kwargs: dict[str, Any],
+        *,
+        invocation_id: str | None = None,
+        execution_mode: Literal["thread", "process"] | None = None,
+    ) -> ToolCallResult | ErrorResult:
+        """Async counterpart to :meth:`invoke`.
+
+        For inline-resolved tools (the default, including MCP/OpenAPI),
+        awaits ``tool.arun()`` directly on the caller's loop — the tool's
+        async transport stays on the running loop without blocking it.
+        For thread/process backends, submits and awaits
+        ``handle.result_async()``.
+
+        Returns a :class:`ToolCallResult` on success or an
+        :class:`ErrorResult` on any failure.  **Never raises** for
+        access-control failures.
+
+        Args:
+            tool_name: Name of the registered tool.
+            kwargs: Keyword arguments to pass to the tool.
+            invocation_id: Optional grouping ID; auto-generated
+                (``tr_sig_``) when ``None`` and used as the result ``id``.
+            execution_mode: Optional backend override.
+
+        Returns:
+            ``ToolCallResult`` on success, ``ErrorResult`` on failure.
+        """
+        from .utils import generate_invocation_id
+
+        if invocation_id is None:
+            invocation_id = generate_invocation_id("sig")
+
+        prepared = await self._aprepare_call(tool_name, kwargs, invocation_id)
+        if isinstance(prepared, _ToolError):
+            return ErrorResult(
+                id=invocation_id,
+                name=tool_name,
+                message=f"{prepared.exception_type}: {prepared.message}"
+                if prepared.exception_type
+                else prepared.message,
+            )
+
+        tool_obj = prepared
+        backend = self._resolve_backend(tool_obj, execution_mode)
+        clean_kwargs = {k: v for k, v in kwargs.items() if k != "toolcall_reason"}
+        per_call_timeout = tool_obj.metadata.timeout if tool_obj.metadata else None
+
+        start = time.perf_counter()
+        outcome: Any
+        try:
+            if backend is self._inline_backend:
+                # Native async path: await on the caller's loop so the
+                # tool's transport (MCP/OpenAPI) stays non-blocking.
+                raw = await tool_obj.arun(clean_kwargs)
+                outcome = self._finalize_result(raw, tool_name)
+            else:
+                handle = backend.submit(
+                    lambda **kw: tool_obj.run(kw),
+                    clean_kwargs,
+                    execution_id=invocation_id,
+                    timeout=per_call_timeout,
+                )
+                raw = await handle.result_async()
+                outcome = self._finalize_result(raw, tool_name)
+        except TimeoutError:
+            outcome = _ToolError(
+                message=f"Error: Tool '{tool_name}' timed out",
+                exception_type="TimeoutError",
+                is_timeout=True,
+            )
+        except Exception as exc:
+            outcome = _ToolError(
+                message=f"Error executing {tool_name}: {exc!s}",
+                exception_type=type(exc).__qualname__,
+                traceback_str=tb_module.format_exc(),
+            )
+        duration_ms = (time.perf_counter() - start) * 1000
+
+        if isinstance(outcome, _ToolError):
+            self._log_tool_result(
+                tool_name,
+                kwargs,
+                error=outcome,
+                duration_ms=duration_ms,
+                invocation_id=invocation_id,
+            )
+            return ErrorResult(
+                id=invocation_id,
+                name=tool_name,
+                message=f"{outcome.exception_type}: {outcome.message}"
+                if outcome.exception_type
+                else outcome.message,
+            )
+
+        self._log_tool_result(
+            tool_name,
+            kwargs,
+            result=outcome,
+            duration_ms=duration_ms,
+            invocation_id=invocation_id,
+        )
+        return ToolCallResult(id=invocation_id, name=tool_name, result=outcome)
 
     def _finalize_result(self, result: Any, tool_name: str) -> str | list:
         """Convert a raw tool result to a string or content block list.

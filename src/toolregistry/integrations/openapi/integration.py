@@ -196,6 +196,7 @@ class OpenAPITool(Tool):
                 is_async=False,
                 source="openapi",
                 source_detail=source_detail,
+                natural_backend="inline",
             ),
         )
 

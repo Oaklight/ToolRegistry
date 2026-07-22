@@ -275,6 +275,7 @@ class MCPTool(Tool):
                 is_async=False,
                 source="mcp",
                 source_detail=source_detail,
+                natural_backend="inline",
             ),
         )
 
