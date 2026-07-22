@@ -100,27 +100,31 @@ class PermissionsMixin:
         will be performed on tool calls until a new policy is set."""
         self._permission_policy = None
 
-    def _resolve_permission(
+    def _evaluate_policy(
         self,
         tool: Tool,
         parameters: dict[str, Any],
-    ) -> PermissionResult:
-        """Evaluate the permission policy for a single tool call.
+    ) -> tuple[PermissionResult, Any, Any]:
+        """Evaluate the policy up to (but not including) handler dispatch.
 
-        Returns ``ALLOW`` when no policy is configured.
+        Emits the ``PERMISSION_DENIED`` / ``PERMISSION_ASKED`` events and
+        returns a tuple ``(result, handler, request)``:
 
-        Resolution order for ASK results:
-            1. Policy-level handler
-            2. Registry-level handler (``set_permission_handler``)
-            3. Policy fallback / registry fallback
+        - For ``ALLOW`` / ``DENY`` / a resolved fallback, ``result`` is a
+          terminal :class:`PermissionResult` and ``handler``/``request``
+          are ``None``.
+        - For ``ASK`` with a handler configured, ``result`` is ``ASK`` and
+          ``handler``/``request`` are populated so the caller can dispatch
+          synchronously or asynchronously.
+
+        Shared by :meth:`_resolve_permission` and
+        :meth:`_aresolve_permission` so the policy logic stays in one place.
         """
-        import asyncio
-
         from ..events import ChangeEvent, ChangeEventType
 
         policy = self._permission_policy
         if policy is None:
-            return PermissionResult.ALLOW
+            return PermissionResult.ALLOW, None, None
 
         outcome = policy.evaluate(tool, parameters)
 
@@ -137,7 +141,7 @@ class PermissionsMixin:
             reason = rule.reason
 
         if result == PermissionResult.ALLOW:
-            return PermissionResult.ALLOW
+            return PermissionResult.ALLOW, None, None
 
         if result == PermissionResult.DENY:
             self._emit_change(
@@ -148,7 +152,7 @@ class PermissionsMixin:
                     metadata={"rule_name": rule_name, "parameters": parameters},
                 )
             )
-            return PermissionResult.DENY
+            return PermissionResult.DENY, None, None
 
         # result == ASK — resolve via handler
         handler = policy.handler or self._permission_handler
@@ -174,11 +178,31 @@ class PermissionsMixin:
                 if policy.fallback != PermissionResult.ASK
                 else self._permission_fallback
             )
-            return fallback
+            return fallback, None, None
 
+        return PermissionResult.ASK, handler, request
+
+    def _resolve_permission(
+        self,
+        tool: Tool,
+        parameters: dict[str, Any],
+    ) -> PermissionResult:
+        """Evaluate the permission policy for a single tool call.
+
+        Returns ``ALLOW`` when no policy is configured.
+
+        Resolution order for ASK results:
+            1. Policy-level handler
+            2. Registry-level handler (``set_permission_handler``)
+            3. Policy fallback / registry fallback
+        """
+        import asyncio
         import inspect
-
         from typing import cast
+
+        result, handler, request = self._evaluate_policy(tool, parameters)
+        if result != PermissionResult.ASK or handler is None:
+            return result
 
         if inspect.iscoroutinefunction(handler.handle):
             try:
@@ -191,6 +215,32 @@ class PermissionsMixin:
                     ).result()
             except RuntimeError:
                 decision = asyncio.run(handler.handle(request))
+        else:
+            decision = handler.handle(request)
+
+        return cast(PermissionResult, decision)
+
+    async def _aresolve_permission(
+        self,
+        tool: Tool,
+        parameters: dict[str, Any],
+    ) -> PermissionResult:
+        """Async variant of :meth:`_resolve_permission`.
+
+        Awaits an :class:`AsyncPermissionHandler` directly on the caller's
+        loop and calls a synchronous handler inline — with no
+        ``ThreadPoolExecutor`` / ``asyncio.run`` bridge, since we are
+        already in an async context.
+        """
+        import inspect
+        from typing import cast
+
+        result, handler, request = self._evaluate_policy(tool, parameters)
+        if result != PermissionResult.ASK or handler is None:
+            return result
+
+        if inspect.iscoroutinefunction(handler.handle):
+            decision = await handler.handle(request)
         else:
             decision = handler.handle(request)
 
