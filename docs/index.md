@@ -31,35 +31,39 @@ hide:
 
 ## Pick your path
 
-<div class="tr-grid" markdown>
+<div class="grid cards" markdown>
 
-<div class="tr-card" markdown>
-### Build with Python
-Register normal Python callables and execute them with validation, logging, permissions, and concurrency controls.
+-   :material-language-python:{ .lg .middle } **Build with Python**
 
-[Start here →](usage/basics.md)
-</div>
+    ---
 
-<div class="tr-card" markdown>
-### Connect LLM providers
-Generate schemas and recover tool calls across OpenAI, Anthropic, Gemini, and OpenAI-compatible APIs.
+    Register normal Python callables and execute them with validation, logging, permissions, and concurrency controls.
 
-[Function calling →](usage/function_calling.md)
-</div>
+    [:octicons-arrow-right-24: Start here](usage/basics.md)
 
-<div class="tr-card" markdown>
-### Bring external tools
-Import tools from MCP servers, OpenAPI specs, native Python classes, and future source adapters.
+-   :material-robot:{ .lg .middle } **Connect LLM Providers**
 
-[Integrations →](usage/integrations/mcp.md)
-</div>
+    ---
 
-<div class="tr-card" markdown>
-### Serve a registry
-Expose the same registry as OpenAPI or MCP with `toolregistry-server`, or use curated tools from `toolregistry-hub`.
+    Generate schemas and recover tool calls across OpenAI, Anthropic, Gemini, and OpenAI-compatible APIs.
 
-[Architecture →](architecture/overview.md)
-</div>
+    [:octicons-arrow-right-24: Function calling](usage/function_calling.md)
+
+-   :material-puzzle:{ .lg .middle } **Bring External Tools**
+
+    ---
+
+    Import tools from MCP servers, OpenAPI specs, native Python classes, and future source adapters.
+
+    [:octicons-arrow-right-24: Integrations](usage/integrations/mcp.md)
+
+-   :material-server-network:{ .lg .middle } **Serve a Registry**
+
+    ---
+
+    Expose the same registry as OpenAPI or MCP with `toolregistry-server`, or use curated tools from `toolregistry-hub`.
+
+    [:octicons-arrow-right-24: Architecture](architecture/overview.md)
 
 </div>
 
