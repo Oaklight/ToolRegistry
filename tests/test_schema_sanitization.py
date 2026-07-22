@@ -8,7 +8,6 @@ See: https://github.com/Oaklight/ToolRegistry/issues/215
 
 from __future__ import annotations
 
-from typing import Optional
 
 import pytest
 
@@ -57,29 +56,29 @@ def _has_anyof_null(schema: dict | list) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def fn_optional_int(count: Optional[int] = None) -> str:
+def fn_optional_int(count: int | None = None) -> str:
     """A function with an optional int parameter."""
     return str(count)
 
 
-def fn_optional_str(name: Optional[str] = None) -> str:
+def fn_optional_str(name: str | None = None) -> str:
     """A function with an optional str parameter."""
     return name or ""
 
 
 def fn_multiple_optional(
     query: str,
-    count: Optional[int] = None,
-    timeout: Optional[float] = None,
-    label: Optional[str] = None,
+    count: int | None = None,
+    timeout: float | None = None,
+    label: str | None = None,
 ) -> str:
     """A function with required + multiple optional parameters."""
     return query
 
 
 def fn_nested_optional(
-    data: Optional[dict] = None,
-    items: Optional[list] = None,
+    data: dict | None = None,
+    items: list | None = None,
 ) -> str:
     """A function with optional complex types."""
     return ""
@@ -145,9 +144,9 @@ class TestSchemaSanitization:
         else:
             params = schema
 
-        assert not _has_anyof_null(
-            params
-        ), f"Found anyOf with null branch in {api_format} schema: {params}"
+        assert not _has_anyof_null(params), (
+            f"Found anyOf with null branch in {api_format} schema: {params}"
+        )
 
     def test_optional_int_resolves_to_integer_type(self):
         """Optional[int] should produce {type: integer}, not anyOf."""
