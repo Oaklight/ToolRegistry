@@ -38,6 +38,22 @@ class ExecutionHandle(abc.ABC):
         ...
 
     @abc.abstractmethod
+    async def result_async(self, timeout: float | None = None) -> Any:
+        """Await the result without blocking the event loop.
+
+        Async counterpart to :meth:`result`.  Lets an async caller
+        drive any backend (thread, process, inline) by bridging the
+        underlying ``concurrent.futures.Future`` via
+        ``asyncio.wrap_future``.
+
+        Raises:
+            TimeoutError: If timeout expires before completion.
+            CancelledError: If the execution was cancelled.
+            Exception: If the execution raised an exception.
+        """
+        ...
+
+    @abc.abstractmethod
     def on_progress(self, callback: Callable[[ProgressReport], None]) -> None:
         """Register a callback for progress updates."""
         ...

@@ -4,6 +4,7 @@ This package has ZERO imports from toolregistry internals.
 It operates exclusively on ``Callable + dict`` arguments.
 """
 
+from ._inline_backend import InlineBackend
 from ._process_backend import ProcessPoolBackend
 from ._protocol import ExecutionBackend, ExecutionHandle
 from ._thread_backend import ThreadBackend
@@ -24,6 +25,7 @@ __all__ = [
     "ExecutionBackend",
     "ExecutionHandle",
     # Backends
+    "InlineBackend",
     "ProcessPoolBackend",
     "ThreadBackend",
 ]
