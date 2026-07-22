@@ -1,4 +1,3 @@
-import asyncio
 from pathlib import Path
 from typing import Any
 from collections.abc import Callable
@@ -363,6 +362,10 @@ class MCPIntegration:
     ) -> None:
         """Register all tools from an MCP server (synchronous entry point).
 
+        Uses the shared :class:`AsyncRuntime` event loop so that
+        multiple sequential registrations (e.g. stdio + HTTP) do not
+        interfere with each other's anyio resources.
+
         Args:
             transport (Union[str, Dict[str, Any], Path]): Can be:
                 - URL string (http(s)://, ws(s)://)
@@ -378,15 +381,13 @@ class MCPIntegration:
             headers (Optional[Dict[str, str]]): HTTP headers for SSE or
                 streamable-http transports (e.g. authentication).
         """
-        loop = asyncio.new_event_loop()
-        try:
-            loop.run_until_complete(
-                self.register_mcp_tools_async(
-                    transport, namespace, persistent, headers=headers
-                )
+        from ..._async_runtime import AsyncRuntime
+
+        AsyncRuntime.run_sync(
+            self.register_mcp_tools_async(
+                transport, namespace, persistent, headers=headers
             )
-        finally:
-            loop.close()
+        )
 
     async def close(self) -> None:
         """Close all persistent connections (async)."""

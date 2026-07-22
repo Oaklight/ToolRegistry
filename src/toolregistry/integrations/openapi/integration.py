@@ -1,4 +1,3 @@
-import asyncio
 from typing import Any
 
 from ...tool import Tool, ToolMetadata
@@ -278,6 +277,10 @@ class OpenAPIIntegration:
     ) -> None:
         """Synchronously register all tools defined in an OpenAPI specification.
 
+        Uses the shared :class:`AsyncRuntime` event loop so that
+        multiple sequential registrations do not interfere with each
+        other's resources.
+
         Args:
             client_config (HttpClientConfig): Configuration for the HTTP client.
             openapi_spec (Dict[str, Any]): The OpenAPI specification dictionary.
@@ -292,18 +295,13 @@ class OpenAPIIntegration:
         Returns:
             None
         """
-        loop = None
-        try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(
-                self.register_openapi_tools_async(
-                    client_config, openapi_spec, namespace, persistent
-                )
+        from ..._async_runtime import AsyncRuntime
+
+        AsyncRuntime.run_sync(
+            self.register_openapi_tools_async(
+                client_config, openapi_spec, namespace, persistent
             )
-        finally:
-            if loop is not None:
-                loop.close()
+        )
 
     def close(self) -> None:
         """Close all persistent HTTP clients (sync)."""
