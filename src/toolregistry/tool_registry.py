@@ -6,11 +6,15 @@ import time
 import traceback as tb_module
 import warnings
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 from collections.abc import Callable
 
 from .executor import InlineBackend, ProcessPoolBackend, ThreadBackend
 from .tool import ToolTag
+
+if TYPE_CHECKING:
+    from .executor import ExecutionBackend
+    from .tool import Tool
 from .llm.truncation import truncate_result
 from .llm.content_blocks import is_content_block_list
 from .permissions import (
@@ -61,13 +65,17 @@ class _ToolError:
     traceback_str: str | None = None
     is_timeout: bool = False
 
+    def format(self) -> str:
+        """Return the ``"ExceptionType: message"`` string (or bare message)."""
+        prefix = f"{self.exception_type}: " if self.exception_type else ""
+        return f"{prefix}{self.message}"
+
     def to_error_result(self, tool_call: Any) -> "ErrorResult":
         """Convert to a public ErrorResult."""
-        prefix = f"{self.exception_type}: " if self.exception_type else ""
         return ErrorResult(
             id=tool_call.id,
             name=tool_call.name,
-            message=f"{prefix}{self.message}",
+            message=self.format(),
         )
 
 
@@ -347,7 +355,14 @@ class ToolRegistry(
 
     # ============== Execution helpers (shared by invoke + execute_tool_calls) ==
 
-    def _resolve_backend(self, tool: Any, execution_mode: str | None = None) -> Any:
+    @staticmethod
+    def _clean_kwargs(kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Drop the synthetic ``toolcall_reason`` key before execution."""
+        return {k: v for k, v in kwargs.items() if k != "toolcall_reason"}
+
+    def _resolve_backend(
+        self, tool: "Tool", execution_mode: str | None = None
+    ) -> "ExecutionBackend":
         """Resolve the execution backend for a single tool.
 
         This is the seam that decouples the calling interface from the
@@ -391,7 +406,7 @@ class ToolRegistry(
         tool_name: str,
         kwargs: dict[str, Any],
         invocation_id: str | None = None,
-    ):
+    ) -> "Tool":
         """Check that a tool exists, is enabled, and passes permission.
 
         This is the single callsite for access control — both
@@ -573,7 +588,7 @@ class ToolRegistry(
         # Access control raises here (raw path), matching legacy invoke().
         tool_obj = self._check_tool_access(tool_name, kwargs, invocation_id)
         backend = self._resolve_backend(tool_obj, execution_mode)
-        clean_kwargs = {k: v for k, v in kwargs.items() if k != "toolcall_reason"}
+        clean_kwargs = self._clean_kwargs(kwargs)
         per_call_timeout = tool_obj.metadata.timeout if tool_obj.metadata else None
 
         start = time.perf_counter()
@@ -645,14 +660,12 @@ class ToolRegistry(
             return ErrorResult(
                 id=invocation_id,
                 name=tool_name,
-                message=f"{prepared.exception_type}: {prepared.message}"
-                if prepared.exception_type
-                else prepared.message,
+                message=prepared.format(),
             )
 
         tool_obj = prepared
         backend = self._resolve_backend(tool_obj, execution_mode)
-        clean_kwargs = {k: v for k, v in kwargs.items() if k != "toolcall_reason"}
+        clean_kwargs = self._clean_kwargs(kwargs)
         per_call_timeout = tool_obj.metadata.timeout if tool_obj.metadata else None
 
         start = time.perf_counter()
@@ -680,9 +693,7 @@ class ToolRegistry(
             return ErrorResult(
                 id=invocation_id,
                 name=tool_name,
-                message=f"{outcome.exception_type}: {outcome.message}"
-                if outcome.exception_type
-                else outcome.message,
+                message=outcome.format(),
             )
 
         self._log_tool_result(
@@ -699,7 +710,7 @@ class ToolRegistry(
         tool_name: str,
         kwargs: dict[str, Any],
         invocation_id: str | None = None,
-    ):
+    ) -> "Tool":
         """Async access control using :meth:`_aresolve_permission`.
 
         Mirrors :meth:`_check_tool_access` but awaits async permission
@@ -795,14 +806,12 @@ class ToolRegistry(
             return ErrorResult(
                 id=invocation_id,
                 name=tool_name,
-                message=f"{prepared.exception_type}: {prepared.message}"
-                if prepared.exception_type
-                else prepared.message,
+                message=prepared.format(),
             )
 
         tool_obj = prepared
         backend = self._resolve_backend(tool_obj, execution_mode)
-        clean_kwargs = {k: v for k, v in kwargs.items() if k != "toolcall_reason"}
+        clean_kwargs = self._clean_kwargs(kwargs)
         per_call_timeout = tool_obj.metadata.timeout if tool_obj.metadata else None
 
         start = time.perf_counter()
@@ -847,9 +856,7 @@ class ToolRegistry(
             return ErrorResult(
                 id=invocation_id,
                 name=tool_name,
-                message=f"{outcome.exception_type}: {outcome.message}"
-                if outcome.exception_type
-                else outcome.message,
+                message=outcome.format(),
             )
 
         self._log_tool_result(
