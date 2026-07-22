@@ -87,6 +87,16 @@ class ProcessExecutionHandle(ExecutionHandle):
         except FuturesTimeoutError as e:
             raise TimeoutError(str(e)) from e
 
+    async def result_async(self, timeout: float | None = None) -> Any:
+        effective_timeout = timeout if timeout is not None else self._timeout
+        fut = asyncio.wrap_future(self._future)
+        try:
+            if effective_timeout is not None:
+                return await asyncio.wait_for(fut, effective_timeout)
+            return await fut
+        except (asyncio.TimeoutError, FuturesTimeoutError) as e:
+            raise TimeoutError(str(e)) from e
+
     def on_progress(self, callback: Callable[[ProgressReport], None]) -> None:
         # Process backend does not support progress reporting.
         pass
