@@ -385,6 +385,36 @@ class TestToolRegistrySyncMCPIntegration:
             result = reg.invoke("echo", {"message": "hello"})
             assert result == "hello"
 
+    def test_sync_multiple_registrations_shared_loop(self):
+        """Multiple sequential sync registrations share one loop (#217).
+
+        This is the exact scenario that triggered the bug:
+        registering two MCP sources sequentially would fail because
+        the first loop.close() poisoned anyio's process-level state.
+        """
+        from toolregistry._async_runtime import AsyncRuntime
+
+        config = {
+            "command": sys.executable,
+            "args": [_SERVER_SCRIPT, "--transport", "stdio"],
+        }
+        with ToolRegistry() as reg:
+            reg.register_from_mcp(config, namespace="ns1", persistent=True)
+            assert "ns1-add" in reg
+
+            # Second registration — would CancelledError before fix.
+            reg.register_from_mcp(config, namespace="ns2", persistent=True)
+            assert "ns2-add" in reg
+
+            # Both work and share the same runtime loop.
+            r1 = reg.invoke("ns1-add", {"a": 1, "b": 2})
+            r2 = reg.invoke("ns2-add", {"a": 3, "b": 4})
+            assert r1 == '{"result": 3}'
+            assert r2 == '{"result": 7}'
+
+            loop = AsyncRuntime.get_loop()
+            assert loop.is_running()
+
     def test_sync_close_cleans_up(self):
         """close() should clean up MCP integrations and connections."""
         config = {
