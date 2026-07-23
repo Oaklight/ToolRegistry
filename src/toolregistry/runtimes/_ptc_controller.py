@@ -110,7 +110,10 @@ class PtcController:
             executor.execute,
             name=PTC_TOOL_NAME,
             description=PTC_TOOL_DESCRIPTION,
-            metadata=ToolMetadata(defer=False, force_thread=True),
+            # Must run in the main process: its IPC tool callbacks go
+            # through registry.invoke()/_invoke_raw, and it holds a live
+            # registry reference that cannot cross a process boundary.
+            metadata=ToolMetadata(defer=False, natural_backend="inline"),
         )
         self._registry.register(code_tool)
 
