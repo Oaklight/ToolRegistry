@@ -1082,6 +1082,7 @@ class ToolRegistry(
         tc: Any,
         execution_mode: str | None,
         call_arguments: dict[str, dict],
+        backend: Any = None,
     ) -> Any | _ToolError:
         """Submit a single tool call using its resolved backend.
 
@@ -1094,6 +1095,10 @@ class ToolRegistry(
             tc: The tool call to submit.
             execution_mode: Optional caller backend override.
             call_arguments: Map of call ID to parsed arguments.
+            backend: Pre-resolved backend to reuse.  When ``None`` the
+                backend is resolved here; callers that already resolved it
+                (e.g. :meth:`_execute_concurrent` grouping) pass it in to
+                avoid a redundant resolution.
 
         Returns:
             An ExecutionHandle on success, or a ``_ToolError`` on failure.
@@ -1113,9 +1118,10 @@ class ToolRegistry(
             tool_obj.metadata.timeout if tool_obj and tool_obj.metadata else None
         )
 
-        backend = self._resolve_backend(
-            tool_obj, execution_mode, default=self._execution_mode
-        )
+        if backend is None:
+            backend = self._resolve_backend(
+                tool_obj, execution_mode, default=self._execution_mode
+            )
 
         try:
             return backend.submit(
@@ -1267,6 +1273,7 @@ class ToolRegistry(
         pool_handles: list[tuple[Any, ExecutionHandle]] = []
         inline_calls: list[Any] = []
 
+        inline_backends: dict[str, Any] = {}
         for tc in enabled_calls:
             tool_obj = self.get_tool(tc.name)
             backend = self._resolve_backend(
@@ -1274,15 +1281,21 @@ class ToolRegistry(
             )
             if backend is self._inline_backend:
                 inline_calls.append(tc)
+                inline_backends[tc.id] = backend
                 continue
-            handle_or_error = self._submit_tool_call(tc, execution_mode, call_arguments)
+            # Reuse the backend we just resolved instead of re-resolving.
+            handle_or_error = self._submit_tool_call(
+                tc, execution_mode, call_arguments, backend=backend
+            )
             if isinstance(handle_or_error, _ToolError):
                 raw_results[tc.id] = handle_or_error
             else:
                 pool_handles.append((tc, handle_or_error))
 
         for tc in inline_calls:
-            handle_or_error = self._submit_tool_call(tc, execution_mode, call_arguments)
+            handle_or_error = self._submit_tool_call(
+                tc, execution_mode, call_arguments, backend=inline_backends[tc.id]
+            )
             if isinstance(handle_or_error, _ToolError):
                 raw_results[tc.id] = handle_or_error
             else:
