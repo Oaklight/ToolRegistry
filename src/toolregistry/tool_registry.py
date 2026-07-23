@@ -1415,8 +1415,6 @@ class ToolRegistry(
         Returns:
             A :class:`ResultList` in the same order as *tool_calls*.
         """
-        import asyncio
-
         from .utils import generate_invocation_id
 
         batch_inv_id = generate_invocation_id("bat")
@@ -1438,35 +1436,68 @@ class ToolRegistry(
             for tc in enabled_calls
         )
 
-        raw_results: dict[str, Any] = {}
-
         if has_unsafe:
-            for tc in enabled_calls:
-                result = await self._aexecute_one(tc, execution_mode, call_arguments)
-                raw_results[tc.id] = result
-                tool_responses[tc.id] = result
-        else:
-            results = await asyncio.gather(
-                *(
-                    self._aexecute_one(tc, execution_mode, call_arguments)
-                    for tc in enabled_calls
-                ),
-                return_exceptions=True,
+            raw_results = await self._aexecute_sequential(
+                enabled_calls, execution_mode, call_arguments
             )
-            for tc, result in zip(enabled_calls, results):
-                if isinstance(result, BaseException):
-                    result = _ToolError(
-                        message=f"Error executing {tc.name}: {result!s}",
-                        exception_type=type(result).__qualname__,
-                    )
-                raw_results[tc.id] = result
-                tool_responses[tc.id] = result
+        else:
+            raw_results = await self._aexecute_concurrent(
+                enabled_calls, execution_mode, call_arguments
+            )
+        tool_responses.update(raw_results)
 
         self._log_tool_call_results(
             enabled_calls, raw_results, call_start_times, call_arguments, batch_inv_id
         )
 
         return self._wrap_results(generic_tool_calls, tool_responses)
+
+    async def _aexecute_sequential(
+        self,
+        enabled_calls: list[Any],
+        execution_mode: str | None,
+        call_arguments: dict[str, dict],
+    ) -> dict[str, Any]:
+        """Await each call in order (used when an unsafe tool is present)."""
+        raw_results: dict[str, Any] = {}
+        for tc in enabled_calls:
+            raw_results[tc.id] = await self._aexecute_one(
+                tc, execution_mode, call_arguments
+            )
+        return raw_results
+
+    async def _aexecute_concurrent(
+        self,
+        enabled_calls: list[Any],
+        execution_mode: str | None,
+        call_arguments: dict[str, dict],
+    ) -> dict[str, Any]:
+        """Run concurrency-safe calls concurrently via ``asyncio.gather``.
+
+        Inline tools overlap on the caller's loop; pool-backed tools run
+        off-loop and are awaited via ``result_async``.  ``_aexecute_one``
+        catches ``Exception`` internally; ``gather(return_exceptions=True)``
+        is a second layer that also captures anything that leaks (e.g.
+        ``KeyboardInterrupt``).
+        """
+        import asyncio
+
+        raw_results: dict[str, Any] = {}
+        results = await asyncio.gather(
+            *(
+                self._aexecute_one(tc, execution_mode, call_arguments)
+                for tc in enabled_calls
+            ),
+            return_exceptions=True,
+        )
+        for tc, result in zip(enabled_calls, results):
+            if isinstance(result, BaseException):
+                result = _ToolError(
+                    message=f"Error executing {tc.name}: {result!s}",
+                    exception_type=type(result).__qualname__,
+                )
+            raw_results[tc.id] = result
+        return raw_results
 
     @staticmethod
     def _wrap_results(
