@@ -360,8 +360,19 @@ class ToolRegistry(
         """Drop the synthetic ``toolcall_reason`` key before execution."""
         return {k: v for k, v in kwargs.items() if k != "toolcall_reason"}
 
+    def _backend_for(self, name: str) -> "ExecutionBackend":
+        """Map a backend name to its backend instance."""
+        if name == "thread":
+            return self._thread_backend
+        if name == "process":
+            return self._process_backend
+        return self._inline_backend
+
     def _resolve_backend(
-        self, tool: "Tool", execution_mode: str | None = None
+        self,
+        tool: "Tool | None",
+        execution_mode: str | None = None,
+        default: str = "inline",
     ) -> "ExecutionBackend":
         """Resolve the execution backend for a single tool.
 
@@ -370,7 +381,13 @@ class ToolRegistry(
 
         1. Explicit caller ``execution_mode`` (``"thread"``/``"process"``).
         2. The tool's ``metadata.natural_backend`` hint.
-        3. The inline backend (default for single-tool ``invoke``).
+        3. The *default* backend for the calling context.
+
+        The default differs by entry point: single-tool ``invoke`` passes
+        ``"inline"`` (zero overhead, no cross-thread hop), while
+        ``execute_tool_calls`` passes the registry's ``_execution_mode``
+        (``"process"`` by default) so plain Python tools still get CPU
+        isolation in a batch.
 
         Future isolation backends (e.g. a sandbox) plug in here without
         touching ``invoke``/``ainvoke``.
@@ -378,28 +395,21 @@ class ToolRegistry(
         Args:
             tool: The :class:`Tool` to execute.
             execution_mode: Optional caller override.
+            default: Backend name to use when neither an explicit mode nor
+                a ``natural_backend`` hint applies.
 
         Returns:
             An execution backend instance.
         """
-        if execution_mode == "thread":
-            return self._thread_backend
-        if execution_mode == "process":
-            return self._process_backend
+        if execution_mode in ("thread", "process"):
+            return self._backend_for(execution_mode)
 
-        # force_thread still wins until Phase 3 removes it (PTC needs the
-        # main process for registry.invoke() IPC callbacks).
         metadata = getattr(tool, "metadata", None)
-        if metadata is not None and getattr(metadata, "force_thread", False):
-            return self._thread_backend
-
         natural = getattr(metadata, "natural_backend", None) if metadata else None
-        if natural == "thread":
-            return self._thread_backend
-        if natural == "process":
-            return self._process_backend
+        if natural in ("inline", "thread", "process"):
+            return self._backend_for(natural)
 
-        return self._inline_backend
+        return self._backend_for(default)
 
     def _check_tool_access(
         self,
@@ -1070,17 +1080,20 @@ class ToolRegistry(
     def _submit_tool_call(
         self,
         tc: Any,
-        backend: Any,
+        execution_mode: str | None,
         call_arguments: dict[str, dict],
-        mode: str,
     ) -> Any | _ToolError:
-        """Submit a single tool call for execution.
+        """Submit a single tool call using its resolved backend.
+
+        The backend is resolved per tool via :meth:`_resolve_backend`
+        (caller ``execution_mode`` > ``natural_backend`` > registry
+        default), so MCP/OpenAPI tools run inline while plain Python
+        tools use the batch default (process).
 
         Args:
             tc: The tool call to submit.
-            backend: Execution backend (process or thread).
+            execution_mode: Optional caller backend override.
             call_arguments: Map of call ID to parsed arguments.
-            mode: Current execution mode ("process" or "thread").
 
         Returns:
             An ExecutionHandle on success, or a ``_ToolError`` on failure.
@@ -1100,22 +1113,23 @@ class ToolRegistry(
             tool_obj.metadata.timeout if tool_obj and tool_obj.metadata else None
         )
 
-        # Tools with force_thread=True (e.g. PTC) must run in the main
-        # process so they can access the registry for invoke() callbacks.
-        # IPC subprocess isolation is handled inside the tool itself.
-        effective_backend = backend
-        if tool_obj and tool_obj.metadata.force_thread:
-            effective_backend = self._thread_backend
+        backend = self._resolve_backend(
+            tool_obj, execution_mode, default=self._execution_mode
+        )
 
         try:
-            return effective_backend.submit(
+            return backend.submit(
                 callable_func,
                 function_args,
                 execution_id=tc.id,
                 timeout=per_call_timeout,
             )
         except Exception as e:
-            if mode == "process":
+            # Safety net for a plain Python tool that resolved to the
+            # process backend but cannot be pickled (e.g. a closure over
+            # unpicklable state).  MCP/OpenAPI tools never reach here —
+            # they resolve to inline via natural_backend.
+            if backend is self._process_backend:
                 try:
                     return self._thread_backend.submit(
                         callable_func,
@@ -1183,7 +1197,6 @@ class ToolRegistry(
             element is a :class:`ToolCallResult` (success) or
             :class:`ErrorResult` (failure).
         """
-        from .executor import ExecutionHandle
         from .utils import generate_invocation_id
 
         batch_inv_id = generate_invocation_id("bat")
@@ -1196,8 +1209,215 @@ class ToolRegistry(
         if not enabled_calls:
             return self._wrap_results(generic_tool_calls, tool_responses)
 
-        mode = execution_mode or self._execution_mode
-        backend = self._thread_backend if mode == "thread" else self._process_backend
+        has_unsafe = any(
+            (tool_obj := self.get_tool(tc.name)) is not None
+            and not tool_obj.metadata.is_concurrency_safe
+            for tc in enabled_calls
+        )
+
+        if has_unsafe:
+            raw_results = self._execute_sequential(
+                enabled_calls, execution_mode, call_arguments
+            )
+        else:
+            raw_results = self._execute_concurrent(
+                enabled_calls, execution_mode, call_arguments
+            )
+        tool_responses.update(raw_results)
+
+        self._log_tool_call_results(
+            enabled_calls, raw_results, call_start_times, call_arguments, batch_inv_id
+        )
+
+        return self._wrap_results(generic_tool_calls, tool_responses)
+
+    def _execute_sequential(
+        self,
+        enabled_calls: list[Any],
+        execution_mode: str | None,
+        call_arguments: dict[str, dict],
+    ) -> dict[str, Any]:
+        """Submit + collect each call in order (used when an unsafe tool is present)."""
+        raw_results: dict[str, Any] = {}
+        for tc in enabled_calls:
+            handle_or_error = self._submit_tool_call(tc, execution_mode, call_arguments)
+            if isinstance(handle_or_error, _ToolError):
+                raw_results[tc.id] = handle_or_error
+            else:
+                raw_results[tc.id] = self._collect_handle_result(
+                    handle_or_error, tc.name
+                )
+        return raw_results
+
+    def _execute_concurrent(
+        self,
+        enabled_calls: list[Any],
+        execution_mode: str | None,
+        call_arguments: dict[str, dict],
+    ) -> dict[str, Any]:
+        """Run concurrency-safe calls with pool work overlapping inline work.
+
+        Submit pool-backed tools first so their handles run in the
+        background, then execute inline-backed tools, then collect the
+        pool handles — a slow inline tool never stalls submitted pool work.
+        """
+        from .executor import ExecutionHandle
+
+        raw_results: dict[str, Any] = {}
+        pool_handles: list[tuple[Any, ExecutionHandle]] = []
+        inline_calls: list[Any] = []
+
+        for tc in enabled_calls:
+            tool_obj = self.get_tool(tc.name)
+            backend = self._resolve_backend(
+                tool_obj, execution_mode, default=self._execution_mode
+            )
+            if backend is self._inline_backend:
+                inline_calls.append(tc)
+                continue
+            handle_or_error = self._submit_tool_call(tc, execution_mode, call_arguments)
+            if isinstance(handle_or_error, _ToolError):
+                raw_results[tc.id] = handle_or_error
+            else:
+                pool_handles.append((tc, handle_or_error))
+
+        for tc in inline_calls:
+            handle_or_error = self._submit_tool_call(tc, execution_mode, call_arguments)
+            if isinstance(handle_or_error, _ToolError):
+                raw_results[tc.id] = handle_or_error
+            else:
+                raw_results[tc.id] = self._collect_handle_result(
+                    handle_or_error, tc.name
+                )
+
+        for tc, handle in pool_handles:
+            raw_results[tc.id] = self._collect_handle_result(handle, tc.name)
+
+        return raw_results
+
+    async def _aclassify_tool_calls(
+        self,
+        generic_tool_calls: list[Any],
+        invocation_id: str | None = None,
+    ) -> tuple[list[Any], dict[str, Any], dict[str, float], dict[str, dict]]:
+        """Async twin of :meth:`_classify_tool_calls`.
+
+        Uses :meth:`_acheck_tool_access` so async permission handlers are
+        awaited natively instead of bridged through a thread pool.
+        """
+        enabled_calls: list[Any] = []
+        tool_responses: dict[str, Any] = {}
+        call_start_times: dict[str, float] = {}
+        call_arguments: dict[str, dict] = {}
+
+        for tc in generic_tool_calls:
+            try:
+                args = json.loads(tc.arguments)
+            except (json.JSONDecodeError, TypeError):
+                args = {}
+
+            try:
+                await self._acheck_tool_access(tc.name, args, invocation_id)
+            except (KeyError, RuntimeError, PermissionError) as exc:
+                tool_responses[tc.id] = _ToolError(
+                    message=f"Error: {exc}",
+                    exception_type=type(exc).__qualname__,
+                )
+            else:
+                enabled_calls.append(tc)
+                call_start_times[tc.id] = time.perf_counter()
+                call_arguments[tc.id] = args
+
+        return enabled_calls, tool_responses, call_start_times, call_arguments
+
+    async def _aexecute_one(
+        self,
+        tc: Any,
+        execution_mode: str | None,
+        call_arguments: dict[str, dict],
+    ) -> Any:
+        """Execute one classified tool call asynchronously.
+
+        Returns the finalized result (str/content-block list) on success
+        or a :class:`_ToolError` on failure.  Inline-resolved tools are
+        awaited directly on the caller's loop; pool-backed tools submit
+        and await :meth:`ExecutionHandle.result_async`.
+        """
+        tool_obj = self.get_tool(tc.name)
+        if tool_obj is None:
+            return _ToolError(
+                message=f"Error: Tool '{tc.name}' not found or callable is None",
+            )
+
+        clean_kwargs = self._clean_kwargs(call_arguments.get(tc.id, {}))
+        per_call_timeout = tool_obj.metadata.timeout if tool_obj.metadata else None
+        backend = self._resolve_backend(
+            tool_obj, execution_mode, default=self._execution_mode
+        )
+
+        try:
+            if backend is self._inline_backend:
+                raw = await tool_obj.arun(clean_kwargs)
+            else:
+                # Bind tool_obj as a default arg to avoid late-binding the
+                # loop variable across concurrent submissions.
+                handle = backend.submit(
+                    lambda _t=tool_obj, **kw: _t.run(kw),
+                    clean_kwargs,
+                    execution_id=tc.id,
+                    timeout=per_call_timeout,
+                )
+                raw = await handle.result_async()
+            return self._finalize_result(raw, tc.name)
+        except TimeoutError:
+            return _ToolError(
+                message=f"Error: Tool '{tc.name}' timed out",
+                exception_type="TimeoutError",
+                is_timeout=True,
+            )
+        except Exception as exc:
+            return _ToolError(
+                message=f"Error executing {tc.name}: {exc!s}",
+                exception_type=type(exc).__qualname__,
+                traceback_str=tb_module.format_exc(),
+            )
+
+    async def aexecute_tool_calls(
+        self,
+        tool_calls: list[Any],
+        execution_mode: Literal["process", "thread"] | None = None,
+    ) -> ResultList:
+        """Async counterpart to :meth:`execute_tool_calls`.
+
+        Runs concurrency-safe calls concurrently via ``asyncio.gather``
+        over the per-tool async pipeline: inline tools (MCP/OpenAPI and
+        async natives) overlap on the caller's loop, while pool-backed
+        tools run off-loop and are awaited via ``result_async``.  If any
+        tool is not concurrency-safe, all calls run sequentially.
+
+        Args:
+            tool_calls: Tool calls in any supported format.
+            execution_mode: Optional backend override.
+
+        Returns:
+            A :class:`ResultList` in the same order as *tool_calls*.
+        """
+        import asyncio
+
+        from .utils import generate_invocation_id
+
+        batch_inv_id = generate_invocation_id("bat")
+
+        generic_tool_calls = convert_tool_calls(tool_calls)
+        (
+            enabled_calls,
+            tool_responses,
+            call_start_times,
+            call_arguments,
+        ) = await self._aclassify_tool_calls(generic_tool_calls, batch_inv_id)
+
+        if not enabled_calls:
+            return self._wrap_results(generic_tool_calls, tool_responses)
 
         has_unsafe = any(
             (tool_obj := self.get_tool(tc.name)) is not None
@@ -1205,29 +1425,29 @@ class ToolRegistry(
             for tc in enabled_calls
         )
 
-        handles: list[tuple[Any, ExecutionHandle]] = []
         raw_results: dict[str, Any] = {}
 
-        for tc in enabled_calls:
-            handle_or_error = self._submit_tool_call(tc, backend, call_arguments, mode)
-            if isinstance(handle_or_error, _ToolError):
-                raw_results[tc.id] = handle_or_error
-                tool_responses[tc.id] = handle_or_error
-                continue
-
-            if has_unsafe:
-                result = self._collect_handle_result(handle_or_error, tc.name)
-                raw_results[tc.id] = (
-                    result if isinstance(result, _ToolError) else result
-                )
+        if has_unsafe:
+            for tc in enabled_calls:
+                result = await self._aexecute_one(tc, execution_mode, call_arguments)
+                raw_results[tc.id] = result
                 tool_responses[tc.id] = result
-            else:
-                handles.append((tc, handle_or_error))
-
-        for tc, handle in handles:
-            result = self._collect_handle_result(handle, tc.name)
-            raw_results[tc.id] = result if isinstance(result, _ToolError) else result
-            tool_responses[tc.id] = result
+        else:
+            results = await asyncio.gather(
+                *(
+                    self._aexecute_one(tc, execution_mode, call_arguments)
+                    for tc in enabled_calls
+                ),
+                return_exceptions=True,
+            )
+            for tc, result in zip(enabled_calls, results):
+                if isinstance(result, BaseException):
+                    result = _ToolError(
+                        message=f"Error executing {tc.name}: {result!s}",
+                        exception_type=type(result).__qualname__,
+                    )
+                raw_results[tc.id] = result
+                tool_responses[tc.id] = result
 
         self._log_tool_call_results(
             enabled_calls, raw_results, call_start_times, call_arguments, batch_inv_id
