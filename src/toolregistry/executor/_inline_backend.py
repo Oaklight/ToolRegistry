@@ -1,8 +1,9 @@
-"""Inline execution backend that runs the target in the current context."""
+"""Inline execution backend — lazy capture, deferred execution."""
 
 from __future__ import annotations
 
 import asyncio
+import inspect
 import uuid
 from typing import Any
 from collections.abc import Callable
@@ -18,32 +19,52 @@ from ._types import (
 
 
 class InlineExecutionHandle(ExecutionHandle):
-    """Handle wrapping an already-completed inline execution.
+    """Handle for a lazily-captured inline execution.
 
-    ``InlineBackend.submit`` runs the callable eagerly, so the handle
-    is created in a terminal state carrying either a captured return
-    value or a captured exception.
+    ``InlineBackend.submit`` only captures the callable and arguments;
+    execution is deferred to :meth:`result` (sync) or
+    :meth:`result_async` (async).
+
+    While the handle is in the PENDING state, :meth:`cancel` can
+    prevent execution entirely.
     """
 
     def __init__(
         self,
         exec_id: str,
-        value: Any = None,
-        exception: BaseException | None = None,
+        fn: Callable[..., Any],
+        kwargs: dict[str, Any],
+        is_async: bool,
     ) -> None:
         self._exec_id = exec_id
-        self._value = value
-        self._exception = exception
+        self._fn = fn
+        self._kwargs = kwargs
+        self._is_async = is_async
+        self._executed = False
+        self._cancelled = False
+        self._value: Any = None
+        self._exception: BaseException | None = None
 
     @property
     def execution_id(self) -> str:
         return self._exec_id
 
     def cancel(self) -> bool:
-        # Execution already finished by the time the handle exists.
-        return False
+        """Cancel before execution.
+
+        Returns ``True`` if the handle was still pending and is now
+        cancelled; ``False`` if it has already been executed.
+        """
+        if self._executed:
+            return False
+        self._cancelled = True
+        return True
 
     def status(self) -> HandleStatus:
+        if self._cancelled:
+            return HandleStatus.CANCELLED
+        if not self._executed:
+            return HandleStatus.PENDING
         if isinstance(self._exception, CancelledError):
             return HandleStatus.CANCELLED
         if self._exception is not None:
@@ -51,37 +72,94 @@ class InlineExecutionHandle(ExecutionHandle):
         return HandleStatus.COMPLETED
 
     def result(self, timeout: float | None = None) -> Any:
+        """Execute synchronously and return the result.
+
+        Inline execution does not support ``timeout`` — the callable
+        runs in the calling thread with no way to interrupt it
+        externally.  The parameter is accepted for interface
+        compatibility but is ignored.
+        """
+        if self._cancelled:
+            raise CancelledError("Execution was cancelled before it started")
+        if not self._executed:
+            self._run_sync()
         if self._exception is not None:
             raise self._exception
         return self._value
 
     async def result_async(self, timeout: float | None = None) -> Any:
+        """Execute and return the result, awaiting if the callable is async.
+
+        For async callables (``tool.arun``), the coroutine is awaited
+        directly on the caller's event loop — no ``asyncio.run()`` and
+        no new loop.  For sync callables (``tool.run``), the function
+        is called inline in the current thread.
+
+        Detection is two-layered: ``_is_async`` (set at submit time via
+        ``iscoroutinefunction``) handles ``async def`` callables, and a
+        runtime ``iscoroutine`` check on the return value catches
+        non-``async def`` callables that return coroutines (e.g. a
+        lambda wrapping ``tool.arun``).
+        """
+        if self._cancelled:
+            raise CancelledError("Execution was cancelled before it started")
+        if not self._executed:
+            if self._is_async:
+                await self._run_async()
+            else:
+                self._run_sync()
+                # A non-async-def callable (e.g. lambda wrapping
+                # tool.arun) may have returned a coroutine.
+                if self._exception is None and asyncio.iscoroutine(self._value):
+                    try:
+                        self._value = await self._value
+                    except BaseException as exc:  # noqa: BLE001
+                        self._exception = exc
         if self._exception is not None:
             raise self._exception
         return self._value
 
     def on_progress(self, callback: Callable[[ProgressReport], None]) -> None:
-        # Inline execution has already finished; no progress to report.
         pass
+
+    def _run_sync(self) -> None:
+        """Drive execution synchronously.
+
+        For async callables, ``asyncio.run()`` is used to create a
+        temporary event loop — matching the behavior of
+        ``_FunctionToolWrapper.call_sync()`` for async functions.
+        """
+        try:
+            if self._is_async:
+                self._value = asyncio.run(self._fn(**self._kwargs))
+            else:
+                self._value = self._fn(**self._kwargs)
+        except BaseException as exc:  # noqa: BLE001
+            self._exception = exc
+        self._executed = True
+
+    async def _run_async(self) -> None:
+        """Drive execution by awaiting the callable."""
+        try:
+            self._value = await self._fn(**self._kwargs)
+        except BaseException as exc:  # noqa: BLE001
+            self._exception = exc
+        self._executed = True
 
 
 class InlineBackend:
     """Execution backend that runs the callable in the current context.
 
-    No thread or process pool is used — the target runs eagerly and
-    synchronously in the calling thread.  This is the "no isolation"
-    backend suited to tools that are already isolated elsewhere
+    No thread or process pool is used.  ``submit()`` captures the
+    callable and arguments without executing them; execution is
+    deferred to ``handle.result()`` (sync) or ``handle.result_async()``
+    (async).  This makes the backend usable from both sync and async
+    callers without losing native async semantics.
+
+    Inline execution does not provide process or thread isolation.
+    It is suited to tools that are already isolated elsewhere
     (e.g. MCP servers, remote HTTP APIs), where pooling or pickling
     the target would be wrong or impossible.
-
-    Note:
-        A *bare* async callable (one without a ``call_sync`` method) is
-        driven via ``asyncio.run``, which cannot run while an event loop
-        is already active in the calling thread.  Submitting such a
-        callable from inside a running loop raises ``RuntimeError`` with
-        a clear message — call the coroutine's async path directly
-        instead.  Tool wrappers (``BaseToolWrapper``) expose
-        ``call_sync``/``call_async`` and are unaffected.
     """
 
     def submit(
@@ -92,43 +170,19 @@ class InlineBackend:
         execution_id: str | None = None,
         timeout: float | None = None,
     ) -> ExecutionHandle:
-        # ``timeout`` is part of the backend interface but has no effect
-        # here: inline execution is eager and synchronous, so there is
-        # no pending future to time out against.
         exec_id = execution_id or uuid.uuid4().hex
 
-        # Wrap bare async functions so they can run inline.  Tool
-        # wrappers (BaseToolWrapper) handle sync/async internally, so
-        # only wrap bare async callables passed directly.
+        # Detect whether the callable is async so the handle can choose
+        # between await and direct call at execution time.
         raw_fn = getattr(fn, "fn", fn)
-        if asyncio.iscoroutinefunction(raw_fn) and not hasattr(fn, "call_sync"):
-            async_fn = fn
-
-            def _sync_wrapper(**kw):  # type: ignore[no-untyped-def]
-                try:
-                    asyncio.get_running_loop()
-                except RuntimeError:
-                    return asyncio.run(async_fn(**kw))
-                raise RuntimeError(
-                    "InlineBackend cannot run a bare async callable while an "
-                    "event loop is already running in this thread. Await the "
-                    "coroutine directly (e.g. via the tool's async path) "
-                    "instead of submitting it to InlineBackend."
-                )
-
-            fn = _sync_wrapper
+        is_async = inspect.iscoroutinefunction(raw_fn)
 
         # Context injection
         if should_inject_context(fn):
             ctx = ExecutionContext()
             kwargs = {**kwargs, "_ctx": ctx}
 
-        try:
-            value = fn(**kwargs)
-        except BaseException as exc:  # noqa: BLE001 - captured, re-raised on result()
-            return InlineExecutionHandle(exec_id, exception=exc)
-        return InlineExecutionHandle(exec_id, value=value)
+        return InlineExecutionHandle(exec_id, fn, kwargs, is_async)
 
     def shutdown(self, wait: bool = True) -> None:
-        # Nothing to release — inline execution owns no pool.
         pass
