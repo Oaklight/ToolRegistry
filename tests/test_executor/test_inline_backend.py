@@ -1,8 +1,11 @@
-"""Tests for InlineBackend."""
+"""Tests for InlineBackend (lazy capture, deferred execution)."""
+
+import threading
 
 import pytest
 
 from toolregistry.executor import (
+    CancelledError,
     ExecutionContext,
     HandleStatus,
     InlineBackend,
@@ -10,6 +13,22 @@ from toolregistry.executor import (
 
 
 class TestInlineBackend:
+    def test_submit_does_not_execute(self):
+        """submit() only captures — status is PENDING until result()."""
+        backend = InlineBackend()
+        executed = []
+
+        def work() -> int:
+            executed.append(True)
+            return 42
+
+        handle = backend.submit(work, {})
+        assert handle.status() == HandleStatus.PENDING
+        assert executed == []
+        assert handle.result() == 42
+        assert handle.status() == HandleStatus.COMPLETED
+        assert executed == [True]
+
     def test_submit_sync_function(self):
         backend = InlineBackend()
 
@@ -20,7 +39,8 @@ class TestInlineBackend:
         assert handle.result() == 7
         assert handle.status() == HandleStatus.COMPLETED
 
-    def test_submit_async_function(self):
+    def test_submit_async_function_sync_result(self):
+        """Async fn driven via result() uses asyncio.run internally."""
         backend = InlineBackend()
 
         async def add(x: int, y: int) -> int:
@@ -28,6 +48,29 @@ class TestInlineBackend:
 
         handle = backend.submit(add, {"x": 5, "y": 6})
         assert handle.result() == 11
+
+    @pytest.mark.asyncio
+    async def test_submit_async_function_async_result(self):
+        """Async fn driven via result_async() is awaited natively."""
+        backend = InlineBackend()
+
+        async def add(x: int, y: int) -> int:
+            return x + y
+
+        handle = backend.submit(add, {"x": 5, "y": 6})
+        assert await handle.result_async() == 11
+
+    @pytest.mark.asyncio
+    async def test_lambda_wrapping_async_fn_via_result_async(self):
+        """A lambda returning a coroutine is awaited by result_async."""
+        backend = InlineBackend()
+
+        async def inner(x: int) -> int:
+            return x * 2
+
+        # Simulates ainvoke's lambda **kw: tool.arun(kw) pattern.
+        handle = backend.submit(lambda **kw: inner(**kw), {"x": 21})
+        assert await handle.result_async() == 42
 
     def test_context_injection(self):
         backend = InlineBackend()
@@ -45,19 +88,37 @@ class TestInlineBackend:
             raise ValueError("boom")
 
         handle = backend.submit(fail, {})
-        assert handle.status() == HandleStatus.FAILED
+        # Not yet executed (lazy) — status is PENDING.
+        assert handle.status() == HandleStatus.PENDING
         with pytest.raises(ValueError, match="boom"):
             handle.result()
+        assert handle.status() == HandleStatus.FAILED
 
-    def test_cancel_returns_false(self):
+    def test_cancel_before_execution(self):
+        """cancel() in PENDING state prevents execution."""
+        backend = InlineBackend()
+        executed = []
+
+        def work() -> int:
+            executed.append(True)
+            return 1
+
+        handle = backend.submit(work, {})
+        assert handle.cancel() is True
+        assert handle.status() == HandleStatus.CANCELLED
+        with pytest.raises(CancelledError):
+            handle.result()
+        assert executed == []
+
+    def test_cancel_after_execution_returns_false(self):
         backend = InlineBackend()
         handle = backend.submit(lambda: 1, {})
+        handle.result()  # execute
         assert handle.cancel() is False
 
     def test_on_progress_noop(self):
         backend = InlineBackend()
         handle = backend.submit(lambda: 1, {})
-        # Should not raise even though inline has no progress support.
         handle.on_progress(lambda r: None)
         assert handle.result() == 1
 
@@ -72,8 +133,6 @@ class TestInlineBackend:
         assert len(handle.execution_id) > 0
 
     def test_runs_in_calling_thread(self):
-        import threading
-
         backend = InlineBackend()
         caller_thread = threading.get_ident()
         captured: dict[str, int] = {}
@@ -87,32 +146,18 @@ class TestInlineBackend:
 
     def test_shutdown_noop(self):
         backend = InlineBackend()
-        backend.shutdown()  # should not raise
+        backend.shutdown()
 
-    def test_bare_async_from_sync_context_runs(self):
-        """A bare async callable runs fine when no loop is active."""
+    def test_result_idempotent(self):
+        """Calling result() twice returns the same value, no re-execution."""
         backend = InlineBackend()
+        count = []
 
-        async def double(x: int) -> int:
-            return x * 2
+        def work() -> int:
+            count.append(1)
+            return 42
 
-        handle = backend.submit(double, {"x": 21})
+        handle = backend.submit(work, {})
         assert handle.result() == 42
-
-    @pytest.mark.asyncio
-    async def test_bare_async_from_running_loop_raises_clear_error(self):
-        """Submitting a bare async callable inside a running loop raises.
-
-        InlineBackend drives bare coroutines via ``asyncio.run``, which
-        cannot run under an active loop.  It should fail fast with a
-        clear message rather than an opaque RuntimeError.
-        """
-        backend = InlineBackend()
-
-        async def double(x: int) -> int:
-            return x * 2
-
-        # The exception is captured at submit and re-raised on result().
-        handle = backend.submit(double, {"x": 21})
-        with pytest.raises(RuntimeError, match="event loop is already running"):
-            handle.result()
+        assert handle.result() == 42
+        assert len(count) == 1

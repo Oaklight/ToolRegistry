@@ -827,20 +827,22 @@ class ToolRegistry(
         start = time.perf_counter()
         outcome: Any
         try:
+            # Inline backend: pass tool.arun so result_async() can
+            # await the coroutine natively on the caller's loop.
+            # Pool backends: pass tool.run (sync) for execution in
+            # the worker thread/process.
             if backend is self._inline_backend:
-                # Native async path: await on the caller's loop so the
-                # tool's transport (MCP/OpenAPI) stays non-blocking.
-                raw = await tool_obj.arun(clean_kwargs)
-                outcome = self._finalize_result(raw, tool_name)
+                submit_fn = lambda **kw: tool_obj.arun(kw)  # noqa: E731
             else:
-                handle = backend.submit(
-                    lambda **kw: tool_obj.run(kw),
-                    clean_kwargs,
-                    execution_id=invocation_id,
-                    timeout=per_call_timeout,
-                )
-                raw = await handle.result_async()
-                outcome = self._finalize_result(raw, tool_name)
+                submit_fn = lambda **kw: tool_obj.run(kw)  # noqa: E731
+            handle = backend.submit(
+                submit_fn,
+                clean_kwargs,
+                execution_id=invocation_id,
+                timeout=per_call_timeout,
+            )
+            raw = await handle.result_async()
+            outcome = self._finalize_result(raw, tool_name)
         except TimeoutError:
             outcome = _ToolError(
                 message=f"Error: Tool '{tool_name}' timed out",
@@ -1369,18 +1371,20 @@ class ToolRegistry(
         )
 
         try:
+            # Inline: pass tool.arun (async) so result_async can await.
+            # Pool: pass tool.run (sync) for worker execution.
+            # Bind tool_obj as default arg to avoid closure-over-loop.
             if backend is self._inline_backend:
-                raw = await tool_obj.arun(clean_kwargs)
+                submit_fn = lambda _t=tool_obj, **kw: _t.arun(kw)  # noqa: E731
             else:
-                # Bind tool_obj as a default arg to avoid late-binding the
-                # loop variable across concurrent submissions.
-                handle = backend.submit(
-                    lambda _t=tool_obj, **kw: _t.run(kw),
-                    clean_kwargs,
-                    execution_id=tc.id,
-                    timeout=per_call_timeout,
-                )
-                raw = await handle.result_async()
+                submit_fn = lambda _t=tool_obj, **kw: _t.run(kw)  # noqa: E731
+            handle = backend.submit(
+                submit_fn,
+                clean_kwargs,
+                execution_id=tc.id,
+                timeout=per_call_timeout,
+            )
+            raw = await handle.result_async()
             return self._finalize_result(raw, tc.name)
         except TimeoutError:
             return _ToolError(
