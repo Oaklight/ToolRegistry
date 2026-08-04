@@ -46,6 +46,28 @@ def make_async_http_client(**kwargs: Any) -> Any:
 
 
 # ---------------------------------------------------------------------------
+# Streamable HTTP transport — renamed across versions
+# ---------------------------------------------------------------------------
+
+
+def get_streamable_http_client() -> Any:
+    """Return the streamable HTTP client transport function.
+
+    - v1.0–v1.23: ``streamablehttp_client`` only
+    - v1.24–v1.29: both names (alias)
+    - v2.0+: ``streamable_http_client`` only (old name removed)
+    """
+    try:
+        from mcp.client.streamable_http import streamable_http_client
+
+        return streamable_http_client
+    except ImportError:
+        from mcp.client.streamable_http import streamablehttp_client  # type: ignore[attr-defined]
+
+        return streamablehttp_client
+
+
+# ---------------------------------------------------------------------------
 # WebSocket transport — removed in v2
 # ---------------------------------------------------------------------------
 
@@ -85,6 +107,7 @@ def get_field(obj: Any, snake_name: str, camel_name: str, default: Any = None) -
 __all__ = [
     "MCP_VERSION",
     "get_field",
+    "get_streamable_http_client",
     "get_websocket_client",
     "make_async_http_client",
 ]
