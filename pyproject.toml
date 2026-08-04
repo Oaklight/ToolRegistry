@@ -43,7 +43,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-mcp = ["mcp>=1.0.0,<2.0.0", "httpx>=0.28.1"]
+mcp = ["mcp>=1.24.0,<2.0.0", "httpx>=0.28.1"]
 openapi = []
 langchain = ["langchain-core>=0.3,<0.4", "langchain-community>=0.3,<0.4"]
 ptc = ["codecell>=0.2.1,<0.3.0"]
