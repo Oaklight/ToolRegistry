@@ -13,11 +13,14 @@ from urllib.parse import urlparse
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client
-from mcp.client.streamable_http import streamable_http_client
 from mcp.types import CallToolResult
 from mcp.types import Tool as ToolSpec
 
-from ._compat import get_websocket_client, make_async_http_client
+from ._compat import (
+    get_streamable_http_client,
+    get_websocket_client,
+    make_async_http_client,
+)
 
 
 class MCPClient:
@@ -71,7 +74,8 @@ class MCPClient:
                     if self._headers
                     else None
                 )
-                async with streamable_http_client(src, http_client=http_client) as (
+                _streamable_http = get_streamable_http_client()
+                async with _streamable_http(src, http_client=http_client) as (
                     r,
                     w,
                     _,
