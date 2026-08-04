@@ -75,11 +75,9 @@ class MCPClient:
                     else None
                 )
                 _streamable_http = get_streamable_http_client()
-                async with _streamable_http(src, http_client=http_client) as (
-                    r,
-                    w,
-                    _,
-                ):
+                # v1 yields (read, write, get_session_id); v2 yields (read, write)
+                async with _streamable_http(src, http_client=http_client) as streams:
+                    r, w = streams[0], streams[1]
                     yield r, w
         elif isinstance(src, str) and src.startswith(("ws://", "wss://")):
             ws_client = get_websocket_client()

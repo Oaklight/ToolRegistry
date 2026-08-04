@@ -13,10 +13,17 @@ Usage:
 import argparse
 import json
 
-from mcp.server.fastmcp import FastMCP
+try:
+    from mcp.server.mcpserver import MCPServer as _ServerClass
+
+    _MCP_V2 = True
+except ImportError:
+    from mcp.server.fastmcp import FastMCP as _ServerClass
+
+    _MCP_V2 = False
 
 
-def create_server(host: str = "127.0.0.1", port: int = 8000) -> FastMCP:
+def create_server(host: str = "127.0.0.1", port: int = 8000):
     """Create a minimal MCP server with test tools.
 
     Args:
@@ -24,9 +31,12 @@ def create_server(host: str = "127.0.0.1", port: int = 8000) -> FastMCP:
         port: Port to bind to for network transports.
 
     Returns:
-        Configured FastMCP server instance.
+        Configured server instance.
     """
-    mcp = FastMCP("test-server", host=host, port=port)
+    if _MCP_V2:
+        mcp = _ServerClass("test-server")
+    else:
+        mcp = _ServerClass("test-server", host=host, port=port)
 
     @mcp.tool()
     def add(a: int, b: int) -> str:
@@ -58,7 +68,11 @@ def main():
     args = parser.parse_args()
 
     mcp = create_server(host=args.host, port=args.port)
-    mcp.run(transport=args.transport)
+
+    if _MCP_V2:
+        mcp.run(transport=args.transport, host=args.host, port=args.port)
+    else:
+        mcp.run(transport=args.transport)
 
 
 if __name__ == "__main__":
