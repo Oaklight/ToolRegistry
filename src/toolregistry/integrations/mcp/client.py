@@ -161,13 +161,12 @@ class MCPClient:
         """
         if self._session is None:
             return None
-        # Try v1 camelCase first, then v2 snake_case
         init_result = getattr(self._session, "initialize_result", None)
         if init_result is None:
             return None
-        return getattr(init_result, "serverInfo", None) or getattr(
-            init_result, "server_info", None
-        )
+        from ._compat import get_field
+
+        return get_field(init_result, "server_info", "serverInfo")
 
     @property
     def initialize_result(self):
