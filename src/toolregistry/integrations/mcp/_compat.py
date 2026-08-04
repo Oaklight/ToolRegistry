@@ -93,13 +93,17 @@ def get_websocket_client() -> Any:
 # ---------------------------------------------------------------------------
 
 
+_MISSING = object()
+
+
 def get_field(obj: Any, snake_name: str, camel_name: str, default: Any = None) -> Any:
     """Access a field that may be snake_case (v2) or camelCase (v1).
 
-    Tries snake_case first (v2 attribute access), then camelCase (v1).
+    Uses a sentinel so that legitimate ``None`` values (e.g. optional
+    ``mime_type``) are not confused with "attribute missing".
     """
-    val = getattr(obj, snake_name, None)
-    if val is not None:
+    val = getattr(obj, snake_name, _MISSING)
+    if val is not _MISSING:
         return val
     return getattr(obj, camel_name, default)
 
