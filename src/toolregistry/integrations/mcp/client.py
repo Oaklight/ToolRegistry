@@ -10,14 +10,14 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-import httpx
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client
 from mcp.client.streamable_http import streamable_http_client
-from mcp.client.websocket import websocket_client
 from mcp.types import CallToolResult
 from mcp.types import Tool as ToolSpec
+
+from ._compat import get_websocket_client, make_async_http_client
 
 
 class MCPClient:
@@ -67,7 +67,9 @@ class MCPClient:
                     yield r, w
             else:
                 http_client = (
-                    httpx.AsyncClient(headers=self._headers) if self._headers else None
+                    make_async_http_client(headers=self._headers)
+                    if self._headers
+                    else None
                 )
                 async with streamable_http_client(src, http_client=http_client) as (
                     r,
@@ -76,7 +78,8 @@ class MCPClient:
                 ):
                     yield r, w
         elif isinstance(src, str) and src.startswith(("ws://", "wss://")):
-            async with websocket_client(src) as (r, w):
+            ws_client = get_websocket_client()
+            async with ws_client(src) as (r, w):
                 yield r, w
         else:
             params = _to_stdio_params(src)
