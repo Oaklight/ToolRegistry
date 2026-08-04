@@ -1,6 +1,6 @@
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
-from collections.abc import Callable
 
 from mcp.types import (
     BlobResourceContents,
@@ -13,6 +13,7 @@ from mcp.types import (
 from mcp.types import Tool as ToolSpec
 
 from ..._vendor.structlog import get_logger
+from ._compat import get_field
 from ...tool import Tool, ToolMetadata
 from ...tool_registry import ToolRegistry
 from ...tool_wrapper import BaseToolWrapper
@@ -144,9 +145,7 @@ class MCPToolWrapper(BaseToolWrapper):
         if isinstance(result, list):
             contents = result
         else:
-            is_error = getattr(result, "is_error", None) or getattr(
-                result, "isError", False
-            )
+            is_error = get_field(result, "is_error", "isError", False)
             if is_error or not result.content:
                 return result
             contents = result.content
@@ -161,7 +160,7 @@ class MCPToolWrapper(BaseToolWrapper):
                 "type": "image",
                 "source": {
                     "type": "base64",
-                    "media_type": content.mimeType,
+                    "media_type": get_field(content, "mime_type", "mimeType"),
                     "data": content.data,
                 },
             }
@@ -170,7 +169,7 @@ class MCPToolWrapper(BaseToolWrapper):
             if isinstance(content.resource, TextResourceContents):
                 return {"type": "text", "text": content.resource.text}
             elif isinstance(content.resource, BlobResourceContents):
-                mime = content.resource.mimeType or ""
+                mime = get_field(content.resource, "mime_type", "mimeType") or ""
                 if mime.startswith(_IMAGE_MIME_PREFIXES):
                     return {
                         "type": "image",
@@ -240,9 +239,7 @@ class MCPTool(Tool):
         """
         name = tool_spec.name
         description = tool_spec.description or ""
-        input_schema = getattr(tool_spec, "input_schema", None) or getattr(
-            tool_spec, "inputSchema", {}
-        )
+        input_schema = get_field(tool_spec, "input_schema", "inputSchema", {})
         if not isinstance(input_schema, dict) or input_schema.get("type") != "object":
             input_schema = {"type": "object", "properties": {}}
         else:
