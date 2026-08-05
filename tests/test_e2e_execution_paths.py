@@ -230,3 +230,96 @@ class TestTimeoutEnforcement:
         assert isinstance(results["c2"], ErrorResult)
         assert "timed out" in results["c2"].message
         assert elapsed < 2.0
+
+
+# ── Real MCP tool timeout ──────────────────────────────────────────
+
+
+class TestMCPToolTimeout:
+    """Timeout with a real MCP server tool (not a mock async function).
+
+    Uses ``slow_tool`` from the test MCP server which does a real
+    ``time.sleep`` in the subprocess, exercising the full MCP transport
+    path (stdio pipes, MCP SDK request/response, connection manager).
+    """
+
+    def test_sync_invoke_mcp_timeout(self):
+        """sync invoke + real MCP tool + timeout → ErrorResult."""
+        with ToolRegistry() as reg:
+            reg.register_from_mcp(_stdio_config(), persistent=True)
+            tool = reg.get_tool("slow_tool")
+            tool.metadata.timeout = 0.5
+
+            start = time.perf_counter()
+            r = reg.invoke("slow_tool", {"seconds": 5.0})
+            elapsed = time.perf_counter() - start
+
+            assert isinstance(r, ErrorResult)
+            assert "timed out" in r.message
+            assert elapsed < 2.0
+
+    @pytest.mark.asyncio
+    async def test_ainvoke_mcp_timeout(self):
+        """ainvoke + real MCP tool + timeout → ErrorResult."""
+        async with ToolRegistry() as reg:
+            await reg.register_from_mcp_async(_stdio_config(), persistent=True)
+            tool = reg.get_tool("slow_tool")
+            tool.metadata.timeout = 0.5
+
+            start = time.perf_counter()
+            r = await reg.ainvoke("slow_tool", {"seconds": 5.0})
+            elapsed = time.perf_counter() - start
+
+            assert isinstance(r, ErrorResult)
+            assert "timed out" in r.message
+            assert elapsed < 2.0
+
+    def test_sync_invoke_mcp_no_timeout_completes(self):
+        """MCP tool without timeout runs to completion normally."""
+        with ToolRegistry() as reg:
+            reg.register_from_mcp(_stdio_config(), persistent=True)
+
+            r = reg.invoke("slow_tool", {"seconds": 0.3})
+            assert isinstance(r, ToolCallResult)
+            assert "slept" in r.result
+
+    def test_sync_batch_mcp_timeout(self):
+        """sync batch: single slow MCP tool times out.
+
+        Uses a single-tool batch because our test MCP server uses
+        blocking ``time.sleep`` in ``slow_tool``, which serializes all
+        requests at the server process level.  This is a test-server
+        limitation, not an MCP protocol constraint — the protocol
+        multiplexes by request-id and our client-side connection
+        manager does not serialize calls.
+        """
+        with ToolRegistry() as reg:
+            reg.register_from_mcp(_stdio_config(), persistent=True)
+            tool = reg.get_tool("slow_tool")
+            tool.metadata.timeout = 0.5
+
+            tcs = [_tc("c1", "slow_tool", '{"seconds": 5.0}')]
+            start = time.perf_counter()
+            results = reg.execute_tool_calls(tcs)
+            elapsed = time.perf_counter() - start
+
+            assert isinstance(results["c1"], ErrorResult)
+            assert "timed out" in results["c1"].message
+            assert elapsed < 2.0
+
+    @pytest.mark.asyncio
+    async def test_async_batch_mcp_timeout(self):
+        """async batch: single slow MCP tool times out."""
+        async with ToolRegistry() as reg:
+            await reg.register_from_mcp_async(_stdio_config(), persistent=True)
+            tool = reg.get_tool("slow_tool")
+            tool.metadata.timeout = 0.5
+
+            tcs = [_tc("c1", "slow_tool", '{"seconds": 5.0}')]
+            start = time.perf_counter()
+            results = await reg.aexecute_tool_calls(tcs)
+            elapsed = time.perf_counter() - start
+
+            assert isinstance(results["c1"], ErrorResult)
+            assert "timed out" in results["c1"].message
+            assert elapsed < 2.0

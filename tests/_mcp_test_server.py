@@ -53,6 +53,14 @@ def create_server(host: str = "127.0.0.1", port: int = 8000):
         """Return a greeting message."""
         return f"Hello, {name}!"
 
+    @mcp.tool()
+    def slow_tool(seconds: float = 5.0) -> str:
+        """Sleep for the given duration, then return. Used to test timeout."""
+        import time
+
+        time.sleep(seconds)
+        return f"slept {seconds}s"
+
     return mcp
 
 
