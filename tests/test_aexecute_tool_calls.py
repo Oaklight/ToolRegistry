@@ -1,6 +1,7 @@
 """Tests for aexecute_tool_calls and per-tool backend resolution in batch."""
 
 import asyncio
+import threading
 import time
 
 import pytest
@@ -188,3 +189,73 @@ class TestBatchBackendResolution:
         )
         # default execution mode is process
         assert backend is registry._process_backend
+
+
+class TestInlineTimeoutInBatch:
+    """Per-tool timeout is honored for inline tools in both batch paths."""
+
+    @staticmethod
+    def _registry_with_slow_inline_tool():
+        reg = ToolRegistry()
+
+        async def slow_remote(n: int) -> int:
+            """Simulates an MCP/OpenAPI call that hangs."""
+            await asyncio.sleep(5)
+            return n
+
+        reg.register(
+            Tool.from_function(
+                slow_remote,
+                metadata=ToolMetadata(natural_backend="inline", timeout=0.2),
+            )
+        )
+        return reg
+
+    def test_sync_batch_inline_tool_times_out(self):
+        """execute_tool_calls honors timeout for inline tools.
+
+        InlineExecutionHandle.result() cannot enforce a deadline, so the
+        registry drives such handles through AsyncRuntime instead.
+        """
+        reg = self._registry_with_slow_inline_tool()
+        tcs = [_tc("c1", "slow_remote", '{"n": 1}')]
+
+        start = time.perf_counter()
+        r = reg.execute_tool_calls(tcs)
+        elapsed = time.perf_counter() - start
+
+        assert isinstance(r["c1"], ErrorResult)
+        assert "timed out" in r["c1"].message
+        assert elapsed < 2.0
+
+    @pytest.mark.asyncio
+    async def test_async_batch_inline_tool_times_out(self):
+        reg = self._registry_with_slow_inline_tool()
+        tcs = [_tc("c1", "slow_remote", '{"n": 1}')]
+
+        start = time.perf_counter()
+        r = await reg.aexecute_tool_calls(tcs)
+        elapsed = time.perf_counter() - start
+
+        assert isinstance(r["c1"], ErrorResult)
+        assert "timed out" in r["c1"].message
+        assert elapsed < 2.0
+
+    def test_inline_tool_without_timeout_unaffected(self):
+        """No timeout set — the plain sync path is used, no loop hop."""
+        reg = ToolRegistry()
+        seen: dict[str, int] = {}
+
+        def plain(x: int) -> int:
+            """Inline tool with no timeout."""
+            seen["thread"] = threading.get_ident()
+            return x * 2
+
+        reg.register(
+            Tool.from_function(plain, metadata=ToolMetadata(natural_backend="inline"))
+        )
+
+        result = reg.invoke("plain", {"x": 21})
+        assert result.result == "42"
+        # Executed in the calling thread — not dispatched to AsyncRuntime.
+        assert seen["thread"] == threading.get_ident()

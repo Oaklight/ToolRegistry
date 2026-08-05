@@ -1157,10 +1157,32 @@ class ToolRegistry(
                 traceback_str=tb_module.format_exc(),
             )
 
+    @staticmethod
+    def _needs_async_timeout(handle: Any) -> bool:
+        """Whether *handle* must be driven asynchronously to honor a timeout.
+
+        Only inline handles need this: their synchronous ``result()``
+        blocks the calling thread with no way to interrupt it, so a
+        pending timeout would be silently ignored.  Thread and process
+        handles already enforce timeouts via ``Future.result(timeout)``.
+        """
+        from .executor._inline_backend import InlineExecutionHandle
+
+        return isinstance(handle, InlineExecutionHandle) and (
+            getattr(handle, "_timeout", None) is not None
+        )
+
     def _collect_handle_result(
         self, handle: Any, tool_name: str
     ) -> str | list | _ToolError:
         """Wait for a handle and return the finalized result or a ``_ToolError``.
+
+        Inline handles carrying a timeout are driven through
+        :class:`AsyncRuntime` so the deadline is actually enforced —
+        ``InlineExecutionHandle.result()`` runs in the calling thread and
+        cannot be interrupted, while ``result_async()`` can be cancelled
+        by an event loop.  This keeps per-tool ``metadata.timeout``
+        meaningful for MCP/OpenAPI tools in a synchronous batch.
 
         Args:
             handle: An ExecutionHandle to collect.
@@ -1170,7 +1192,12 @@ class ToolRegistry(
             The finalized result string/list, or a ``_ToolError`` on failure.
         """
         try:
-            result = handle.result()
+            if self._needs_async_timeout(handle):
+                from ._async_runtime import AsyncRuntime
+
+                result = AsyncRuntime.run_sync(handle.result_async())
+            else:
+                result = handle.result()
             return self._finalize_result(result, tool_name)
         except TimeoutError:
             return _ToolError(
