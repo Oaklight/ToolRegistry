@@ -60,6 +60,16 @@ class TestInlineBackend:
         handle = backend.submit(add, {"x": 5, "y": 6})
         assert await handle.result_async() == 11
 
+    def test_lambda_wrapping_async_fn_via_result(self):
+        """A lambda returning a coroutine is driven by result() via asyncio.run."""
+        backend = InlineBackend()
+
+        async def inner(x: int) -> int:
+            return x * 2
+
+        handle = backend.submit(lambda **kw: inner(**kw), {"x": 21})
+        assert handle.result() == 42
+
     @pytest.mark.asyncio
     async def test_lambda_wrapping_async_fn_via_result_async(self):
         """A lambda returning a coroutine is awaited by result_async."""

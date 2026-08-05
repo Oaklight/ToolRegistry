@@ -66,6 +66,7 @@ class InlineExecutionHandle(ExecutionHandle):
         if self._executed:
             return False
         self._cancelled = True
+        self._fn = self._kwargs = None
         return True
 
     def status(self) -> HandleStatus:
