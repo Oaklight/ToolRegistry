@@ -373,6 +373,7 @@ class ToolRegistry(
         tool: "Tool | None",
         execution_mode: str | None = None,
         default: str = "inline",
+        async_caller: bool = False,
     ) -> "ExecutionBackend":
         """Resolve the execution backend for a single tool.
 
@@ -383,11 +384,10 @@ class ToolRegistry(
         2. The tool's ``metadata.natural_backend`` hint.
         3. The *default* backend for the calling context.
 
-        The default differs by entry point: single-tool ``invoke`` passes
-        ``"inline"`` (zero overhead, no cross-thread hop), while
-        ``execute_tool_calls`` passes the registry's ``_execution_mode``
-        (``"process"`` by default) so plain Python tools still get CPU
-        isolation in a batch.
+        When ``async_caller`` is ``False`` (the sync path), an inline
+        resolution is promoted to **thread** so that
+        ``Future.result(timeout)`` gives a real deadline.  Async callers
+        keep inline because they need the coroutine on their own loop.
 
         Future isolation backends (e.g. a sandbox) plug in here without
         touching ``invoke``/``ainvoke``.
@@ -397,6 +397,8 @@ class ToolRegistry(
             execution_mode: Optional caller override.
             default: Backend name to use when neither an explicit mode nor
                 a ``natural_backend`` hint applies.
+            async_caller: ``True`` when called from an async entry point
+                (``ainvoke``/``aexecute_tool_calls``).
 
         Returns:
             An execution backend instance.
@@ -407,9 +409,15 @@ class ToolRegistry(
         metadata = getattr(tool, "metadata", None)
         natural = getattr(metadata, "natural_backend", None) if metadata else None
         if natural in ("inline", "thread", "process"):
-            return self._backend_for(natural)
+            resolved = self._backend_for(natural)
+        else:
+            resolved = self._backend_for(default)
 
-        return self._backend_for(default)
+        # Sync callers cannot interrupt a blocking inline callable, so
+        # promote to thread where Future.result(timeout) works.
+        if not async_caller and resolved is self._inline_backend:
+            return self._thread_backend
+        return resolved
 
     def _check_tool_access(
         self,
@@ -820,7 +828,7 @@ class ToolRegistry(
             )
 
         tool_obj = prepared
-        backend = self._resolve_backend(tool_obj, execution_mode)
+        backend = self._resolve_backend(tool_obj, execution_mode, async_caller=True)
         clean_kwargs = self._clean_kwargs(kwargs)
         per_call_timeout = tool_obj.metadata.timeout if tool_obj.metadata else None
 
@@ -1157,30 +1165,10 @@ class ToolRegistry(
                 traceback_str=tb_module.format_exc(),
             )
 
-    @staticmethod
-    def _needs_async_timeout(handle: Any) -> bool:
-        """Whether *handle* must be driven asynchronously to honor a timeout.
-
-        Only inline handles need this: their synchronous ``result()``
-        blocks the calling thread with no way to interrupt it, so a
-        pending timeout would be silently ignored.  Thread and process
-        handles already enforce timeouts via ``Future.result(timeout)``.
-        """
-        from .executor._inline_backend import InlineExecutionHandle
-
-        return isinstance(handle, InlineExecutionHandle) and handle.timeout is not None
-
     def _collect_handle_result(
         self, handle: Any, tool_name: str
     ) -> str | list | _ToolError:
         """Wait for a handle and return the finalized result or a ``_ToolError``.
-
-        Inline handles carrying a timeout are driven through
-        :class:`AsyncRuntime` so the deadline is actually enforced —
-        ``InlineExecutionHandle.result()`` runs in the calling thread and
-        cannot be interrupted, while ``result_async()`` can be cancelled
-        by an event loop.  This keeps per-tool ``metadata.timeout``
-        meaningful for MCP/OpenAPI tools in a synchronous batch.
 
         Args:
             handle: An ExecutionHandle to collect.
@@ -1190,12 +1178,7 @@ class ToolRegistry(
             The finalized result string/list, or a ``_ToolError`` on failure.
         """
         try:
-            if self._needs_async_timeout(handle):
-                from ._async_runtime import AsyncRuntime
-
-                result = AsyncRuntime.run_sync(handle.result_async())
-            else:
-                result = handle.result()
+            result = handle.result()
             return self._finalize_result(result, tool_name)
         except TimeoutError:
             return _ToolError(
@@ -1288,49 +1271,24 @@ class ToolRegistry(
         execution_mode: str | None,
         call_arguments: dict[str, dict],
     ) -> dict[str, Any]:
-        """Run concurrency-safe calls with pool work overlapping inline work.
+        """Submit all calls concurrently, then collect results.
 
-        Submit pool-backed tools first so their handles run in the
-        background, then execute inline-backed tools, then collect the
-        pool handles — a slow inline tool never stalls submitted pool work.
+        On the sync path, ``_resolve_backend`` promotes inline to thread,
+        so every tool gets a pool handle — submit-all then collect-all.
         """
         from .executor import ExecutionHandle
 
         raw_results: dict[str, Any] = {}
-        pool_handles: list[tuple[Any, ExecutionHandle]] = []
-        inline_calls: list[Any] = []
+        handles: list[tuple[Any, ExecutionHandle]] = []
 
-        inline_backends: dict[str, Any] = {}
         for tc in enabled_calls:
-            tool_obj = self.get_tool(tc.name)
-            backend = self._resolve_backend(
-                tool_obj, execution_mode, default=self._execution_mode
-            )
-            if backend is self._inline_backend:
-                inline_calls.append(tc)
-                inline_backends[tc.id] = backend
-                continue
-            # Reuse the backend we just resolved instead of re-resolving.
-            handle_or_error = self._submit_tool_call(
-                tc, execution_mode, call_arguments, backend=backend
-            )
+            handle_or_error = self._submit_tool_call(tc, execution_mode, call_arguments)
             if isinstance(handle_or_error, _ToolError):
                 raw_results[tc.id] = handle_or_error
             else:
-                pool_handles.append((tc, handle_or_error))
+                handles.append((tc, handle_or_error))
 
-        for tc in inline_calls:
-            handle_or_error = self._submit_tool_call(
-                tc, execution_mode, call_arguments, backend=inline_backends[tc.id]
-            )
-            if isinstance(handle_or_error, _ToolError):
-                raw_results[tc.id] = handle_or_error
-            else:
-                raw_results[tc.id] = self._collect_handle_result(
-                    handle_or_error, tc.name
-                )
-
-        for tc, handle in pool_handles:
+        for tc, handle in handles:
             raw_results[tc.id] = self._collect_handle_result(handle, tc.name)
 
         return raw_results
@@ -1392,7 +1350,7 @@ class ToolRegistry(
         clean_kwargs = self._clean_kwargs(call_arguments.get(tc.id, {}))
         per_call_timeout = tool_obj.metadata.timeout if tool_obj.metadata else None
         backend = self._resolve_backend(
-            tool_obj, execution_mode, default=self._execution_mode
+            tool_obj, execution_mode, default=self._execution_mode, async_caller=True
         )
 
         try:
