@@ -323,3 +323,179 @@ class TestMCPToolTimeout:
             assert isinstance(results["c1"], ErrorResult)
             assert "timed out" in results["c1"].message
             assert elapsed < 2.0
+
+
+# ── OpenAPI through the execution stack ────────────────────────────
+
+
+class TestOpenAPIExecutionStack:
+    """OpenAPI tools through invoke/execute with the full backend seam.
+
+    Uses mock httpx clients (no live server) but goes through the real
+    ToolRegistry.register_from_openapi → invoke/execute_tool_calls
+    pipeline, verifying that natural_backend="inline" resolves
+    correctly on sync/async paths.
+    """
+
+    @staticmethod
+    def _openapi_registry():
+        import json as _json
+        from toolregistry.integrations.openapi.integration import OpenAPIIntegration
+
+        from tests.test_openapi_integration import (
+            PETSTORE_SPEC,
+            _make_config_with_mock,
+            _mock_response,
+        )
+
+        def handler(request):
+            if request.url.path == "/pets" and request.method == "GET":
+                return _mock_response(200, [{"id": 1, "name": "Fido"}])
+            if request.url.path == "/pets" and request.method == "POST":
+                body = _json.loads(request.content)
+                return _mock_response(201, {"id": 2, "name": body["name"]})
+            return _mock_response(404)
+
+        reg = ToolRegistry()
+        config = _make_config_with_mock(handler)
+        integration = OpenAPIIntegration(reg)
+        integration.register_openapi_tools(config, PETSTORE_SPEC)
+        return reg
+
+    def test_sync_invoke_openapi_tool(self):
+        reg = self._openapi_registry()
+        r = reg.invoke("list_pets", {"limit": 10})
+        assert isinstance(r, ToolCallResult)
+        assert "Fido" in r.result
+
+    @pytest.mark.asyncio
+    async def test_ainvoke_openapi_tool(self):
+        reg = self._openapi_registry()
+        r = await reg.ainvoke("list_pets", {"limit": 5})
+        assert isinstance(r, ToolCallResult)
+        assert "Fido" in r.result
+
+    def test_sync_batch_openapi_tools(self):
+        reg = self._openapi_registry()
+        tcs = [
+            _tc("c1", "list_pets", '{"limit": 10}'),
+            _tc("c2", "create_pet", '{"name": "Rex"}'),
+        ]
+        results = reg.execute_tool_calls(tcs)
+        assert isinstance(results["c1"], ToolCallResult)
+        assert isinstance(results["c2"], ToolCallResult)
+        assert "Fido" in results["c1"].result
+        assert "Rex" in results["c2"].result
+
+
+# ── Mixed batch: MCP + native Python in one batch ──────────────────
+
+
+class TestMixedBatch:
+    """MCP (→thread on sync) + native Python (→process) in the same batch."""
+
+    def test_sync_mixed_mcp_and_native(self):
+        """MCP tools resolve to thread, native tools to process, same batch."""
+        reg = ToolRegistry()
+
+        def double(n: int) -> int:
+            """Native Python tool."""
+            return n * 2
+
+        reg.register(double)
+        reg.register_from_mcp(_stdio_config(), persistent=True)
+
+        tcs = [
+            _tc("c1", "double", '{"n": 7}'),
+            _tc("c2", "add", '{"a": 10, "b": 20}'),
+            _tc("c3", "echo", '{"message": "mixed"}'),
+        ]
+        results = reg.execute_tool_calls(tcs)
+
+        assert results["c1"].result == "14"
+        assert results["c2"].result == '{"result": 30}'
+        assert results["c3"].result == "mixed"
+        assert [r.id for r in results] == ["c1", "c2", "c3"]
+        reg.close()
+
+    @pytest.mark.asyncio
+    async def test_async_mixed_mcp_and_native(self):
+        """Async batch: MCP (inline) + native overlap under gather."""
+        reg = ToolRegistry()
+
+        async def double(n: int) -> int:
+            """Native async tool."""
+            return n * 2
+
+        reg.register(double)
+        await reg.register_from_mcp_async(_stdio_config(), persistent=True)
+
+        tcs = [
+            _tc("c1", "double", '{"n": 5}'),
+            _tc("c2", "add", '{"a": 3, "b": 4}'),
+        ]
+        results = await reg.aexecute_tool_calls(tcs)
+
+        assert results["c1"].result == "10"
+        assert results["c2"].result == '{"result": 7}'
+        await reg.close_async()
+
+
+# ── MCP concurrent ainvoke (same connection) ───────────────────────
+
+
+class TestMCPConcurrentAinvoke:
+    """Multiple ainvoke on the same MCP connection overlap correctly."""
+
+    @pytest.mark.asyncio
+    async def test_concurrent_ainvoke_same_connection(self):
+        async with ToolRegistry() as reg:
+            await reg.register_from_mcp_async(_stdio_config(), persistent=True)
+
+            r1, r2 = await asyncio.gather(
+                reg.ainvoke("add", {"a": 1, "b": 2}),
+                reg.ainvoke("add", {"a": 10, "b": 20}),
+            )
+            assert isinstance(r1, ToolCallResult)
+            assert isinstance(r2, ToolCallResult)
+            assert r1.result == '{"result": 3}'
+            assert r2.result == '{"result": 30}'
+
+
+# ── PTC in batch execution ─────────────────────────────────────────
+
+
+class TestPTCInBatch:
+    """PTC tool through execute_tool_calls (natural_backend=inline
+    promoted to thread on sync path)."""
+
+    def test_ptc_in_sync_batch(self):
+        from toolregistry.runtimes import PTC_TOOL_NAME
+
+        reg = ToolRegistry()
+
+        def add(a: int, b: int) -> int:
+            """Add."""
+            return a + b
+
+        reg.register(add)
+        reg.ptc.enable()
+
+        tcs = [
+            _tc("c1", "add", '{"a": 3, "b": 4}'),
+            _tc("c2", PTC_TOOL_NAME, '{"code": "print(add(a=10, b=20))"}'),
+        ]
+        results = reg.execute_tool_calls(tcs)
+
+        assert isinstance(results["c1"], ToolCallResult)
+        assert results["c1"].result == "7"
+        assert isinstance(results["c2"], ToolCallResult)
+        assert "30" in results["c2"].result
+        reg.close()
+
+
+# Note: forcing execution_mode="process" on MCP/OpenAPI tools is a usage
+# error — cloudpickle serializes the wrapper successfully, but the worker
+# process has no live MCP connection, so the deserialized call hangs.
+# The seam's natural_backend="inline" → thread promotion exists precisely
+# to prevent this.  No test for this path: it deadlocks by design.
