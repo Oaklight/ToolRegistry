@@ -178,43 +178,81 @@ toolregistry/
 
 规则引擎，在执行前评估工具调用。规则按顺序检查（首次匹配生效），产生 `ALLOW`、`DENY` 或 `ASK`（委托给处理器进行交互式审批）。未设置策略时，所有调用默认允许。详见[权限文档](../usage/permissions.md)。
 
-## 执行管线
+## 执行栈
 
-使用 ToolRegistry 的典型函数调用工作流：
+执行栈分六层。调用接口（同步/异步）与执行后端（inline/thread/process）**正交**——通过 `_resolve_backend` 接缝按工具解析。
 
 ```mermaid
-sequenceDiagram
-    participant App as 应用
-    participant Registry as ToolRegistry
-    participant LLM as LLM API
-    participant Backend as 执行器后端
+flowchart TD
+    subgraph S1["① 调用接口 — 返回 Result"]
+        direction TB
+        INV["invoke() / ainvoke()"]
+        EXE["execute_tool_calls() / aexecute_tool_calls()"]
+        RAW["_invoke_raw() — PTC 内部"]
+    end
 
-    App->>Registry: 注册工具（函数、MCP、OpenAPI……）
-    App->>Registry: get_schemas(api_format="openai-chat")
-    App->>LLM: 携带工具 Schema 的对话请求
-    LLM-->>App: tool_calls（函数名 + 参数）
-    App->>Registry: execute_tool_calls(tool_calls)
-    Registry->>Registry: 权限检查
-    Registry->>Backend: submit(fn, kwargs, timeout)
-    Backend-->>Registry: 结果
-    Registry-->>App: dict[tool_call_id, result]
-    App->>Registry: build_tool_call_messages(...)
-    App->>LLM: 携带结果继续对话
-    LLM-->>App: 最终回复
+    subgraph S2["② 管线（共用）"]
+        direction TB
+        PERM["权限检查"]
+        SEAM["_resolve_backend 接缝<br/>caller mode ▸ natural_backend ▸ 默认<br/>sync: inline→thread │ async: inline 保持"]
+    end
+
+    subgraph S3["③ 执行后端"]
+        direction TB
+        INLINE["InlineBackend — 异步路径"]
+        THREAD["ThreadBackend — 同步路径、超时"]
+        PROC["ProcessBackend — 批量默认"]
+    end
+
+    subgraph S4["④ ExecutionHandle"]
+        HRES["result() / result_async()"]
+    end
+
+    subgraph S5["⑤ Wrapper 层"]
+        CS["call_sync() / call_async()"]
+    end
+
+    subgraph S6["⑥ 工具"]
+        MCPT["MCP"] ~~~ OAPI["OpenAPI"] ~~~ PY["Python fn"]
+    end
+
+    S1 --> S2 --> S3 --> S4 --> S5 --> S6
 ```
+
+### 后端解析
+
+每个工具独立解析后端：
+
+1. **显式 `execution_mode`**（调用方覆盖）— 最优先
+2. **`natural_backend`**（工具元数据）— MCP/OpenAPI 设为 `"inline"`；其活连接无法 pickle
+3. **上下文默认** — 单次调用为 `"inline"`，批量为 registry `_execution_mode`
+
+**同步**入口上，inline 被提升为 **thread**，使 `Future.result(timeout)` 提供真正的截止时间。**异步**入口保持 inline——协程需要调用方的 event loop。
+
+### 超时矩阵
+
+所有入口均强制执行工具级 `metadata.timeout`：
+
+| 入口 | 机制 |
+|------|------|
+| `invoke()` | thread `Future.result(timeout)` |
+| `ainvoke()` | inline `asyncio.wait_for` |
+| `execute_tool_calls()` | thread/process `Future.result(timeout)` |
+| `aexecute_tool_calls()` | inline `asyncio.wait_for` |
 
 ## 执行器后端
 
-ToolRegistry 使用可插拔后端进行并发执行。执行器模块**零导入 toolregistry** — 它是一个独立的、协议优先的子系统。
+执行器模块**零导入 toolregistry** — 它是一个独立的、协议优先的子系统。
 
-| 后端 | 并行方式 | 取消机制 | 适用场景 |
-|------|---------|---------|---------|
-| `ThreadBackend` | GIL 限制的线程 | 协作式（`ExecutionContext`） | 本地 CPU 密集型函数 |
-| `ProcessPoolBackend` | 真正的多进程 | 硬取消（`future.cancel()`） | 网络 I/O、崩溃隔离 |
+| 后端 | 隔离 | 超时 | 适用场景 |
+|------|------|------|---------|
+| `InlineBackend` | 无 | ✅ 异步路径 | MCP、OpenAPI（已在外部隔离） |
+| `ThreadBackend` | 线程 | ✅ `Future.result(t)` | 同步调用方、超时强制执行 |
+| `ProcessPoolBackend` | 进程 | ✅ `Future.result(t)` | CPU 隔离、崩溃隔离 |
 
-两种后端均返回 `ExecutionHandle`，提供统一的 `cancel()`、`status()`、`result()` 和 `on_progress()` 方法。
+三种后端均返回 `ExecutionHandle`，提供统一的 `cancel()`、`status()`、`result()`、`result_async()` 和 `on_progress()` 方法。
 
-进程模式为默认。详见[执行模式](../usage/concurrency_modes.md)的基准测试和配置说明。
+详见[执行后端与异步支持](../usage/concurrency_modes.md)的配置和说明。
 
 ## 集成架构
 
