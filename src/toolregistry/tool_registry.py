@@ -403,11 +403,19 @@ class ToolRegistry(
         Returns:
             An execution backend instance.
         """
+        metadata = getattr(tool, "metadata", None)
+        natural = getattr(metadata, "natural_backend", None) if metadata else None
+
+        # Inline tools (MCP, OpenAPI) cannot run in a process pool — the
+        # live connection state serializes via cloudpickle but the worker
+        # process has no connection, causing a hang.  Block process even
+        # if the caller explicitly requested it.
+        if natural == "inline" and execution_mode == "process":
+            execution_mode = "thread"
+
         if execution_mode in ("thread", "process"):
             return self._backend_for(execution_mode)
 
-        metadata = getattr(tool, "metadata", None)
-        natural = getattr(metadata, "natural_backend", None) if metadata else None
         if natural in ("inline", "thread", "process"):
             resolved = self._backend_for(natural)
         else:

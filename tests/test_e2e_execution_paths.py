@@ -494,8 +494,59 @@ class TestPTCInBatch:
         reg.close()
 
 
-# Note: forcing execution_mode="process" on MCP/OpenAPI tools is a usage
-# error — cloudpickle serializes the wrapper successfully, but the worker
-# process has no live MCP connection, so the deserialized call hangs.
-# The seam's natural_backend="inline" → thread promotion exists precisely
-# to prevent this.  No test for this path: it deadlocks by design.
+# ── Process blocked for inline tools ───────────────────────────────
+
+
+class TestProcessBlockedForInlineTools:
+    """execution_mode='process' is silently blocked for inline-natural
+    tools (MCP, OpenAPI) — downgraded to thread to prevent deadlock.
+
+    The live connection state serializes via cloudpickle but the worker
+    process has no connection, so it would hang.  _resolve_backend
+    intercepts this and routes to thread instead.
+    """
+
+    def test_invoke_force_process_mcp_goes_thread(self):
+        """invoke(execution_mode='process') on MCP tool succeeds (→thread)."""
+        with ToolRegistry() as reg:
+            reg.register_from_mcp(_stdio_config(), persistent=True)
+            r = reg.invoke("echo", {"message": "safe"}, execution_mode="process")
+            assert isinstance(r, ToolCallResult)
+            assert r.result == "safe"
+
+    def test_batch_force_process_mcp_goes_thread(self):
+        """execute_tool_calls(execution_mode='process') on MCP tool succeeds."""
+        with ToolRegistry() as reg:
+            reg.register_from_mcp(_stdio_config(), persistent=True)
+            tcs = [_tc("c1", "echo", '{"message": "batch safe"}')]
+            results = reg.execute_tool_calls(tcs, execution_mode="process")
+            assert isinstance(results["c1"], ToolCallResult)
+            assert results["c1"].result == "batch safe"
+
+    def test_resolve_backend_blocks_process_for_inline(self):
+        """_resolve_backend downgrades process→thread for inline tools."""
+        reg = ToolRegistry()
+
+        def ping(x: int) -> int:
+            return x
+
+        reg.register(
+            Tool.from_function(ping, metadata=ToolMetadata(natural_backend="inline"))
+        )
+        tool = reg.get_tool("ping")
+        backend = reg._resolve_backend(tool, execution_mode="process")
+        assert backend is reg._thread_backend
+
+    def test_resolve_backend_allows_thread_for_inline(self):
+        """execution_mode='thread' on inline tools is fine (no downgrade)."""
+        reg = ToolRegistry()
+
+        def ping(x: int) -> int:
+            return x
+
+        reg.register(
+            Tool.from_function(ping, metadata=ToolMetadata(natural_backend="inline"))
+        )
+        tool = reg.get_tool("ping")
+        backend = reg._resolve_backend(tool, execution_mode="thread")
+        assert backend is reg._thread_backend
