@@ -16,6 +16,33 @@ hide:
 
 ## [未发布]
 
+### 新增
+
+- **`ainvoke()` 和 `aexecute_tool_calls()`**：`invoke()` 和 `execute_tool_calls()` 的异步版本。`ainvoke()` 在调用方的 event loop 上 await 工具执行；`aexecute_tool_calls()` 通过 `asyncio.gather` 并发运行安全工具。两者返回与同步版相同的 `Result` 类型。
+- **`InlineBackend`**：新执行后端，在当前上下文运行工具，无线程/进程池。使用惰性捕获——`submit()` 存储 callable；`result()` / `result_async()` 驱动执行。适用于已在外部隔离的工具（MCP 服务器、HTTP API）。异步路径通过 `asyncio.wait_for` 强制执行超时。
+- **`ExecutionHandle.result_async()`**：所有后端的异步结果获取。线程/进程 handle 通过 `asyncio.wrap_future` 桥接；inline handle 原生 await。让异步调用方驱动任意后端而不阻塞 event loop。
+- **`ToolMetadata.natural_backend`**：工具级后端提示（`"inline"`、`"thread"`、`"process"`）。MCP 和 OpenAPI 工具设置 `natural_backend="inline"`；registry 的 `_resolve_backend` 接缝按工具解析而非按批次。
+- **`_invoke_raw()`**：`invoke()` 的内部原始返回变体，供 PTC 使用。走相同管线（权限、日志、后端接缝），但返回原始 Python 值并在错误时抛异常，以便 LLM 编写的 PTC 代码能自然组合工具输出。
+- **异步权限解析**：`_aresolve_permission()` 在调用方 loop 上原生 await `AsyncPermissionHandler`。通过共享的 `_evaluate_policy()` 实现策略评估，确保同步和异步解析器不会分叉。
+
+### 变更
+
+- **`invoke()` 返回 `Result` 类型**（**破坏性变更**）：`invoke()` 现在成功时返回 `ToolCallResult`，任何失败（包括访问控制错误）时返回 `ErrorResult`。不再为缺失、禁用或拒绝的工具抛出 `KeyError` / `RuntimeError` / `PermissionError`——与 `execute_tool_calls()` 行为一致。
+- **批量执行按工具解析后端**：`execute_tool_calls()` 按工具解析后端（调用方 `execution_mode` > `natural_backend` > registry 默认），而非对整批使用同一后端。MCP/OpenAPI 工具正确路由，不再尝试 pickle 活连接。
+- **同步路径 inline 提升为 thread**：同步入口（`invoke`、`execute_tool_calls`）将 inline 解析的工具提升到线程后端，使 `Future.result(timeout)` 提供真正的截止时间。异步入口保持 inline 以在调用方 loop 上原生 `await`。
+- **`execute_tool_calls()` 简化**：三段式 pool-first / inline / collect-pool 逻辑因同步路径不再有 inline handle 而坍缩为 submit-all → collect-all。
+- **PTC 使用 `natural_backend="inline"`**，替代已移除的 `force_thread` 标志。语义从"强制线程池"变为"留在调用进程"——这才是实际需求。
+
+### 移除
+
+- **`ToolMetadata.force_thread`**：由 `natural_backend` 替代。PTC 的 `programmatic_tool_call` 工具现携带 `natural_backend="inline"`。
+- **`_needs_async_timeout` + `_collect_handle_result` 中的 AsyncRuntime 桥接**：不再需要——同步路径使用线程 handle 的原生超时；异步路径使用 `result_async()` 的 `wait_for`。
+
+### 修复
+
+- **多 MCP/OpenAPI 源的同步注册**（#217、#220）：用共享的 `AsyncRuntime` 单例替代每次调用创建/销毁事件循环的模式。顺序 `register_from_mcp()` 调用不再因 anyio 状态污染导致 `CancelledError`。
+- **Inline 后端超时被静默忽略**（#233）：`InlineBackend.submit()` 接受 `timeout` 参数但直接丢弃——`metadata.timeout` 对所有 inline 工具无效。现在在异步路径通过 `asyncio.wait_for` 强制执行，在同步路径通过线程后端提升实现。
+
 ## [0.14.0] - 2026-07-16
 
 ### 新增
