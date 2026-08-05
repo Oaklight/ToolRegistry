@@ -1098,7 +1098,8 @@ class ToolRegistry(
 
         The backend is resolved per tool via :meth:`_resolve_backend`
         (caller ``execution_mode`` > ``natural_backend`` > registry
-        default), so MCP/OpenAPI tools run inline while plain Python
+        default), so MCP/OpenAPI tools resolve per the caller context
+        (thread for sync callers, inline for async) while plain Python
         tools use the batch default (process).
 
         Args:
@@ -1144,7 +1145,8 @@ class ToolRegistry(
             # Safety net for a plain Python tool that resolved to the
             # process backend but cannot be pickled (e.g. a closure over
             # unpicklable state).  MCP/OpenAPI tools never reach here —
-            # they resolve to inline via natural_backend.
+            # they resolve to thread (sync) or inline (async) via
+            # natural_backend + async_caller promotion.
             if backend is self._process_backend:
                 try:
                     return self._thread_backend.submit(
