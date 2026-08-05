@@ -1,6 +1,8 @@
 """Tests for InlineBackend (lazy capture, deferred execution)."""
 
+import asyncio
 import threading
+import time
 
 import pytest
 
@@ -171,3 +173,73 @@ class TestInlineBackend:
         assert handle.result() == 42
         assert handle.result() == 42
         assert len(count) == 1
+
+
+class TestInlineTimeout:
+    """Timeout is enforced on the async path only."""
+
+    @pytest.mark.asyncio
+    async def test_submit_timeout_enforced(self):
+        backend = InlineBackend()
+
+        async def slow(n: int) -> int:
+            await asyncio.sleep(5)
+            return n
+
+        handle = backend.submit(slow, {"n": 1}, timeout=0.2)
+        start = time.perf_counter()
+        with pytest.raises(TimeoutError):
+            await handle.result_async()
+        assert time.perf_counter() - start < 1.0
+
+    @pytest.mark.asyncio
+    async def test_call_site_timeout_overrides_submit(self):
+        backend = InlineBackend()
+
+        async def slow(n: int) -> int:
+            await asyncio.sleep(5)
+            return n
+
+        handle = backend.submit(slow, {"n": 1}, timeout=10)
+        start = time.perf_counter()
+        with pytest.raises(TimeoutError):
+            await handle.result_async(timeout=0.2)
+        assert time.perf_counter() - start < 1.0
+
+    @pytest.mark.asyncio
+    async def test_no_timeout_runs_to_completion(self):
+        backend = InlineBackend()
+
+        async def quick(n: int) -> int:
+            await asyncio.sleep(0.05)
+            return n
+
+        handle = backend.submit(quick, {"n": 7})
+        assert await handle.result_async() == 7
+
+    @pytest.mark.asyncio
+    async def test_lambda_wrapped_coroutine_honors_timeout(self):
+        """The ainvoke pattern (lambda returning a coroutine) times out too."""
+        backend = InlineBackend()
+
+        async def slow(n: int) -> int:
+            await asyncio.sleep(5)
+            return n
+
+        handle = backend.submit(lambda **kw: slow(**kw), {"n": 1}, timeout=0.2)
+        start = time.perf_counter()
+        with pytest.raises(TimeoutError):
+            await handle.result_async()
+        assert time.perf_counter() - start < 1.0
+
+    def test_sync_result_does_not_enforce_timeout(self):
+        """result() cannot interrupt a blocking callable — documented limit."""
+        backend = InlineBackend()
+
+        def blocking() -> int:
+            time.sleep(0.3)
+            return 1
+
+        handle = backend.submit(blocking, {}, timeout=0.05)
+        # Runs to completion despite the shorter timeout.
+        assert handle.result() == 1

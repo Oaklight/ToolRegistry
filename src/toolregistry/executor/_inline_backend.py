@@ -43,11 +43,13 @@ class InlineExecutionHandle(ExecutionHandle):
         fn: Callable[..., Any],
         kwargs: dict[str, Any],
         is_async: bool,
+        timeout: float | None = None,
     ) -> None:
         self._exec_id = exec_id
         self._fn: Callable[..., Any] | None = fn
         self._kwargs: dict[str, Any] | None = kwargs
         self._is_async = is_async
+        self._timeout = timeout
         self._executed = False
         self._cancelled = False
         self._value: Any = None
@@ -83,10 +85,14 @@ class InlineExecutionHandle(ExecutionHandle):
     def result(self, timeout: float | None = None) -> Any:
         """Execute synchronously and return the result.
 
-        Inline execution does not support ``timeout`` — the callable
-        runs in the calling thread with no way to interrupt it
-        externally.  The parameter is accepted for interface
-        compatibility but is ignored.
+        ``timeout`` is **not enforced** on this path.  The callable runs
+        to completion in the calling thread, and there is no way to
+        interrupt it from outside without leaving the inline execution
+        model (a watchdog thread or signal).  The parameter is accepted
+        for interface compatibility.
+
+        Use :meth:`result_async` if you need the timeout honored — on
+        the async path the coroutine can be cancelled by the event loop.
         """
         if self._cancelled:
             raise CancelledError("Execution was cancelled before it started")
@@ -118,15 +124,23 @@ class InlineExecutionHandle(ExecutionHandle):
         non-``async def`` callables that return coroutines (e.g. a
         lambda wrapping ``tool.arun``).
 
-        Like :meth:`result`, ``timeout`` is accepted for interface
-        compatibility but is not enforced — inline execution has no
-        external mechanism to interrupt a running callable.
+        Unlike :meth:`result`, ``timeout`` **is** enforced here for
+        coroutine execution — the event loop can cancel an awaiting
+        coroutine, so ``asyncio.wait_for`` gives a real deadline.  The
+        effective timeout is the *timeout* argument, falling back to the
+        value supplied at submit time.  A ``TimeoutError`` is raised on
+        expiry, matching the thread/process backends.
+
+        A purely synchronous callable still blocks the calling thread
+        and cannot be interrupted, so no deadline applies to that case.
         """
+        effective_timeout = timeout if timeout is not None else self._timeout
+
         if self._cancelled:
             raise CancelledError("Execution was cancelled before it started")
         if not self._executed:
             if self._is_async:
-                await self._run_async()
+                await self._run_async(effective_timeout)
             else:
                 self._run_sync()
                 # A non-async-def callable (e.g. lambda wrapping
@@ -134,7 +148,9 @@ class InlineExecutionHandle(ExecutionHandle):
                 # on the caller's loop instead of asyncio.run().
                 if self._exception is None and asyncio.iscoroutine(self._value):
                     try:
-                        self._value = await self._value
+                        self._value = await self._await_with_timeout(
+                            self._value, effective_timeout
+                        )
                     except BaseException as exc:  # noqa: BLE001
                         self._exception = exc
         if self._exception is not None:
@@ -166,11 +182,27 @@ class InlineExecutionHandle(ExecutionHandle):
         self._executed = True
         self._fn = self._kwargs = None
 
-    async def _run_async(self) -> None:
+    @staticmethod
+    async def _await_with_timeout(coro: Any, timeout: float | None) -> Any:
+        """Await *coro*, applying *timeout* when one is set.
+
+        Translates ``asyncio.TimeoutError`` to the builtin
+        ``TimeoutError`` so all backends raise the same type.
+        """
+        if timeout is None:
+            return await coro
+        try:
+            return await asyncio.wait_for(coro, timeout)
+        except asyncio.TimeoutError as e:
+            raise TimeoutError(str(e) or f"timed out after {timeout}s") from e
+
+    async def _run_async(self, timeout: float | None = None) -> None:
         """Drive execution by awaiting the callable."""
         assert self._fn is not None and self._kwargs is not None
         try:
-            self._value = await self._fn(**self._kwargs)
+            self._value = await self._await_with_timeout(
+                self._fn(**self._kwargs), timeout
+            )
         except BaseException as exc:  # noqa: BLE001
             self._exception = exc
         self._executed = True
@@ -190,6 +222,14 @@ class InlineBackend:
     It is suited to tools that are already isolated elsewhere
     (e.g. MCP servers, remote HTTP APIs), where pooling or pickling
     the target would be wrong or impossible.
+
+    Note:
+        ``timeout`` is enforced only on the async path
+        (``handle.result_async()``), where the event loop can cancel an
+        awaiting coroutine.  A synchronous callable driven through
+        ``handle.result()`` blocks the calling thread and cannot be
+        interrupted without abandoning the inline model, so no deadline
+        is applied there.
     """
 
     def submit(
@@ -212,7 +252,7 @@ class InlineBackend:
             ctx = ExecutionContext()
             kwargs = {**kwargs, "_ctx": ctx}
 
-        return InlineExecutionHandle(exec_id, fn, kwargs, is_async)
+        return InlineExecutionHandle(exec_id, fn, kwargs, is_async, timeout)
 
     def shutdown(self, wait: bool = True) -> None:
         pass
