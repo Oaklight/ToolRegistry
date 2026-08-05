@@ -16,6 +16,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **`ainvoke()` and `aexecute_tool_calls()`**: Async counterparts to `invoke()` and `execute_tool_calls()`. `ainvoke()` awaits tool execution on the caller's event loop; `aexecute_tool_calls()` runs concurrency-safe calls via `asyncio.gather`. Both return the same `Result` types as their sync twins.
+- **`InlineBackend`**: New execution backend that runs tools in the current context with no thread or process pool. Uses lazy capture — `submit()` stores the callable; `result()` / `result_async()` drives execution. Suited to tools already isolated elsewhere (MCP servers, HTTP APIs). Timeout enforced on the async path via `asyncio.wait_for`.
+- **`ExecutionHandle.result_async()`**: Async result retrieval across all backends. Thread and process handles bridge via `asyncio.wrap_future`; inline handles await natively. Lets async callers drive any backend without blocking the event loop.
+- **`ToolMetadata.natural_backend`**: Per-tool backend hint (`"inline"`, `"thread"`, `"process"`). MCP and OpenAPI tools set `natural_backend="inline"`; the registry's `_resolve_backend` seam resolves per tool instead of per batch.
+- **`_invoke_raw()`**: Internal raw-returning variant of `invoke()` for PTC. Runs the same pipeline (permissions, logging, backend seam) but returns the raw Python value and raises on error, so LLM-authored PTC code can compose tool outputs naturally.
+- **Async permission resolution**: `_aresolve_permission()` awaits `AsyncPermissionHandler` natively on the caller's loop. Shared policy evaluation via `_evaluate_policy()` so sync and async resolvers cannot drift.
+
+### Changed
+
+- **`invoke()` returns `Result` types** (**breaking**): `invoke()` now returns `ToolCallResult` on success or `ErrorResult` on any failure (including access-control errors). It **no longer raises** `KeyError` / `RuntimeError` / `PermissionError` for missing, disabled, or denied tools — consistent with `execute_tool_calls()`.
+- **Per-tool backend resolution in batch**: `execute_tool_calls()` resolves the backend per tool (caller `execution_mode` > `natural_backend` > registry default) instead of applying one backend to the entire batch. MCP/OpenAPI tools route correctly instead of attempting to pickle live connections.
+- **Sync inline promoted to thread**: On the sync path (`invoke`, `execute_tool_calls`), inline-resolved tools are promoted to the thread backend so `Future.result(timeout)` gives a real deadline. Async entry points keep inline for native `await` on the caller's loop.
+- **`execute_tool_calls()` simplified**: The three-phase pool-first / inline / collect-pool logic collapsed to submit-all → collect-all now that the sync path has no inline handles.
+- **PTC uses `natural_backend="inline"`** instead of the removed `force_thread` flag. Semantics changed from "force a thread pool" to "stay in the calling process" — the actual requirement.
+
+### Removed
+
+- **`ToolMetadata.force_thread`**: Replaced by `natural_backend`. PTC's `programmatic_tool_call` tool now carries `natural_backend="inline"`.
+- **`_needs_async_timeout` + AsyncRuntime bridge in `_collect_handle_result`**: No longer needed — sync path uses thread handles with native timeout; async path uses `result_async()` with `wait_for`.
+
+### Fixed
+
+- **Sync registration of multiple MCP/OpenAPI sources** (#217, #220): Replaced per-call event loop creation/destruction with a shared `AsyncRuntime` singleton. Sequential `register_from_mcp()` calls no longer cause `CancelledError` from anyio state pollution.
+- **Inline backend timeout silently ignored** (#233): `InlineBackend.submit()` accepted a `timeout` argument but discarded it — `metadata.timeout` was ineffective for all inline tools. Now stored and enforced via `asyncio.wait_for` on the async path, and via thread-backend promotion on the sync path.
+
 ## [0.14.0] - 2026-07-16
 
 ### Added
