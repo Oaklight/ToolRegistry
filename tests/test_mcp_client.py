@@ -163,7 +163,7 @@ class TestStdioTransport:
         """MCPClient should accept a .py path directly for stdio."""
         async with MCPClient(_SERVER_SCRIPT) as client:
             tools = await client.list_tools()
-            assert len(tools) == 3
+            assert len(tools) == 4
 
 
 # ---------------------------------------------------------------------------
@@ -236,7 +236,7 @@ class TestStreamableHttpTransport:
         headers = {"X-Custom-Header": "test-value"}
         async with MCPClient(f"http://127.0.0.1:{port}/mcp", headers=headers) as client:
             tools = await client.list_tools()
-            assert len(tools) == 3
+            assert len(tools) == 4
 
 
 # ---------------------------------------------------------------------------
@@ -309,7 +309,7 @@ class TestSseTransport:
         headers = {"Authorization": "Bearer test-token"}
         async with MCPClient(f"http://127.0.0.1:{port}/sse", headers=headers) as client:
             tools = await client.list_tools()
-            assert len(tools) == 3
+            assert len(tools) == 4
 
 
 # ---------------------------------------------------------------------------
