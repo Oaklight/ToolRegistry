@@ -167,7 +167,7 @@ class TestBatchBackendResolution:
         r = registry.execute_tool_calls(tcs, execution_mode="thread")
         assert r["c1"].result == "7"
 
-    def test_inline_natural_backend_resolves_inline(self, registry):
+    def test_sync_caller_inline_promotes_to_thread(self, registry):
         def ping(x: int) -> int:
             """Ping."""
             return x
@@ -176,9 +176,23 @@ class TestBatchBackendResolution:
             Tool.from_function(ping, metadata=ToolMetadata(natural_backend="inline"))
         )
         tool = registry.get_tool("ping")
-        # batch default is process, but natural_backend wins.
+        # Sync callers promote inline to thread for real timeout.
         backend = registry._resolve_backend(
             tool, None, default=registry._execution_mode
+        )
+        assert backend is registry._thread_backend
+
+    def test_async_caller_inline_stays_inline(self, registry):
+        def ping(x: int) -> int:
+            """Ping."""
+            return x
+
+        registry.register(
+            Tool.from_function(ping, metadata=ToolMetadata(natural_backend="inline"))
+        )
+        tool = registry.get_tool("ping")
+        backend = registry._resolve_backend(
+            tool, None, default=registry._execution_mode, async_caller=True
         )
         assert backend is registry._inline_backend
 
@@ -257,5 +271,5 @@ class TestInlineTimeoutInBatch:
 
         result = reg.invoke("plain", {"x": 21})
         assert result.result == "42"
-        # Executed in the calling thread — not dispatched to AsyncRuntime.
-        assert seen["thread"] == threading.get_ident()
+        # Sync path promotes inline to thread — runs in pool thread.
+        assert seen["thread"] != threading.get_ident()

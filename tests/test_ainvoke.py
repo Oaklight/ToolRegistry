@@ -99,7 +99,7 @@ class TestAinvoke:
 
 
 class TestBackendResolution:
-    def test_inline_default_for_native(self):
+    def test_sync_caller_promotes_inline_to_thread(self):
         reg = ToolRegistry()
 
         def add(a: int, b: int) -> int:
@@ -107,7 +107,18 @@ class TestBackendResolution:
 
         reg.register(add)
         tool = reg.get_tool("add")
-        assert reg._resolve_backend(tool) is reg._inline_backend
+        # Sync callers get thread so Future.result(timeout) works.
+        assert reg._resolve_backend(tool) is reg._thread_backend
+
+    def test_async_caller_keeps_inline(self):
+        reg = ToolRegistry()
+
+        def add(a: int, b: int) -> int:
+            return a + b
+
+        reg.register(add)
+        tool = reg.get_tool("add")
+        assert reg._resolve_backend(tool, async_caller=True) is reg._inline_backend
 
     def test_execution_mode_override(self):
         reg = ToolRegistry()
