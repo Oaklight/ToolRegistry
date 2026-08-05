@@ -180,43 +180,81 @@ Tools registered from external sources (MCP servers, OpenAPI specs, classes) are
 
 A rule engine that evaluates tool calls before execution. Rules are checked in order (first match wins), producing `ALLOW`, `DENY`, or `ASK` (delegate to a handler for interactive approval). If no policy is set, all calls are allowed. See [permissions docs](../usage/permissions.md) for details.
 
-## Execution Pipeline
+## Execution Stack
 
-A typical function calling workflow:
+The execution stack has six layers. The calling interface (sync/async) and the execution backend (inline/thread/process) are **orthogonal** — resolved per tool via the `_resolve_backend` seam.
 
 ```mermaid
-sequenceDiagram
-    participant App
-    participant Registry as ToolRegistry
-    participant LLM as LLM API
-    participant Backend as Executor Backend
+flowchart TD
+    subgraph S1["① Calling Interface — returns Result"]
+        direction TB
+        INV["invoke() / ainvoke()"]
+        EXE["execute_tool_calls() / aexecute_tool_calls()"]
+        RAW["_invoke_raw() — PTC internal"]
+    end
 
-    App->>Registry: register tools (functions, MCP, OpenAPI, ...)
-    App->>Registry: get_schemas(api_format="openai-chat")
-    App->>LLM: chat completion with tool schemas
-    LLM-->>App: tool_calls (function name + arguments)
-    App->>Registry: execute_tool_calls(tool_calls)
-    Registry->>Registry: permission check
-    Registry->>Backend: submit(fn, kwargs, timeout)
-    Backend-->>Registry: results
-    Registry-->>App: dict[tool_call_id, result]
-    App->>Registry: build_tool_call_messages(...)
-    App->>LLM: continue conversation with results
-    LLM-->>App: final response
+    subgraph S2["② Pipeline (shared)"]
+        direction TB
+        PERM["permission check"]
+        SEAM["_resolve_backend seam<br/>caller mode ▸ natural_backend ▸ default<br/>sync: inline→thread │ async: inline kept"]
+    end
+
+    subgraph S3["③ Execution Backends"]
+        direction TB
+        INLINE["InlineBackend — async path"]
+        THREAD["ThreadBackend — sync path, timeout"]
+        PROC["ProcessBackend — batch default"]
+    end
+
+    subgraph S4["④ ExecutionHandle"]
+        HRES["result() / result_async()"]
+    end
+
+    subgraph S5["⑤ Wrapper Layer"]
+        CS["call_sync() / call_async()"]
+    end
+
+    subgraph S6["⑥ Tools"]
+        MCPT["MCP"] ~~~ OAPI["OpenAPI"] ~~~ PY["Python fn"]
+    end
+
+    S1 --> S2 --> S3 --> S4 --> S5 --> S6
 ```
+
+### Backend Resolution
+
+Each tool resolves its backend individually:
+
+1. **Explicit `execution_mode`** (caller override) — wins
+2. **`natural_backend`** (tool metadata) — MCP/OpenAPI set `"inline"`; their live connections can't be pickled
+3. **Context default** — `"inline"` for single calls, registry `_execution_mode` for batch
+
+On **sync** entry points, inline is promoted to **thread** so `Future.result(timeout)` provides a real deadline. **Async** entry points keep inline — coroutines need the caller's event loop.
+
+### Timeout Matrix
+
+All entry points enforce per-tool `metadata.timeout`:
+
+| Entry Point | Mechanism |
+|-------------|-----------|
+| `invoke()` | thread `Future.result(timeout)` |
+| `ainvoke()` | inline `asyncio.wait_for` |
+| `execute_tool_calls()` | thread/process `Future.result(timeout)` |
+| `aexecute_tool_calls()` | inline `asyncio.wait_for` |
 
 ## Executor Backends
 
-ToolRegistry uses pluggable backends for concurrent execution. The executor module has **zero imports from toolregistry** — it is a standalone, protocol-first subsystem.
+The executor module has **zero imports from toolregistry** — it is a standalone, protocol-first subsystem.
 
-| Backend | Parallelism | Cancellation | Best For |
-|---------|-------------|-------------|----------|
-| `ThreadBackend` | GIL-limited threads | Cooperative (`ExecutionContext`) | Local CPU-bound functions |
-| `ProcessPoolBackend` | True multiprocess | Hard (`future.cancel()`) | Network I/O, crash isolation |
+| Backend | Isolation | Timeout | Best For |
+|---------|-----------|---------|----------|
+| `InlineBackend` | None | ✅ async path | MCP, OpenAPI (already isolated externally) |
+| `ThreadBackend` | Thread | ✅ `Future.result(t)` | Sync callers, timeout enforcement |
+| `ProcessPoolBackend` | Process | ✅ `Future.result(t)` | CPU isolation, crash isolation |
 
-Both backends return an `ExecutionHandle` with uniform `cancel()`, `status()`, `result()`, and `on_progress()` methods.
+All three return an `ExecutionHandle` with uniform `cancel()`, `status()`, `result()`, `result_async()`, and `on_progress()` methods.
 
-Process mode is the default. See [Execution Modes](../usage/concurrency_modes.md) for benchmarks and configuration.
+See [Execution Backends and Async Support](../usage/concurrency_modes.md) for configuration and details.
 
 ## Integration Architecture
 
