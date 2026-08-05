@@ -1168,9 +1168,7 @@ class ToolRegistry(
         """
         from .executor._inline_backend import InlineExecutionHandle
 
-        return isinstance(handle, InlineExecutionHandle) and (
-            getattr(handle, "_timeout", None) is not None
-        )
+        return isinstance(handle, InlineExecutionHandle) and handle.timeout is not None
 
     def _collect_handle_result(
         self, handle: Any, tool_name: str

@@ -59,6 +59,14 @@ class InlineExecutionHandle(ExecutionHandle):
     def execution_id(self) -> str:
         return self._exec_id
 
+    @property
+    def timeout(self) -> float | None:
+        """Deadline supplied at submit time, if any.
+
+        Enforced only on the async path — see :meth:`result_async`.
+        """
+        return self._timeout
+
     def cancel(self) -> bool:
         """Cancel before execution.
 
