@@ -16,6 +16,8 @@ hide:
 
 ## [未发布]
 
+## [0.15.0] - 2026-08-06
+
 ### 新增
 
 - **`ainvoke()` 和 `aexecute_tool_calls()`**：`invoke()` 和 `execute_tool_calls()` 的异步版本。`ainvoke()` 在调用方的 event loop 上 await 工具执行；`aexecute_tool_calls()` 通过 `asyncio.gather` 并发运行安全工具。两者返回与同步版相同的 `Result` 类型。
