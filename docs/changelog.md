@@ -24,6 +24,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **`ToolMetadata.natural_backend`**: Per-tool backend hint (`"inline"`, `"thread"`, `"process"`). MCP and OpenAPI tools set `natural_backend="inline"`; the registry's `_resolve_backend` seam resolves per tool instead of per batch.
 - **`_invoke_raw()`**: Internal raw-returning variant of `invoke()` for PTC. Runs the same pipeline (permissions, logging, backend seam) but returns the raw Python value and raises on error, so LLM-authored PTC code can compose tool outputs naturally.
 - **Async permission resolution**: `_aresolve_permission()` awaits `AsyncPermissionHandler` natively on the caller's loop. Shared policy evaluation via `_evaluate_policy()` so sync and async resolvers cannot drift.
+- **MCP SDK v2 compatibility** (#232): Client integration supports both MCP SDK v1 (1.x) and v2 (2.x). Dependency pin widened to `mcp>=1.24,<3`. Adds a compatibility layer that handles transport API differences (`streamable_http` vs `streamablehttp`) transparently.
+- **Schema sanitization** (#215): `get_schema()` now strips Pydantic v2 artifacts (`anyOf` with null branch, `nullable`, `title`) that most LLM providers reject or misinterpret. Optional parameters produce clean `{type: T}` schemas instead of `{anyOf: [{type: T}, {type: null}]}`.
 
 ### Changed
 
@@ -42,6 +44,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **Sync registration of multiple MCP/OpenAPI sources** (#217, #220): Replaced per-call event loop creation/destruction with a shared `AsyncRuntime` singleton. Sequential `register_from_mcp()` calls no longer cause `CancelledError` from anyio state pollution.
 - **Inline backend timeout silently ignored** (#233): `InlineBackend.submit()` accepted a `timeout` argument but discarded it — `metadata.timeout` was ineffective for all inline tools. Now stored and enforced via `asyncio.wait_for` on the async path, and via thread-backend promotion on the sync path.
+- **Process backend deadlock on MCP/OpenAPI tools** (#235): Forcing `execution_mode="process"` on inline-natural tools (MCP, OpenAPI) caused a silent deadlock — cloudpickle serialized the wrapper but the worker process had no live connection. `_resolve_backend` now blocks this combination and downgrades to thread.
 
 ## [0.14.0] - 2026-07-16
 
