@@ -24,6 +24,8 @@ hide:
 - **`ToolMetadata.natural_backend`**：工具级后端提示（`"inline"`、`"thread"`、`"process"`）。MCP 和 OpenAPI 工具设置 `natural_backend="inline"`；registry 的 `_resolve_backend` 接缝按工具解析而非按批次。
 - **`_invoke_raw()`**：`invoke()` 的内部原始返回变体，供 PTC 使用。走相同管线（权限、日志、后端接缝），但返回原始 Python 值并在错误时抛异常，以便 LLM 编写的 PTC 代码能自然组合工具输出。
 - **异步权限解析**：`_aresolve_permission()` 在调用方 loop 上原生 await `AsyncPermissionHandler`。通过共享的 `_evaluate_policy()` 实现策略评估，确保同步和异步解析器不会分叉。
+- **MCP SDK v2 兼容**（#232）：客户端集成同时支持 MCP SDK v1 (1.x) 和 v2 (2.x)。依赖 pin 放宽至 `mcp>=1.24,<3`。添加兼容层透明处理 transport API 差异（`streamable_http` vs `streamablehttp`）。
+- **Schema 清理**（#215）：`get_schema()` 现在剥离 Pydantic v2 产物（`anyOf` null 分支、`nullable`、`title`），这些大多数 LLM 提供商拒绝或误解。可选参数产生干净的 `{type: T}` schema，而非 `{anyOf: [{type: T}, {type: null}]}`。
 
 ### 变更
 
@@ -42,6 +44,7 @@ hide:
 
 - **多 MCP/OpenAPI 源的同步注册**（#217、#220）：用共享的 `AsyncRuntime` 单例替代每次调用创建/销毁事件循环的模式。顺序 `register_from_mcp()` 调用不再因 anyio 状态污染导致 `CancelledError`。
 - **Inline 后端超时被静默忽略**（#233）：`InlineBackend.submit()` 接受 `timeout` 参数但直接丢弃——`metadata.timeout` 对所有 inline 工具无效。现在在异步路径通过 `asyncio.wait_for` 强制执行，在同步路径通过线程后端提升实现。
+- **Process 后端对 MCP/OpenAPI 工具死锁**（#235）：对 inline-natural 工具（MCP、OpenAPI）强制 `execution_mode="process"` 导致静默死锁——cloudpickle 序列化了 wrapper 但 worker 进程无活连接。`_resolve_backend` 现在阻止此组合并降级为 thread。
 
 ## [0.14.0] - 2026-07-16
 
