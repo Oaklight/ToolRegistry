@@ -16,6 +16,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-08-06
+
 ### Added
 
 - **`ainvoke()` and `aexecute_tool_calls()`**: Async counterparts to `invoke()` and `execute_tool_calls()`. `ainvoke()` awaits tool execution on the caller's event loop; `aexecute_tool_calls()` runs concurrency-safe calls via `asyncio.gather`. Both return the same `Result` types as their sync twins.
