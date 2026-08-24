@@ -625,8 +625,8 @@ class ToolRegistry(
         from .admin.execution_log import warning_collector
 
         start = time.perf_counter()
-        try:
-            with warning_collector("toolregistry") as wc:
+        with warning_collector("toolregistry") as wc:
+            try:
                 handle = backend.submit(
                     lambda **kw: tool_obj.run(kw),
                     clean_kwargs,
@@ -634,27 +634,29 @@ class ToolRegistry(
                     timeout=per_call_timeout,
                 )
                 result = handle.result()
-            captured = tuple(wc.messages)
-            duration_ms = (time.perf_counter() - start) * 1000
-            self._log_tool_result(
-                tool_name,
-                kwargs,
-                result=result,
-                duration_ms=duration_ms,
-                invocation_id=invocation_id,
-                warnings=captured,
-            )
-            return result
-        except Exception as exc:
-            duration_ms = (time.perf_counter() - start) * 1000
-            self._log_tool_result(
-                tool_name,
-                kwargs,
-                error=exc,
-                duration_ms=duration_ms,
-                invocation_id=invocation_id,
-            )
-            raise
+            except Exception as exc:
+                captured = tuple(wc.messages)
+                duration_ms = (time.perf_counter() - start) * 1000
+                self._log_tool_result(
+                    tool_name,
+                    kwargs,
+                    error=exc,
+                    duration_ms=duration_ms,
+                    invocation_id=invocation_id,
+                    warnings=captured,
+                )
+                raise
+        captured = tuple(wc.messages)
+        duration_ms = (time.perf_counter() - start) * 1000
+        self._log_tool_result(
+            tool_name,
+            kwargs,
+            result=result,
+            duration_ms=duration_ms,
+            invocation_id=invocation_id,
+            warnings=captured,
+        )
+        return result
 
     def invoke(
         self,
