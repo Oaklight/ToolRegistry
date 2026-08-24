@@ -492,6 +492,7 @@ class ToolRegistry(
         error: _ToolError | Exception | None = None,
         duration_ms: float = 0.0,
         invocation_id: str | None = None,
+        warnings: tuple[str, ...] = (),
     ) -> None:
         """Log a tool execution result and emit error events.
 
@@ -505,6 +506,7 @@ class ToolRegistry(
             error: A :class:`_ToolError` or :class:`Exception` on failure.
             duration_ms: Execution duration in milliseconds.
             invocation_id: Invocation ID for log grouping.
+            warnings: Warning messages captured during execution.
         """
         from .admin import ExecutionStatus
 
@@ -524,6 +526,7 @@ class ToolRegistry(
                     exception_type=error.exception_type,
                     traceback=error.traceback_str,
                     invocation_id=invocation_id,
+                    warnings=warnings,
                 )
             else:
                 self._log_entry(
@@ -535,6 +538,7 @@ class ToolRegistry(
                     exception_type=type(error).__qualname__,
                     traceback=tb_module.format_exc(),
                     invocation_id=invocation_id,
+                    warnings=warnings,
                 )
             exc_type = (
                 error.exception_type
@@ -560,6 +564,7 @@ class ToolRegistry(
                 kwargs,
                 result=str(result) if result is not None else None,
                 invocation_id=invocation_id,
+                warnings=warnings,
             )
 
     # ============== Execution ==============
@@ -617,15 +622,19 @@ class ToolRegistry(
         clean_kwargs = self._clean_kwargs(kwargs)
         per_call_timeout = tool_obj.metadata.timeout if tool_obj.metadata else None
 
+        from .admin.execution_log import warning_collector
+
         start = time.perf_counter()
         try:
-            handle = backend.submit(
-                lambda **kw: tool_obj.run(kw),
-                clean_kwargs,
-                execution_id=invocation_id,
-                timeout=per_call_timeout,
-            )
-            result = handle.result()
+            with warning_collector("toolregistry") as wc:
+                handle = backend.submit(
+                    lambda **kw: tool_obj.run(kw),
+                    clean_kwargs,
+                    execution_id=invocation_id,
+                    timeout=per_call_timeout,
+                )
+                result = handle.result()
+            captured = tuple(wc.messages)
             duration_ms = (time.perf_counter() - start) * 1000
             self._log_tool_result(
                 tool_name,
@@ -633,6 +642,7 @@ class ToolRegistry(
                 result=result,
                 duration_ms=duration_ms,
                 invocation_id=invocation_id,
+                warnings=captured,
             )
             return result
         except Exception as exc:
@@ -694,18 +704,22 @@ class ToolRegistry(
         clean_kwargs = self._clean_kwargs(kwargs)
         per_call_timeout = tool_obj.metadata.timeout if tool_obj.metadata else None
 
+        from .admin.execution_log import warning_collector
+
         start = time.perf_counter()
         # Submit tool_obj.run so the sync path is forced regardless of any
         # ambient event loop (BaseToolWrapper.__call__ would auto-select
         # async based on a running loop).  The backend calls fn(**kwargs),
         # so the thunk collects them back into the dict run() expects.
-        handle = backend.submit(
-            lambda **kw: tool_obj.run(kw),
-            clean_kwargs,
-            execution_id=invocation_id,
-            timeout=per_call_timeout,
-        )
-        outcome = self._collect_handle_result(handle, tool_name)
+        with warning_collector("toolregistry") as wc:
+            handle = backend.submit(
+                lambda **kw: tool_obj.run(kw),
+                clean_kwargs,
+                execution_id=invocation_id,
+                timeout=per_call_timeout,
+            )
+            outcome = self._collect_handle_result(handle, tool_name)
+        captured = tuple(wc.messages)
         duration_ms = (time.perf_counter() - start) * 1000
 
         if isinstance(outcome, _ToolError):
@@ -715,6 +729,7 @@ class ToolRegistry(
                 error=outcome,
                 duration_ms=duration_ms,
                 invocation_id=invocation_id,
+                warnings=captured,
             )
             return ErrorResult(
                 id=invocation_id,
@@ -728,6 +743,7 @@ class ToolRegistry(
             result=outcome,
             duration_ms=duration_ms,
             invocation_id=invocation_id,
+            warnings=captured,
         )
         return ToolCallResult(id=invocation_id, name=tool_name, result=outcome)
 
@@ -840,37 +856,41 @@ class ToolRegistry(
         clean_kwargs = self._clean_kwargs(kwargs)
         per_call_timeout = tool_obj.metadata.timeout if tool_obj.metadata else None
 
+        from .admin.execution_log import warning_collector
+
         start = time.perf_counter()
         outcome: Any
-        try:
-            # Inline backend: pass tool.arun so result_async() can
-            # await the coroutine natively on the caller's loop.
-            # Pool backends: pass tool.run (sync) for execution in
-            # the worker thread/process.
-            if backend is self._inline_backend:
-                submit_fn = lambda **kw: tool_obj.arun(kw)  # noqa: E731
-            else:
-                submit_fn = lambda **kw: tool_obj.run(kw)  # noqa: E731
-            handle = backend.submit(
-                submit_fn,
-                clean_kwargs,
-                execution_id=invocation_id,
-                timeout=per_call_timeout,
-            )
-            raw = await handle.result_async()
-            outcome = self._finalize_result(raw, tool_name)
-        except TimeoutError:
-            outcome = _ToolError(
-                message=f"Error: Tool '{tool_name}' timed out",
-                exception_type="TimeoutError",
-                is_timeout=True,
-            )
-        except Exception as exc:
-            outcome = _ToolError(
-                message=f"Error executing {tool_name}: {exc!s}",
-                exception_type=type(exc).__qualname__,
-                traceback_str=tb_module.format_exc(),
-            )
+        with warning_collector("toolregistry") as wc:
+            try:
+                # Inline backend: pass tool.arun so result_async() can
+                # await the coroutine natively on the caller's loop.
+                # Pool backends: pass tool.run (sync) for execution in
+                # the worker thread/process.
+                if backend is self._inline_backend:
+                    submit_fn = lambda **kw: tool_obj.arun(kw)  # noqa: E731
+                else:
+                    submit_fn = lambda **kw: tool_obj.run(kw)  # noqa: E731
+                handle = backend.submit(
+                    submit_fn,
+                    clean_kwargs,
+                    execution_id=invocation_id,
+                    timeout=per_call_timeout,
+                )
+                raw = await handle.result_async()
+                outcome = self._finalize_result(raw, tool_name)
+            except TimeoutError:
+                outcome = _ToolError(
+                    message=f"Error: Tool '{tool_name}' timed out",
+                    exception_type="TimeoutError",
+                    is_timeout=True,
+                )
+            except Exception as exc:
+                outcome = _ToolError(
+                    message=f"Error executing {tool_name}: {exc!s}",
+                    exception_type=type(exc).__qualname__,
+                    traceback_str=tb_module.format_exc(),
+                )
+        captured = tuple(wc.messages)
         duration_ms = (time.perf_counter() - start) * 1000
 
         if isinstance(outcome, _ToolError):
@@ -880,6 +900,7 @@ class ToolRegistry(
                 error=outcome,
                 duration_ms=duration_ms,
                 invocation_id=invocation_id,
+                warnings=captured,
             )
             return ErrorResult(
                 id=invocation_id,
@@ -893,6 +914,7 @@ class ToolRegistry(
             result=outcome,
             duration_ms=duration_ms,
             invocation_id=invocation_id,
+            warnings=captured,
         )
         return ToolCallResult(id=invocation_id, name=tool_name, result=outcome)
 
@@ -1064,6 +1086,7 @@ class ToolRegistry(
         exception_type: str | None = None,
         traceback: str | None = None,
         invocation_id: str | None = None,
+        warnings: tuple[str, ...] = (),
     ) -> None:
         """Append an entry to the execution log if logging is enabled.
 
@@ -1077,6 +1100,7 @@ class ToolRegistry(
             exception_type: Optional qualified exception class name.
             traceback: Optional formatted traceback string.
             invocation_id: Optional invocation ID grouping related calls.
+            warnings: Warning messages captured during execution.
         """
         if self._execution_log is None:
             return
@@ -1092,6 +1116,7 @@ class ToolRegistry(
             exception_type=exception_type,
             traceback=traceback,
             invocation_id=invocation_id,
+            warnings=warnings,
         )
         self._execution_log.add(entry)
 
@@ -1242,17 +1267,22 @@ class ToolRegistry(
         )
 
         if has_unsafe:
-            raw_results = self._execute_sequential(
+            raw_results, call_warnings = self._execute_sequential(
                 enabled_calls, execution_mode, call_arguments
             )
         else:
-            raw_results = self._execute_concurrent(
+            raw_results, call_warnings = self._execute_concurrent(
                 enabled_calls, execution_mode, call_arguments
             )
         tool_responses.update(raw_results)
 
         self._log_tool_call_results(
-            enabled_calls, raw_results, call_start_times, call_arguments, batch_inv_id
+            enabled_calls,
+            raw_results,
+            call_start_times,
+            call_arguments,
+            batch_inv_id,
+            call_warnings=call_warnings,
         )
 
         return self._wrap_results(generic_tool_calls, tool_responses)
@@ -1262,33 +1292,42 @@ class ToolRegistry(
         enabled_calls: list[Any],
         execution_mode: str | None,
         call_arguments: dict[str, dict],
-    ) -> dict[str, Any]:
+    ) -> tuple[dict[str, Any], dict[str, tuple[str, ...]]]:
         """Submit + collect each call in order (used when an unsafe tool is present)."""
+        from .admin.execution_log import warning_collector
+
         raw_results: dict[str, Any] = {}
+        call_warnings: dict[str, tuple[str, ...]] = {}
         for tc in enabled_calls:
             handle_or_error = self._submit_tool_call(tc, execution_mode, call_arguments)
             if isinstance(handle_or_error, _ToolError):
                 raw_results[tc.id] = handle_or_error
             else:
-                raw_results[tc.id] = self._collect_handle_result(
-                    handle_or_error, tc.name
-                )
-        return raw_results
+                with warning_collector("toolregistry") as wc:
+                    raw_results[tc.id] = self._collect_handle_result(
+                        handle_or_error, tc.name
+                    )
+                captured = tuple(wc.messages)
+                if captured:
+                    call_warnings[tc.id] = captured
+        return raw_results, call_warnings
 
     def _execute_concurrent(
         self,
         enabled_calls: list[Any],
         execution_mode: str | None,
         call_arguments: dict[str, dict],
-    ) -> dict[str, Any]:
+    ) -> tuple[dict[str, Any], dict[str, tuple[str, ...]]]:
         """Submit all calls concurrently, then collect results.
 
         On the sync path, ``_resolve_backend`` promotes inline to thread,
         so every tool gets a pool handle — submit-all then collect-all.
         """
+        from .admin.execution_log import warning_collector
         from .executor import ExecutionHandle
 
         raw_results: dict[str, Any] = {}
+        call_warnings: dict[str, tuple[str, ...]] = {}
         handles: list[tuple[Any, ExecutionHandle]] = []
 
         for tc in enabled_calls:
@@ -1299,9 +1338,13 @@ class ToolRegistry(
                 handles.append((tc, handle_or_error))
 
         for tc, handle in handles:
-            raw_results[tc.id] = self._collect_handle_result(handle, tc.name)
+            with warning_collector("toolregistry") as wc:
+                raw_results[tc.id] = self._collect_handle_result(handle, tc.name)
+            captured = tuple(wc.messages)
+            if captured:
+                call_warnings[tc.id] = captured
 
-        return raw_results
+        return raw_results, call_warnings
 
     async def _aclassify_tool_calls(
         self,
@@ -1343,18 +1386,23 @@ class ToolRegistry(
         tc: Any,
         execution_mode: str | None,
         call_arguments: dict[str, dict],
-    ) -> Any:
+    ) -> tuple[Any, tuple[str, ...]]:
         """Execute one classified tool call asynchronously.
 
-        Returns the finalized result (str/content-block list) on success
-        or a :class:`_ToolError` on failure.  Inline-resolved tools are
-        awaited directly on the caller's loop; pool-backed tools submit
-        and await :meth:`ExecutionHandle.result_async`.
+        Returns a tuple of (result, warnings).  *result* is the
+        finalized result (str/content-block list) on success or a
+        :class:`_ToolError` on failure.  *warnings* contains any
+        WARNING-level log messages captured during execution.
         """
+        from .admin.execution_log import warning_collector
+
         tool_obj = self.get_tool(tc.name)
         if tool_obj is None:
-            return _ToolError(
-                message=f"Error: Tool '{tc.name}' not found or callable is None",
+            return (
+                _ToolError(
+                    message=f"Error: Tool '{tc.name}' not found or callable is None",
+                ),
+                (),
             )
 
         clean_kwargs = self._clean_kwargs(call_arguments.get(tc.id, {}))
@@ -1363,34 +1411,36 @@ class ToolRegistry(
             tool_obj, execution_mode, default=self._execution_mode, async_caller=True
         )
 
-        try:
-            # Inline: pass tool.arun (async) so result_async can await.
-            # Pool: pass tool.run (sync) for worker execution.
-            # Bind tool_obj as default arg to avoid closure-over-loop.
-            if backend is self._inline_backend:
-                submit_fn = lambda _t=tool_obj, **kw: _t.arun(kw)  # noqa: E731
-            else:
-                submit_fn = lambda _t=tool_obj, **kw: _t.run(kw)  # noqa: E731
-            handle = backend.submit(
-                submit_fn,
-                clean_kwargs,
-                execution_id=tc.id,
-                timeout=per_call_timeout,
-            )
-            raw = await handle.result_async()
-            return self._finalize_result(raw, tc.name)
-        except TimeoutError:
-            return _ToolError(
-                message=f"Error: Tool '{tc.name}' timed out",
-                exception_type="TimeoutError",
-                is_timeout=True,
-            )
-        except Exception as exc:
-            return _ToolError(
-                message=f"Error executing {tc.name}: {exc!s}",
-                exception_type=type(exc).__qualname__,
-                traceback_str=tb_module.format_exc(),
-            )
+        with warning_collector("toolregistry") as wc:
+            try:
+                # Inline: pass tool.arun (async) so result_async can await.
+                # Pool: pass tool.run (sync) for worker execution.
+                # Bind tool_obj as default arg to avoid closure-over-loop.
+                if backend is self._inline_backend:
+                    submit_fn = lambda _t=tool_obj, **kw: _t.arun(kw)  # noqa: E731
+                else:
+                    submit_fn = lambda _t=tool_obj, **kw: _t.run(kw)  # noqa: E731
+                handle = backend.submit(
+                    submit_fn,
+                    clean_kwargs,
+                    execution_id=tc.id,
+                    timeout=per_call_timeout,
+                )
+                raw = await handle.result_async()
+                outcome = self._finalize_result(raw, tc.name)
+            except TimeoutError:
+                outcome = _ToolError(
+                    message=f"Error: Tool '{tc.name}' timed out",
+                    exception_type="TimeoutError",
+                    is_timeout=True,
+                )
+            except Exception as exc:
+                outcome = _ToolError(
+                    message=f"Error executing {tc.name}: {exc!s}",
+                    exception_type=type(exc).__qualname__,
+                    traceback_str=tb_module.format_exc(),
+                )
+        return outcome, tuple(wc.messages)
 
     async def aexecute_tool_calls(
         self,
@@ -1434,17 +1484,22 @@ class ToolRegistry(
         )
 
         if has_unsafe:
-            raw_results = await self._aexecute_sequential(
+            raw_results, call_warnings = await self._aexecute_sequential(
                 enabled_calls, execution_mode, call_arguments
             )
         else:
-            raw_results = await self._aexecute_concurrent(
+            raw_results, call_warnings = await self._aexecute_concurrent(
                 enabled_calls, execution_mode, call_arguments
             )
         tool_responses.update(raw_results)
 
         self._log_tool_call_results(
-            enabled_calls, raw_results, call_start_times, call_arguments, batch_inv_id
+            enabled_calls,
+            raw_results,
+            call_start_times,
+            call_arguments,
+            batch_inv_id,
+            call_warnings=call_warnings,
         )
 
         return self._wrap_results(generic_tool_calls, tool_responses)
@@ -1454,21 +1509,25 @@ class ToolRegistry(
         enabled_calls: list[Any],
         execution_mode: str | None,
         call_arguments: dict[str, dict],
-    ) -> dict[str, Any]:
+    ) -> tuple[dict[str, Any], dict[str, tuple[str, ...]]]:
         """Await each call in order (used when an unsafe tool is present)."""
         raw_results: dict[str, Any] = {}
+        call_warnings: dict[str, tuple[str, ...]] = {}
         for tc in enabled_calls:
-            raw_results[tc.id] = await self._aexecute_one(
+            result, warnings = await self._aexecute_one(
                 tc, execution_mode, call_arguments
             )
-        return raw_results
+            raw_results[tc.id] = result
+            if warnings:
+                call_warnings[tc.id] = warnings
+        return raw_results, call_warnings
 
     async def _aexecute_concurrent(
         self,
         enabled_calls: list[Any],
         execution_mode: str | None,
         call_arguments: dict[str, dict],
-    ) -> dict[str, Any]:
+    ) -> tuple[dict[str, Any], dict[str, tuple[str, ...]]]:
         """Run concurrency-safe calls concurrently via ``asyncio.gather``.
 
         Inline tools overlap on the caller's loop; pool-backed tools run
@@ -1480,6 +1539,7 @@ class ToolRegistry(
         import asyncio
 
         raw_results: dict[str, Any] = {}
+        call_warnings: dict[str, tuple[str, ...]] = {}
         results = await asyncio.gather(
             *(
                 self._aexecute_one(tc, execution_mode, call_arguments)
@@ -1489,12 +1549,16 @@ class ToolRegistry(
         )
         for tc, result in zip(enabled_calls, results):
             if isinstance(result, BaseException):
-                result = _ToolError(
+                raw_results[tc.id] = _ToolError(
                     message=f"Error executing {tc.name}: {result!s}",
                     exception_type=type(result).__qualname__,
                 )
-            raw_results[tc.id] = result
-        return raw_results
+            else:
+                outcome, warnings = result
+                raw_results[tc.id] = outcome
+                if warnings:
+                    call_warnings[tc.id] = warnings
+        return raw_results, call_warnings
 
     @staticmethod
     def _wrap_results(
@@ -1522,6 +1586,7 @@ class ToolRegistry(
         call_start_times: dict[str, float],
         call_arguments: dict[str, dict],
         invocation_id: str | None = None,
+        call_warnings: dict[str, tuple[str, ...]] | None = None,
     ) -> None:
         """Log execution results using :meth:`_log_tool_result`.
 
@@ -1531,13 +1596,18 @@ class ToolRegistry(
             call_start_times: Map of call ID to start timestamp.
             call_arguments: Map of call ID to parsed arguments.
             invocation_id: Invocation ID to attach to log entries.
+            call_warnings: Map of call ID to warning tuples captured
+                during execution.
         """
+        if call_warnings is None:
+            call_warnings = {}
         end_time = time.perf_counter()
         for tc in enabled_calls:
             start_time = call_start_times.get(tc.id, end_time)
             duration_ms = (end_time - start_time) * 1000
             raw = raw_results.get(tc.id)
             kwargs = call_arguments.get(tc.id, {})
+            tc_warnings = call_warnings.get(tc.id, ())
 
             if isinstance(raw, _ToolError):
                 self._log_tool_result(
@@ -1546,6 +1616,7 @@ class ToolRegistry(
                     error=raw,
                     duration_ms=duration_ms,
                     invocation_id=invocation_id,
+                    warnings=tc_warnings,
                 )
             else:
                 self._log_tool_result(
@@ -1554,6 +1625,7 @@ class ToolRegistry(
                     result=raw,
                     duration_ms=duration_ms,
                     invocation_id=invocation_id,
+                    warnings=tc_warnings,
                 )
 
     def build_tool_call_messages(

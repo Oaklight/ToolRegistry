@@ -580,6 +580,7 @@ def _get_logs(request: Request) -> Response:
     limit = int(request.query_params.get("limit", ["100"])[0])
     tool_name = request.query_params.get("tool_name", [None])[0]
     status_str = request.query_params.get("status", [None])[0]
+    has_warnings_str = request.query_params.get("has_warnings", [None])[0]
 
     from .execution_log import ExecutionStatus
 
@@ -590,7 +591,13 @@ def _get_logs(request: Request) -> Response:
         except ValueError:
             pass
 
-    entries = log.get_entries(limit=limit, tool_name=tool_name, status=status)
+    has_warnings: bool | None = None
+    if has_warnings_str is not None:
+        has_warnings = has_warnings_str.lower() in ("true", "1", "yes")
+
+    entries = log.get_entries(
+        limit=limit, tool_name=tool_name, status=status, has_warnings=has_warnings
+    )
     entries_data = [asdict(entry) for entry in entries]
 
     return _json_response({"entries": entries_data, "count": len(entries_data)})

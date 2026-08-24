@@ -532,6 +532,30 @@
             color: var(--text-secondary);
         }
 
+        .badge-warn {
+            background: rgba(194, 146, 46, 0.15);
+            color: var(--accent);
+            margin-left: 4px;
+        }
+
+        .text-warning {
+            color: var(--accent);
+        }
+
+        .warning-filter-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .warning-filter-label input[type="checkbox"] {
+            margin: 0;
+        }
+
         /* ============== Forms ============== */
         .input {
             width: 100%;
@@ -1625,6 +1649,10 @@
                                         <option value="error" data-i18n="log.error">Error</option>
                                         <option value="disabled" data-i18n="log.rejected">Rejected</option>
                                     </select>
+                                    <label class="warning-filter-label">
+                                        <input type="checkbox" id="log-warnings-filter">
+                                        <span data-i18n="filter.hasWarnings">⚠ Warnings only</span>
+                                    </label>
                                     <select class="input select" id="log-limit">
                                         <option value="50" data-i18n="log.last50">Last 50</option>
                                         <option value="100" selected data-i18n="log.last100">Last 100</option>
@@ -1909,6 +1937,7 @@
             'log.last50':'Last 50', 'log.last100':'Last 100', 'log.last500':'Last 500',
             'log.success':'Success', 'log.error':'Error', 'log.rejected':'Rejected',
             'log.arguments':'Arguments:', 'log.result':'Result:', 'log.errorLabel':'Error:',
+            'log.warnings':'Warnings', 'filter.hasWarnings':'\u26a0 Warnings only',
             'state.exportDesc':'Download the current state of disabled tools and namespaces as a JSON file.',
             'state.importDesc':'Upload a previously exported state file to restore disabled tools and namespaces.',
             'perm.policyActive':'Policy Active',
@@ -2022,6 +2051,7 @@
             'log.last50':'\u6700\u8fd1 50', 'log.last100':'\u6700\u8fd1 100', 'log.last500':'\u6700\u8fd1 500',
             'log.success':'\u6210\u529f', 'log.error':'\u9519\u8bef', 'log.rejected':'\u5df2\u62d2\u7edd',
             'log.arguments':'\u53c2\u6570\uff1a', 'log.result':'\u7ed3\u679c\uff1a', 'log.errorLabel':'\u9519\u8bef\uff1a',
+            'log.warnings':'\u8b66\u544a', 'filter.hasWarnings':'\u26a0 \u4ec5\u663e\u793a\u8b66\u544a',
             'state.exportDesc':'\u5c06\u5f53\u524d\u7981\u7528\u7684\u5de5\u5177\u548c\u547d\u540d\u7a7a\u95f4\u72b6\u6001\u4e0b\u8f7d\u4e3a JSON \u6587\u4ef6\u3002',
             'state.importDesc':'\u4e0a\u4f20\u4e4b\u524d\u5bfc\u51fa\u7684\u72b6\u6001\u6587\u4ef6\u4ee5\u6062\u590d\u5de5\u5177\u548c\u547d\u540d\u7a7a\u95f4\u7684\u7981\u7528\u72b6\u6001\u3002',
             'perm.policyActive':'\u7b56\u7565\u5df2\u6fc0\u6d3b',
@@ -2844,10 +2874,12 @@
         // ============== Logs ==============
         async function refreshLogs() {
             try {
+                const warningsOnly = document.getElementById('log-warnings-filter').checked;
                 const params = {
                     limit: document.getElementById('log-limit').value,
                     tool_name: document.getElementById('log-tool-filter').value || undefined,
-                    status: document.getElementById('log-status-filter').value || undefined
+                    status: document.getElementById('log-status-filter').value || undefined,
+                    has_warnings: warningsOnly ? 'true' : undefined
                 };
                 const data = await api.getLogs(params);
                 renderLogs(data.entries || []);
@@ -2907,12 +2939,17 @@
                 const timestamp = new Date(entry.timestamp).toLocaleString();
                 const duration = entry.duration_ms ? entry.duration_ms.toFixed(2) + 'ms' : '-';
 
+                const warningCount = (entry.warnings || []).length;
+                const warningBadge = warningCount > 0
+                    ? `<span class="badge badge-warn" title="${warningCount} warning${warningCount > 1 ? 's' : ''}">⚠ ${warningCount}</span>`
+                    : '';
+
                 return `
                     <tr class="log-row" onclick="toggleLogDetails(${idx})">
                         <td><span class="expand-icon">${SVG_CHEVRON}</span></td>
                         <td class="text-sm">${timestamp}</td>
                         <td><span style="font-weight: 500;">${escapeHtml(entry.tool_name)}</span></td>
-                        <td><span class="badge ${statusClass}">${statusLabel}</span></td>
+                        <td><span class="badge ${statusClass}">${statusLabel}</span>${warningBadge}</td>
                         <td class="text-muted">${duration}</td>
                     </tr>
                     <tr>
@@ -2923,6 +2960,10 @@
                                 ${entry.result !== undefined ? `
                                     <div class="mb-2 mt-4"><strong>${t('log.result')}</strong></div>
                                     <pre>${escapeHtml(JSON.stringify(entry.result, null, 2))}</pre>
+                                ` : ''}
+                                ${warningCount > 0 ? `
+                                    <div class="mb-2 mt-4"><strong>⚠ ${t('log.warnings')} (${warningCount})</strong></div>
+                                    <pre class="text-warning">${escapeHtml(entry.warnings.join('\n'))}</pre>
                                 ` : ''}
                                 ${entry.error ? `
                                     <div class="mb-2 mt-4"><strong>${t('log.errorLabel')}</strong></div>

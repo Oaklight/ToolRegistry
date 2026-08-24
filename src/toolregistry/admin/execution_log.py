@@ -4,13 +4,16 @@ This module provides data structures and utilities for logging tool executions,
 including a thread-safe ring buffer implementation for efficient storage.
 """
 
+import logging
 import threading
 import uuid
 from collections import deque
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any
+from collections.abc import Generator
 
 
 class ExecutionStatus(str, Enum):
@@ -54,6 +57,7 @@ class ExecutionLogEntry:
     exception_type: str | None = None
     traceback: str | None = None
     invocation_id: str | None = None
+    warnings: tuple[str, ...] = ()
     metadata: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -68,6 +72,7 @@ class ExecutionLogEntry:
         exception_type: str | None = None,
         traceback: str | None = None,
         invocation_id: str | None = None,
+        warnings: tuple[str, ...] | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> "ExecutionLogEntry":
         """Create a new ExecutionLogEntry with auto-generated id and timestamp.
@@ -84,6 +89,7 @@ class ExecutionLogEntry:
             invocation_id: Groups related tool calls. Prefixes:
                 ``tr_bat_`` (batch), ``tr_ptc_`` (PTC),
                 ``tr_sig_`` (single invoke).
+            warnings: Warning messages captured during execution.
             metadata: Additional metadata.
 
         Returns:
@@ -101,6 +107,7 @@ class ExecutionLogEntry:
             exception_type=exception_type,
             traceback=traceback,
             invocation_id=invocation_id,
+            warnings=warnings or (),
             metadata=metadata or {},
         )
 
@@ -172,6 +179,7 @@ class ExecutionLog:
         status: ExecutionStatus | None = None,
         since: datetime | None = None,
         invocation_id: str | None = None,
+        has_warnings: bool | None = None,
     ) -> list[ExecutionLogEntry]:
         """Query log entries with optional filters.
 
@@ -186,6 +194,9 @@ class ExecutionLog:
             invocation_id: Filter by invocation ID. Use this to retrieve
                 all tool calls from a single batch (``tr_bat_``), PTC
                 execution (``tr_ptc_``), or standalone invoke (``tr_sig_``).
+            has_warnings: If ``True``, return only entries with warnings;
+                if ``False``, only entries without warnings.  ``None``
+                disables the filter.
 
         Returns:
             List of matching ExecutionLogEntry objects, newest first.
@@ -204,6 +215,11 @@ class ExecutionLog:
             filtered = [e for e in filtered if e.timestamp >= since]
         if invocation_id is not None:
             filtered = [e for e in filtered if e.invocation_id == invocation_id]
+        if has_warnings is not None:
+            if has_warnings:
+                filtered = [e for e in filtered if e.warnings]
+            else:
+                filtered = [e for e in filtered if not e.warnings]
 
         # Sort by timestamp descending (newest first)
         filtered.sort(key=lambda e: e.timestamp, reverse=True)
@@ -284,3 +300,47 @@ class ExecutionLog:
         """Return current number of entries."""
         with self._lock:
             return len(self._entries)
+
+
+class _WarningHandler(logging.Handler):
+    """Lightweight handler that accumulates WARNING+ messages."""
+
+    __slots__ = ("messages",)
+
+    def __init__(self) -> None:
+        super().__init__(level=logging.WARNING)
+        self.messages: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            self.messages.append(self.format(record))
+        except Exception:
+            pass  # never break the caller
+
+
+@contextmanager
+def warning_collector(
+    logger_name: str | None = None,
+) -> Generator[_WarningHandler, None, None]:
+    """Context manager that captures WARNING-level log records.
+
+    Attaches a temporary :class:`_WarningHandler` to the specified
+    logger (or the root logger when *logger_name* is ``None``) for the
+    duration of the ``with`` block.  The handler is always removed on
+    exit, even if the block raises.
+
+    The captured messages are available via ``handler.messages``.
+
+    Example::
+
+        with warning_collector("toolregistry") as wc:
+            some_tool_call()
+        print(wc.messages)  # ["Unhandled content block type: ..."]
+    """
+    target = logging.getLogger(logger_name)
+    handler = _WarningHandler()
+    target.addHandler(handler)
+    try:
+        yield handler
+    finally:
+        target.removeHandler(handler)
