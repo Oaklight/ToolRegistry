@@ -5,7 +5,12 @@ including execution logging, monitoring capabilities, and an HTTP admin panel.
 """
 
 from .auth import TokenAuth
-from .execution_log import ExecutionLog, ExecutionLogEntry, ExecutionStatus
+from .execution_log import (
+    ExecutionLog,
+    ExecutionLogEntry,
+    ExecutionStatus,
+    warning_collector,
+)
 from .server import AdminInfo, AdminServer
 
 __all__ = [
@@ -15,4 +20,5 @@ __all__ = [
     "ExecutionLogEntry",
     "ExecutionStatus",
     "TokenAuth",
+    "warning_collector",
 ]

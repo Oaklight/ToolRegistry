@@ -546,3 +546,181 @@ class TestToolRegistryLoggingIntegration:
         assert entries[0].status == ExecutionStatus.DISABLED
         assert entries[0].tool_name == "my_tool"
         assert "Under maintenance" in (entries[0].error or "")
+
+
+class TestExecutionLogEntryWarnings:
+    """Tests for the warnings field on ExecutionLogEntry."""
+
+    def test_default_warnings_empty(self):
+        """Entries without warnings have an empty tuple."""
+        entry = ExecutionLogEntry.create(
+            tool_name="test",
+            status=ExecutionStatus.SUCCESS,
+            duration_ms=1.0,
+            arguments={},
+        )
+        assert entry.warnings == ()
+
+    def test_create_with_warnings(self):
+        """Entries can carry warning messages."""
+        entry = ExecutionLogEntry.create(
+            tool_name="test",
+            status=ExecutionStatus.SUCCESS,
+            duration_ms=1.0,
+            arguments={},
+            warnings=("something is deprecated", "fallback used"),
+        )
+        assert entry.warnings == ("something is deprecated", "fallback used")
+
+    def test_warnings_immutable(self):
+        """Warnings tuple cannot be mutated on a frozen entry."""
+        entry = ExecutionLogEntry.create(
+            tool_name="test",
+            status=ExecutionStatus.SUCCESS,
+            duration_ms=1.0,
+            arguments={},
+            warnings=("warn",),
+        )
+        with pytest.raises(AttributeError):
+            entry.warnings = ()  # type: ignore
+
+
+class TestWarningCollector:
+    """Tests for the warning_collector context manager."""
+
+    def test_captures_warning_messages(self):
+        """Warning-level log messages are captured."""
+        import logging
+
+        from toolregistry.admin.execution_log import warning_collector
+
+        logger = logging.getLogger("toolregistry.test_capture")
+
+        with warning_collector("toolregistry.test_capture") as wc:
+            logger.warning("first warning")
+            logger.warning("second warning")
+
+        assert wc.messages == ["first warning", "second warning"]
+
+    def test_ignores_info_and_debug(self):
+        """Messages below WARNING are not captured."""
+        import logging
+
+        from toolregistry.admin.execution_log import warning_collector
+
+        logger = logging.getLogger("toolregistry.test_ignore")
+
+        with warning_collector("toolregistry.test_ignore") as wc:
+            logger.info("info message")
+            logger.debug("debug message")
+            logger.warning("only this")
+
+        assert wc.messages == ["only this"]
+
+    def test_handler_removed_after_exit(self):
+        """The scoped handler is removed when the context exits."""
+        import logging
+
+        from toolregistry.admin.execution_log import warning_collector
+
+        logger = logging.getLogger("toolregistry.test_cleanup")
+        handlers_before = len(logger.handlers)
+
+        with warning_collector("toolregistry.test_cleanup"):
+            pass
+
+        assert len(logger.handlers) == handlers_before
+
+    def test_captures_error_level(self):
+        """ERROR-level messages are also captured (>= WARNING)."""
+        import logging
+
+        from toolregistry.admin.execution_log import warning_collector
+
+        logger = logging.getLogger("toolregistry.test_error_level")
+
+        with warning_collector("toolregistry.test_error_level") as wc:
+            logger.error("an error")
+            logger.warning("a warning")
+
+        assert len(wc.messages) == 2
+        assert "an error" in wc.messages
+        assert "a warning" in wc.messages
+
+
+class TestExecutionLogWarningsFilter:
+    """Tests for the has_warnings filter in get_entries."""
+
+    def test_filter_has_warnings_true(self):
+        """has_warnings=True returns only entries with warnings."""
+        log = ExecutionLog()
+        log.add(
+            ExecutionLogEntry.create(
+                tool_name="a",
+                status=ExecutionStatus.SUCCESS,
+                duration_ms=1.0,
+                arguments={},
+                warnings=("warn",),
+            )
+        )
+        log.add(
+            ExecutionLogEntry.create(
+                tool_name="b",
+                status=ExecutionStatus.SUCCESS,
+                duration_ms=1.0,
+                arguments={},
+            )
+        )
+
+        entries = log.get_entries(has_warnings=True)
+        assert len(entries) == 1
+        assert entries[0].tool_name == "a"
+
+    def test_filter_has_warnings_false(self):
+        """has_warnings=False returns only entries without warnings."""
+        log = ExecutionLog()
+        log.add(
+            ExecutionLogEntry.create(
+                tool_name="a",
+                status=ExecutionStatus.SUCCESS,
+                duration_ms=1.0,
+                arguments={},
+                warnings=("warn",),
+            )
+        )
+        log.add(
+            ExecutionLogEntry.create(
+                tool_name="b",
+                status=ExecutionStatus.SUCCESS,
+                duration_ms=1.0,
+                arguments={},
+            )
+        )
+
+        entries = log.get_entries(has_warnings=False)
+        assert len(entries) == 1
+        assert entries[0].tool_name == "b"
+
+    def test_filter_has_warnings_none_returns_all(self):
+        """has_warnings=None (default) returns all entries."""
+        log = ExecutionLog()
+        log.add(
+            ExecutionLogEntry.create(
+                tool_name="a",
+                status=ExecutionStatus.SUCCESS,
+                duration_ms=1.0,
+                arguments={},
+                warnings=("warn",),
+            )
+        )
+        log.add(
+            ExecutionLogEntry.create(
+                tool_name="b",
+                status=ExecutionStatus.SUCCESS,
+                duration_ms=1.0,
+                arguments={},
+            )
+        )
+
+        entries = log.get_entries(has_warnings=None)
+        assert len(entries) == 2
