@@ -86,7 +86,8 @@ class TestGetJsonSchemaGemini:
         tool = _sample_tool()
         schema = tool.get_schema(api_format="gemini")
         params = schema["parameters"]
-        assert params["type"] == "object"
+        # llm-rosetta >=0.8 uses Google's uppercase convention ("OBJECT")
+        assert params["type"].lower() == "object"
         assert "properties" in params
 
 
