@@ -42,7 +42,7 @@ class ImageBlock(TypedDict):
 ContentBlock = Union[TextBlock, ImageBlock]
 """Union type for all supported content block kinds."""
 
-_CONTENT_BLOCK_TYPES = {"text", "image"}
+_CONTENT_BLOCK_TYPES = {"text", "image", "audio", "resource_link", "resource"}
 
 
 def is_content_block_list(value: Any) -> bool:
@@ -50,7 +50,8 @@ def is_content_block_list(value: Any) -> bool:
 
     A valid content block list is a non-empty ``list`` where every
     element is a ``dict`` with a ``"type"`` key whose value is one of
-    the recognized content block types (``"text"`` or ``"image"``).
+    the recognized content block types (``"text"``, ``"image"``,
+    ``"audio"``, ``"resource_link"``, or ``"resource"``).
 
     Args:
         value: The value to check.
