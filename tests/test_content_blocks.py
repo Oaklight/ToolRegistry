@@ -81,7 +81,7 @@ class TestIsContentBlockList:
 
     def test_rejects_mixed_valid_and_invalid(self):
         assert not is_content_block_list(
-            [_make_text_block("ok"), {"type": "audio", "data": "x"}]
+            [_make_text_block("ok"), {"type": "video", "url": "x"}]
         )
 
 
