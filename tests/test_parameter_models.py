@@ -674,17 +674,18 @@ class TestComplexTypeSchemaGeneration:
         assert "args" not in model.model_json_schema()["properties"]
         assert "x" in model.model_json_schema()["properties"]
 
-    def test_kwargs_emits_warning(self):
-        """**kwargs parameter should emit UserWarning and be excluded."""
+    def test_kwargs_enables_additional_properties(self):
+        """**kwargs parameter should set additionalProperties: true."""
 
         def f(x: int, **kwargs) -> None: ...
 
-        with pytest.warns(UserWarning, match=r"\*\*kwargs"):
-            model = _generate_parameters_model(f)
+        model = _generate_parameters_model(f)
 
         assert model is not None
-        assert "kwargs" not in model.model_json_schema()["properties"]
-        assert "x" in model.model_json_schema()["properties"]
+        schema = model.model_json_schema()
+        assert "kwargs" not in schema.get("properties", {})
+        assert "x" in schema["properties"]
+        assert schema.get("additionalProperties") is True
 
     # --- Required fields tracking ---
 

@@ -231,16 +231,32 @@ def _simplify_nullable_schemas(schema: dict[str, Any]) -> dict[str, Any]:
     return schema
 
 
+class _ArgModelBaseExtra(ArgModelBase):
+    """ArgModelBase variant that accepts additional properties.
+
+    Used when the wrapped function has a ``**kwargs`` parameter so the
+    generated JSON Schema includes ``"additionalProperties": true``.
+    """
+
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        extra="allow",
+    )
+
+
 def _create_parameters_model(
     func: Callable,
     field_definitions: dict[str, Any],
+    *,
+    has_var_keyword: bool = False,
 ) -> type[ArgModelBase] | None:
     """Create and validate the final Pydantic parameter model."""
+    base = _ArgModelBaseExtra if has_var_keyword else ArgModelBase
     try:
         model = create_model(
             f"{getattr(func, '__name__', 'unknown')}Parameters",
             **field_definitions,
-            __base__=ArgModelBase,
+            __base__=base,
         )
         model.model_json_schema()
         return model
@@ -274,14 +290,15 @@ def _generate_parameters_model(func: Callable) -> type[ArgModelBase] | None:
         resolved_hints = {}
 
     field_definitions: dict[str, Any] = {}
+    has_var_keyword = False
     for param in signature.parameters.values():
         if param.name == "self":
             continue
-        if param.kind in (
-            inspect.Parameter.VAR_POSITIONAL,
-            inspect.Parameter.VAR_KEYWORD,
-        ):
+        if param.kind == inspect.Parameter.VAR_POSITIONAL:
             _warn_skipped_variadic_parameter(func, param)
+            continue
+        if param.kind == inspect.Parameter.VAR_KEYWORD:
+            has_var_keyword = True
             continue
         field_definitions[param.name] = _field_def_for_parameter(
             func,
@@ -290,4 +307,6 @@ def _generate_parameters_model(func: Callable) -> type[ArgModelBase] | None:
             resolved_hints,
         )
 
-    return _create_parameters_model(func, field_definitions)
+    return _create_parameters_model(
+        func, field_definitions, has_var_keyword=has_var_keyword
+    )
