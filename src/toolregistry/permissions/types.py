@@ -3,7 +3,7 @@
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from dataclasses import dataclass, field
 
 from ..tool import ToolMetadata
 
@@ -22,7 +22,8 @@ class PermissionResult(str, Enum):
     ASK = "ask"
 
 
-class PermissionRequest(BaseModel):
+@dataclass
+class PermissionRequest:
     """Context passed to a PermissionHandler when a rule returns ASK.
 
     Attributes:
@@ -34,7 +35,7 @@ class PermissionRequest(BaseModel):
     """
 
     tool_name: str
-    parameters: dict[str, Any] = Field(default_factory=dict)
+    parameters: dict[str, Any] = field(default_factory=dict)
     reason: str = ""
     rule_name: str = ""
-    metadata: ToolMetadata = Field(default_factory=ToolMetadata)
+    metadata: ToolMetadata = field(default_factory=ToolMetadata)

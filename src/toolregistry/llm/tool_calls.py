@@ -10,8 +10,6 @@ import warnings
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from pydantic import BaseModel
-
 # ── Format registry ────────────────────────────────────────────────
 
 API_FORMATS = Literal[
@@ -97,7 +95,8 @@ def _get_tool_ops(api_format: API_FORMATS) -> Any:
 # ── Internal types ─────────────────────────────────────────────────
 
 
-class ToolCall(BaseModel):
+@dataclass
+class ToolCall:
     """Toolregistry's normalized tool call representation.
 
     All provider formats are converted to/from this type via the

@@ -1,5 +1,7 @@
+import dataclasses
 import inspect
 import warnings
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Literal
 from collections.abc import Callable
@@ -40,7 +42,8 @@ but uses a unique field name to avoid collisions with native tool parameters.
 """
 
 
-class ToolMetadata(BaseModel):
+@dataclass
+class ToolMetadata:
     """Behavioral and classification metadata for a Tool.
 
     Attributes:
@@ -71,8 +74,8 @@ class ToolMetadata(BaseModel):
     locality: Literal["local", "remote", "any"] = "any"
     max_result_size: int | None = None
 
-    tags: set[ToolTag] = Field(default_factory=set)
-    custom_tags: set[str] = Field(default_factory=set)
+    tags: set[ToolTag] = field(default_factory=set)
+    custom_tags: set[str] = field(default_factory=set)
 
     source: str = "native"
     """Origin of the tool.
@@ -89,7 +92,7 @@ class ToolMetadata(BaseModel):
     OpenAPI tools, or a class name for LangChain tools.
     """
 
-    extra: dict[str, Any] = Field(default_factory=dict)
+    extra: dict[str, Any] = field(default_factory=dict)
 
     defer: bool = False
     """Whether this tool should be deferred from the initial prompt.
@@ -131,6 +134,21 @@ class ToolMetadata(BaseModel):
     HTTP APIs) set this to ``"inline"`` because pooling or pickling
     their transport would be wrong or impossible.
     """
+
+    _VALID_LOCALITY = {"local", "remote", "any"}
+    _VALID_BACKEND = {"inline", "thread", "process", None}
+
+    def __post_init__(self) -> None:
+        if self.locality not in self._VALID_LOCALITY:
+            raise ValueError(
+                f"Invalid locality {self.locality!r}, "
+                f"must be one of {self._VALID_LOCALITY}"
+            )
+        if self.natural_backend not in self._VALID_BACKEND:
+            raise ValueError(
+                f"Invalid natural_backend {self.natural_backend!r}, "
+                f"must be one of {self._VALID_BACKEND}"
+            )
 
     @property
     def all_tags(self) -> set[str]:
@@ -338,7 +356,7 @@ class Tool(BaseModel):
         if metadata is None:
             metadata = ToolMetadata(is_async=is_async)
         else:
-            metadata = metadata.model_copy(update={"is_async": is_async})
+            metadata = dataclasses.replace(metadata, is_async=is_async)
 
         parameters_model = None
         try:

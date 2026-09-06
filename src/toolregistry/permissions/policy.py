@@ -5,14 +5,15 @@ from __future__ import annotations
 from typing import Any
 from collections.abc import Callable
 
-from pydantic import BaseModel, ConfigDict, Field
+from dataclasses import dataclass, field
 
 from ..tool import Tool
 from .handler import AsyncPermissionHandler, PermissionHandler
 from .types import PermissionResult
 
 
-class PermissionRule(BaseModel):
+@dataclass
+class PermissionRule:
     """A single permission rule that maps a match predicate to a result.
 
     Rules are evaluated in order; the first rule whose ``match`` returns
@@ -27,15 +28,14 @@ class PermissionRule(BaseModel):
             result is ``ASK`` or ``DENY``.
     """
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
     name: str
-    match: Callable[[Tool, dict[str, Any]], bool] = Field(exclude=True)
+    match: Callable[[Tool, dict[str, Any]], bool]
     result: PermissionResult
     reason: str = ""
 
 
-class PermissionPolicy(BaseModel):
+@dataclass
+class PermissionPolicy:
     """An ordered collection of permission rules with a fallback.
 
     Evaluation follows first-match-wins semantics: rules are checked in
@@ -52,13 +52,9 @@ class PermissionPolicy(BaseModel):
             ``set_permission_handler()``.
     """
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    rules: list[PermissionRule] = Field(default_factory=list)
+    rules: list[PermissionRule] = field(default_factory=list)
     fallback: PermissionResult = PermissionResult.DENY
-    handler: PermissionHandler | AsyncPermissionHandler | None = Field(
-        default=None, exclude=True
-    )
+    handler: PermissionHandler | AsyncPermissionHandler | None = None
 
     def evaluate(
         self, tool: Tool, parameters: dict[str, Any]
