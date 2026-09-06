@@ -3,7 +3,7 @@ import inspect
 import warnings
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar, Literal, get_type_hints
 from collections.abc import Callable
 
 from .parameter_models import _generate_parameters_model, _simplify_nullable_schemas
@@ -386,11 +386,15 @@ class Tool:
                 stacklevel=2,
             )
             parameters_model = None
-        parameters_schema = (
-            _simplify_nullable_schemas(parameters_model.model_json_schema())
-            if parameters_model
-            else {}
-        )
+        if parameters_model is not None:
+            from ._vendor.validate import json_schema as _json_schema
+
+            schema = _json_schema(parameters_model)
+            if getattr(parameters_model, "__has_var_keyword__", False):
+                schema["additionalProperties"] = True
+            parameters_schema = _simplify_nullable_schemas(schema)
+        else:
+            parameters_schema = {}
         # Wrap bare functions so Tool.callable is always a BaseToolWrapper.
         if not isinstance(func, BaseToolWrapper):
             param_names = list(inspect.signature(func).parameters.keys())
@@ -541,8 +545,6 @@ class Tool:
     def _validate_parameters(self, parameters: dict[str, Any]) -> dict[str, Any]:
         """Validate parameters against tool schema.
 
-        Uses Pydantic model if available, otherwise performs basic validation.
-
         Args:
             parameters (Dict[str, Any]): Raw input parameters.
 
@@ -550,11 +552,19 @@ class Tool:
             Dict[str, Any]: Validated and normalized parameters.
         """
         if self.parameters_model is None:
-            validated_params = parameters
-        else:
-            model = self.parameters_model(**parameters)
-            validated_params = model.model_dump_one_level()
-        return validated_params
+            return parameters
+
+        from ._vendor.validate import validate as _validate_fn
+
+        validated = _validate_fn(parameters, self.parameters_model, coerce=True)
+
+        if getattr(self.parameters_model, "__has_var_keyword__", False):
+            return validated
+
+        declared = set(
+            get_type_hints(self.parameters_model, include_extras=True).keys()
+        )
+        return {k: validated[k] for k in declared if k in validated}
 
     def run(self, parameters: dict[str, Any]) -> Any:
         """Execute tool synchronously.

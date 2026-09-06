@@ -95,8 +95,7 @@ class TestVarKeywordHandling:
 
         model = _generate_parameters_model(func_with_custom_kwargs)
         assert model is not None
-        schema = model.model_json_schema()
-        assert schema.get("additionalProperties") is True
+        assert getattr(model, "__has_var_keyword__", False) is True
 
 
 class TestBothArgsAndKwargs:
@@ -119,8 +118,7 @@ class TestBothArgsAndKwargs:
         assert any("*args" in m and "'*args'" in m for m in messages)
 
         assert model is not None
-        schema = model.model_json_schema()
-        assert schema.get("additionalProperties") is True
+        assert getattr(model, "__has_var_keyword__", False) is True
 
 
 class TestParameterModelGenerationFailureWarning:

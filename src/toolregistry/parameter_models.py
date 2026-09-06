@@ -1,52 +1,36 @@
 import inspect
+import typing
 import warnings
-from typing import Any, get_type_hints
+from enum import Enum
+from typing import Any, Literal, get_type_hints
 from collections.abc import Callable
 
-from pydantic import BaseModel, ConfigDict, Field, create_model
-from pydantic.fields import FieldInfo
+from ._vendor.validate import (
+    Doc,
+    Ge,
+    Gt,
+    Le,
+    Lt,
+    MaxLen,
+    MinLen,
+    create_struct,
+    json_schema as _json_schema,
+)
 
 
 class InvalidSignature(Exception):
-    """Exception raised when a function signature cannot be processed for FastMCP.
+    """Exception raised when a function signature cannot be processed.
 
     Attributes:
         message (str): Explanation of the error.
     """
 
 
-class ArgModelBase(BaseModel):
-    """Base model for function argument validation with Pydantic.
-
-    Features:
-        - Supports arbitrary types in fields
-        - Provides method to dump fields one level deep
-        - Configures Pydantic model behavior
-    """
-
-    def model_dump_one_level(self) -> dict[str, Any]:
-        """Dump model fields one level deep, keeping sub-models as-is.
-
-        When the model allows extra fields (``extra="allow"``), any
-        additional keys accepted by Pydantic are included in the result.
-
-        Returns:
-            Dict[str, Any]: Dictionary of field names to values.
-        """
-        result = {field: getattr(self, field) for field in self.__pydantic_fields__}
-        if self.model_extra:
-            result.update(self.model_extra)
-        return result
-
-    model_config = ConfigDict(
-        arbitrary_types_allowed=True,
-    )
-
-
 def _get_typed_annotation(annotation: Any, globalns: dict[str, Any]) -> Any:
     """Evaluate type annotation, handling forward references.
 
-    Uses Python's public get_type_hints function rather than relying on a pydantic internal function.
+    Uses Python's public get_type_hints function rather than relying on
+    a framework-specific internal function.
 
     Args:
         annotation (Any): The annotation to evaluate (can be string forward reference).
@@ -60,11 +44,10 @@ def _get_typed_annotation(annotation: Any, globalns: dict[str, Any]) -> Any:
     """
 
     if isinstance(annotation, str):
-        # Create a dummy function with a parameter annotated by the string.
+
         def dummy(a: Any):
             pass
 
-        # Manually set the annotation on the dummy function.
         dummy.__annotations__ = {"a": annotation}
         try:
             hints = get_type_hints(dummy, globalns, include_extras=True)
@@ -77,37 +60,20 @@ def _get_typed_annotation(annotation: Any, globalns: dict[str, Any]) -> Any:
     return annotation
 
 
-def _create_field(
-    param: inspect.Parameter, annotation_type: Any
-) -> tuple[Any, FieldInfo]:
-    """Create a Pydantic field for a function parameter.
-
-    Handles both annotated and unannotated parameters, with and without defaults.
-
-    Args:
-        param (inspect.Parameter): The parameter to create a field for.
-        annotation_type (Any): The type annotation for the parameter.
+def _create_field(param: inspect.Parameter, annotation_type: Any) -> tuple[Any, Any]:
+    """Create a field definition for a function parameter.
 
     Returns:
-        Tuple[Any, FieldInfo]: A tuple of (annotated_type, field_info).
+        Tuple of (type, default) where default is ``...`` for required fields.
     """
     if param.default is inspect.Parameter.empty:
-        if param.annotation is inspect.Parameter.empty:
-            field_info = Field(title=param.name)
-        else:
-            field_info = Field()
-        return (annotation_type, field_info)
+        return (annotation_type, ...)
     else:
         default = param.default
         if param.annotation is inspect.Parameter.empty:
-            field_info = Field(default=default, title=param.name)
-            # No annotation — allow None since we can't infer intent.
-            return (annotation_type | None, field_info)
+            return (annotation_type | None, default)
         else:
-            field_info = Field(default=default)
-            # Respect the user's declared type. If they wrote `str | None`,
-            # annotation_type already includes None. Don't force-add it.
-            return (annotation_type, field_info)
+            return (annotation_type, default)
 
 
 def _warn_parameter_fallback(
@@ -123,18 +89,17 @@ def _warn_parameter_fallback(
     )
 
 
-def _is_json_schema_compatible(
-    param_name: str, field_def: tuple[Any, FieldInfo]
-) -> bool:
+def _is_json_schema_compatible(param_name: str, field_def: tuple[Any, Any]) -> bool:
     """Return whether a single field can produce JSON Schema."""
+    annotation_type = field_def[0]
+    if annotation_type is Any:
+        return True
     try:
-        field_definitions: dict[str, Any] = {param_name: field_def}
-        test_model = create_model(
-            f"_{param_name}SchemaProbe",
-            **field_definitions,
-            __base__=ArgModelBase,
-        )
-        test_model.model_json_schema()
+        struct = create_struct(f"_{param_name}Probe", {param_name: field_def})
+        schema = _json_schema(struct)
+        props = schema.get("properties", {})
+        if param_name in props and props[param_name] == {}:
+            return False
         return True
     except Exception:
         return False
@@ -158,12 +123,70 @@ def _warn_skipped_variadic_parameter(func: Callable, param: inspect.Parameter) -
     )
 
 
+_CONSTRAINT_MAP: dict[str, type] = {
+    "ge": Ge,
+    "gt": Gt,
+    "le": Le,
+    "lt": Lt,
+    "max_length": MaxLen,
+    "min_length": MinLen,
+}
+
+
+def _translate_single_meta(arg: Any) -> list[Any]:
+    """Convert one Annotated metadata item to zerodep equivalents."""
+    if isinstance(arg, (Ge, Gt, Le, Lt, MaxLen, MinLen, Doc)):
+        return [arg]
+
+    for attr, cls in _CONSTRAINT_MAP.items():
+        val = getattr(arg, attr, None)
+        if val is not None:
+            return [cls(val)]
+
+    if hasattr(arg, "metadata") and hasattr(arg, "description"):
+        result: list[Any] = []
+        if arg.description:
+            result.append(Doc(arg.description))
+        for m in getattr(arg, "metadata", []):
+            result.extend(_translate_single_meta(m))
+        return result
+
+    if hasattr(arg, "check") or hasattr(arg, "schema_kw"):
+        return [arg]
+
+    return []
+
+
+def _translate_annotated_metadata(annotation: Any) -> Any:
+    """Translate Pydantic/annotated_types constraints to zerodep equivalents."""
+    if typing.get_origin(annotation) is not typing.Annotated:
+        return annotation
+
+    args = typing.get_args(annotation)
+    base = args[0]
+    new_meta: list[Any] = []
+    for arg in args[1:]:
+        new_meta.extend(_translate_single_meta(arg))
+
+    if new_meta:
+        return typing.Annotated[tuple([base] + new_meta)]
+    return base
+
+
+def _resolve_enum(annotation: Any) -> Any:
+    """Convert Enum subclass annotations to Literal equivalents."""
+    if isinstance(annotation, type) and issubclass(annotation, Enum):
+        values = tuple(e.value for e in annotation)
+        return Literal[values]  # type: ignore[valid-type]  # ty: ignore[invalid-type-form]
+    return annotation
+
+
 def _field_def_for_parameter(
     func: Callable,
     param: inspect.Parameter,
     globalns: dict[str, Any],
     resolved_hints: dict[str, Any],
-) -> tuple[Any, FieldInfo]:
+) -> tuple[Any, Any]:
     """Create a schema-safe field definition for one parameter."""
     if param.annotation is inspect.Parameter.empty:
         field_def = _create_field(param, Any)
@@ -174,6 +197,8 @@ def _field_def_for_parameter(
             annotation = resolved_hints.get(param.name)
             if annotation is None:
                 annotation = _get_typed_annotation(param.annotation, globalns)
+            annotation = _resolve_enum(annotation)
+            annotation = _translate_annotated_metadata(annotation)
             field_def = _create_field(param, annotation)
         except Exception as e:
             _warn_parameter_fallback(func, param.name, e)
@@ -191,92 +216,78 @@ def _field_def_for_parameter(
 
 
 def _simplify_nullable_schemas(schema: dict[str, Any]) -> dict[str, Any]:
-    """Collapse ``anyOf: [{type: T}, {type: null}]`` into ``type: T``.
+    """Collapse nullable schema patterns into simpler forms.
 
-    Pydantic v2 emits ``anyOf`` for ``Optional`` / ``T | None`` fields.
-    MCP clients (e.g. Claude Code) display these as "unknown" because they
-    don't resolve ``anyOf``.  Since optional parameters are already
-    expressed by omitting them from ``required`` and having a ``default``,
-    the ``null`` variant adds no information and can be safely removed.
+    Handles two patterns:
+    - Pydantic v2: ``anyOf: [{type: T}, {type: null}]`` → ``type: T``
+    - zerodep:     ``type: [T, "null"]`` → ``type: T``
 
     This function mutates *schema* in place and returns it.
 
-    .. note::
-
-       Earlier versions added ``"nullable": True`` to simplified
-       properties.  That key is not part of standard JSON Schema
-       draft 2020-12 and is rejected by many LLM providers
-       (Anthropic, Vertex AI).  It is no longer emitted.
-
     Args:
-        schema: A JSON Schema dict (output of ``model_json_schema()``).
+        schema: A JSON Schema dict.
 
     Returns:
-        The same dict with nullable ``anyOf`` patterns simplified.
+        The same dict with nullable patterns simplified.
     """
     props = schema.get("properties")
     if not props:
         return schema
 
     for prop_schema in props.values():
+        # Handle anyOf pattern (Pydantic v2 style)
         any_of = prop_schema.get("anyOf")
-        if not any_of or not isinstance(any_of, list):
-            continue
-        non_null = [v for v in any_of if v != {"type": "null"}]
-        if len(non_null) == len(any_of):
-            continue  # no null branch — nothing to simplify
-        if len(non_null) == 1:
-            # Simple nullable: [{type: T}, {type: null}] → type: T
-            del prop_schema["anyOf"]
-            prop_schema.update(non_null[0])
-        else:
-            # Multi-type nullable: [{type: T1}, {type: T2}, {type: null}]
-            # → anyOf: [{type: T1}, {type: T2}] (null branch removed)
-            prop_schema["anyOf"] = non_null
+        if any_of and isinstance(any_of, list):
+            non_null = [v for v in any_of if v != {"type": "null"}]
+            if len(non_null) < len(any_of):
+                if len(non_null) == 1:
+                    del prop_schema["anyOf"]
+                    prop_schema.update(non_null[0])
+                else:
+                    prop_schema["anyOf"] = non_null
+
+        # Handle type-array pattern (zerodep style): type: ["string", "null"]
+        type_val = prop_schema.get("type")
+        if isinstance(type_val, list) and "null" in type_val:
+            non_null_types = [t for t in type_val if t != "null"]
+            if len(non_null_types) == 1:
+                prop_schema["type"] = non_null_types[0]
+            elif len(non_null_types) > 1:
+                prop_schema["type"] = non_null_types
 
     return schema
 
 
-class _ArgModelBaseExtra(ArgModelBase):
-    """ArgModelBase variant that accepts additional properties.
-
-    Used when the wrapped function has a ``**kwargs`` parameter so the
-    generated JSON Schema includes ``"additionalProperties": true``.
-    """
-
-    model_config = ConfigDict(extra="allow")
-
-
 def _create_parameters_model(
     func: Callable,
-    field_definitions: dict[str, Any],
+    field_definitions: dict[str, tuple[Any, Any]],
     *,
     has_var_keyword: bool = False,
-) -> type[ArgModelBase] | None:
-    """Create and validate the final Pydantic parameter model."""
-    base = _ArgModelBaseExtra if has_var_keyword else ArgModelBase
+) -> type | None:
+    """Create and validate the final parameter struct type."""
     try:
-        model = create_model(
+        struct = create_struct(
             f"{getattr(func, '__name__', 'unknown')}Parameters",
-            **field_definitions,
-            __base__=base,
+            field_definitions,
         )
-        model.model_json_schema()
-        return model
+        struct.__has_var_keyword__ = has_var_keyword  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+        _json_schema(struct)
+        return struct
     except Exception:
         return None
 
 
-def _generate_parameters_model(func: Callable) -> type[ArgModelBase] | None:
-    """Generate a Pydantic model from a function's parameters.
+def _generate_parameters_model(func: Callable) -> type | None:
+    """Generate a type from a function's parameters for validation and schema.
 
-    Creates a JSON Schema-compliant model that can validate the function's parameters.
+    Creates a TypedDict-based type that can validate the function's parameters
+    and produce JSON Schema.
 
     Args:
         func (Callable): The function to generate the parameter model for.
 
     Returns:
-        Optional[Type[ArgModelBase]]: Pydantic model class for the parameters, or None on error.
+        Optional[type]: TypedDict type for the parameters, or None on error.
 
     Raises:
         InvalidSignature: If unable to process function signature.
@@ -292,7 +303,7 @@ def _generate_parameters_model(func: Callable) -> type[ArgModelBase] | None:
     except Exception:
         resolved_hints = {}
 
-    field_definitions: dict[str, Any] = {}
+    field_definitions: dict[str, tuple[Any, Any]] = {}
     has_var_keyword = False
     for param in signature.parameters.values():
         if param.name == "self":
