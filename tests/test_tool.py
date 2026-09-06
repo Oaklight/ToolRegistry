@@ -338,7 +338,7 @@ class TestTool:
 
     def test_tool_callable_field_excluded_from_serialization(self, sample_tool):
         """Test that callable field is excluded from model serialization."""
-        model_dict = sample_tool.model_dump()
+        model_dict = sample_tool.to_dict()
 
         assert "callable" not in model_dict
         assert "name" in model_dict
