@@ -27,10 +27,16 @@ class ArgModelBase(BaseModel):
     def model_dump_one_level(self) -> dict[str, Any]:
         """Dump model fields one level deep, keeping sub-models as-is.
 
+        When the model allows extra fields (``extra="allow"``), any
+        additional keys accepted by Pydantic are included in the result.
+
         Returns:
             Dict[str, Any]: Dictionary of field names to values.
         """
-        return {field: getattr(self, field) for field in self.__pydantic_fields__}
+        result = {field: getattr(self, field) for field in self.__pydantic_fields__}
+        if self.model_extra:
+            result.update(self.model_extra)
+        return result
 
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
@@ -238,10 +244,7 @@ class _ArgModelBaseExtra(ArgModelBase):
     generated JSON Schema includes ``"additionalProperties": true``.
     """
 
-    model_config = ConfigDict(
-        arbitrary_types_allowed=True,
-        extra="allow",
-    )
+    model_config = ConfigDict(extra="allow")
 
 
 def _create_parameters_model(
