@@ -1,5 +1,5 @@
 # /// zerodep
-# version = "0.4.5"
+# version = "0.4.7"
 # deps = []
 # tier = "subsystem"
 # category = "network"
@@ -728,12 +728,15 @@ class StreamingResponse:
         """Yield response body line by line (decoded)."""
         if self._sync_resp is None:
             raise RuntimeError("iter_lines() on async response")
+        buf = b""
         try:
-            while True:
-                line = self._sync_resp.readline()
-                if not line:
-                    break
-                yield line.decode(self._encoding, errors="replace").rstrip("\r\n")
+            for chunk in self.iter_bytes():
+                buf += chunk
+                while b"\n" in buf:
+                    line, buf = buf.split(b"\n", 1)
+                    yield line.rstrip(b"\r").decode(self._encoding, errors="replace")
+            if buf:
+                yield buf.rstrip(b"\r").decode(self._encoding, errors="replace")
         except (OSError, http.client.HTTPException) as exc:
             raise HttpConnectionError(str(exc)) from exc
 
@@ -814,7 +817,14 @@ class StreamingResponse:
             size_str = size_line.decode("latin-1").split(";")[0].strip()
             if not size_str:
                 break
-            chunk_size = int(size_str, 16)
+            try:
+                chunk_size = int(size_str, 16)
+            except ValueError:
+                preview = size_str[:100]
+                raise HttpConnectionError(
+                    f"Invalid chunked encoding: expected hex chunk size, "
+                    f"got {preview!r} (upstream may have injected an error mid-stream)"
+                ) from None
             if chunk_size == 0:
                 await asyncio.wait_for(
                     reader.readline(), timeout=timeout
@@ -828,14 +838,14 @@ class StreamingResponse:
 
     async def aiter_lines(self) -> AsyncIterator[str]:
         """Async yield response body line by line (decoded)."""
-        buf = ""
+        buf = b""
         async for chunk in self.aiter_bytes():
-            buf += chunk.decode(self._encoding, errors="replace")
-            while "\n" in buf:
-                line, buf = buf.split("\n", 1)
-                yield line.rstrip("\r")
+            buf += chunk
+            while b"\n" in buf:
+                line, buf = buf.split(b"\n", 1)
+                yield line.rstrip(b"\r").decode(self._encoding, errors="replace")
         if buf:
-            yield buf.rstrip("\r")
+            yield buf.rstrip(b"\r").decode(self._encoding, errors="replace")
 
     async def aread(self) -> bytes:
         """Async consume entire stream into bytes."""
