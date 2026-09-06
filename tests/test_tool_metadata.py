@@ -62,9 +62,11 @@ class TestToolMetadata:
         m = ToolMetadata(extra={"author": "alice", "version": 2})
         assert m.extra["author"] == "alice"
 
-    def test_model_copy_preserves_tags(self):
+    def test_replace_preserves_tags(self):
+        import dataclasses
+
         m = ToolMetadata(tags={ToolTag.SLOW}, timeout=10.0)
-        m2 = m.model_copy(update={"is_async": True})
+        m2 = dataclasses.replace(m, is_async=True)
         assert m2.is_async is True
         assert m2.tags == {ToolTag.SLOW}
         assert m2.timeout == 10.0
