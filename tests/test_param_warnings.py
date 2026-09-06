@@ -59,69 +59,68 @@ class TestVarPositionalWarning:
             _generate_parameters_model(func_with_custom_args)
 
 
-class TestVarKeywordWarning:
-    """Test that **kwargs parameters emit a warning."""
+class TestVarKeywordHandling:
+    """Test that **kwargs enables additionalProperties instead of warning."""
 
-    def test_kwargs_emits_warning(self):
-        """Registering a function with **kwargs should warn about exclusion."""
+    def test_kwargs_no_warning(self):
+        """Registering a function with **kwargs should NOT warn."""
 
         def func_with_kwargs(x: int, **kwargs: str) -> str:
             return str(x)
 
-        with pytest.warns(
-            UserWarning,
-            match=r"Parameter '\*\*kwargs' \(\*\*kwargs\) in 'func_with_kwargs'.*excluded",
-        ):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
             _generate_parameters_model(func_with_kwargs)
 
+        user_warnings = [w for w in caught if issubclass(w.category, UserWarning)]
+        assert len(user_warnings) == 0
+
     def test_kwargs_via_tool_from_function(self):
-        """Tool.from_function with **kwargs should warn about exclusion."""
+        """Tool.from_function with **kwargs should set additionalProperties."""
 
         def func_with_kwargs(x: int, **kwargs: str) -> str:
             return str(x)
 
-        with pytest.warns(
-            UserWarning,
-            match=r"Parameter '\*\*kwargs' \(\*\*kwargs\) in 'func_with_kwargs'.*excluded",
-        ):
-            tool = Tool.from_function(func_with_kwargs)
+        tool = Tool.from_function(func_with_kwargs)
 
-        # The tool should still be created successfully, with only 'x' in schema
         assert tool is not None
         assert "x" in tool.parameters.get("properties", {})
+        assert tool.parameters.get("additionalProperties") is True
 
     def test_custom_kwargs_name(self):
-        """Custom **kwargs name should appear in the warning message."""
+        """Custom **kwargs name should also enable additionalProperties."""
 
         def func_with_custom_kwargs(x: int, **options: str) -> str:
             return str(x)
 
-        with pytest.warns(
-            UserWarning,
-            match=r"Parameter '\*\*options' \(\*\*kwargs\) in 'func_with_custom_kwargs'",
-        ):
-            _generate_parameters_model(func_with_custom_kwargs)
+        model = _generate_parameters_model(func_with_custom_kwargs)
+        assert model is not None
+        schema = model.model_json_schema()
+        assert schema.get("additionalProperties") is True
 
 
 class TestBothArgsAndKwargs:
-    """Test that functions with both *args and **kwargs emit two warnings."""
+    """Test that *args warns while **kwargs enables additionalProperties."""
 
-    def test_args_and_kwargs_both_warn(self):
-        """Both *args and **kwargs should each produce a warning."""
+    def test_args_warns_kwargs_does_not(self):
+        """Only *args should produce a warning; **kwargs enables additionalProperties."""
 
         def func_with_both(x: int, *args: str, **kwargs: str) -> str:
             return str(x)
 
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            _generate_parameters_model(func_with_both)
+            model = _generate_parameters_model(func_with_both)
 
         user_warnings = [w for w in caught if issubclass(w.category, UserWarning)]
-        assert len(user_warnings) == 2
+        assert len(user_warnings) == 1
 
         messages = [str(w.message) for w in user_warnings]
         assert any("*args" in m and "'*args'" in m for m in messages)
-        assert any("**kwargs" in m and "'**kwargs'" in m for m in messages)
+
+        assert model is not None
+        schema = model.model_json_schema()
+        assert schema.get("additionalProperties") is True
 
 
 class TestParameterModelGenerationFailureWarning:
