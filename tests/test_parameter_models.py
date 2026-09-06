@@ -687,6 +687,40 @@ class TestComplexTypeSchemaGeneration:
         assert "x" in schema["properties"]
         assert schema.get("additionalProperties") is True
 
+    def test_kwargs_only_function(self):
+        """Function with only **kwargs should produce additionalProperties schema."""
+
+        def f(**kwargs) -> None: ...
+
+        model = _generate_parameters_model(f)
+
+        assert model is not None
+        schema = model.model_json_schema()
+        assert schema.get("additionalProperties") is True
+        assert schema.get("properties", {}) == {}
+
+    def test_args_and_kwargs_combo(self):
+        """*args warns while **kwargs enables additionalProperties."""
+
+        def f(x: int, *args, **kwargs) -> None: ...
+
+        with pytest.warns(UserWarning, match=r"\*args"):
+            model = _generate_parameters_model(f)
+
+        assert model is not None
+        schema = model.model_json_schema()
+        assert "x" in schema["properties"]
+        assert "args" not in schema.get("properties", {})
+        assert schema.get("additionalProperties") is True
+
+    def test_normal_function_no_additional_properties(self):
+        """Normal functions should NOT have additionalProperties in schema."""
+
+        def f(name: str, age: int = 0) -> None: ...
+
+        schema = self._schema_for(f)
+        assert "additionalProperties" not in schema
+
     # --- Required fields tracking ---
 
     def test_required_fields_in_schema(self):
