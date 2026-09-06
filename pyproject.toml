@@ -37,7 +37,6 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "pydantic>=2.7.2,<3.0.0",
     "cloudpickle>=3.0.0",
     "llm-rosetta>=0.7.1,<0.10.0",
 ]
