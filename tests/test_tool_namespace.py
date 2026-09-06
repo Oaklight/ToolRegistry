@@ -291,7 +291,7 @@ class TestBackwardCompatibility:
 
     def test_tool_serialization_excludes_callable(self):
         tool = Tool.from_function(dummy_add, namespace="calc")
-        data = tool.model_dump()
+        data = tool.to_dict()
         assert "callable" not in data
         assert "namespace" in data
         assert "method_name" in data

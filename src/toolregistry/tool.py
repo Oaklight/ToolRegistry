@@ -3,10 +3,8 @@ import inspect
 import warnings
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 from collections.abc import Callable
-
-from pydantic import BaseModel, Field, model_validator
 
 from .parameter_models import _generate_parameters_model, _simplify_nullable_schemas
 from .llm.tool_calls import API_FORMATS
@@ -156,68 +154,61 @@ class ToolMetadata:
         return {t.value for t in self.tags} | self.custom_tags
 
 
-class Tool(BaseModel):
+@dataclass(init=False)
+class Tool:
     """Base class representing an executable tool/function.
 
     Provides core functionality for:
         - Function wrapping and metadata management
-        - Parameter validation using Pydantic
+        - Parameter validation
         - Synchronous/asynchronous execution
         - JSON schema generation
     """
 
-    name: str = Field(description="Name of the tool")
+    name: str
     """The name of the tool.
-    
+
     Used as the primary identifier when calling the tool.
     Must be unique within a tool registry.
     """
 
-    description: str = Field(description="Description of what the tool does")
+    description: str
     """Detailed description of the tool's functionality.
-    
+
     Should clearly explain what the tool does, its purpose,
     and any important usage considerations.
     """
 
-    parameters: dict[str, Any] = Field(description="JSON schema for tool parameters")
+    parameters: dict[str, Any]
     """Parameter schema defining the tool's expected inputs.
-    
+
     Follows JSON Schema format. Automatically generated from
     the wrapped function's type hints when using from_function().
     """
 
-    callable: Callable[..., Any] = Field(exclude=True)
+    callable: Callable[..., Any]
     """The tool's callable, always a :class:`BaseToolWrapper` at runtime.
 
-    Typed as ``Callable`` for Pydantic compatibility (Pydantic cannot
-    generate a schema for ``BaseToolWrapper``).  Use ``call_sync()`` /
-    ``call_async()`` for sync/async transparent execution.
-
-    Excluded from serialization to prevent accidental exposure of
-    implementation details.
+    Use ``call_sync()`` / ``call_async()`` for sync/async transparent
+    execution.
     """
 
-    metadata: ToolMetadata = Field(default_factory=ToolMetadata)
+    metadata: ToolMetadata
     """Behavioral and classification metadata for this tool.
 
     Contains execution hints (``is_async``, ``is_concurrency_safe``,
     ``timeout``) and classification tags (``tags``, ``custom_tags``).
     """
 
-    parameters_model: Any | None = Field(
-        default=None, description="Pydantic Model for tool parameters"
-    )
-    """Pydantic model used for parameter validation.
-    
+    parameters_model: Any | None
+    """Type used for parameter validation.
+
     Automatically generated from the wrapped function's type hints
     when using from_function(). Can be None for tools without
     parameter validation.
     """
 
-    namespace: str | None = Field(
-        default=None, description="Namespace the tool belongs to"
-    )
+    namespace: str | None
     """The namespace this tool belongs to.
 
     Used to group tools logically and avoid name collisions.
@@ -228,9 +219,7 @@ class Tool(BaseModel):
     without parsing the ``name`` field.
     """
 
-    method_name: str | None = Field(
-        default=None, description="Original method name of the tool"
-    )
+    method_name: str | None
     """The original method/function name before namespace prefixing.
 
     Preserved so that the base name can be recovered without
@@ -239,19 +228,36 @@ class Tool(BaseModel):
     otherwise convert to ``_``).
     """
 
-    @model_validator(mode="before")
-    @classmethod
-    def _migrate_is_async(cls, data: Any) -> Any:
-        """Accept legacy ``is_async`` constructor kwarg and move it into metadata."""
-        if isinstance(data, dict) and "is_async" in data:
-            is_async = data.pop("is_async")
-            if "metadata" not in data:
-                data["metadata"] = ToolMetadata(is_async=is_async)
-            elif isinstance(data["metadata"], dict):
-                data["metadata"].setdefault("is_async", is_async)
-        return data
+    def __init__(
+        self,
+        *,
+        name: str,
+        description: str,
+        parameters: dict[str, Any],
+        callable: Callable[..., Any],
+        metadata: ToolMetadata | None = None,
+        parameters_model: Any | None = None,
+        namespace: str | None = None,
+        method_name: str | None = None,
+        is_async: bool | None = None,
+    ) -> None:
+        if metadata is None:
+            metadata = (
+                ToolMetadata(is_async=is_async)
+                if is_async is not None
+                else ToolMetadata()
+            )
+        self.name = name
+        self.description = description
+        self.parameters = parameters
+        self.callable = callable
+        self.metadata = metadata
+        self.parameters_model = parameters_model
+        self.namespace = namespace
+        self.method_name = method_name
+        self._inject_toolcall_reason()
 
-    def model_post_init(self, __context: Any) -> None:
+    def _inject_toolcall_reason(self) -> None:
         """Inject ``toolcall_reason`` property into the tool's parameter schema.
 
         Runs after every ``Tool`` (and subclass) construction, regardless
@@ -270,6 +276,17 @@ class Tool(BaseModel):
         props = self.parameters["properties"]
         if had_properties and "toolcall_reason" not in props:
             props["toolcall_reason"] = TOOLCALL_REASON_PROPERTY
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to dict, excluding non-serializable fields."""
+        return {
+            "name": self.name,
+            "description": self.description,
+            "parameters": self.parameters,
+            "metadata": self.metadata,
+            "namespace": self.namespace,
+            "method_name": self.method_name,
+        }
 
     @property
     def is_async(self) -> bool:
@@ -409,7 +426,7 @@ class Tool(BaseModel):
     #: Schema keys stripped during ``get_schema()`` sanitization.
     #: ``title`` and ``nullable`` are Pydantic v2 artifacts that most LLM
     #: providers either reject or misinterpret.
-    _EXTRA_STRIP_KEYS: set[str] = {"title", "nullable"}
+    _EXTRA_STRIP_KEYS: ClassVar[set[str]] = {"title", "nullable"}
 
     def get_schema(
         self,
