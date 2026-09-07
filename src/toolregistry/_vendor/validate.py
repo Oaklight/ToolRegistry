@@ -891,7 +891,7 @@ def _validate_list(
     if args:
         item_tp = args[0]
         for i, item in enumerate(value):
-            _validate(item, item_tp, _join_path(path, i), errors, coerce)
+            value[i] = _validate(item, item_tp, _join_path(path, i), errors, coerce)
     return value
 
 
@@ -916,9 +916,9 @@ def _validate_dict(
         return value
     if args and len(args) == 2:
         key_tp, val_tp = args
-        for k, v in value.items():
+        for k, v in list(value.items()):
             _validate(k, key_tp, _join_path(path, f"<key:{k!r}>"), errors, coerce)
-            _validate(v, val_tp, _join_path(path, str(k)), errors, coerce)
+            value[k] = _validate(v, val_tp, _join_path(path, str(k)), errors, coerce)
     return value
 
 
