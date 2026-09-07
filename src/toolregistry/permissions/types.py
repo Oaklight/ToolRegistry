@@ -3,6 +3,7 @@
 from enum import Enum
 from typing import Any
 
+import dataclasses
 from dataclasses import dataclass, field
 
 from ..tool import ToolMetadata
@@ -39,3 +40,7 @@ class PermissionRequest:
     reason: str = ""
     rule_name: str = ""
     metadata: ToolMetadata = field(default_factory=ToolMetadata)
+
+    def model_dump(self) -> dict[str, Any]:
+        """Backward-compatible serialization."""
+        return dataclasses.asdict(self)

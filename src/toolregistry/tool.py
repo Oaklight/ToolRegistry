@@ -153,6 +153,14 @@ class ToolMetadata:
         """Union of predefined and custom tags (all as str)."""
         return {t.value for t in self.tags} | self.custom_tags
 
+    def model_dump(self) -> dict[str, Any]:
+        """Serialize to dict. Backward-compatible alias."""
+        return dataclasses.asdict(self)
+
+    def model_copy(self, *, update: dict[str, Any] | None = None) -> "ToolMetadata":
+        """Clone with optional field overrides. Backward-compatible alias."""
+        return dataclasses.replace(self, **(update or {}))
+
 
 @dataclass(init=False)
 class Tool:
@@ -283,10 +291,14 @@ class Tool:
             "name": self.name,
             "description": self.description,
             "parameters": self.parameters,
-            "metadata": self.metadata,
+            "metadata": dataclasses.asdict(self.metadata),
             "namespace": self.namespace,
             "method_name": self.method_name,
         }
+
+    def model_dump(self) -> dict[str, Any]:
+        """Backward-compatible alias for :meth:`to_dict`."""
+        return self.to_dict()
 
     @property
     def is_async(self) -> bool:
@@ -390,7 +402,7 @@ class Tool:
             from ._vendor.validate import json_schema as _json_schema
 
             schema = _json_schema(parameters_model)
-            if getattr(parameters_model, "__has_var_keyword__", False):
+            if getattr(parameters_model, "_has_var_keyword", False):
                 schema["additionalProperties"] = True
             parameters_schema = _simplify_nullable_schemas(schema)
         else:
@@ -558,7 +570,7 @@ class Tool:
 
         validated = _validate_fn(parameters, self.parameters_model, coerce=True)
 
-        if getattr(self.parameters_model, "__has_var_keyword__", False):
+        if getattr(self.parameters_model, "_has_var_keyword", False):
             return validated
 
         declared = set(

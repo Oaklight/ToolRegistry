@@ -623,7 +623,7 @@ class TestComplexTypeSchemaGeneration:
         schema = _json_schema(model)
         assert "kwargs" not in schema.get("properties", {})
         assert "x" in schema["properties"]
-        assert getattr(model, "__has_var_keyword__", False) is True
+        assert getattr(model, "_has_var_keyword", False) is True
 
     def test_kwargs_only_function(self):
         """Function with only **kwargs should produce additionalProperties schema."""
@@ -633,7 +633,7 @@ class TestComplexTypeSchemaGeneration:
         model = _generate_parameters_model(f)
 
         assert model is not None
-        assert getattr(model, "__has_var_keyword__", False) is True
+        assert getattr(model, "_has_var_keyword", False) is True
 
     def test_args_and_kwargs_combo(self):
         """*args warns while **kwargs enables additionalProperties."""
@@ -647,7 +647,7 @@ class TestComplexTypeSchemaGeneration:
         schema = _json_schema(model)
         assert "x" in schema["properties"]
         assert "args" not in schema.get("properties", {})
-        assert getattr(model, "__has_var_keyword__", False) is True
+        assert getattr(model, "_has_var_keyword", False) is True
 
     def test_normal_function_no_additional_properties(self):
         """Normal functions should NOT have additionalProperties in schema."""

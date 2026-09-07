@@ -5,6 +5,7 @@ as toolregistry's internal representations, plus thin wrappers around
 llm-rosetta for converting between provider-specific API formats.
 """
 
+import dataclasses
 import json
 import warnings
 from dataclasses import dataclass
@@ -111,6 +112,10 @@ class ToolCall:
     """The arguments in JSON string format."""
     type: Literal["function", "custom"] = "function"
     """The type of the tool call."""
+
+    def model_dump(self) -> dict[str, Any]:
+        """Backward-compatible serialization."""
+        return dataclasses.asdict(self)
 
     def to_ir(self) -> dict[str, Any]:
         """Convert to a rosetta IR ``ToolCallPart`` dict."""
