@@ -2,7 +2,7 @@ import inspect
 import typing
 import warnings
 from enum import Enum
-from typing import Any, Literal, get_type_hints
+from typing import Any, Literal, Union, get_type_hints
 from collections.abc import Callable
 
 from ._vendor.validate import (
@@ -138,10 +138,13 @@ def _translate_single_meta(arg: Any) -> list[Any]:
     if isinstance(arg, (Ge, Gt, Le, Lt, MaxLen, MinLen, Doc)):
         return [arg]
 
+    matched: list[Any] = []
     for attr, cls in _CONSTRAINT_MAP.items():
         val = getattr(arg, attr, None)
         if val is not None:
-            return [cls(val)]
+            matched.append(cls(val))
+    if matched:
+        return matched
 
     if hasattr(arg, "metadata") and hasattr(arg, "description"):
         result: list[Any] = []
@@ -174,7 +177,15 @@ def _translate_annotated_metadata(annotation: Any) -> Any:
 
 
 def _resolve_enum(annotation: Any) -> Any:
-    """Convert Enum subclass annotations to Literal equivalents."""
+    """Convert Enum subclass annotations to Literal equivalents.
+
+    Recurses into Union/Optional so that ``Optional[MyEnum]`` becomes
+    ``Optional[Literal[...]]``.
+    """
+    origin = typing.get_origin(annotation)
+    if origin is Union:
+        args = tuple(_resolve_enum(a) for a in typing.get_args(annotation))
+        return Union[args]  # type: ignore[valid-type]
     if isinstance(annotation, type) and issubclass(annotation, Enum):
         values = tuple(e.value for e in annotation)
         return Literal[values]  # type: ignore[valid-type]  # ty: ignore[invalid-type-form]
