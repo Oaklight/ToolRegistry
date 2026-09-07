@@ -70,7 +70,7 @@ def _zerodep_schema(func):
     model = _generate_parameters_model(func)
     assert model is not None
     schema = zd_json_schema(model)
-    if getattr(model, "__has_var_keyword__", False):
+    if getattr(model, "_has_var_keyword", False):
         schema["additionalProperties"] = True
     return _simplify_nullable_schemas(schema)
 

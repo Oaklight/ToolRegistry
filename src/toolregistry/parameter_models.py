@@ -270,7 +270,7 @@ def _create_parameters_model(
             f"{getattr(func, '__name__', 'unknown')}Parameters",
             field_definitions,
         )
-        struct.__has_var_keyword__ = has_var_keyword  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+        struct._has_var_keyword = has_var_keyword  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         _json_schema(struct)
         return struct
     except Exception:
