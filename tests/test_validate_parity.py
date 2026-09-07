@@ -339,6 +339,34 @@ class TestEnumHandling:
         zd_enum = set(zd_prop.get("enum", []))
         assert pd_enum == zd_enum == {"fast", "slow"}
 
+    def test_optional_enum(self):
+        """Optional[MyEnum] should resolve the enum inside the Union."""
+
+        class Status(str, Enum):
+            ON = "on"
+            OFF = "off"
+
+        def f(status: Status | None = None) -> None: ...
+
+        schema = _zerodep_schema(f)
+        prop = schema["properties"]["status"]
+        prop_str = str(prop)
+        assert "on" in prop_str and "off" in prop_str
+
+    def test_int_enum(self):
+        """IntEnum should produce integer Literal values."""
+
+        class Priority(int, Enum):
+            LOW = 1
+            MED = 2
+            HIGH = 3
+
+        def f(p: Priority) -> None: ...
+
+        schema = _zerodep_schema(f)
+        prop = schema["properties"]["p"]
+        assert set(prop["enum"]) == {1, 2, 3}
+
 
 # ═══════════════════════════════════════════════════════════════════
 # 8. ANNOTATED CONSTRAINTS
@@ -388,6 +416,23 @@ class TestAnnotatedConstraints:
             zd_validate({"v": -1}, T)
         with pytest.raises(ValidationError):
             zd_validate({"v": 101}, T)
+
+    def test_multi_constraint_field(self):
+        """Field(ge=0, le=100) should produce both minimum and maximum."""
+
+        def f(score: Annotated[int, Field(ge=0, le=100)]) -> None: ...
+
+        schema = _zerodep_schema(f)
+        prop = schema["properties"]["score"]
+        assert prop.get("minimum") == 0
+        assert prop.get("maximum") == 100
+
+        model = _generate_parameters_model(f)
+        assert zd_validate({"score": 50}, model)["score"] == 50
+        with pytest.raises(ValidationError):
+            zd_validate({"score": -1}, model)
+        with pytest.raises(ValidationError):
+            zd_validate({"score": 101}, model)
 
     def test_constraint_schema_parity(self):
         """Ge(0) should produce minimum:0 in both engines."""
