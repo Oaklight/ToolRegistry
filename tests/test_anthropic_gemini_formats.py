@@ -125,7 +125,7 @@ class TestGetJsonSchemaOpenAI:
     def test_schema_sanitization_strips_unsupported_keywords(self):
         """Rosetta sanitizes schemas (removes $ref, $schema, etc)."""
         from toolregistry.llm._rosetta import (
-            _get_anthropic_tool_ops,
+            _get_tool_ops,
             _make_ir_tool_definition,
         )
 
@@ -138,7 +138,7 @@ class TestGetJsonSchemaOpenAI:
                 "properties": {"x": {"type": "string"}},
             },
         )
-        ops = _get_anthropic_tool_ops()
+        ops = _get_tool_ops("anthropic")
         result = ops.ir_tool_definition_to_p(ir_tool)
         assert "$schema" not in result["input_schema"]
 
@@ -390,3 +390,125 @@ class TestRoundTrip:
         part = recovered[0]["parts"][0]
         assert part["functionCall"]["name"] == original["functionCall"]["name"]
         assert part["functionCall"]["args"] == original["functionCall"]["args"]
+
+
+# ---------------------------------------------------------------------------
+# Google Interactions format tests
+# ---------------------------------------------------------------------------
+
+
+class TestGetJsonSchemaGoogleInteractions:
+    """Tests for get_schema() with google-interactions format."""
+
+    def test_basic_schema_structure(self):
+        tool = _sample_tool()
+        schema = tool.get_schema(api_format="google-interactions")
+        assert schema["type"] == "function"
+        assert schema["name"] == "add"
+        assert "description" in schema
+        assert "parameters" in schema
+        assert "function_declarations" not in schema
+
+    def test_parameters_are_json_schema(self):
+        tool = _sample_tool()
+        schema = tool.get_schema(api_format="google-interactions")
+        params = schema["parameters"]
+        assert params["type"] == "object"
+        assert "a" in params["properties"]
+        assert "b" in params["properties"]
+
+
+class TestFromToolCallGoogleInteractions:
+    """Tests for ToolCall.from_tool_call() with google-interactions dicts.
+
+    Note: auto-detection via from_tool_call() may match google-interactions
+    dicts as anthropic format (both share type/id/name keys). Format-aware
+    parsing via _get_tool_ops("google-interactions") is the reliable path.
+    """
+
+    def test_format_aware_parsing(self):
+        """Direct parsing via GoogleInteractionsToolOps preserves arguments."""
+        from toolregistry.llm.tool_calls import _get_tool_ops
+
+        tc_dict = {
+            "type": "function_call",
+            "id": "fc_123",
+            "name": "add",
+            "arguments": {"a": 1, "b": 2},
+        }
+        ops = _get_tool_ops("google-interactions")
+        ir = ops.p_tool_call_to_ir(tc_dict)
+        tc = ToolCall.from_ir(ir)
+        assert tc.id == "fc_123"
+        assert tc.name == "add"
+        assert '"a": 1' in tc.arguments
+
+
+class TestRecoverAssistantMessageGoogleInteractions:
+    """Tests for build_assistant_messages() with google-interactions format."""
+
+    def test_flat_steps_returned(self):
+        tcs = [ToolCall(id="fc_1", name="add", arguments='{"a": 1, "b": 2}')]
+        result = build_assistant_messages(tcs, api_format="google-interactions")
+        assert len(result) == 1
+        step = result[0]
+        assert step["type"] == "function_call"
+        assert step["id"] == "fc_1"
+        assert step["name"] == "add"
+
+    def test_multiple_tool_calls(self):
+        tcs = [
+            ToolCall(id="fc_1", name="add", arguments='{"a": 1}'),
+            ToolCall(id="fc_2", name="sub", arguments='{"b": 2}'),
+        ]
+        result = build_assistant_messages(tcs, api_format="google-interactions")
+        assert len(result) == 2
+        assert result[0]["name"] == "add"
+        assert result[1]["name"] == "sub"
+
+
+class TestRecoverToolMessageGoogleInteractions:
+    """Tests for build_tool_result_messages() with google-interactions format."""
+
+    def test_flat_steps_with_call_id(self):
+        result = build_tool_result_messages(
+            {"fc_1": "42"}, api_format="google-interactions"
+        )
+        assert len(result) == 1
+        step = result[0]
+        assert step["type"] == "function_result"
+        assert step["call_id"] == "fc_1"
+        assert step["result"] == "42"
+
+    def test_uses_call_id_not_function_name(self):
+        """Unlike gemini, google-interactions uses call_id directly."""
+        tcs = [ToolCall(id="fc_1", name="add", arguments="{}")]
+        result = build_tool_result_messages(
+            {"fc_1": "42"}, api_format="google-interactions", tool_calls=tcs
+        )
+        step = result[0]
+        # call_id should be the tool call ID, not the function name
+        assert step["call_id"] == "fc_1"
+
+
+class TestGoogleInteractionsRoundTrip:
+    """Round-trip: parse via ToolOps -> build_assistant_messages."""
+
+    def test_round_trip(self):
+        from toolregistry.llm.tool_calls import _get_tool_ops
+
+        original = {
+            "type": "function_call",
+            "id": "fc_rt1",
+            "name": "multiply",
+            "arguments": {"x": 3, "y": 7},
+        }
+        ops = _get_tool_ops("google-interactions")
+        ir = ops.p_tool_call_to_ir(original)
+        tc = ToolCall.from_ir(ir)
+        recovered = build_assistant_messages([tc], api_format="google-interactions")
+        step = recovered[0]
+        assert step["type"] == original["type"]
+        assert step["id"] == original["id"]
+        assert step["name"] == original["name"]
+        assert step["arguments"] == original["arguments"]

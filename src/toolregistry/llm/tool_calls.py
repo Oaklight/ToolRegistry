@@ -22,6 +22,7 @@ API_FORMATS = Literal[
     "open-responses",  # alias for openai-responses
     "anthropic",
     "gemini",
+    "google-interactions",
     "rosetta-ir",
 ]
 
@@ -61,6 +62,14 @@ def _normalize_api_format(api_format: API_FORMATS) -> API_FORMATS:
 
 # ── Rosetta tool ops accessors ─────────────────────────────────────
 
+_FORMAT_TO_PROVIDER: dict[str, str] = {
+    "openai-chat": "openai_chat",
+    "openai-responses": "openai_responses",
+    "anthropic": "anthropic",
+    "gemini": "google",
+    "google-interactions": "google_interactions",
+}
+
 
 def _get_tool_ops(api_format: API_FORMATS) -> Any:
     """Return the rosetta ToolOps class for the given format.
@@ -74,23 +83,12 @@ def _get_tool_ops(api_format: API_FORMATS) -> Any:
     Raises:
         ValueError: If the format is unsupported.
     """
-    if api_format == "openai-chat":
-        from llm_rosetta.converters.openai_chat import OpenAIChatToolOps
+    provider = _FORMAT_TO_PROVIDER.get(api_format)
+    if provider is None:
+        raise ValueError(f"Unsupported API format: {api_format}")
+    from ._rosetta import _get_tool_ops as _rosetta_get
 
-        return OpenAIChatToolOps
-    elif api_format == "openai-responses":
-        from llm_rosetta.converters.openai_responses import OpenAIResponsesToolOps
-
-        return OpenAIResponsesToolOps
-    elif api_format == "anthropic":
-        from llm_rosetta.converters.anthropic import AnthropicToolOps
-
-        return AnthropicToolOps
-    elif api_format == "gemini":
-        from llm_rosetta.converters.google_genai import GoogleGenAIToolOps
-
-        return GoogleGenAIToolOps
-    raise ValueError(f"Unsupported API format: {api_format}")
+    return _rosetta_get(provider)
 
 
 # ── Internal types ─────────────────────────────────────────────────
@@ -165,7 +163,13 @@ class ToolCall:
         # Vendor-specific formats (anthropic, gemini) are tried before generic
         # OpenAI formats because the OpenAI parsers are lenient and may
         # successfully (but incorrectly) parse Anthropic/Gemini dicts.
-        for fmt in ("anthropic", "gemini", "openai-chat", "openai-responses"):
+        for fmt in (
+            "anthropic",
+            "gemini",
+            "google-interactions",
+            "openai-chat",
+            "openai-responses",
+        ):
             try:
                 ops = _get_tool_ops(fmt)
                 ir = ops.p_tool_call_to_ir(tc_dict)
@@ -178,7 +182,8 @@ class ToolCall:
 
         raise TypeError(
             f"Unsupported tool call format: {type(tool_call)}. "
-            f"Expected OpenAI, Anthropic, or Gemini tool call format."
+            f"Expected OpenAI, Anthropic, Gemini, or Google Interactions "
+            f"tool call format."
         )
 
 
@@ -374,6 +379,8 @@ def build_assistant_messages(
         return [{"role": "assistant", "content": provider_calls}]
     elif api_format == "gemini":
         return [{"role": "model", "parts": provider_calls}]
+    elif api_format == "google-interactions":
+        return provider_calls
     raise ValueError(f"Unsupported API format: {api_format}")
 
 
@@ -435,6 +442,8 @@ def build_tool_result_messages(
         return [{"role": "user", "content": provider_results}]
     elif api_format == "gemini":
         return [{"role": "user", "parts": provider_results}]
+    elif api_format == "google-interactions":
+        return provider_results
     raise ValueError(f"Unsupported API format: {api_format}")
 
 

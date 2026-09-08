@@ -254,6 +254,16 @@ class TestBuildExpandedUserMessage:
         assert len(image_parts) == 1
         assert image_parts[0]["inline_data"]["mime_type"] == "image/png"
 
+    def test_google_interactions_format(self, sample_parts):
+        msg = build_multimodal_user_message(sample_parts, "google-interactions")
+        assert msg["type"] == "user_input"
+        parts = msg["content"]
+        text_parts = [p for p in parts if p.get("type") == "text"]
+        assert len(text_parts) == 3
+        image_parts = [p for p in parts if p.get("type") == "image"]
+        assert len(image_parts) == 1
+        assert image_parts[0]["mime_type"] == "image/png"
+
     def test_unknown_format_text_fallback(self, sample_parts):
         msg = build_multimodal_user_message(sample_parts, "unknown-api")
         assert msg["role"] == "user"

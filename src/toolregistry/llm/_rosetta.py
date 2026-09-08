@@ -1,7 +1,8 @@
 """Lazy-import helpers for llm-rosetta integration.
 
-Provides accessor functions that import llm-rosetta converter components
-on demand to avoid circular imports and reduce startup cost.
+Provides a thin wrapper around :mod:`llm_rosetta.tool_ops` for
+provider-specific ToolOps dispatch, and a helper to build IR
+tool definition dicts.
 """
 
 from __future__ import annotations
@@ -9,32 +10,19 @@ from __future__ import annotations
 from typing import Any
 
 
-def _get_openai_chat_tool_ops() -> Any:
-    """Lazily import OpenAIChatToolOps from llm-rosetta."""
-    from llm_rosetta.converters.openai_chat import OpenAIChatToolOps
+def _get_tool_ops(provider: str) -> Any:
+    """Return the ToolOps class for *provider* via llm-rosetta dispatch.
 
-    return OpenAIChatToolOps
+    Args:
+        provider: Canonical provider name (e.g. ``"openai_chat"``,
+            ``"google"``, ``"google_interactions"``).
 
+    Returns:
+        The corresponding ToolOps class.
+    """
+    from llm_rosetta.tool_ops import _get_tool_ops as _rosetta_get_tool_ops
 
-def _get_openai_responses_tool_ops() -> Any:
-    """Lazily import OpenAIResponsesToolOps from llm-rosetta."""
-    from llm_rosetta.converters.openai_responses import OpenAIResponsesToolOps
-
-    return OpenAIResponsesToolOps
-
-
-def _get_anthropic_tool_ops() -> Any:
-    """Lazily import AnthropicToolOps from llm-rosetta."""
-    from llm_rosetta.converters.anthropic import AnthropicToolOps
-
-    return AnthropicToolOps
-
-
-def _get_google_tool_ops() -> Any:
-    """Lazily import GoogleGenAIToolOps from llm-rosetta."""
-    from llm_rosetta.converters.google_genai import GoogleGenAIToolOps
-
-    return GoogleGenAIToolOps
+    return _rosetta_get_tool_ops(provider)
 
 
 def _make_ir_tool_definition(

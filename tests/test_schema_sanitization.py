@@ -92,7 +92,9 @@ def fn_nested_optional(
 class TestSchemaSanitization:
     """Verify that get_schema() strips Pydantic v2 artifacts."""
 
-    @pytest.mark.parametrize("api_format", ["openai-chat", "anthropic", "gemini"])
+    @pytest.mark.parametrize(
+        "api_format", ["openai-chat", "anthropic", "gemini", "google-interactions"]
+    )
     def test_no_title_in_schema(self, api_format: str):
         """title keys should be stripped from output schemas."""
         tool = Tool.from_function(fn_optional_int)
@@ -103,7 +105,7 @@ class TestSchemaSanitization:
             params = schema["function"]["parameters"]
         elif api_format == "anthropic":
             params = schema["input_schema"]
-        elif api_format == "gemini":
+        elif api_format in ("gemini", "google-interactions"):
             params = schema.get("parameters", schema)
         else:
             params = schema
@@ -111,7 +113,9 @@ class TestSchemaSanitization:
         found = _collect_keys_recursive(params, {"title"})
         assert not found, f"Found 'title' keys in {api_format} schema: {params}"
 
-    @pytest.mark.parametrize("api_format", ["openai-chat", "anthropic", "gemini"])
+    @pytest.mark.parametrize(
+        "api_format", ["openai-chat", "anthropic", "gemini", "google-interactions"]
+    )
     def test_no_nullable_in_schema(self, api_format: str):
         """nullable keys should be stripped from output schemas."""
         tool = Tool.from_function(fn_multiple_optional)
@@ -121,7 +125,7 @@ class TestSchemaSanitization:
             params = schema["function"]["parameters"]
         elif api_format == "anthropic":
             params = schema["input_schema"]
-        elif api_format == "gemini":
+        elif api_format in ("gemini", "google-interactions"):
             params = schema.get("parameters", schema)
         else:
             params = schema
@@ -129,7 +133,9 @@ class TestSchemaSanitization:
         found = _collect_keys_recursive(params, {"nullable"})
         assert not found, f"Found 'nullable' keys in {api_format} schema: {params}"
 
-    @pytest.mark.parametrize("api_format", ["openai-chat", "anthropic", "gemini"])
+    @pytest.mark.parametrize(
+        "api_format", ["openai-chat", "anthropic", "gemini", "google-interactions"]
+    )
     def test_no_anyof_null_in_schema(self, api_format: str):
         """anyOf with {type: null} branches should be collapsed."""
         tool = Tool.from_function(fn_multiple_optional)
@@ -139,7 +145,7 @@ class TestSchemaSanitization:
             params = schema["function"]["parameters"]
         elif api_format == "anthropic":
             params = schema["input_schema"]
-        elif api_format == "gemini":
+        elif api_format in ("gemini", "google-interactions"):
             params = schema.get("parameters", schema)
         else:
             params = schema
