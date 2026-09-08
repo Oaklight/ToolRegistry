@@ -387,7 +387,6 @@ class OpenAPIIntegration:
         """
         old_names = set(self._registered_tool_names)
         new_names = set(new_tools.keys())
-        sep = getattr(self.registry, "_name_sep", "-")
 
         # Snapshot disabled state
         disabled_snapshot: dict[str, str] = {}
@@ -415,7 +414,6 @@ class OpenAPIIntegration:
                 existing.parameters != candidate.parameters
                 or existing.description != candidate.description
             ):
-                candidate.update_namespace(self._resolved_ns, force=True, sep=sep)
                 self.registry._tools[name] = candidate
                 self.registry._emit_change(
                     ChangeEvent(
@@ -488,7 +486,8 @@ class OpenAPIIntegration:
         """Synchronous version of :meth:`refresh_async`."""
         from ..._async_runtime import AsyncRuntime
 
-        return AsyncRuntime.run_sync(self.refresh_async(openapi_spec))
+        with self._refresh_lock:
+            return AsyncRuntime.run_sync(self.refresh_async(openapi_spec))
 
     # ---- Background polling ----
 
@@ -531,6 +530,7 @@ class OpenAPIIntegration:
         self.stop_polling()
         for config in self._client_configs:
             config.close()
+        self._client_configs.clear()
 
     async def close_async(self) -> None:
         """Close all persistent HTTP clients (async)."""

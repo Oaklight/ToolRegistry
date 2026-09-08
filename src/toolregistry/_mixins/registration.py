@@ -27,7 +27,7 @@ class RegistrationMixin:
     # Type stubs for attributes/methods from other mixins
     _tools: dict[str, Tool]
     _sub_registries: set[str]
-    _disabled: dict[str, str]
+    _disabled: dict[str, str]  # Owned by EnableDisableMixin
 
     if TYPE_CHECKING:
 
@@ -440,6 +440,11 @@ class RegistrationMixin:
         Returns:
             A :class:`RefreshResult` describing what changed.
         """
+        if index >= len(self._openapi_integrations):
+            raise IndexError(
+                f"No OpenAPI integration at index {index} "
+                f"({len(self._openapi_integrations)} registered)."
+            )
         return self._openapi_integrations[index].refresh(openapi_spec)
 
     async def refresh_from_openapi_async(
@@ -449,6 +454,11 @@ class RegistrationMixin:
         openapi_spec: dict[str, Any] | None = None,
     ) -> RefreshResult:
         """Async version of :meth:`refresh_from_openapi`."""
+        if index >= len(self._openapi_integrations):
+            raise IndexError(
+                f"No OpenAPI integration at index {index} "
+                f"({len(self._openapi_integrations)} registered)."
+            )
         return await self._openapi_integrations[index].refresh_async(openapi_spec)
 
     def refresh_from_mcp(self, index: int = 0) -> RefreshResult:
@@ -461,10 +471,20 @@ class RegistrationMixin:
         Returns:
             A :class:`RefreshResult` describing what changed.
         """
+        if index >= len(self._mcp_integrations):
+            raise IndexError(
+                f"No MCP integration at index {index} "
+                f"({len(self._mcp_integrations)} registered)."
+            )
         return self._mcp_integrations[index].refresh()
 
     async def refresh_from_mcp_async(self, index: int = 0) -> RefreshResult:
         """Async version of :meth:`refresh_from_mcp`."""
+        if index >= len(self._mcp_integrations):
+            raise IndexError(
+                f"No MCP integration at index {index} "
+                f"({len(self._mcp_integrations)} registered)."
+            )
         return await self._mcp_integrations[index].refresh_async()
 
     def refresh_all(self) -> list[RefreshResult]:
