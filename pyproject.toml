@@ -38,7 +38,7 @@ classifiers = [
 ]
 dependencies = [
     "cloudpickle>=3.0.0",
-    "llm-rosetta>=0.7.1,<0.10.0",
+    "llm-rosetta>=0.13.0",
 ]
 
 [project.optional-dependencies]

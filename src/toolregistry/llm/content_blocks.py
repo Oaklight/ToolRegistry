@@ -144,6 +144,39 @@ def extract_multimodal_content(
     return text_only, extra_parts
 
 
+def _convert_google_parts(
+    content_parts: list[dict[str, Any]], interactions: bool = False
+) -> list[dict[str, Any]]:
+    """Convert canonical content blocks to Google-family part format."""
+    parts: list[dict[str, Any]] = []
+    for part in content_parts:
+        if part.get("type") == "text":
+            if interactions:
+                parts.append({"type": "text", "text": part["text"]})
+            else:
+                parts.append({"text": part["text"]})
+        elif part.get("type") == "image":
+            source = part["source"]
+            if interactions:
+                parts.append(
+                    {
+                        "type": "image",
+                        "data": source["data"],
+                        "mime_type": source["media_type"],
+                    }
+                )
+            else:
+                parts.append(
+                    {
+                        "inline_data": {
+                            "mime_type": source["media_type"],
+                            "data": source["data"],
+                        }
+                    }
+                )
+    return parts
+
+
 def build_multimodal_user_message(
     content_parts: list[dict[str, Any]],
     api_format: str,
@@ -157,7 +190,7 @@ def build_multimodal_user_message(
         content_parts: List of content block dicts produced by
             :func:`extract_multimodal_content`.
         api_format: Target API format (e.g. ``"openai-chat"``,
-            ``"anthropic"``, ``"gemini"``).
+            ``"anthropic"``, ``"gemini"``, ``"google-interactions"``).
 
     Returns:
         A user message dict ready to append to the conversation.
@@ -174,25 +207,16 @@ def build_multimodal_user_message(
         return {"role": "user", "content": parts}
 
     elif api_format == "anthropic":
-        # Anthropic uses the same format as our canonical content blocks
         return {"role": "user", "content": content_parts}
 
     elif api_format == "gemini":
-        parts = []
-        for part in content_parts:
-            if part.get("type") == "text":
-                parts.append({"text": part["text"]})
-            elif part.get("type") == "image":
-                source = part["source"]
-                parts.append(
-                    {
-                        "inline_data": {
-                            "mime_type": source["media_type"],
-                            "data": source["data"],
-                        }
-                    }
-                )
-        return {"role": "user", "parts": parts}
+        return {"role": "user", "parts": _convert_google_parts(content_parts)}
+
+    elif api_format == "google-interactions":
+        return {
+            "type": "user_input",
+            "content": _convert_google_parts(content_parts, interactions=True),
+        }
 
     # Fallback: text only
     texts = [p["text"] for p in content_parts if p.get("type") == "text"]

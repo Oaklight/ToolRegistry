@@ -130,6 +130,15 @@ class TestTool:
         assert schema["name"] == sample_tool.name
         assert "parameters" in schema
 
+    def test_get_json_schema_google_interactions_format(self, sample_tool):
+        """Test getting JSON schema in Google Interactions format."""
+        schema = sample_tool.get_schema("google-interactions")
+
+        assert schema["type"] == "function"
+        assert schema["name"] == sample_tool.name
+        assert "parameters" in schema
+        assert "function_declarations" not in schema
+
     def test_get_json_schema_unsupported_format_raises_error(self, sample_tool):
         """Test that unsupported API format raises ValueError."""
         with pytest.raises(ValueError, match="Unsupported API format"):
@@ -370,6 +379,11 @@ class TestThinkAugmented:
     def test_toolcall_reason_in_gemini_format(self, sample_tool):
         """Test that toolcall_reason appears in Gemini format schema."""
         schema = sample_tool.get_schema("gemini")
+        assert "toolcall_reason" in schema["parameters"]["properties"]
+
+    def test_toolcall_reason_in_google_interactions_format(self, sample_tool):
+        """Test that toolcall_reason appears in Google Interactions format."""
+        schema = sample_tool.get_schema("google-interactions")
         assert "toolcall_reason" in schema["parameters"]["properties"]
 
     def test_toolcall_reason_stripped_on_run(self, sample_tool):

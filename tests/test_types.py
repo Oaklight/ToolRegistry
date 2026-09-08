@@ -39,6 +39,13 @@ GEMINI_TC = {
     "functionCall": {"name": "gemini_func", "args": {"z": 30}},
 }
 
+GOOGLE_INTERACTIONS_TC = {
+    "type": "function_call",
+    "id": "fc_int_123",
+    "name": "interactions_func",
+    "arguments": {"w": 40},
+}
+
 
 # ---------------------------------------------------------------------------
 # ToolCall
@@ -86,6 +93,18 @@ class TestToolCall:
         tc = ToolCall.from_tool_call(GEMINI_TC)
 
         assert tc.name == "gemini_func"
+
+    def test_from_tool_call_google_interactions_via_ops(self):
+        """Test parsing Google Interactions dict via format-aware ToolOps."""
+        from toolregistry.llm.tool_calls import _get_tool_ops
+
+        ops = _get_tool_ops("google-interactions")
+        ir = ops.p_tool_call_to_ir(GOOGLE_INTERACTIONS_TC)
+        tc = ToolCall.from_ir(ir)
+
+        assert tc.id == "fc_int_123"
+        assert tc.name == "interactions_func"
+        assert '"w": 40' in tc.arguments
 
     def test_from_tool_call_unsupported_raises_error(self):
         """Test that unsupported format raises TypeError."""
@@ -338,6 +357,20 @@ class TestBuildAssistantMessage:
         assert messages[0]["role"] == "model"
         assert "functionCall" in messages[0]["parts"][0]
 
+    def test_google_interactions_format(self):
+        tool_calls = [
+            ToolCall(id="call_1", name="test_function", arguments='{"param": "value"}')
+        ]
+
+        messages = build_assistant_messages(
+            tool_calls, api_format="google-interactions"
+        )
+
+        assert len(messages) == 1
+        assert messages[0]["type"] == "function_call"
+        assert messages[0]["id"] == "call_1"
+        assert messages[0]["name"] == "test_function"
+
     def test_filters_invalid_tool_calls(self):
         """Empty name or arguments are skipped."""
         tool_calls = [
@@ -416,6 +449,16 @@ class TestBuildToolResponse:
         assert messages[0]["role"] == "user"
         assert "functionResponse" in messages[0]["parts"][0]
         assert messages[0]["parts"][0]["functionResponse"]["name"] == "my_func"
+
+    def test_google_interactions_format(self):
+        messages = build_tool_result_messages(
+            {"call_1": "result"}, api_format="google-interactions"
+        )
+
+        assert len(messages) == 1
+        assert messages[0]["type"] == "function_result"
+        assert messages[0]["call_id"] == "call_1"
+        assert messages[0]["result"] == "result"
 
     def test_non_string_results_converted(self):
         messages = build_tool_result_messages(

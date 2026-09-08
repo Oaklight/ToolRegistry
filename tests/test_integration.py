@@ -377,6 +377,13 @@ class TestToolRegistryIntegration:
         assert anthropic_format[0]["name"] == "simple_func"
         assert gemini_format[0]["name"] == "simple_func"
 
+        # Verify Google Interactions format
+        interactions_format = registry.get_schemas(api_format="google-interactions")
+        assert interactions_format[0]["type"] == "function"
+        assert interactions_format[0]["name"] == "simple_func"
+        assert "parameters" in interactions_format[0]
+        assert "function_declarations" not in interactions_format[0]
+
     def test_execution_mode_integration(self):
         """Test integration with different execution modes."""
         registry = ToolRegistry(name="execution_mode_test")
