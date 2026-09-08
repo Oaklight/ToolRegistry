@@ -13,6 +13,9 @@ from typing import Any
 def _get_tool_ops(provider: str) -> Any:
     """Return the ToolOps class for *provider* via llm-rosetta dispatch.
 
+    Uses ``llm_rosetta.tool_ops._get_tool_ops`` which is currently
+    underscore-prefixed upstream; planned for promotion to public API.
+
     Args:
         provider: Canonical provider name (e.g. ``"openai_chat"``,
             ``"google"``, ``"google_interactions"``).
