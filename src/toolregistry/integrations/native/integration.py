@@ -9,7 +9,7 @@ Example:
     ```python
     from toolregistry import ToolRegistry
     registry = ToolRegistry()
-    registry.register_from_class(MyClass)
+    registry.register(MyClass, source="class")
     registry.list_tools()  # ['MyClass.method1', 'MyClass.method2', ...]
     ```
 """
@@ -190,7 +190,7 @@ class ClassToolIntegration:
                 raise TypeError(
                     f"Class '{cls.__name__}' requires constructor arguments ({formatted}). "
                     f"Please instantiate it first: "
-                    f"register_from_class({cls.__name__}({example_args}))"
+                    f"register({cls.__name__}({example_args}), source='class')"
                 )
 
         try:
@@ -200,7 +200,7 @@ class ClassToolIntegration:
                 f"Failed to instantiate class '{cls.__name__}' "
                 f"with arguments {constructor_kwargs!r}: {e}. "
                 f"Please pass a pre-constructed instance instead: "
-                f"register_from_class({cls.__name__}(...))"
+                f"register({cls.__name__}(...), source='class')"
             ) from e
 
     def _collect_static_methods_from_mro(self, cls: type) -> dict:

@@ -98,9 +98,9 @@ class TestConstructorErrorMessage:
             registry.register_from_class(ServiceWithRequiredArgs)
 
     def test_required_args_error_suggests_instantiation(self):
-        """Error message should suggest calling register_from_class with an instance."""
+        """Error message should suggest calling register with an instance."""
         registry = ToolRegistry()
-        with pytest.raises(TypeError, match=r"register_from_class\("):
+        with pytest.raises(TypeError, match=r"register\("):
             registry.register_from_class(ServiceWithRequiredArgs)
 
     def test_default_args_works(self):
