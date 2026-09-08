@@ -103,7 +103,7 @@ class PythonSource:
     Exactly one of *class_path* or *module_path* must be set.
 
     * *class_path*: consumer imports the module, gets the class, and calls
-      ``registry.register_from_class()``.
+      ``registry.register(cls, source='class')``.
     * *module_path*: consumer imports the module and registers every
       public callable it finds.
 
@@ -173,7 +173,7 @@ class MCPSource:
 
     Attributes:
         transport: MCP transport mechanism.
-        namespace: Optional namespace passed to ``register_from_mcp()``.
+        namespace: Optional namespace passed to ``register(transport, source='mcp')``.
         enabled: Per-source enabled flag.
         command: Command + args for stdio
             (e.g. ``["python", "-m", "server"]``).
@@ -225,7 +225,7 @@ class OpenAPISource:
     Attributes:
         url: URL to the OpenAPI spec (JSON or YAML).
         namespace: Optional namespace passed to
-            ``register_from_openapi()``.
+            ``register(client, source='openapi', openapi_spec=...)``.
         enabled: Per-source enabled flag.
         auth: Optional authentication configuration.
         base_url: Override the ``servers[0].url`` from the spec.

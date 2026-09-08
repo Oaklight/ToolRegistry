@@ -20,6 +20,39 @@ try:
 except ImportError:
     pass
 
+_MISSING = object()
+
+
+def _detect_source(target: Any) -> str:
+    """Auto-detect the registration source from *target*'s type.
+
+    Returns:
+        A source string: ``"native"``, ``"class"``, or ``"langchain"``.
+
+    Raises:
+        TypeError: When the type is ambiguous (str, dict, Path) and the
+            caller must pass ``source=`` explicitly.
+    """
+    if isinstance(target, Tool):
+        return "native"
+    if isinstance(target, type):
+        return "class"
+    try:
+        from langchain_core.tools import BaseTool as _LCBase
+
+        if isinstance(target, _LCBase):
+            return "langchain"
+    except ImportError:
+        pass
+    if callable(target):
+        return "native"
+    if not isinstance(target, (str, dict, Path)):
+        return "class"
+    raise TypeError(
+        f"Cannot auto-detect registration source for {type(target).__name__!r}. "
+        f"Pass source='mcp' or source='openapi' explicitly."
+    )
+
 
 class RegistrationMixin:
     """Mixin providing tool registration methods."""
@@ -40,30 +73,154 @@ class RegistrationMixin:
         self._mcp_integrations: list = []
         self._openapi_integrations: list = []
 
+    # ------------------------------------------------------------------ #
+    #  Unified public API                                                 #
+    # ------------------------------------------------------------------ #
+
     def register(
         self,
-        tool_or_func: Callable | Tool,
+        target: Callable | Tool | type | object = _MISSING,  # type: ignore[assignment]
+        *,
+        source: str | None = None,
+        namespace: bool | str | None = None,
         description: str | None = None,
         name: str | None = None,
-        namespace: str | None = None,
         method_name: str | None = None,
+        **kwargs: Any,
     ):
-        """Register a tool, either as a function, Tool instance, or static method.
+        """Register a tool from any supported source.
+
+        When *source* is ``None`` the source type is auto-detected from
+        *target*:
+
+        * ``Tool`` instance or callable → native registration
+        * ``type`` → class registration (methods become tools)
+        * LangChain ``BaseTool`` instance → LangChain integration
+        * Other object instances → class registration (instance methods)
+        * ``str``, ``dict``, ``Path`` → **cannot** be auto-detected; pass
+          ``source='mcp'`` or ``source='openapi'`` explicitly.
 
         Args:
-            tool_or_func (Union[Callable, Tool]): The tool to register, either as a function, Tool instance, or static method.
-            description (Optional[str]): Description for function tools. If not provided, the function's docstring will be used.
-            name (Optional[str]): Custom name for the tool. If not provided, defaults to function name for functions or tool.name for Tool instances.
-            namespace (Optional[str]): Namespace for the tool. For static methods, defaults to class name if not provided.
-            method_name (Optional[str]): Original method name of the tool.
+            target: The thing to register — a function, ``Tool``, class,
+                instance, LangChain tool, MCP transport, or
+                ``HttpClientConfig`` (for OpenAPI).
+            source: Explicit source hint.  One of ``"native"``,
+                ``"class"``, ``"mcp"``, ``"openapi"``, ``"langchain"``,
+                or ``None`` for auto-detection.
+            namespace: Namespace for the registered tools.
+                ``None``/``False`` → no namespace.
+                ``True`` → derive from the source.
+                A string → use that string as the namespace.
+            description: Description override (native source only).
+            name: Name override (native source only).
+            method_name: Original method name (native source only).
+            **kwargs: Additional keyword arguments forwarded to the
+                underlying integration (e.g. ``persistent``, ``headers``,
+                ``traverse_mro``, ``constructor_kwargs``, ``openapi_spec``,
+                ``spec_url``).
+
+        Raises:
+            TypeError: If *target* is missing, or its type cannot be
+                auto-detected and *source* is not given.
+            ValueError: If *source* is not a recognised value.
+
+        Examples:
+            >>> registry.register(my_func)
+            >>> registry.register(MyClass, source="class", namespace="math")
+            >>> registry.register("http://localhost:8000", source="mcp")
         """
-        if namespace:
-            self._sub_registries.add(normalize_tool_name(namespace))
+        if target is _MISSING:
+            raise TypeError("register() missing required argument: 'target'")
+
+        resolved = source or _detect_source(target)
+        ns = _normalise_namespace(namespace)
+
+        if resolved == "native":
+            self._register_native(
+                target,
+                description=description,
+                name=name,
+                namespace=ns,
+                method_name=method_name,
+            )
+        elif resolved == "class":
+            self._register_class(target, namespace=ns, **kwargs)
+        elif resolved == "mcp":
+            self._register_mcp(target, namespace=ns, **kwargs)
+        elif resolved == "openapi":
+            self._register_openapi(target, namespace=ns, **kwargs)
+        elif resolved == "langchain":
+            self._register_langchain(target, namespace=ns, **kwargs)
+        else:
+            raise ValueError(
+                f"Unknown source: {resolved!r}. Supported values: "
+                "'native', 'class', 'mcp', 'openapi', 'langchain'."
+            )
+
+    async def register_async(
+        self,
+        target: Callable | Tool | type | object = _MISSING,  # type: ignore[assignment]
+        *,
+        source: str | None = None,
+        namespace: bool | str | None = None,
+        description: str | None = None,
+        name: str | None = None,
+        method_name: str | None = None,
+        **kwargs: Any,
+    ):
+        """Async version of :meth:`register`.
+
+        See :meth:`register` for full documentation.
+        """
+        if target is _MISSING:
+            raise TypeError("register_async() missing required argument: 'target'")
+
+        resolved = source or _detect_source(target)
+        ns = _normalise_namespace(namespace)
+
+        if resolved == "native":
+            self._register_native(
+                target,
+                description=description,
+                name=name,
+                namespace=ns,
+                method_name=method_name,
+            )
+        elif resolved == "class":
+            await self._register_class_async(target, namespace=ns, **kwargs)
+        elif resolved == "mcp":
+            await self._register_mcp_async(target, namespace=ns, **kwargs)
+        elif resolved == "openapi":
+            await self._register_openapi_async(target, namespace=ns, **kwargs)
+        elif resolved == "langchain":
+            await self._register_langchain_async(target, namespace=ns, **kwargs)
+        else:
+            raise ValueError(
+                f"Unknown source: {resolved!r}. Supported values: "
+                "'native', 'class', 'mcp', 'openapi', 'langchain'."
+            )
+
+    # ------------------------------------------------------------------ #
+    #  Private dispatch methods                                           #
+    # ------------------------------------------------------------------ #
+
+    def _register_native(
+        self,
+        tool_or_func: Callable | Tool | Any,
+        description: str | None = None,
+        name: str | None = None,
+        namespace: bool | str | None = None,
+        method_name: str | None = None,
+    ):
+        """Register a single function or ``Tool`` instance."""
+        ns_str: str | None = namespace if isinstance(namespace, str) else None
+        if ns_str:
+            self._sub_registries.add(normalize_tool_name(ns_str))
 
         sep = getattr(self, "_name_sep", "-")
 
         if isinstance(tool_or_func, Tool):
-            tool_or_func.update_namespace(namespace, force=True, sep=sep)
+            tool_or_func.update_namespace(ns_str, force=True, sep=sep)
             self._tools[tool_or_func.name] = tool_or_func
             registered_name = tool_or_func.name
             registered_tool = tool_or_func
@@ -72,7 +229,7 @@ class RegistrationMixin:
                 tool_or_func,
                 description=description,
                 name=name,
-                namespace=namespace,
+                namespace=ns_str,
                 method_name=method_name,
             )
             self._tools[tool.name] = tool
@@ -109,6 +266,102 @@ class RegistrationMixin:
         )
         return True
 
+    def _register_class(self, cls_or_instance, *, namespace, **kwargs):
+        namespace = _resolve_namespace_compat(namespace, kwargs)
+        traverse_mro = kwargs.pop("traverse_mro", True)
+        constructor_kwargs = kwargs.pop("constructor_kwargs", None)
+        from ..integrations.native import ClassToolIntegration
+
+        hub = ClassToolIntegration(
+            cast("ToolRegistry", self), traverse_mro=traverse_mro
+        )
+        return hub.register_class_methods(
+            cls_or_instance, namespace, constructor_kwargs
+        )
+
+    async def _register_class_async(self, cls_or_instance, *, namespace, **kwargs):
+        namespace = _resolve_namespace_compat(namespace, kwargs)
+        traverse_mro = kwargs.pop("traverse_mro", True)
+        constructor_kwargs = kwargs.pop("constructor_kwargs", None)
+        from ..integrations.native import ClassToolIntegration
+
+        hub = ClassToolIntegration(
+            cast("ToolRegistry", self), traverse_mro=traverse_mro
+        )
+        return await hub.register_class_methods_async(
+            cls_or_instance, namespace, constructor_kwargs
+        )
+
+    def _register_mcp(self, transport, *, namespace, **kwargs):
+        namespace = _resolve_namespace_compat(namespace, kwargs)
+        persistent = kwargs.pop("persistent", True)
+        headers = kwargs.pop("headers", None)
+        MCPIntegration = _import_mcp_integration()
+        mcp = MCPIntegration(cast("ToolRegistry", self))
+        mcp.register_mcp_tools(transport, namespace, persistent, headers=headers)
+        self._mcp_integrations.append(mcp)
+
+    async def _register_mcp_async(self, transport, *, namespace, **kwargs):
+        namespace = _resolve_namespace_compat(namespace, kwargs)
+        persistent = kwargs.pop("persistent", True)
+        headers = kwargs.pop("headers", None)
+        MCPIntegration = _import_mcp_integration()
+        mcp = MCPIntegration(cast("ToolRegistry", self))
+        await mcp.register_mcp_tools_async(
+            transport, namespace, persistent, headers=headers
+        )
+        self._mcp_integrations.append(mcp)
+
+    def _register_openapi(self, client, *, namespace, **kwargs):
+        namespace = _resolve_namespace_compat(namespace, kwargs)
+        openapi_spec = kwargs.pop("openapi_spec", None)
+        if openapi_spec is None:
+            raise TypeError(
+                "register() with source='openapi' requires an "
+                "openapi_spec=... keyword argument."
+            )
+        persistent = kwargs.pop("persistent", True)
+        spec_url = kwargs.pop("spec_url", None)
+        OpenAPIIntegration = _import_openapi_integration()
+        openapi = OpenAPIIntegration(cast("ToolRegistry", self))
+        openapi.register_openapi_tools(
+            client, openapi_spec, namespace, persistent, spec_url=spec_url
+        )
+        self._openapi_integrations.append(openapi)
+
+    async def _register_openapi_async(self, client, *, namespace, **kwargs):
+        namespace = _resolve_namespace_compat(namespace, kwargs)
+        openapi_spec = kwargs.pop("openapi_spec", None)
+        if openapi_spec is None:
+            raise TypeError(
+                "register_async() with source='openapi' requires an "
+                "openapi_spec=... keyword argument."
+            )
+        persistent = kwargs.pop("persistent", True)
+        spec_url = kwargs.pop("spec_url", None)
+        OpenAPIIntegration = _import_openapi_integration()
+        openapi = OpenAPIIntegration(cast("ToolRegistry", self))
+        await openapi.register_openapi_tools_async(
+            client, openapi_spec, namespace, persistent, spec_url=spec_url
+        )
+        self._openapi_integrations.append(openapi)
+
+    def _register_langchain(self, langchain_tool, *, namespace, **kwargs):
+        namespace = _resolve_namespace_compat(namespace, kwargs)
+        LangChainIntegration = _import_langchain_integration()
+        langchain = LangChainIntegration(cast("ToolRegistry", self))
+        return langchain.register_langchain_tools(langchain_tool, namespace)
+
+    async def _register_langchain_async(self, langchain_tool, *, namespace, **kwargs):
+        namespace = _resolve_namespace_compat(namespace, kwargs)
+        LangChainIntegration = _import_langchain_integration()
+        langchain = LangChainIntegration(cast("ToolRegistry", self))
+        return await langchain.register_langchain_tools_async(langchain_tool, namespace)
+
+    # ------------------------------------------------------------------ #
+    #  Deprecated aliases                                                 #
+    # ------------------------------------------------------------------ #
+
     def register_from_mcp(
         self,
         transport: str | dict[str, Any] | Path,
@@ -117,52 +370,21 @@ class RegistrationMixin:
         headers: dict[str, str] | None = None,
         **kwargs,
     ):
-        """Register all tools from an MCP server (synchronous entry point).
-
-        Requires the [mcp] extra to be installed.
-
-        Args:
-            transport (Union[str, Dict[str, Any], Path]): Can be:
-                - URL string (http(s)://, ws(s)://)
-                - Path to script file (.py, .js)
-                - Dict with "command", "args", "env" keys for stdio transport
-            namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
-                - If ``False``, no namespace is used.
-                - If ``True``, the namespace is derived from the server info name.
-                - If a string is provided, it is used as the namespace.
-                Defaults to False.
-            persistent (bool): If True (default), keep the connection open
-                across tool calls. If False, create a new connection per call.
-            headers (Optional[Dict[str, str]]): HTTP headers to send with
-                SSE or streamable-http requests (e.g. for authentication).
-                Ignored for stdio and WebSocket transports.
-
-        Examples:
-            ```python
-            # SSE server URL
-            registry.register_from_mcp("http://localhost:8000/sse")
-
-            # WebSocket server URL
-            registry.register_from_mcp("ws://localhost:9000")
-
-            # With authentication
-            registry.register_from_mcp(
-                "https://api.example.com/mcp",
-                headers={"Authorization": "Bearer token"},
-            )
-
-            # Path to Python server script
-            registry.register_from_mcp("my_mcp_server.py")
-            ```
-
-        Raises:
-            ImportError: If [mcp] extra is not installed
-        """
-        namespace = _resolve_namespace_compat(namespace, kwargs)
-        MCPIntegration = _import_mcp_integration()
-        mcp = MCPIntegration(cast("ToolRegistry", self))
-        mcp.register_mcp_tools(transport, namespace, persistent, headers=headers)
-        self._mcp_integrations.append(mcp)
+        """Deprecated: use ``register(transport, source='mcp')`` instead."""
+        warnings.warn(
+            "register_from_mcp() is deprecated, use "
+            "register(transport, source='mcp', ...) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.register(
+            transport,
+            source="mcp",
+            namespace=namespace,
+            persistent=persistent,
+            headers=headers,
+            **kwargs,
+        )
 
     async def register_from_mcp_async(
         self,
@@ -172,54 +394,21 @@ class RegistrationMixin:
         headers: dict[str, str] | None = None,
         **kwargs,
     ):
-        """Async implementation to register all tools from an MCP server.
-
-        Requires the [mcp] extra to be installed.
-
-        Args:
-            transport (Union[str, Dict[str, Any], Path]): Can be:
-                - URL string (http(s)://, ws(s)://)
-                - Path to script file (.py, .js)
-                - Dict with "command", "args", "env" keys for stdio transport
-            namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
-                - If ``False``, no namespace is used.
-                - If ``True``, the namespace is derived from the server info name.
-                - If a string is provided, it is used as the namespace.
-                Defaults to False.
-            persistent (bool): If True (default), keep the connection open
-                across tool calls. If False, create a new connection per call.
-            headers (Optional[Dict[str, str]]): HTTP headers to send with
-                SSE or streamable-http requests (e.g. for authentication).
-                Ignored for stdio and WebSocket transports.
-
-        Examples:
-            ```python
-            # SSE server URL
-            await registry.register_from_mcp_async("http://localhost:8000/sse")
-
-            # WebSocket server URL
-            await registry.register_from_mcp_async("ws://localhost:9000")
-
-            # With authentication
-            await registry.register_from_mcp_async(
-                "https://api.example.com/mcp",
-                headers={"Authorization": "Bearer token"},
-            )
-
-            # Path to Python server script
-            await registry.register_from_mcp_async("my_mcp_server.py")
-            ```
-
-        Raises:
-            ImportError: If [mcp] extra is not installed
-        """
-        namespace = _resolve_namespace_compat(namespace, kwargs)
-        MCPIntegration = _import_mcp_integration()
-        mcp = MCPIntegration(cast("ToolRegistry", self))
-        await mcp.register_mcp_tools_async(
-            transport, namespace, persistent, headers=headers
+        """Deprecated: use ``register_async(transport, source='mcp')`` instead."""
+        warnings.warn(
+            "register_from_mcp_async() is deprecated, use "
+            "register_async(transport, source='mcp', ...) instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
-        self._mcp_integrations.append(mcp)
+        await self.register_async(
+            transport,
+            source="mcp",
+            namespace=namespace,
+            persistent=persistent,
+            headers=headers,
+            **kwargs,
+        )
 
     def register_from_openapi(
         self,
@@ -230,28 +419,22 @@ class RegistrationMixin:
         spec_url: str | None = None,
         **kwargs,
     ):
-        """Registers tools from OpenAPI specification synchronously.
-
-        Args:
-            client: The HTTP client config instance.
-            openapi_spec: Parsed OpenAPI specification dictionary.
-            namespace: Specifies namespace usage:
-                - ``False``: No namespace is applied.
-                - ``True``: Namespace is derived from OpenAPI info.title.
-                - ``str``: Use the provided string as namespace.
-                Defaults to False.
-            persistent: If True (default), reuse a persistent HTTP client for
-                connection pooling.
-            spec_url: URL where the spec was originally fetched from.  Stored
-                for later ETag-based refresh via :meth:`refresh_from_openapi`.
-        """
-        namespace = _resolve_namespace_compat(namespace, kwargs)
-        OpenAPIIntegration = _import_openapi_integration()
-        openapi = OpenAPIIntegration(cast("ToolRegistry", self))
-        openapi.register_openapi_tools(
-            client, openapi_spec, namespace, persistent, spec_url=spec_url
+        """Deprecated: use ``register(client, source='openapi', openapi_spec=...)`` instead."""
+        warnings.warn(
+            "register_from_openapi() is deprecated, use "
+            "register(client, source='openapi', openapi_spec=...) instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
-        self._openapi_integrations.append(openapi)
+        self.register(
+            client,
+            source="openapi",
+            namespace=namespace,
+            openapi_spec=openapi_spec,
+            persistent=persistent,
+            spec_url=spec_url,
+            **kwargs,
+        )
 
     async def register_from_openapi_async(
         self,
@@ -262,24 +445,22 @@ class RegistrationMixin:
         spec_url: str | None = None,
         **kwargs,
     ):
-        """Registers tools from OpenAPI specification asynchronously.
-
-        Args:
-            client: The HTTP client config instance.
-            openapi_spec: Parsed OpenAPI specification dictionary.
-            namespace: Specifies namespace usage. Defaults to False.
-            persistent: If True (default), reuse a persistent HTTP client for
-                connection pooling.
-            spec_url: URL where the spec was originally fetched from.  Stored
-                for later ETag-based refresh via :meth:`refresh_from_openapi_async`.
-        """
-        namespace = _resolve_namespace_compat(namespace, kwargs)
-        OpenAPIIntegration = _import_openapi_integration()
-        openapi = OpenAPIIntegration(cast("ToolRegistry", self))
-        await openapi.register_openapi_tools_async(
-            client, openapi_spec, namespace, persistent, spec_url=spec_url
+        """Deprecated: use ``register_async(client, source='openapi', openapi_spec=...)`` instead."""
+        warnings.warn(
+            "register_from_openapi_async() is deprecated, use "
+            "register_async(client, source='openapi', openapi_spec=...) instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
-        self._openapi_integrations.append(openapi)
+        await self.register_async(
+            client,
+            source="openapi",
+            namespace=namespace,
+            openapi_spec=openapi_spec,
+            persistent=persistent,
+            spec_url=spec_url,
+            **kwargs,
+        )
 
     def register_from_langchain(
         self,
@@ -287,25 +468,19 @@ class RegistrationMixin:
         namespace: bool | str = False,
         **kwargs,
     ):
-        """Register a LangChain tool in the registry.
-
-        Requires the [langchain] extra to be installed.
-
-        Args:
-            langchain_tool (LCBaseTool): The LangChain tool to register.
-            namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
-                - If ``False``, no namespace is used.
-                - If ``True``, the namespace is derived from the tool name.
-                - If a string is provided, it is used as the namespace.
-                Defaults to False.
-
-        Raises:
-            ImportError: If [langchain] extra is not installed
-        """
-        namespace = _resolve_namespace_compat(namespace, kwargs)
-        LangChainIntegration = _import_langchain_integration()
-        langchain = LangChainIntegration(cast("ToolRegistry", self))
-        return langchain.register_langchain_tools(langchain_tool, namespace)
+        """Deprecated: use ``register(langchain_tool, source='langchain')`` instead."""
+        warnings.warn(
+            "register_from_langchain() is deprecated, use "
+            "register(langchain_tool, source='langchain', ...) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.register(
+            langchain_tool,
+            source="langchain",
+            namespace=namespace,
+            **kwargs,
+        )
 
     async def register_from_langchain_async(
         self,
@@ -313,25 +488,19 @@ class RegistrationMixin:
         namespace: bool | str = False,
         **kwargs,
     ):
-        """Async implementation to register a LangChain tool in the registry.
-
-        Requires the [langchain] extra to be installed.
-
-        Args:
-            langchain_tool (LCBaseTool): The LangChain tool to register.
-            namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
-                - If ``False``, no namespace is used.
-                - If ``True``, the namespace is derived from the tool name.
-                - If a string is provided, it is used as the namespace.
-                Defaults to False.
-
-        Raises:
-            ImportError: If [langchain] extra is not installed
-        """
-        namespace = _resolve_namespace_compat(namespace, kwargs)
-        LangChainIntegration = _import_langchain_integration()
-        langchain = LangChainIntegration(cast("ToolRegistry", self))
-        return await langchain.register_langchain_tools_async(langchain_tool, namespace)
+        """Deprecated: use ``register_async(langchain_tool, source='langchain')`` instead."""
+        warnings.warn(
+            "register_from_langchain_async() is deprecated, use "
+            "register_async(langchain_tool, source='langchain', ...) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        await self.register_async(
+            langchain_tool,
+            source="langchain",
+            namespace=namespace,
+            **kwargs,
+        )
 
     def register_from_class(
         self,
@@ -341,42 +510,21 @@ class RegistrationMixin:
         constructor_kwargs: dict | None = None,
         **kwargs,
     ):
-        """Register all static methods from a class or instance as tools.
-
-        Args:
-            cls (Union[Type, object]): The class or instance containing static methods to register.
-            namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
-                - If ``False``, no namespace is used.
-                - If ``True``, the namespace is derived from the class name.
-                - If a string is provided, it is used as the namespace.
-                Defaults to False.
-            traverse_mro (bool): Whether to traverse the MRO (Method Resolution
-                Order) to include inherited methods. When True (default),
-                methods from parent classes are also included (excluding
-                ``object``), with subclass methods taking priority over parent
-                class methods. When False, only methods defined directly on the
-                class are registered.
-            constructor_kwargs: Keyword arguments forwarded to the class
-                constructor when *cls* is a class that needs to be instantiated.
-                Ignored when a pre-built instance is passed.
-
-        Example:
-            ```python
-            registry = ToolRegistry()
-            registry.register_from_class(MyClass)
-            ```
-
-        Note:
-            This method is now a convenience wrapper around the register() method's
-            static method handling capability.
-        """
-        namespace = _resolve_namespace_compat(namespace, kwargs)
-        from ..integrations.native import ClassToolIntegration
-
-        hub = ClassToolIntegration(
-            cast("ToolRegistry", self), traverse_mro=traverse_mro
+        """Deprecated: use ``register(cls, source='class')`` instead."""
+        warnings.warn(
+            "register_from_class() is deprecated, use "
+            "register(cls, source='class', ...) instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
-        return hub.register_class_methods(cls, namespace, constructor_kwargs)
+        self.register(
+            cls,
+            source="class",
+            namespace=namespace,
+            traverse_mro=traverse_mro,
+            constructor_kwargs=constructor_kwargs,
+            **kwargs,
+        )
 
     async def register_from_class_async(
         self,
@@ -386,39 +534,20 @@ class RegistrationMixin:
         constructor_kwargs: dict | None = None,
         **kwargs,
     ):
-        """Async implementation to register all static methods from a class or instance as tools.
-
-        Args:
-            cls (Union[Type, object]): The class or instance containing static methods to register.
-            namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
-                - If ``False``, no namespace is used.
-                - If ``True``, the namespace is derived from the class name.
-                - If a string is provided, it is used as the namespace.
-                Defaults to False.
-            traverse_mro (bool): Whether to traverse the MRO (Method Resolution
-                Order) to include inherited methods. When True (default),
-                methods from parent classes are also included (excluding
-                ``object``), with subclass methods taking priority over parent
-                class methods. When False, only methods defined directly on the
-                class are registered.
-            constructor_kwargs: Keyword arguments forwarded to the class
-                constructor when *cls* is a class that needs to be instantiated.
-                Ignored when a pre-built instance is passed.
-
-        Example:
-            ```python
-            registry = ToolRegistry()
-            registry.register_from_class(MyClass)
-            ```
-        """
-        namespace = _resolve_namespace_compat(namespace, kwargs)
-        from ..integrations.native import ClassToolIntegration
-
-        hub = ClassToolIntegration(
-            cast("ToolRegistry", self), traverse_mro=traverse_mro
+        """Deprecated: use ``register_async(cls, source='class')`` instead."""
+        warnings.warn(
+            "register_from_class_async() is deprecated, use "
+            "register_async(cls, source='class', ...) instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
-        return await hub.register_class_methods_async(
-            cls, namespace, constructor_kwargs
+        await self.register_async(
+            cls,
+            source="class",
+            namespace=namespace,
+            traverse_mro=traverse_mro,
+            constructor_kwargs=constructor_kwargs,
+            **kwargs,
         )
 
     # ---- Refresh ----
@@ -514,6 +643,13 @@ class RegistrationMixin:
         return results
 
 
+def _normalise_namespace(ns: bool | str | None) -> bool | str:
+    """Map the unified namespace representation to the internal one."""
+    if ns is None:
+        return False
+    return ns
+
+
 def _resolve_namespace_compat(
     namespace: bool | str, kwargs: dict[str, Any]
 ) -> bool | str:
@@ -533,14 +669,6 @@ def _resolve_namespace_compat(
 
 
 def _import_openapi_integration():
-    """Helper function to import the OpenAPI integration module.
-
-    Raises:
-        ImportError: If the [openapi] extra is not installed.
-
-    Returns:
-        OpenAPIIntegration: The imported OpenAPIIntegration class.
-    """
     try:
         from ..integrations.openapi import OpenAPIIntegration
 
@@ -553,14 +681,6 @@ def _import_openapi_integration():
 
 
 def _import_mcp_integration():
-    """Helper function to import the MCP integration module.
-
-    Raises:
-        ImportError: If the [mcp] extra is not installed.
-
-    Returns:
-        MCPIntegration: The imported MCPIntegration class.
-    """
     try:
         from ..integrations.mcp import MCPIntegration
 
@@ -573,14 +693,6 @@ def _import_mcp_integration():
 
 
 def _import_langchain_integration():
-    """Helper function to import the LangChain integration module.
-
-    Raises:
-        ImportError: If the [langchain] extra is not installed.
-
-    Returns:
-        LangChainIntegration: The imported LangChainIntegration class.
-    """
     try:
         from ..integrations.langchain import LangChainIntegration
 
