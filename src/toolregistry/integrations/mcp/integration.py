@@ -1,4 +1,3 @@
-import logging
 import threading
 from collections.abc import Callable
 from pathlib import Path
@@ -496,7 +495,8 @@ class MCPIntegration:
         """Synchronous version of :meth:`refresh_async`."""
         from ..._async_runtime import AsyncRuntime
 
-        return AsyncRuntime.run_sync(self.refresh_async())
+        with self._refresh_lock:
+            return AsyncRuntime.run_sync(self.refresh_async())
 
     # ---- Background polling ----
 
@@ -529,7 +529,7 @@ class MCPIntegration:
             try:
                 self.refresh()
             except Exception:
-                logging.getLogger(__name__).exception("MCP refresh poll failed")
+                logger.exception("MCP refresh poll failed")
         self._schedule_next_poll()
 
     # ---- Lifecycle ----

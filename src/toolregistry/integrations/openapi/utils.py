@@ -192,7 +192,7 @@ async def load_openapi_spec_conditional_async(
             new_etag = response.headers.get("ETag") or response.headers.get("etag")
             openapi_spec_content = response.content
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         openapi_spec_dict = await loop.run_in_executor(
             None,
             lambda: resolve_refs(yaml_load(openapi_spec_content.decode("utf-8"))),

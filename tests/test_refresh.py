@@ -1,7 +1,7 @@
 """Tests for remote tool source refresh (OpenAPI + MCP)."""
 
 import json
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -381,5 +381,119 @@ class TestPolling:
         assert integration._poll_timer is not None
 
         registry.close()
-        # After close, integrations list is cleared
-        # The integration's timer should have been cancelled via close()
+        assert integration._poll_timer is None
+        assert integration._poll_interval is None
+
+
+# ---------------------------------------------------------------------------
+# MCP refresh (mocked)
+# ---------------------------------------------------------------------------
+
+
+class _MockToolSpec:
+    """Minimal stand-in for mcp.types.Tool."""
+
+    def __init__(self, name, description="", input_schema=None):
+        self.name = name
+        self.description = description
+        self.input_schema = input_schema or {"type": "object", "properties": {}}
+
+
+class TestMCPRefresh:
+    """Tests for MCPIntegration.refresh() using mocked MCP clients."""
+
+    def _make_integration(self, registry, tool_specs):
+        """Register mocked MCP tools and return the integration."""
+        from toolregistry.integrations.mcp.integration import (
+            MCPIntegration,
+            MCPTool,
+        )
+        from toolregistry.integrations.mcp.connection import MCPConnectionManager
+
+        integration = MCPIntegration(registry)
+        connection = MagicMock(spec=MCPConnectionManager)
+        connection.transport = "http://mock-mcp:8000"
+        integration._connections.append(connection)
+        integration._transport = "http://mock-mcp:8000"
+        integration._resolved_ns = None
+        integration._persistent = True
+        integration._headers = None
+
+        sep = getattr(registry, "_name_sep", "-")
+        for ts in tool_specs:
+            tool = MCPTool.from_tool_json(ts, connection, namespace=None)
+            tool.update_namespace(None, force=True, sep=sep)
+            registry.register(tool)
+            integration._registered_tool_names.add(tool.name)
+
+        return integration
+
+    def _patch_mcp_client(self, tool_specs):
+        """Return a context manager that mocks MCPClient to return given specs."""
+        mock_client = AsyncMock()
+        mock_client.list_tools = AsyncMock(return_value=tool_specs)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        return patch(
+            "toolregistry.integrations.mcp.integration.MCPClient",
+            return_value=mock_client,
+        )
+
+    def test_mcp_refresh_unchanged(self):
+        specs = [_MockToolSpec("add"), _MockToolSpec("multiply")]
+        registry = ToolRegistry()
+        integration = self._make_integration(registry, specs)
+
+        with self._patch_mcp_client(specs):
+            result = integration.refresh()
+
+        assert result.changed is False
+        assert result.unchanged == 2
+
+    def test_mcp_refresh_add_tool(self):
+        initial = [_MockToolSpec("add")]
+        updated = [_MockToolSpec("add"), _MockToolSpec("subtract")]
+        registry = ToolRegistry()
+        integration = self._make_integration(registry, initial)
+
+        with self._patch_mcp_client(updated):
+            result = integration.refresh()
+
+        assert "subtract" in result.added
+        assert "subtract" in registry._tools
+
+    def test_mcp_refresh_remove_tool(self):
+        initial = [_MockToolSpec("add"), _MockToolSpec("multiply")]
+        updated = [_MockToolSpec("add")]
+        registry = ToolRegistry()
+        integration = self._make_integration(registry, initial)
+
+        with self._patch_mcp_client(updated):
+            result = integration.refresh()
+
+        assert "multiply" in result.removed
+        assert "multiply" not in registry._tools
+
+    def test_mcp_refresh_update_tool(self):
+        initial = [_MockToolSpec("add", description="Add numbers")]
+        changed = [_MockToolSpec("add", description="Add two integers")]
+        registry = ToolRegistry()
+        integration = self._make_integration(registry, initial)
+
+        with self._patch_mcp_client(changed):
+            result = integration.refresh()
+
+        assert "add" in result.updated
+        assert registry._tools["add"].description == "Add two integers"
+
+    def test_mcp_refresh_preserves_disabled_state(self):
+        specs = [_MockToolSpec("add"), _MockToolSpec("multiply")]
+        registry = ToolRegistry()
+        integration = self._make_integration(registry, specs)
+        registry.disable("add", "maintenance")
+
+        with self._patch_mcp_client(specs):
+            integration.refresh()
+
+        assert not registry.is_enabled("add")
+        assert registry.get_disable_reason("add") == "maintenance"
