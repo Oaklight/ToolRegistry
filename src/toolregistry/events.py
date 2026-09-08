@@ -73,3 +73,32 @@ Returns:
     A non-empty string to auto-disable the tool with that string as the
     reason, or ``None`` to leave the tool enabled.
 """
+
+
+@dataclass(frozen=True)
+class RefreshResult:
+    """Result of a remote source refresh operation.
+
+    Attributes:
+        source: Source type that was refreshed (``"openapi"`` or ``"mcp"``).
+        source_detail: Transport URI or spec URL identifying the source.
+        added: Names of newly discovered tools.
+        removed: Names of tools that no longer exist on the remote source.
+        updated: Names of tools whose schema or description changed.
+        unchanged: Count of tools that matched and required no update.
+        skipped: ``True`` when the remote source reported no changes
+            (e.g. HTTP 304 via ETag).
+    """
+
+    source: str
+    source_detail: str = ""
+    added: tuple[str, ...] = ()
+    removed: tuple[str, ...] = ()
+    updated: tuple[str, ...] = ()
+    unchanged: int = 0
+    skipped: bool = False
+
+    @property
+    def changed(self) -> bool:
+        """Whether the refresh produced any additions, removals, or updates."""
+        return bool(self.added or self.removed or self.updated)

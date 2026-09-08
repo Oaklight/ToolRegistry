@@ -1,3 +1,5 @@
+import logging
+import threading
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -14,6 +16,7 @@ from mcp.types import Tool as ToolSpec
 
 from ..._vendor.structlog import get_logger
 from ._compat import get_field
+from ...events import ChangeEvent, ChangeEventType, RefreshResult
 from ...tool import Tool, ToolMetadata
 from ...tool_registry import ToolRegistry
 from ...tool_wrapper import BaseToolWrapper
@@ -292,6 +295,14 @@ class MCPIntegration:
     def __init__(self, registry: ToolRegistry):
         self.registry = registry
         self._connections: list[MCPConnectionManager] = []
+        self._registered_tool_names: set[str] = set()
+        self._transport: str | dict[str, Any] | Path | None = None
+        self._resolved_ns: str | None = None
+        self._persistent: bool = True
+        self._headers: dict[str, str] | None = None
+        self._refresh_lock = threading.Lock()
+        self._poll_timer: threading.Timer | None = None
+        self._poll_interval: float | None = None
 
     async def register_mcp_tools_async(
         self,
@@ -303,23 +314,22 @@ class MCPIntegration:
         """Async implementation to register all tools from an MCP server.
 
         Args:
-            transport (Union[str, Dict[str, Any], Path]): Can be:
-                - URL string (http(s)://, ws(s)://)
-                - Path to script file (.py, .js)
-                - Dict with "command", "args", "env" keys for stdio transport
-            namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
-                - If ``False``, no namespace is used.
-                - If ``True``, the namespace is derived from the server info name.
-                - If a string is provided, it is used as the namespace.
-                Defaults to False.
-            persistent (bool): If True (default), keep the connection open
-                across tool calls. If False, create a new connection per call.
-            headers (Optional[Dict[str, str]]): HTTP headers for SSE or
-                streamable-http transports (e.g. authentication).
+            transport: MCP server transport — URL string, script path, or
+                stdio dict with ``command``, ``args``, ``env`` keys.
+            namespace: Whether to prefix tool names with a namespace.
+                ``False`` (default) means no namespace, ``True`` derives it
+                from the server info, or pass a string directly.
+            persistent: If True (default), keep the connection open across
+                tool calls.
+            headers: HTTP headers for SSE or streamable-http transports.
 
         Raises:
             RuntimeError: If connection to server fails.
         """
+        self._transport = transport
+        self._persistent = persistent
+        self._headers = headers
+
         connection = MCPConnectionManager(
             transport=transport,
             persistent=persistent,
@@ -327,29 +337,27 @@ class MCPIntegration:
         )
         self._connections.append(connection)
 
-        # Use a temporary connection for tool discovery
         async with MCPClient(transport, headers=headers) as client:
             server_info: Implementation | None = client.server_info
 
             if isinstance(namespace, str):
                 resolved_ns = namespace
-            elif namespace:  # namespace is True
+            elif namespace:
                 resolved_ns = server_info.name if server_info else "MCP sse service"
             else:
                 resolved_ns = None
+            self._resolved_ns = resolved_ns
 
-            # Get available tools from server
             tools_response: list[ToolSpec] = await client.list_tools()
 
-            # Register each tool with the shared connection manager
             for tool_spec in tools_response:
                 mcp_tool = MCPTool.from_tool_json(
                     tool_spec=tool_spec,
                     connection=connection,
                     namespace=resolved_ns,
                 )
-
                 self.registry.register(mcp_tool, namespace=resolved_ns)
+                self._registered_tool_names.add(mcp_tool.name)
 
     def register_mcp_tools(
         self,
@@ -361,19 +369,12 @@ class MCPIntegration:
         """Register all tools from an MCP server (synchronous entry point).
 
         Args:
-            transport (Union[str, Dict[str, Any], Path]): Can be:
-                - URL string (http(s)://, ws(s)://)
-                - Path to script file (.py, .js)
-                - Dict with "command", "args", "env" keys for stdio transport
-            namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
-                - If ``False``, no namespace is used.
-                - If ``True``, the namespace is derived from the server info name.
-                - If a string is provided, it is used as the namespace.
-                Defaults to False.
-            persistent (bool): If True (default), keep the connection open
-                across tool calls. If False, create a new connection per call.
-            headers (Optional[Dict[str, str]]): HTTP headers for SSE or
-                streamable-http transports (e.g. authentication).
+            transport: MCP server transport — URL string, script path, or
+                stdio dict with ``command``, ``args``, ``env`` keys.
+            namespace: Whether to prefix tool names with a namespace.
+            persistent: If True (default), keep the connection open across
+                tool calls.
+            headers: HTTP headers for SSE or streamable-http transports.
         """
         from ..._async_runtime import AsyncRuntime
 
@@ -383,8 +384,159 @@ class MCPIntegration:
             )
         )
 
+    # ---- Refresh ----
+
+    async def refresh_async(self) -> RefreshResult:
+        """Re-list tools from the MCP server and synchronise the registry.
+
+        Opens a temporary client connection to call ``list_tools()``,
+        compares with the currently registered set, and applies additions,
+        removals, and updates.
+
+        Returns:
+            A :class:`RefreshResult` describing what changed.
+
+        Raises:
+            ValueError: If transport was not stored (should not happen
+                after a successful registration).
+        """
+        if self._transport is None:
+            raise ValueError("Cannot refresh: no transport configured.")
+
+        if not self._connections:
+            raise ValueError("Cannot refresh: no connection available.")
+        connection = self._connections[0]
+
+        # Build source_detail for the result
+        transport = self._transport
+        if isinstance(transport, dict):
+            cmd = transport.get("command", "")
+            args = " ".join(transport.get("args", []))
+            source_detail = f"stdio:{cmd} {args}".strip()
+        else:
+            source_detail = str(transport)
+
+        async with MCPClient(self._transport, headers=self._headers) as client:
+            tools_response: list[ToolSpec] = await client.list_tools()
+
+        sep = getattr(self.registry, "_name_sep", "-")
+
+        # Build candidate tools from the fresh response
+        new_tools: dict[str, MCPTool] = {}
+        for tool_spec in tools_response:
+            candidate = MCPTool.from_tool_json(
+                tool_spec=tool_spec,
+                connection=connection,
+                namespace=self._resolved_ns,
+            )
+            candidate.update_namespace(self._resolved_ns, force=True, sep=sep)
+            new_tools[candidate.name] = candidate
+
+        old_names = set(self._registered_tool_names)
+        new_names = set(new_tools.keys())
+
+        # Snapshot disabled state
+        disabled_snapshot: dict[str, str] = {}
+        for name in old_names:
+            if not self.registry.is_enabled(name):
+                disabled_snapshot[name] = self.registry.get_disable_reason(name) or ""
+
+        to_remove = old_names - new_names
+        to_add = new_names - old_names
+        maybe_updated = old_names & new_names
+
+        added: list[str] = []
+        removed: list[str] = []
+        updated: list[str] = []
+        unchanged = 0
+
+        for name in to_remove:
+            self.registry._unregister(name)
+            removed.append(name)
+
+        for name in to_add:
+            self.registry.register(new_tools[name], namespace=self._resolved_ns)
+            added.append(name)
+
+        for name in maybe_updated:
+            candidate = new_tools[name]
+            existing = self.registry._tools.get(name)
+            if existing and (
+                existing.parameters != candidate.parameters
+                or existing.description != candidate.description
+            ):
+                self.registry._tools[name] = candidate
+                self.registry._emit_change(
+                    ChangeEvent(
+                        event_type=ChangeEventType.REFRESH,
+                        tool_name=name,
+                    )
+                )
+                updated.append(name)
+            else:
+                unchanged += 1
+
+        # Restore disabled state for surviving tools
+        for name, reason in disabled_snapshot.items():
+            if name in new_names:
+                self.registry.disable(name, reason)
+
+        self._registered_tool_names = new_names
+
+        return RefreshResult(
+            source="mcp",
+            source_detail=source_detail,
+            added=tuple(added),
+            removed=tuple(removed),
+            updated=tuple(updated),
+            unchanged=unchanged,
+        )
+
+    def refresh(self) -> RefreshResult:
+        """Synchronous version of :meth:`refresh_async`."""
+        from ..._async_runtime import AsyncRuntime
+
+        return AsyncRuntime.run_sync(self.refresh_async())
+
+    # ---- Background polling ----
+
+    def start_polling(self, interval: float) -> None:
+        """Start periodic background refresh.
+
+        Args:
+            interval: Seconds between refresh attempts.
+        """
+        self.stop_polling()
+        self._poll_interval = interval
+        self._schedule_next_poll()
+
+    def stop_polling(self) -> None:
+        """Stop background polling if active."""
+        self._poll_interval = None
+        if self._poll_timer is not None:
+            self._poll_timer.cancel()
+            self._poll_timer = None
+
+    def _schedule_next_poll(self) -> None:
+        if self._poll_interval is None:
+            return
+        self._poll_timer = threading.Timer(self._poll_interval, self._poll_tick)
+        self._poll_timer.daemon = True
+        self._poll_timer.start()
+
+    def _poll_tick(self) -> None:
+        with self._refresh_lock:
+            try:
+                self.refresh()
+            except Exception:
+                logging.getLogger(__name__).exception("MCP refresh poll failed")
+        self._schedule_next_poll()
+
+    # ---- Lifecycle ----
+
     async def close(self) -> None:
         """Close all persistent connections (async)."""
+        self.stop_polling()
         for connection in self._connections:
             await connection.close()
         self._connections.clear()
@@ -395,6 +547,7 @@ class MCPIntegration:
         Shuts down background loop threads without requiring an
         event loop in the calling thread.
         """
+        self.stop_polling()
         for connection in self._connections:
             connection.close_sync()
         self._connections.clear()

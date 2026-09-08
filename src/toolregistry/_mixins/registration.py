@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 from collections.abc import Callable
 
-from ..events import ChangeEvent, ChangeEventType
+from ..events import ChangeEvent, ChangeEventType, RefreshResult
 from ..tool import Tool
 from ..utils import HttpClientConfig, normalize_tool_name
 
@@ -27,6 +27,7 @@ class RegistrationMixin:
     # Type stubs for attributes/methods from other mixins
     _tools: dict[str, Tool]
     _sub_registries: set[str]
+    _disabled: dict[str, str]
 
     if TYPE_CHECKING:
 
@@ -86,6 +87,27 @@ class RegistrationMixin:
                 tool_name=registered_name,
             )
         )
+
+    def _unregister(self, name: str) -> bool:
+        """Remove a tool from the registry.
+
+        Args:
+            name: The registered name of the tool to remove.
+
+        Returns:
+            True if the tool was found and removed, False otherwise.
+        """
+        tool = self._tools.pop(name, None)
+        if tool is None:
+            return False
+        self._disabled.pop(name, None)
+        self._emit_change(
+            ChangeEvent(
+                event_type=ChangeEventType.UNREGISTER,
+                tool_name=name,
+            )
+        )
+        return True
 
     def register_from_mcp(
         self,
@@ -205,28 +227,30 @@ class RegistrationMixin:
         openapi_spec: dict[str, Any],
         namespace: bool | str = False,
         persistent: bool = True,
+        spec_url: str | None = None,
         **kwargs,
     ):
         """Registers tools from OpenAPI specification synchronously.
 
         Args:
-            client (HttpClientConfig): The httpx client config instance.
-            openapi_spec (Dict[str, Any]): Parsed OpenAPI specification dictionary.
-            namespace (Union[bool, str]): Specifies namespace usage:
+            client: The HTTP client config instance.
+            openapi_spec: Parsed OpenAPI specification dictionary.
+            namespace: Specifies namespace usage:
                 - ``False``: No namespace is applied.
                 - ``True``: Namespace is derived from OpenAPI info.title.
                 - ``str``: Use the provided string as namespace.
                 Defaults to False.
-            persistent (bool): If True (default), reuse a persistent HTTP
-                client for connection pooling.
-
-        Returns:
-            Any: Result of the OpenAPI tool registration process.
+            persistent: If True (default), reuse a persistent HTTP client for
+                connection pooling.
+            spec_url: URL where the spec was originally fetched from.  Stored
+                for later ETag-based refresh via :meth:`refresh_from_openapi`.
         """
         namespace = _resolve_namespace_compat(namespace, kwargs)
         OpenAPIIntegration = _import_openapi_integration()
         openapi = OpenAPIIntegration(cast("ToolRegistry", self))
-        openapi.register_openapi_tools(client, openapi_spec, namespace, persistent)
+        openapi.register_openapi_tools(
+            client, openapi_spec, namespace, persistent, spec_url=spec_url
+        )
         self._openapi_integrations.append(openapi)
 
     async def register_from_openapi_async(
@@ -235,29 +259,25 @@ class RegistrationMixin:
         openapi_spec: dict[str, Any],
         namespace: bool | str = False,
         persistent: bool = True,
+        spec_url: str | None = None,
         **kwargs,
     ):
         """Registers tools from OpenAPI specification asynchronously.
 
         Args:
-            client (HttpClientConfig): The httpx client config instance.
-            openapi_spec (Dict[str, Any]): Parsed OpenAPI specification dictionary.
-            namespace (Union[bool, str]): Specifies namespace usage:
-                - ``False``: No namespace is applied.
-                - ``True``: Namespace is derived from OpenAPI info.title.
-                - ``str``: Use the provided string as namespace.
-                Defaults to False.
-            persistent (bool): If True (default), reuse a persistent HTTP
-                client for connection pooling.
-
-        Returns:
-            Any: Result of the OpenAPI tool registration process.
+            client: The HTTP client config instance.
+            openapi_spec: Parsed OpenAPI specification dictionary.
+            namespace: Specifies namespace usage. Defaults to False.
+            persistent: If True (default), reuse a persistent HTTP client for
+                connection pooling.
+            spec_url: URL where the spec was originally fetched from.  Stored
+                for later ETag-based refresh via :meth:`refresh_from_openapi_async`.
         """
         namespace = _resolve_namespace_compat(namespace, kwargs)
         OpenAPIIntegration = _import_openapi_integration()
         openapi = OpenAPIIntegration(cast("ToolRegistry", self))
         await openapi.register_openapi_tools_async(
-            client, openapi_spec, namespace, persistent
+            client, openapi_spec, namespace, persistent, spec_url=spec_url
         )
         self._openapi_integrations.append(openapi)
 
@@ -400,6 +420,78 @@ class RegistrationMixin:
         return await hub.register_class_methods_async(
             cls, namespace, constructor_kwargs
         )
+
+    # ---- Refresh ----
+
+    def refresh_from_openapi(
+        self,
+        index: int = 0,
+        *,
+        openapi_spec: dict[str, Any] | None = None,
+    ) -> RefreshResult:
+        """Re-fetch the OpenAPI spec for an integration and update tools.
+
+        Args:
+            index: Index into the list of registered OpenAPI integrations
+                (in the order they were registered).  Defaults to 0.
+            openapi_spec: Optional pre-parsed spec dict.  When ``None``,
+                the spec is re-fetched from the stored URL (with ETag).
+
+        Returns:
+            A :class:`RefreshResult` describing what changed.
+        """
+        return self._openapi_integrations[index].refresh(openapi_spec)
+
+    async def refresh_from_openapi_async(
+        self,
+        index: int = 0,
+        *,
+        openapi_spec: dict[str, Any] | None = None,
+    ) -> RefreshResult:
+        """Async version of :meth:`refresh_from_openapi`."""
+        return await self._openapi_integrations[index].refresh_async(openapi_spec)
+
+    def refresh_from_mcp(self, index: int = 0) -> RefreshResult:
+        """Re-list tools from an MCP server and update the registry.
+
+        Args:
+            index: Index into the list of registered MCP integrations
+                (in the order they were registered).  Defaults to 0.
+
+        Returns:
+            A :class:`RefreshResult` describing what changed.
+        """
+        return self._mcp_integrations[index].refresh()
+
+    async def refresh_from_mcp_async(self, index: int = 0) -> RefreshResult:
+        """Async version of :meth:`refresh_from_mcp`."""
+        return await self._mcp_integrations[index].refresh_async()
+
+    def refresh_all(self) -> list[RefreshResult]:
+        """Refresh all registered remote sources (OpenAPI and MCP).
+
+        Returns:
+            A list of :class:`RefreshResult`, one per integration.
+        """
+        results: list[RefreshResult] = []
+        for integration in self._openapi_integrations:
+            results.append(integration.refresh())
+        for integration in self._mcp_integrations:
+            results.append(integration.refresh())
+        if results:
+            self._emit_change(ChangeEvent(event_type=ChangeEventType.REFRESH_ALL))
+        return results
+
+    async def refresh_all_async(self) -> list[RefreshResult]:
+        """Async version of :meth:`refresh_all`."""
+        results: list[RefreshResult] = []
+        for integration in self._openapi_integrations:
+            results.append(await integration.refresh_async())
+        for integration in self._mcp_integrations:
+            results.append(await integration.refresh_async())
+        if results:
+            self._emit_change(ChangeEvent(event_type=ChangeEventType.REFRESH_ALL))
+        return results
 
 
 def _resolve_namespace_compat(
