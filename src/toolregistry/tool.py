@@ -474,8 +474,8 @@ class Tool:
         Returns:
             Provider-specific tool definition dict.
         """
-        from .llm._rosetta import _get_tool_ops, _make_ir_tool_definition
-        from .llm.tool_calls import _normalize_api_format
+        from .llm._rosetta import _make_ir_tool_definition
+        from .llm.tool_calls import _get_tool_ops, _normalize_api_format
         from ._vendor.jsonschema import flatten_schema
 
         api_format = _normalize_api_format(api_format)
@@ -504,21 +504,16 @@ class Tool:
 
         if api_format == "rosetta-ir":
             return ir_tool
-        elif api_format == "openai-chat":
-            return _get_tool_ops("openai_chat").ir_tool_definition_to_p(ir_tool)
-        elif api_format == "openai-responses":
-            return _get_tool_ops("openai_responses").ir_tool_definition_to_p(ir_tool)
-        elif api_format == "anthropic":
-            return _get_tool_ops("anthropic").ir_tool_definition_to_p(ir_tool)
-        elif api_format == "gemini":
-            result = _get_tool_ops("google").ir_tool_definition_to_p(ir_tool)
+
+        ops = _get_tool_ops(api_format)
+        result = ops.ir_tool_definition_to_p(ir_tool)
+
+        if api_format == "gemini":
             # Unwrap the function_declarations wrapper to return a single
             # tool definition, consistent with other format outputs.
             return result["function_declarations"][0]
-        elif api_format == "google-interactions":
-            return _get_tool_ops("google_interactions").ir_tool_definition_to_p(ir_tool)
-        else:
-            raise ValueError(f"Unsupported API format: {api_format}")
+
+        return result
 
     def get_json_schema(
         self,

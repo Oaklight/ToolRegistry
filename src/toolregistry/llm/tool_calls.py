@@ -163,6 +163,10 @@ class ToolCall:
         # Vendor-specific formats (anthropic, gemini) are tried before generic
         # OpenAI formats because the OpenAI parsers are lenient and may
         # successfully (but incorrectly) parse Anthropic/Gemini dicts.
+        # google-interactions shares key names with anthropic (type/id/name),
+        # but anthropic checks for type="tool_use" so it rejects
+        # type="function_call" dicts. Placed before openai-responses which
+        # is the most lenient parser.
         for fmt in (
             "anthropic",
             "gemini",
