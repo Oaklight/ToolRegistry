@@ -153,3 +153,69 @@ def load_openapi_spec(uri: str) -> dict[str, Any]:
     Raises:
         ValueError: If URI retrieval, parsing, or decoding fails."""
     return asyncio.run(load_openapi_spec_async(uri))
+
+
+async def load_openapi_spec_conditional_async(
+    uri: str,
+    etag: str | None = None,
+    headers: dict[str, str] | None = None,
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Fetch an OpenAPI spec with ETag-based conditional request support.
+
+    When *etag* is provided, an ``If-None-Match`` header is sent.  If the
+    server responds with ``304 Not Modified`` the spec is unchanged and
+    ``(None, etag)`` is returned, avoiding re-parsing.
+
+    Args:
+        uri: URL pointing to an OpenAPI specification.
+        etag: ETag value from a previous fetch.  ``None`` for the first request.
+        headers: Extra HTTP headers to include in the request.
+
+    Returns:
+        A ``(spec_dict, new_etag)`` tuple.  ``spec_dict`` is ``None`` when the
+        server returned 304.
+    """
+    try:
+        req_headers: dict[str, str] = dict(headers or {})
+        if etag is not None:
+            req_headers["If-None-Match"] = etag
+
+        async with AsyncClient(timeout=10) as client:
+            response = await client.get(uri, headers=req_headers)
+            assert isinstance(response, Response)
+
+            if response.status_code == 304:
+                return None, etag
+
+            response.raise_for_status()
+
+            new_etag = response.headers.get("ETag") or response.headers.get("etag")
+            openapi_spec_content = response.content
+
+        loop = asyncio.get_event_loop()
+        openapi_spec_dict = await loop.run_in_executor(
+            None,
+            lambda: resolve_refs(yaml_load(openapi_spec_content.decode("utf-8"))),
+        )
+
+        if not isinstance(openapi_spec_dict, dict):
+            raise ValueError("OpenAPI spec must be a dictionary")
+        return dict(openapi_spec_dict), new_etag
+
+    except YAMLError as e:
+        raise ValueError(f"Failed to parse OpenAPI content: {e}")
+    except HTTPError as e:
+        raise ValueError(f"HTTP error: {e.status_code} for {e.url}")
+    except HttpClientError as e:
+        raise ValueError(f"Network error when fetching URI: {e}")
+    except Exception as e:
+        raise ValueError(f"Unexpected error: {e}")
+
+
+def load_openapi_spec_conditional(
+    uri: str,
+    etag: str | None = None,
+    headers: dict[str, str] | None = None,
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Sync version of :func:`load_openapi_spec_conditional_async`."""
+    return asyncio.run(load_openapi_spec_conditional_async(uri, etag, headers))
