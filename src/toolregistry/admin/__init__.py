@@ -4,7 +4,7 @@ This module provides administrative functionality for the ToolRegistry,
 including execution logging, monitoring capabilities, and an HTTP admin panel.
 """
 
-from .auth import TokenAuth
+from .auth import SessionCookie, TokenAuth
 from .execution_log import (
     ExecutionLog,
     ExecutionLogEntry,
@@ -19,6 +19,7 @@ __all__ = [
     "ExecutionLog",
     "ExecutionLogEntry",
     "ExecutionStatus",
+    "SessionCookie",
     "TokenAuth",
     "warning_collector",
 ]

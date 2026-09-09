@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from .._vendor.httpserver import App
-from .auth import TokenAuth
+from .auth import SessionCookie, TokenAuth
 
 if TYPE_CHECKING:
     from toolregistry import ToolRegistry
@@ -44,12 +44,14 @@ class AdminApp(App):
     Attributes:
         registry: The ToolRegistry instance to manage.
         auth: Optional TokenAuth instance for authentication.
+        session: Optional SessionCookie for browser cookie auth.
         serve_ui: Whether to serve the admin UI at root path.
         config: Optional ToolConfig for config-aware endpoints.
     """
 
     registry: "ToolRegistry"
     auth: TokenAuth | None
+    session: SessionCookie | None
     serve_ui: bool
     config: "ToolConfig | None"
 
@@ -122,6 +124,10 @@ class AdminServer:
         else:
             self._auth = None
 
+        self._session: SessionCookie | None = (
+            SessionCookie() if self._auth is not None else None
+        )
+
         self._app: AdminApp | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
@@ -174,6 +180,7 @@ class AdminServer:
         self._app = AdminApp()
         self._app.registry = self._registry
         self._app.auth = self._auth
+        self._app.session = self._session
         self._app.serve_ui = self._serve_ui
         self._app.config = self._config
 

@@ -62,3 +62,71 @@ class TokenAuth:
         expected_hash = hashlib.sha256(self._token.encode()).digest()
         provided_hash = hashlib.sha256(provided_token.encode()).digest()
         return secrets.compare_digest(expected_hash, provided_hash)
+
+
+class SessionCookie:
+    """HMAC-signed session cookies for browser-based admin access.
+
+    Issues stateless session tokens: ``HMAC(secret, issued_at)`` +
+    timestamp.  No server-side session store needed — verification
+    re-computes the HMAC and checks expiry.
+
+    Args:
+        secret: Signing secret.  Defaults to a random 32-byte hex string.
+        max_age: Session lifetime in seconds.  Default is 3600 (1 hour).
+        cookie_name: Name of the session cookie.
+    """
+
+    def __init__(
+        self,
+        secret: str | None = None,
+        max_age: int = 3600,
+        cookie_name: str = "tr_session",
+    ) -> None:
+        self._secret = secret or secrets.token_hex(32)
+        self.max_age = max_age
+        self.cookie_name = cookie_name
+
+    def issue(self) -> str:
+        """Create a signed session token.
+
+        Returns:
+            A token string in the format ``timestamp.signature``.
+        """
+        import time
+
+        ts = str(int(time.time()))
+        sig = self._sign(ts)
+        return f"{ts}.{sig}"
+
+    def verify(self, token: str) -> bool:
+        """Verify a session token's signature and expiry.
+
+        Args:
+            token: The ``timestamp.signature`` token string.
+
+        Returns:
+            True if the signature is valid and the token has not expired.
+        """
+        import time
+
+        parts = token.split(".", 1)
+        if len(parts) != 2:
+            return False
+        ts_str, sig = parts
+        try:
+            ts = int(ts_str)
+        except ValueError:
+            return False
+        if time.time() - ts > self.max_age:
+            return False
+        expected = self._sign(ts_str)
+        return secrets.compare_digest(sig, expected)
+
+    def _sign(self, data: str) -> str:
+        """Compute HMAC-SHA256 of *data* with the secret."""
+        import hmac
+
+        return hmac.new(
+            self._secret.encode(), data.encode(), hashlib.sha256
+        ).hexdigest()
