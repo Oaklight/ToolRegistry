@@ -117,6 +117,10 @@ class HttpClientConfig:
         headers: Custom request headers. Default is None.
         timeout: Request timeout in seconds. Default is 10.0.
         auth: Basic authentication credentials (username, password). Default is None.
+        cookies: Initial cookies to send with requests. The underlying
+            client maintains a persistent cookie jar — cookies from
+            ``Set-Cookie`` response headers are accumulated across
+            requests on the same persistent client. Default is None.
         **extra_options: Additional client parameters (e.g. verify, proxy, pool_size).
     """
 
@@ -129,12 +133,14 @@ class HttpClientConfig:
         headers: dict[str, str] | None = None,
         timeout: float = 10.0,
         auth: tuple[str, str] | None = None,
+        cookies: dict[str, str] | None = None,
         **extra_options: Any,
     ):
         self.base_url = base_url.rstrip("/")
         self.headers = headers or {}
         self.timeout = timeout
         self.auth = auth
+        self.cookies = cookies
         self.extra_options = extra_options
         self._sync_client: _BaseUrlClient | None = None
         self._async_client: _BaseUrlAsyncClient | None = None
@@ -145,6 +151,7 @@ class HttpClientConfig:
             "headers": self.headers,
             "timeout": self.timeout,
             "auth": self.auth,
+            "cookies": self.cookies,
         }
         for key in self._KNOWN_CLIENT_PARAMS:
             if key in self.extra_options:
@@ -252,6 +259,7 @@ class HttpClientConfig:
             "headers": self.headers,
             "timeout": self.timeout,
             "auth": self.auth,
+            "cookies": self.cookies,
             "extra_options": self.extra_options,
         }
 
@@ -261,6 +269,7 @@ class HttpClientConfig:
         self.headers = state["headers"]
         self.timeout = state["timeout"]
         self.auth = state["auth"]
+        self.cookies = state.get("cookies")
         self.extra_options = state["extra_options"]
         self._sync_client = None
         self._async_client = None
