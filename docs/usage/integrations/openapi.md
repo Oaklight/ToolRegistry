@@ -10,7 +10,7 @@
 
 ## 版本 0.4.12 中的 API 变更
 
-`register_from_openapi` 方法现在接受两个参数：
+自 v0.17.0 起，推荐使用统一的 `register()` 方法。`register()` 方法在 `source="openapi"` 时接受以下参数：
 
 - `client_config`：一个 `toolregistry.integrations.openapi.HttpClientConfig` 对象，用于配置与 API 交互的 HTTP 客户端。你可以配置请求头、授权方式、超时时间和其他设置，比之前的版本提供了更大的灵活性。
 - `openapi_spec`：OpenAPI 规范，类型为 `Dict[str, Any]`，通过 `load_openapi_spec` 或 `load_openapi_spec_async` 等函数加载。这些函数接受 OpenAPI 规范的文件路径、URL 或基础 API 的 URL，并返回解析后的 OpenAPI 规范字典。
@@ -21,7 +21,7 @@
 
 ### 同步注册
 
-你可以使用 `register_from_openapi` 方法同步注册 OpenAPI 工具。例如：
+你可以使用 `register()` 方法同步注册 OpenAPI 工具。例如：
 
 ```python
 import os
@@ -34,7 +34,7 @@ client_config = HttpClientConfig(base_url=f"http://localhost:{PORT}")
 openapi_spec = load_openapi_spec("http://localhost:{PORT}")  # Auto-discovery of OpenAPI spec
 
 # Synchronously register OpenAPI tools
-registry.register_from_openapi(client_config=client_config, openapi_spec=openapi_spec)
+registry.register(client_config, source="openapi", openapi_spec=openapi_spec)
 print(registry)  # Output: A ToolRegistry object with the registered OpenAPI tools
 ```
 
@@ -69,7 +69,7 @@ print(registry)  # Output: A ToolRegistry object with the registered OpenAPI too
 
 ### 异步注册
 
-在异步环境中，使用 `register_from_openapi_async` 方法注册工具：
+在异步环境中，使用 `register_async()` 方法注册工具：
 
 ```python
 import asyncio
@@ -83,7 +83,7 @@ client_config = HttpClientConfig(base_url=f"http://localhost:{PORT}")
 
 async def async_register():
     openapi_spec = await load_openapi_spec_async("http://localhost:{PORT}")  # Auto-discovery of OpenAPI spec
-    await registry.register_from_openapi_async(client_config=client_config, openapi_spec=openapi_spec)
+    await registry.register_async(client_config, source="openapi", openapi_spec=openapi_spec)
     print(registry)  # Optionally, inspect the registry for registered tools
 
 asyncio.run(async_register())
@@ -148,7 +148,7 @@ from toolregistry.integrations.openapi import HttpClientConfig, load_openapi_spe
 with ToolRegistry() as registry:
     client_config = HttpClientConfig(base_url="http://localhost:8000")
     openapi_spec = load_openapi_spec("http://localhost:8000")
-    registry.register_from_openapi(client_config=client_config, openapi_spec=openapi_spec)
+    registry.register(client_config, source="openapi", openapi_spec=openapi_spec)
     result = registry["add_get"](1, 2)
 # HTTP clients are automatically closed on exit
 ```
@@ -158,7 +158,7 @@ with ToolRegistry() as registry:
 
 ```python
 registry = ToolRegistry()
-registry.register_from_openapi(client_config=client_config, openapi_spec=openapi_spec)
+registry.register(client_config, source="openapi", openapi_spec=openapi_spec)
 # ... use tools ...
 registry.close()  # Close all persistent HTTP clients
 
@@ -171,8 +171,8 @@ await registry.close_async()
 要每次调用时创建新的 HTTP 客户端（旧行为），请传递 `persistent=False`：
 
 ```python
-registry.register_from_openapi(
-    client_config=client_config, openapi_spec=openapi_spec, persistent=False
+registry.register(
+    client_config, source="openapi", openapi_spec=openapi_spec, persistent=False
 )
 ```
 
@@ -243,7 +243,7 @@ PORT = os.getenv("PORT", 8000)  # default port 8000, change via environment vari
 registry = ToolRegistry()
 client_config = HttpClientConfig(base_url=f"http://localhost:{PORT}")
 openapi_spec = load_openapi_spec(f"http://localhost:{PORT}")
-registry.register_from_openapi(client_config=client_config, openapi_spec=openapi_spec)
+registry.register(client_config, source="openapi", openapi_spec=openapi_spec)
 
 # Set up OpenAI client
 client = OpenAI(

@@ -19,7 +19,7 @@ LangChain 集成模块使 ToolRegistry 能够支持基于 LangChain 的工具。
 
 2. **注册工具**
 
-    使用注册器的 `register_from_langchain` 或 `register_from_langchain_async` 接口将 LangChain 工具注册到注册器中。以下是注册两个工具（`ArxivQueryRun` 和 `PubmedQueryRun`）的列表示例。
+    使用注册器的 `register()` 接口将 LangChain 工具注册到注册器中。LangChain 工具会被自动检测，无需指定 `source=`。以下是注册两个工具（`ArxivQueryRun` 和 `PubmedQueryRun`）的列表示例。
 
     ```python
     from langchain_community.tools import ArxivQueryRun, PubmedQueryRun
@@ -27,13 +27,13 @@ LangChain 集成模块使 ToolRegistry 能够支持基于 LangChain 的工具。
 
     registry = ToolRegistry()
 
-    registry.register_from_langchain([ArxivQueryRun(), PubmedQueryRun()])
+    registry.register([ArxivQueryRun(), PubmedQueryRun()])
     ```
 
     当然，你也可以传入单个工具实例。
 
     ```python
-    registry.register_from_langchain(ArxivQueryRun())
+    registry.register(ArxivQueryRun())
     ```
 
 3. **调用工具**
@@ -95,7 +95,7 @@ if __name__ == "__main__":
     # Register LangChain tools
     arxiv_tool = ArxivQueryRun()
     pubmed_tool = PubmedQueryRun()
-    registry.register_from_langchain([arxiv_tool, pubmed_tool])
+    registry.register([arxiv_tool, pubmed_tool])
     print(registry.get_available_tools())
 
     user_input = input("Please enter your research interests: ")

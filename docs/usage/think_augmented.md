@@ -144,8 +144,8 @@ ToolRegistry 在执行前剥离 `toolcall_reason` —— `get_weather` 只接收
 理由增强注入适用于所有集成路径：
 
 - 原生 Python 函数（`@registry.register`）
-- MCP 工具（`register_from_mcp`）
-- OpenAPI 工具（`register_from_openapi`）
-- LangChain 工具（`register_from_langchain`）
-- 基于类的工具（`register_from_class`）
+- MCP 工具（`register(transport, source="mcp")`）
+- OpenAPI 工具（`register(client, source="openapi", openapi_spec=spec)`）
+- LangChain 工具（`register(tool)`）
+- 基于类的工具（`register(Cls)`）
 - 手动构建的 `Tool` 对象

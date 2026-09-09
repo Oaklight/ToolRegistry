@@ -68,7 +68,7 @@ toolregistry/
 ├── _rosetta.py             # Schema 格式转换（通过 llm-rosetta）
 │
 ├── _mixins/                # ToolRegistry 组合层（7 个 mixin）
-│   ├── registration.py     #   register_from_*() 方法
+│   ├── registration.py     #   register() / register_async() 统一入口
 │   ├── namespace.py        #   命名空间管理、merge/spinoff
 │   ├── permissions.py      #   权限策略集成
 │   ├── admin.py            #   管理面板生命周期
@@ -123,7 +123,7 @@ toolregistry/
 
 | Mixin | 职责 |
 |-------|------|
-| `RegistrationMixin` | `register_from_mcp()`、`register_from_openapi()`、`register_from_class()`、`register_from_langchain()` |
+| `RegistrationMixin` | `register()` / `register_async()` 统一入口，自动检测来源类型 |
 | `NamespaceMixin` | 命名空间管理、注册表间的 `merge()` / `spinoff()` |
 | `PermissionsMixin` | 权限策略的挂载与执行前检查 |
 | `EnableDisableMixin` | 运行时启用 / 禁用单个工具 |
@@ -261,17 +261,17 @@ ToolRegistry 支持五种工具来源，每种都有专用的集成适配器，�
 | 来源 | 注册方法 | 连接方式 | 命名空间 |
 |------|---------|---------|---------|
 | Python 函数 | `@registry.register` | 直接调用 | 无 |
-| MCP 服务器 | `register_from_mcp()` | 持久连接（stdio/SSE/streamable HTTP） | 自动 |
-| OpenAPI 规范 | `register_from_openapi()` | 持久 HTTP 连接池 | 自动 |
-| 类方法 | `register_from_class()` | 直接调用（绑定实例） | 自动 |
-| LangChain 工具 | `register_from_langchain()` | 直接调用 | 自动 |
+| MCP 服务器 | `register(transport, source="mcp")` | 持久连接（stdio/SSE/streamable HTTP） | 自动 |
+| OpenAPI 规范 | `register(client, source="openapi", openapi_spec=spec)` | 持久 HTTP 连接池 | 自动 |
+| 类方法 | `register(Cls)` | 直接调用（绑定实例） | 自动 |
+| LangChain 工具 | `register(tool)` | 直接调用 | 自动 |
 
 MCP 和 OpenAPI 集成默认维护**持久连接**。使用 `ToolRegistry` 作为上下文管理器可自动清理：
 
 ```python
 with ToolRegistry() as registry:
-    registry.register_from_mcp("http://localhost:8000/mcp")
-    registry.register_from_openapi(client_config=config, openapi_spec=spec)
+    registry.register("http://localhost:8000/mcp", source="mcp")
+    registry.register(config, source="openapi", openapi_spec=spec)
     # ... 使用工具 ...
 # 所有连接自动关闭
 ```

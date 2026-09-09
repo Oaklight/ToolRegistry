@@ -16,7 +16,7 @@
 所有集成共享以下模式：
 
 - **Wrapper + Integration 类**：Wrapper 处理执行；Integration 类编排注册流程
-- **异步/同步支持**：所有集成均支持 `register_from_*()` 和 `register_from_*_async()` 方法
+- **异步/同步支持**：所有集成均支持 `register()` 和 `register_async()` 统一方法
 - **命名空间支持**：`False`（无前缀）、`True`（自动生成）或 `str`（自定义命名空间）
 - **错误保留**：保留原始框架异常并附加额外上下文
 

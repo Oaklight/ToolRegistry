@@ -106,7 +106,7 @@ tools:
 | `kwargs` | dict | 否 | 传递给类构造函数的关键字参数（默认：`{}`） |
 | `enabled` | bool | 否 | 按源启用/禁用（默认：`true`） |
 
-指定 `class` 时，消费者调用 `register_from_class()`。指定 `module` 时，消费者注册模块中所有公开的可调用对象。
+指定 `class` 时，消费者调用 `register()` 注册类方法。指定 `module` 时，消费者注册模块中所有公开的可调用对象。
 
 #### 使用 `kwargs` 传递构造函数参数
 

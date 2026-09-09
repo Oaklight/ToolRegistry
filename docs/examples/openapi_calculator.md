@@ -110,9 +110,9 @@ python openapi_calculator.py
 ## 步骤二：注册和使用 OpenAPI 工具
 
 !!! note "API 变更"
-    此前，`register_from_openapi` 需要 `spec_url` 和可选的 `base_url` 参数，设计上追求简洁。但在实践中，我们发现 HTTP 请求需要更多定制化能力，例如许多 OpenAPI 服务需要认证头或自定义超时。因此我们做了以下调整：
+    此前，`register_from_openapi` 需要 `spec_url` 和可选的 `base_url` 参数，设计上追求简洁。自 v0.17.0 起，推荐使用统一的 `register()` 方法。
 
-    `register_from_openapi` 方法现在需要两个参数：
+    `register()` 方法搭配 `source="openapi"` 需要以下参数：
 
     - `client_config`：使用 `toolregistry.integrations.openapi.HttpClientConfig` 对象配置 HTTP 客户端（headers、auth、timeout 等），提供更大的灵活性。
     - `openapi_spec`：使用 `load_openapi_spec` 或 `load_openapi_spec_async` 等函数从文件路径或服务/规范的 URL 加载的 OpenAPI 规范，类型为 `Dict[str, Any]`。
@@ -129,8 +129,9 @@ openapi_spec = load_openapi_spec("./openapi_spec.json") # specification at local
 openapi_spec = load_openapi_spec("http://localhost:8000") # URL to service root
 openapi_spec = load_openapi_spec("http://localhost:8000/openapi.json") # URL to specification
 
-registry.register_from_openapi(
-    client_config=client_config,
+registry.register(
+    client_config,
+    source="openapi",
     openapi_spec=openapi_spec,
     namespace=False,
 )
@@ -167,7 +168,7 @@ tool_registry = ToolRegistry()
 
 client_config = HttpClientConfig(base_url="http://localhost:8000")
 openapi_spec = load_openapi_spec("http://localhost:8000")
-tool_registry.register_from_openapi(client_config, openapi_spec)
+tool_registry.register(client_config, source="openapi", openapi_spec=openapi_spec)
 
 print(tool_registry.get_available_tools())
 
@@ -210,7 +211,7 @@ tool_registry = ToolRegistry()
 
 client_config = HttpClientConfig(base_url="http://localhost:8000")
 openapi_spec = load_openapi_spec("http://localhost:8000")
-tool_registry.register_from_openapi(client_config, openapi_spec)
+tool_registry.register(client_config, source="openapi", openapi_spec=openapi_spec)
 
 print(tool_registry.get_available_tools())
 

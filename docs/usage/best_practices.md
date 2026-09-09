@@ -140,11 +140,11 @@ tool = Tool.from_function(
 
 ```python
 # 基于类的工具获得自动命名空间
-registry.register_from_class(MathTools, namespace="math")
+registry.register(MathTools, namespace="math")
 # 注册为：math-add、math-subtract、math-multiply
 
 # 带命名空间的 MCP 工具
-registry.register_from_mcp("http://localhost:8000/mcp", namespace="search")
+registry.register("http://localhost:8000/mcp", source="mcp", namespace="search")
 ```
 
 ### 清理资源
@@ -154,13 +154,13 @@ registry.register_from_mcp("http://localhost:8000/mcp", namespace="search")
 ```python
 # 推荐：上下文管理器
 with ToolRegistry() as registry:
-    registry.register_from_mcp("http://localhost:8000/mcp")
+    registry.register("http://localhost:8000/mcp", source="mcp")
     results = registry.execute_tool_calls(tool_calls)
 
 # 或显式清理
 registry = ToolRegistry()
 try:
-    registry.register_from_mcp("http://localhost:8000/mcp")
+    registry.register("http://localhost:8000/mcp", source="mcp")
     results = registry.execute_tool_calls(tool_calls)
 finally:
     registry.close()

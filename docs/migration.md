@@ -2,6 +2,23 @@
 
 本指南涵盖 ToolRegistry 主要版本之间的破坏性变更和迁移步骤。
 
+## 统一 `register()` 入口 (v0.17.0+)
+
+所有 `register_from_*` 方法现已**弃用**，统一使用 `register()` 方法并支持自动检测：
+
+| 旧用法 | 新用法 |
+|--------|-------|
+| `registry.register_from_class(Cls)` | `registry.register(Cls, source="class")` |
+| `registry.register_from_mcp(url)` | `registry.register(url, source="mcp")` |
+| `registry.register_from_openapi(client, spec)` | `registry.register(client, source="openapi", openapi_spec=spec)` |
+| `registry.register_from_langchain(tool)` | `registry.register(tool, source="langchain")` |
+
+大多数类型支持自动检测——函数、类和 LangChain 工具无需指定 `source=`。字符串/字典目标（MCP、OpenAPI）需要显式的 `source=` 提示。
+
+旧方法仍然可用，但会发出 `DeprecationWarning`。它们将在未来的主要版本中移除。
+
+---
+
 ## 0.12.x → 0.13.0
 
 ### 新增：程序化工具调用 (PTC)
@@ -194,7 +211,7 @@ from toolregistry.mcp import MCPClient
 # Use 'toolregistry.integrations.mcp' instead.
 ```
 
-**公开 API 不变：** `ToolRegistry` 的便捷方法——`register_from_mcp()`、`register_from_openapi()`、`register_from_langchain()` 和 `register_from_native()`——继续正常工作，无需代码修改。
+**公开 API 不变：** `ToolRegistry` 的便捷方法——`register_from_mcp()`、`register_from_openapi()`、`register_from_langchain()` 和 `register_from_native()`——继续正常工作，无需代码修改。（注：自 v0.17.0 起，这些方法已弃用，请迁移到统一的 `register()` 方法。）
 
 ---
 
@@ -327,7 +344,7 @@ def func(x: str | None = None) -> list[dict[str, int]]: ...
 恢复旧行为：
 
 ```python
-registry.register_from_class(MyClass, traverse_mro=False)
+registry.register(MyClass, traverse_mro=False)
 ```
 
 ### Hub 包拆分
@@ -350,4 +367,4 @@ MCP 依赖从 `fastmcp` 更改为官方 `mcp` SDK：
 + pip install toolregistry[mcp]  # 现在安装 mcp>=1.0.0
 ```
 
-无需代码修改——`register_from_mcp()` API 保持不变。传输配置现在支持所有四种传输类型：stdio、SSE、streamable-http 和 websocket。
+无需代码修改——MCP 注册 API 保持不变。传输配置现在支持所有四种传输类型：stdio、SSE、streamable-http 和 websocket。（注：自 v0.17.0 起，推荐使用 `register(transport, source="mcp")`。）

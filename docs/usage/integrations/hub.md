@@ -20,7 +20,7 @@ Hub 将常用工具封装为类的方法，包括静态方法和实例方法，�
 4. **可扩展性**：可以轻松添加新的工具类或方法。
 5. **安全性和异常处理**：封装的工具提供了更好的安全控制和异常处理能力，优于让模型直接执行命令。
 
-Hub 工具可以使用 `register_from_class` 方法进行注册。详细说明请参阅 [**注册基于类的 Python 工具**](class.md)。
+Hub 工具可以使用 `register()` 方法进行注册。详细说明请参阅 [**注册基于类的 Python 工具**](class.md)。
 
 ## 使用预定义工具的示例
 
@@ -34,10 +34,10 @@ from toolregistry.hub import BaseCalculator, Calculator, FileOps
 registry = ToolRegistry()
 
 # 注册 Calculator 工具（带命名空间）
-registry.register_from_class(Calculator, namespace=True)
+registry.register(Calculator, namespace=True)
 
 # 注册 FileOps 工具（不带命名空间）
-registry.register_from_class(FileOps)
+registry.register(FileOps)
 
 # 获取可用工具列表
 print(registry.get_available_tools())
@@ -47,7 +47,7 @@ print(registry.get_available_tools())
 在注册时使用 `namespace=True` 参数会将类名作为命名空间前缀添加到工具名称中，确保更好的组织性并避免命名冲突。例如：
 
 ```python
-registry.register_from_class(BaseCalculator, namespace=True)
+registry.register(BaseCalculator, namespace=True)
 ```
 
 这将注册名称为 `base_calculator-add`、`base_calculator-subtract` 等的工具。

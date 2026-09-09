@@ -16,6 +16,26 @@ hide:
 
 ## [未发布]
 
+### 变更
+
+- **统一 `register()` 入口**：所有 `register_from_*` 方法现已弃用，统一使用 `register()` / `register_async()` 方法。函数、类和 LangChain 工具支持自动检测来源类型；MCP 和 OpenAPI 需要显式指定 `source=`。旧方法仍然可用但会发出 `DeprecationWarning`。详见[迁移指南](migration.md#统一-register-入口-v0170)。
+
+## [0.16.0] - 2026-08-25
+
+### 新增
+
+- **扩展内容块类型**（#239）：`is_content_block_list()` 现在除了 `text` 和 `image` 外，还识别 `audio`、`resource_link` 和 `resource` 内容块类型。使 toolregistry-server 的 MCP 适配器能够将这些类型路由到多模态管线，而非 JSON 转储为文本。
+- **管理面板执行日志中显示运行时警告**（#237）：工具执行期间的警告（`logger.warning()`）现在被捕获并展示在管理面板的执行日志中。`ExecutionLogEntry` 新增 `warnings` 字段；面板在状态徽章旁显示警告计数。
+
+### 修复
+
+- 将警告传递通过 `_invoke_raw` 异常路径，使 PTC 调用方即使在工具抛异常时也能看到中间警告。
+- 修复格式测试以接受 `llm-rosetta>=0.8` 返回的大写 Gemini 类型字符串。
+
+### 变更
+
+- 将 `llm-rosetta` 上限从 `<0.9.0` 放宽至 `<0.10.0`（已测试与 0.9.x 兼容）。
+
 ## [0.15.0] - 2026-08-06
 
 ### 新增

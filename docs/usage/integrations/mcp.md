@@ -24,7 +24,7 @@ MCP 集成支持灵活的传输选项：
 !!! note "MCP 客户端解耦"
     自 **`toolregistry 0.5.0`** 起，MCP 集成使用官方 [`mcp`](https://pypi.org/project/mcp/) SDK（`mcp>=1.0.0,<2.0.0`）替代了 `fastmcp`，从而减轻了依赖负担。`transport` 参数现在接受 `Union[str, Dict[str, Any], Path]` 类型——不再接受 `ClientTransport` 和 `FastMCP` 实例。
 
-    公共 API（`register_from_mcp` / `register_from_mcp_async`）保持不变。
+    公共 API 保持不变。自 v0.17.0 起，推荐使用统一的 `register()` / `register_async()` 方法。
 
 !!! note "MCP 传输方式更新"
     从 [`MCP 2025-03-26`](https://modelcontextprotocol.io/specification/2025-03-26/changelog) 开始，`http+sse` 传输方式已被 `streamable http` 取代。自 **`toolregistry 0.4.7`** 起，已支持该传输方式，并对旧版 `http+sse` 提供回退兼容。
@@ -35,7 +35,7 @@ MCP 集成支持灵活的传输选项：
 
 ### 注册（同步）
 
-要同步注册 MCP 工具，请使用 `register_from_mcp` 方法，支持多种传输选项：
+要同步注册 MCP 工具，请使用 `register()` 方法并指定 `source="mcp"`，支持多种传输选项：
 
 ```python
 from pathlib import Path
@@ -55,13 +55,13 @@ transport = {
 }  # Stdio config dict
 
 # Register tools synchronously
-registry.register_from_mcp(transport)
+registry.register(transport, source="mcp")
 
 print(registry)  # Outputs registered tools
 ```
 
 !!! tip "提示"
-    `ToolRegistry.register_from_mcp` 支持 URL 字符串、脚本路径和字典配置，可以满足大多数使用场景。
+    `ToolRegistry.register()` 搭配 `source="mcp"` 支持 URL 字符串、脚本路径和字典配置，可以满足大多数使用场景。
 
 !!! tip "提示"
     新兴的 MCP Hub 服务（无论是商业的还是自托管的）简化了 MCP 服务器的发现和集中管理。它们非常适合避免使用 stdio 服务器、减少环境负担，或实现 MCP 主机共享。
@@ -96,7 +96,7 @@ MCP 集成同时支持同步和异步工作流，以满足不同开发者的需�
 
 ### 异步注册 MCP 工具
 
-在异步环境中，使用 `register_from_mcp_async` 方法：
+在异步环境中，使用 `register_async()` 方法：
 
 ```python
 import asyncio
@@ -106,7 +106,7 @@ registry = ToolRegistry()
 transport = "http://localhost:8000/mcp"  # Example transport URL
 
 async def async_register():
-    await registry.register_from_mcp_async(transport)
+    await registry.register_async(transport, source="mcp")
 
 asyncio.run(async_register())
 ```
@@ -140,14 +140,16 @@ asyncio.run(call_async_add_tool())
 对于需要认证的 MCP 服务器（如位于 API 网关或 OAuth 代理后面的服务器），可通过 `headers` 参数传递自定义 HTTP 头：
 
 ```python
-registry.register_from_mcp(
+registry.register(
     "https://mcp.example.com/mcp",
+    source="mcp",
     headers={"Authorization": "Bearer sk-your-token"},
 )
 
 # 异步注册同样支持
-await registry.register_from_mcp_async(
+await registry.register_async(
     "https://mcp.example.com/mcp",
+    source="mcp",
     headers={"Authorization": "Bearer sk-your-token"},
 )
 ```
@@ -172,13 +174,13 @@ from toolregistry import ToolRegistry
 
 # Synchronous
 with ToolRegistry() as registry:
-    registry.register_from_mcp("http://localhost:8000/mcp")
+    registry.register("http://localhost:8000/mcp", source="mcp")
     result = registry["add"](1, 2)
 # Connections are automatically closed on exit
 
 # Asynchronous
 async with ToolRegistry() as registry:
-    await registry.register_from_mcp_async("http://localhost:8000/mcp")
+    await registry.register_async("http://localhost:8000/mcp", source="mcp")
     result = await registry["add"](1, 2)
 # Connections are automatically closed on exit
 ```
@@ -189,7 +191,7 @@ async with ToolRegistry() as registry:
 
 ```python
 registry = ToolRegistry()
-registry.register_from_mcp("http://localhost:8000/mcp")
+registry.register("http://localhost:8000/mcp", source="mcp")
 # ... use tools ...
 registry.close()  # Close all persistent connections
 
@@ -202,7 +204,7 @@ await registry.close_async()
 如果你倾向于每次调用都新建连接（旧行为），可以在注册时传递 `persistent=False`：
 
 ```python
-registry.register_from_mcp("http://localhost:8000/mcp", persistent=False)
+registry.register("http://localhost:8000/mcp", source="mcp", persistent=False)
 ```
 
 ## 将 MCP 与 OpenAI 客户端集成
@@ -226,7 +228,7 @@ registry = ToolRegistry()
 mcp_server_url = f"http://localhost:{PORT}/sse"
 
 async def async_register():
-    await registry.register_from_mcp_async(mcp_server_url)
+    await registry.register_async(mcp_server_url, source="mcp")
 
 asyncio.run(async_register())
 

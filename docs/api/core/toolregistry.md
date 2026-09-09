@@ -33,7 +33,7 @@ ToolRegistry 遵循注册表模式，具有以下核心职责：
 ### 注册方法
 
 - **原生注册**：`register()` 用于直接函数/实例注册
-- **类集成**：`register_from_class()` 用于 Python 类方法注册。默认情况下，遍历 MRO（方法解析顺序）以包含从父类继承的方法。传递 `traverse_mro=False` 仅注册直接定义的方法。
+- **类集成**：`register(Cls)` 用于 Python 类方法注册。默认情况下，遍历 MRO（方法解析顺序）以包含从父类继承的方法。传递 `traverse_mro=False` 仅注册直接定义的方法。
 - **OpenAPI 集成**：与 OpenAPI 规范集成
 - **MCP 集成**：支持模型上下文协议服务器
 - **LangChain 集成**：与 LangChain 工具兼容
@@ -97,7 +97,7 @@ class Calculator:
         return a / b
 
 # 注册类中的所有方法
-registry.register_from_class(Calculator)
+registry.register(Calculator)
 ```
 
 ### 带 MRO 遍历的类集成
@@ -118,13 +118,13 @@ class AdvancedCalculator(BaseCalculator):
 registry = ToolRegistry()
 
 # 默认行为（traverse_mro=True）：包含从 BaseCalculator 继承的方法
-registry.register_from_class(AdvancedCalculator)
+registry.register(AdvancedCalculator)
 print(registry.get_available_tools())
 # 输出：['advanced_calculator-add', 'advanced_calculator-multiply']
 
 # 使用 traverse_mro=False：仅注册直接定义在 AdvancedCalculator 上的方法
 registry2 = ToolRegistry()
-registry2.register_from_class(AdvancedCalculator, traverse_mro=False)
+registry2.register(AdvancedCalculator, traverse_mro=False)
 print(registry2.get_available_tools())
 # 输出：['advanced_calculator-multiply']
 ```
