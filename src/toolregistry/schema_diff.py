@@ -3,10 +3,19 @@
 This module provides lightweight heuristics for determining whether a
 change to a tool's parameter schema is backward-compatible (safe for
 existing callers) or breaking (likely to cause call failures).
+
+Known limitations:
+
+- Only inspects top-level properties.  Nested object changes (e.g. a
+  property of type ``object`` whose sub-properties change) are not
+  detected.
+- All type changes are treated as breaking.  Type widenings (e.g.
+  ``integer`` → ``number``) are not yet recognized as compatible.
 """
 
 from __future__ import annotations
 
+import json
 from enum import Enum
 from typing import Any
 
@@ -16,10 +25,10 @@ class SchemaChangeKind(str, Enum):
 
     Attributes:
         COMPATIBLE: Additive-only change — new optional parameters,
-            description updates, widened types.  Existing callers are
-            unaffected.
+            description updates, relaxed requirements.  Existing callers
+            are unaffected.
         BREAKING: Destructive change — removed parameters, new required
-            parameters, type narrowing.  Existing callers may fail.
+            parameters, type changes.  Existing callers may fail.
         UNKNOWN: Cannot determine compatibility — e.g. complete schema
             replacement with no structural overlap.
     """
@@ -66,6 +75,15 @@ def classify_schema_change(
     removed_keys = old_keys - new_keys
     common_keys = old_keys & new_keys
 
+    # No structural overlap — can't determine compatibility
+    if not old_keys and not new_keys:
+        return SchemaChangeKind.COMPATIBLE, {}
+    if old_keys and new_keys and not common_keys:
+        return SchemaChangeKind.UNKNOWN, {
+            "added": sorted(new_keys),
+            "removed": sorted(old_keys),
+        }
+
     added_required = [k for k in sorted(added_keys) if k in new_required]
     added_optional = [k for k in sorted(added_keys) if k not in new_required]
     removed = sorted(removed_keys)
@@ -99,13 +117,7 @@ def classify_schema_change(
         summary["type_changed"] = type_changed
 
     is_breaking = bool(added_required or removed or newly_required or type_changed)
-
-    if is_breaking:
-        kind = SchemaChangeKind.BREAKING
-    elif summary:
-        kind = SchemaChangeKind.COMPATIBLE
-    else:
-        kind = SchemaChangeKind.COMPATIBLE
+    kind = SchemaChangeKind.BREAKING if is_breaking else SchemaChangeKind.COMPATIBLE
 
     return kind, summary
 
@@ -115,9 +127,41 @@ def _extract_type(prop_schema: dict[str, Any]) -> Any:
     if "type" in prop_schema:
         return prop_schema["type"]
     if "anyOf" in prop_schema:
-        return ("anyOf", tuple(sorted(str(s) for s in prop_schema["anyOf"])))
+        types = tuple(
+            sorted(json.dumps(s, sort_keys=True) for s in prop_schema["anyOf"])
+        )
+        return ("anyOf", types)
     if "oneOf" in prop_schema:
-        return ("oneOf", tuple(sorted(str(s) for s in prop_schema["oneOf"])))
+        types = tuple(
+            sorted(json.dumps(s, sort_keys=True) for s in prop_schema["oneOf"])
+        )
+        return ("oneOf", types)
     if "allOf" in prop_schema:
-        return ("allOf", tuple(sorted(str(s) for s in prop_schema["allOf"])))
+        types = tuple(
+            sorted(json.dumps(s, sort_keys=True) for s in prop_schema["allOf"])
+        )
+        return ("allOf", types)
     return None
+
+
+def classify_tool_change(
+    old_hash: str,
+    new_hash: str,
+    old_params: dict[str, Any],
+    new_params: dict[str, Any],
+) -> tuple[SchemaChangeKind, dict[str, Any]]:
+    """Classify a tool update, distinguishing schema changes from description-only.
+
+    Args:
+        old_hash: Schema hash of the existing tool.
+        new_hash: Schema hash of the candidate tool.
+        old_params: Parameter schema of the existing tool.
+        new_params: Parameter schema of the candidate tool.
+
+    Returns:
+        A ``(kind, summary)`` tuple.  When hashes match (description-only
+        change), returns ``(COMPATIBLE, {"description_only": True})``.
+    """
+    if old_hash != new_hash:
+        return classify_schema_change(old_params, new_params)
+    return SchemaChangeKind.COMPATIBLE, {"description_only": True}

@@ -175,3 +175,88 @@ class TestSchemaChangeKindEnum:
 
     def test_is_str(self):
         assert isinstance(SchemaChangeKind.COMPATIBLE, str)
+
+    def test_no_structural_overlap_returns_unknown(self):
+        old = {
+            "type": "object",
+            "properties": {"a": {"type": "string"}, "b": {"type": "integer"}},
+        }
+        new = {
+            "type": "object",
+            "properties": {"x": {"type": "string"}, "y": {"type": "integer"}},
+        }
+        kind, summary = classify_schema_change(old, new)
+        assert kind == SchemaChangeKind.UNKNOWN
+        assert "added" in summary
+        assert "removed" in summary
+
+    def test_partial_overlap_not_unknown(self):
+        old = {
+            "type": "object",
+            "properties": {"a": {"type": "string"}, "b": {"type": "integer"}},
+        }
+        new = {
+            "type": "object",
+            "properties": {"a": {"type": "string"}, "c": {"type": "boolean"}},
+        }
+        kind, summary = classify_schema_change(old, new)
+        assert kind != SchemaChangeKind.UNKNOWN
+
+    def test_anyof_order_independent(self):
+        """json.dumps(sort_keys=True) makes sub-schema comparison order-independent."""
+        old = {
+            "type": "object",
+            "properties": {
+                "a": {"anyOf": [{"type": "string", "minLength": 1}, {"type": "null"}]},
+            },
+        }
+        new = {
+            "type": "object",
+            "properties": {
+                "a": {"anyOf": [{"type": "null"}, {"minLength": 1, "type": "string"}]},
+            },
+        }
+        kind, summary = classify_schema_change(old, new)
+        assert kind == SchemaChangeKind.COMPATIBLE
+        assert "type_changed" not in summary
+
+
+class TestToolcallReasonHashExclusion:
+    """Verify toolcall_reason is excluded from schema hash."""
+
+    def test_hash_excludes_toolcall_reason(self):
+        from toolregistry.utils import compute_schema_hash
+
+        schema_with = {
+            "type": "object",
+            "properties": {
+                "a": {"type": "string"},
+                "toolcall_reason": {"type": "string", "description": "Why"},
+            },
+        }
+        schema_without = {
+            "type": "object",
+            "properties": {
+                "a": {"type": "string"},
+            },
+        }
+        assert compute_schema_hash(schema_with) == compute_schema_hash(schema_without)
+
+    def test_hash_still_sensitive_to_real_changes(self):
+        from toolregistry.utils import compute_schema_hash
+
+        s1 = {
+            "type": "object",
+            "properties": {
+                "a": {"type": "string"},
+                "toolcall_reason": {"type": "string"},
+            },
+        }
+        s2 = {
+            "type": "object",
+            "properties": {
+                "a": {"type": "integer"},
+                "toolcall_reason": {"type": "string"},
+            },
+        }
+        assert compute_schema_hash(s1) != compute_schema_hash(s2)
