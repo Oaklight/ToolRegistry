@@ -103,6 +103,9 @@ class ToolMetadata:
     fast equality checks (compare hashes) instead of deep dict
     comparison, and lets consumers detect schema changes without
     inspecting the full schema.
+
+    If set before ``Tool.__init__`` runs, the value is trusted and
+    not recomputed.
     """
 
     last_refreshed_at: str = ""
