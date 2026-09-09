@@ -18,8 +18,8 @@ BASE_URL = os.getenv("BASE_URL", "https://api.deepseek.com/")
 
 # Initialize tool registry and register Calculator static methods
 tool_registry = ToolRegistry()
-tool_registry.register(Calculator, source="class", namespace=True)
-tool_registry.register(FileOps, source="class", namespace=True)
+tool_registry.register(Calculator, namespace=True)
+tool_registry.register(FileOps, namespace=True)
 print(tool_registry.list_tools())
 
 input_file = "examples/hub_related/concurrent_raw_results.txt"
