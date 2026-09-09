@@ -155,30 +155,57 @@ def _cors_preflight(request: Request) -> Response | None:
 
 
 def _auth_check(request: Request) -> Response | None:
-    """Check authentication token if auth is enabled."""
-    auth = _app(request).auth
+    """Check authentication via Bearer token or session cookie."""
+    app = _app(request)
+    auth = app.auth
     if auth is None:
         return None
 
+    session = app.session
     auth_header = request.headers.get("authorization", "")
 
-    if not auth_header:
-        resp = _error_response(401, "Unauthorized", "Missing Authorization header")
-        resp.headers["WWW-Authenticate"] = 'Bearer realm="admin"'
-        return _add_cors(resp)
+    # Try Bearer token first
+    if auth_header:
+        parts = auth_header.split(" ", 1)
+        if len(parts) != 2 or parts[0].lower() != "bearer":
+            resp = _error_response(401, "Unauthorized", "Invalid Authorization format")
+            resp.headers["WWW-Authenticate"] = 'Bearer realm="admin"'
+            return _add_cors(resp)
+        if not auth.verify(parts[1]):
+            resp = _error_response(401, "Unauthorized", "Invalid token")
+            resp.headers["WWW-Authenticate"] = 'Bearer realm="admin"'
+            return _add_cors(resp)
+        # Bearer OK — mark for session cookie in after_request
+        setattr(request.state, "set_session_cookie", True)
+        return None
 
-    parts = auth_header.split(" ", 1)
-    if len(parts) != 2 or parts[0].lower() != "bearer":
-        resp = _error_response(401, "Unauthorized", "Invalid Authorization format")
-        resp.headers["WWW-Authenticate"] = 'Bearer realm="admin"'
-        return _add_cors(resp)
+    # Fall back to session cookie
+    if session is not None:
+        cookie_val = request.cookies.get(session.cookie_name, "")
+        if cookie_val and session.verify(cookie_val):
+            return None
 
-    if not auth.verify(parts[1]):
-        resp = _error_response(401, "Unauthorized", "Invalid token")
-        resp.headers["WWW-Authenticate"] = 'Bearer realm="admin"'
-        return _add_cors(resp)
+    resp = _error_response(401, "Unauthorized", "Missing credentials")
+    resp.headers["WWW-Authenticate"] = 'Bearer realm="admin"'
+    return _add_cors(resp)
 
-    return None
+
+def _set_session_cookie(request: Request, response: Response) -> None:
+    """Set a session cookie after successful Bearer authentication."""
+    if not getattr(request.state, "set_session_cookie", False):
+        return
+    session = _app(request).session
+    if session is None:
+        return
+    token = session.issue()
+    response.set_cookie(
+        session.cookie_name,
+        token,
+        max_age=session.max_age,
+        httponly=True,
+        samesite="Lax",
+        path="/",
+    )
 
 
 def _after_cors(request: Request, response: Response) -> None:
@@ -986,6 +1013,7 @@ def setup_routes(app: "AdminApp") -> None:
     # Middleware
     app.before_request(_cors_preflight)
     app.before_request(_auth_check)
+    app.after_request(_set_session_cookie)
     app.after_request(_after_cors)
     app.errorhandler(404)(_handle_404)
     app.errorhandler(405)(_handle_405)
