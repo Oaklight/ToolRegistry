@@ -3,6 +3,7 @@ import threading
 from typing import Any
 
 from ...events import ChangeEvent, ChangeEventType, RefreshResult
+from ...schema_diff import SchemaChangeKind, classify_schema_change
 
 from ...tool import Tool, ToolMetadata
 from ...tool_registry import ToolRegistry
@@ -379,11 +380,11 @@ class OpenAPIIntegration:
     def _apply_diff(
         self,
         new_tools: dict[str, OpenAPITool],
-    ) -> tuple[list[str], list[str], list[str], int]:
+    ) -> tuple[list[str], list[str], list[str], list[str], list[str], int]:
         """Diff *new_tools* against registered tools and apply changes.
 
         Returns:
-            ``(added, removed, updated, unchanged)`` lists/count.
+            ``(added, removed, updated, breaking, compatible, unchanged)``.
         """
         old_names = set(self._registered_tool_names)
         new_names = set(new_tools.keys())
@@ -397,6 +398,8 @@ class OpenAPIIntegration:
         added: list[str] = []
         removed: list[str] = []
         updated: list[str] = []
+        breaking: list[str] = []
+        compatible: list[str] = []
         unchanged = 0
 
         for name in old_names - new_names:
@@ -415,18 +418,27 @@ class OpenAPIIntegration:
                 existing.metadata.schema_hash != candidate.metadata.schema_hash
                 or existing.description != candidate.description
             ):
+                kind, summary = classify_schema_change(
+                    existing.parameters, candidate.parameters
+                )
                 candidate.metadata.last_refreshed_at = now
                 self.registry._tools[name] = candidate
                 self.registry._emit_change(
                     ChangeEvent(
                         event_type=ChangeEventType.REFRESH,
                         tool_name=name,
+                        metadata={"change_kind": kind.value, "diff_summary": summary},
                     )
                 )
                 updated.append(name)
+                if kind == SchemaChangeKind.BREAKING:
+                    breaking.append(name)
+                else:
+                    compatible.append(name)
+            elif existing:
+                existing.metadata.last_refreshed_at = now
+                unchanged += 1
             else:
-                if existing:
-                    existing.metadata.last_refreshed_at = now
                 unchanged += 1
 
         for name, reason in disabled_snapshot.items():
@@ -434,7 +446,7 @@ class OpenAPIIntegration:
                 self.registry.disable(name, reason)
 
         self._registered_tool_names = new_names
-        return added, removed, updated, unchanged
+        return added, removed, updated, breaking, compatible, unchanged
 
     async def refresh_async(
         self,
@@ -472,7 +484,9 @@ class OpenAPIIntegration:
             )
 
         new_tools = self._build_tool_map(resolved, self._client_config)
-        added, removed, updated, unchanged = self._apply_diff(new_tools)
+        added, removed, updated, breaking, compatible, unchanged = self._apply_diff(
+            new_tools
+        )
 
         return RefreshResult(
             source="openapi",
@@ -480,6 +494,8 @@ class OpenAPIIntegration:
             added=tuple(added),
             removed=tuple(removed),
             updated=tuple(updated),
+            breaking=tuple(breaking),
+            compatible=tuple(compatible),
             unchanged=unchanged,
         )
 

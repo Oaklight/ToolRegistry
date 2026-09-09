@@ -13,6 +13,7 @@ from .events import (
     PostRegisterHook,
     RefreshResult,
 )
+from .schema_diff import SchemaChangeKind
 from .executor import (
     ExecutionContext,
     ProcessPoolBackend,
@@ -62,6 +63,7 @@ __all__ = [
     "ToolRegistry",
     "ToolDiscoveryTool",
     "ToolTag",
+    "SchemaChangeKind",
 ]
 
 __version__ = "0.16.0"

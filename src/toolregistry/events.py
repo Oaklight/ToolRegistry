@@ -11,6 +11,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any, TypeAlias
 from collections.abc import Callable
 
+
 if TYPE_CHECKING:
     from .tool import Tool
     from .tool_registry import ToolRegistry
@@ -85,6 +86,8 @@ class RefreshResult:
         added: Names of newly discovered tools.
         removed: Names of tools that no longer exist on the remote source.
         updated: Names of tools whose schema or description changed.
+        breaking: Subset of *updated* classified as breaking changes.
+        compatible: Subset of *updated* classified as compatible changes.
         unchanged: Count of tools that matched and required no update.
         skipped: ``True`` when the remote source reported no changes
             (e.g. HTTP 304 via ETag).
@@ -95,6 +98,8 @@ class RefreshResult:
     added: tuple[str, ...] = ()
     removed: tuple[str, ...] = ()
     updated: tuple[str, ...] = ()
+    breaking: tuple[str, ...] = ()
+    compatible: tuple[str, ...] = ()
     unchanged: int = 0
     skipped: bool = False
 
