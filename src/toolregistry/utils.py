@@ -312,3 +312,19 @@ def normalize_tool_name(name: str) -> str:
 
     # Collapse multiple underscores into single underscore
     return re.sub(r"_+", "_", name)
+
+
+def compute_schema_hash(parameters: dict[str, Any]) -> str:
+    """Compute a deterministic SHA-256 hex digest of a JSON Schema dict.
+
+    Args:
+        parameters: The JSON Schema dict (typically ``Tool.parameters``).
+
+    Returns:
+        A 64-character lowercase hex string.
+    """
+    import hashlib
+    import json
+
+    canonical = json.dumps(parameters, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode()).hexdigest()

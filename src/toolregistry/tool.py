@@ -9,7 +9,7 @@ from collections.abc import Callable
 from .parameter_models import _generate_parameters_model, _simplify_nullable_schemas
 from .llm.tool_calls import API_FORMATS
 from .tool_wrapper import BaseToolWrapper, _FunctionToolWrapper
-from .utils import normalize_tool_name
+from .utils import compute_schema_hash, normalize_tool_name
 
 
 class ToolTag(str, Enum):
@@ -63,6 +63,12 @@ class ToolMetadata:
             ``"openapi"``, ``"langchain"``).
         source_detail: Extra detail about the tool's origin (e.g. a
             transport URI, spec URL, or class name).
+        schema_hash: SHA-256 hex digest of the canonical JSON Schema for
+            the tool's parameters.  Computed at registration time and
+            updated on refresh.
+        last_refreshed_at: ISO 8601 timestamp of the most recent
+            successful refresh, or empty string for tools that have
+            never been refreshed.
         extra: Arbitrary key-value pairs for application-specific use.
     """
 
@@ -88,6 +94,24 @@ class ToolMetadata:
     Free-form string providing additional context about where the tool
     came from, e.g. a transport URI for MCP tools, a spec URL for
     OpenAPI tools, or a class name for LangChain tools.
+    """
+
+    schema_hash: str = ""
+    """SHA-256 hex digest of the canonical ``Tool.parameters`` JSON Schema.
+
+    Computed at registration time and updated on refresh.  Enables
+    fast equality checks (compare hashes) instead of deep dict
+    comparison, and lets consumers detect schema changes without
+    inspecting the full schema.
+    """
+
+    last_refreshed_at: str = ""
+    """ISO 8601 timestamp of the last successful refresh.
+
+    Empty string for tools that have never been refreshed (i.e.
+    registered but never had ``refresh()`` called).  Set even when
+    the refresh found no changes — "I checked and it's current"
+    is valid freshness information.
     """
 
     extra: dict[str, Any] = field(default_factory=dict)
@@ -264,6 +288,8 @@ class Tool:
         self.namespace = namespace
         self.method_name = method_name
         self._inject_toolcall_reason()
+        if not self.metadata.schema_hash:
+            self.metadata.schema_hash = compute_schema_hash(self.parameters)
 
     def _inject_toolcall_reason(self) -> None:
         """Inject ``toolcall_reason`` property into the tool's parameter schema.
