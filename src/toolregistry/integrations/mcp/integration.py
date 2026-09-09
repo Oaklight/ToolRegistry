@@ -23,6 +23,14 @@ from ...utils import normalize_tool_name
 from .client import MCPClient
 from .connection import MCPConnectionManager
 
+
+def _utc_iso() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc).isoformat()
+
+
 logger = get_logger()
 
 
@@ -385,6 +393,67 @@ class MCPIntegration:
 
     # ---- Refresh ----
 
+    def _apply_diff(
+        self,
+        new_tools: dict[str, "MCPTool"],
+    ) -> tuple[list[str], list[str], list[str], int]:
+        """Diff *new_tools* against registered tools and apply changes.
+
+        Returns:
+            ``(added, removed, updated, unchanged)`` lists/count.
+        """
+        old_names = set(self._registered_tool_names)
+        new_names = set(new_tools.keys())
+
+        # Snapshot disabled state
+        disabled_snapshot: dict[str, str] = {}
+        for name in old_names:
+            if not self.registry.is_enabled(name):
+                disabled_snapshot[name] = self.registry.get_disable_reason(name) or ""
+
+        added: list[str] = []
+        removed: list[str] = []
+        updated: list[str] = []
+        unchanged = 0
+
+        for name in old_names - new_names:
+            self.registry._unregister(name)
+            removed.append(name)
+
+        for name in new_names - old_names:
+            self.registry.register(new_tools[name], namespace=self._resolved_ns)
+            added.append(name)
+
+        now = _utc_iso()
+        for name in old_names & new_names:
+            candidate = new_tools[name]
+            existing = self.registry._tools.get(name)
+            if existing and (
+                existing.metadata.schema_hash != candidate.metadata.schema_hash
+                or existing.description != candidate.description
+            ):
+                candidate.metadata.last_refreshed_at = now
+                self.registry._tools[name] = candidate
+                self.registry._emit_change(
+                    ChangeEvent(
+                        event_type=ChangeEventType.REFRESH,
+                        tool_name=name,
+                    )
+                )
+                updated.append(name)
+            elif existing:
+                existing.metadata.last_refreshed_at = now
+                unchanged += 1
+            else:
+                unchanged += 1
+
+        for name, reason in disabled_snapshot.items():
+            if name in new_names:
+                self.registry.disable(name, reason)
+
+        self._registered_tool_names = new_names
+        return added, removed, updated, unchanged
+
     async def refresh_async(self) -> RefreshResult:
         """Re-list tools from the MCP server and synchronise the registry.
 
@@ -431,56 +500,7 @@ class MCPIntegration:
             candidate.update_namespace(self._resolved_ns, force=True, sep=sep)
             new_tools[candidate.name] = candidate
 
-        old_names = set(self._registered_tool_names)
-        new_names = set(new_tools.keys())
-
-        # Snapshot disabled state
-        disabled_snapshot: dict[str, str] = {}
-        for name in old_names:
-            if not self.registry.is_enabled(name):
-                disabled_snapshot[name] = self.registry.get_disable_reason(name) or ""
-
-        to_remove = old_names - new_names
-        to_add = new_names - old_names
-        maybe_updated = old_names & new_names
-
-        added: list[str] = []
-        removed: list[str] = []
-        updated: list[str] = []
-        unchanged = 0
-
-        for name in to_remove:
-            self.registry._unregister(name)
-            removed.append(name)
-
-        for name in to_add:
-            self.registry.register(new_tools[name], namespace=self._resolved_ns)
-            added.append(name)
-
-        for name in maybe_updated:
-            candidate = new_tools[name]
-            existing = self.registry._tools.get(name)
-            if existing and (
-                existing.parameters != candidate.parameters
-                or existing.description != candidate.description
-            ):
-                self.registry._tools[name] = candidate
-                self.registry._emit_change(
-                    ChangeEvent(
-                        event_type=ChangeEventType.REFRESH,
-                        tool_name=name,
-                    )
-                )
-                updated.append(name)
-            else:
-                unchanged += 1
-
-        # Restore disabled state for surviving tools
-        for name, reason in disabled_snapshot.items():
-            if name in new_names:
-                self.registry.disable(name, reason)
-
-        self._registered_tool_names = new_names
+        added, removed, updated, unchanged = self._apply_diff(new_tools)
 
         return RefreshResult(
             source="mcp",

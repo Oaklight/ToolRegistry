@@ -10,6 +10,13 @@ from ...tool_wrapper import BaseToolWrapper
 from ...utils import HttpClientConfig, normalize_tool_name
 
 
+def _utc_iso() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc).isoformat()
+
+
 class OpenAPIToolWrapper(BaseToolWrapper):
     """Wrapper class that provides both synchronous and asynchronous methods for OpenAPI tool calls.
 
@@ -411,9 +418,10 @@ class OpenAPIIntegration:
             candidate = new_tools[name]
             existing = self.registry._tools.get(name)
             if existing and (
-                existing.parameters != candidate.parameters
+                existing.metadata.schema_hash != candidate.metadata.schema_hash
                 or existing.description != candidate.description
             ):
+                candidate.metadata.last_refreshed_at = _utc_iso()
                 self.registry._tools[name] = candidate
                 self.registry._emit_change(
                     ChangeEvent(
@@ -423,6 +431,8 @@ class OpenAPIIntegration:
                 )
                 updated.append(name)
             else:
+                if existing:
+                    existing.metadata.last_refreshed_at = _utc_iso()
                 unchanged += 1
 
         for name, reason in disabled_snapshot.items():
