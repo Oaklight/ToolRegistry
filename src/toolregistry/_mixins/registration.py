@@ -266,6 +266,8 @@ class RegistrationMixin:
             )
         )
 
+        return tool_or_func
+
     def _unregister(self, name: str) -> bool:
         """Remove a tool from the registry.
 
