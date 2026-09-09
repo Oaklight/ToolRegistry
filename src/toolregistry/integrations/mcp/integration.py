@@ -19,16 +19,9 @@ from ...events import ChangeEvent, ChangeEventType, RefreshResult
 from ...tool import Tool, ToolMetadata
 from ...tool_registry import ToolRegistry
 from ...tool_wrapper import BaseToolWrapper
-from ...utils import normalize_tool_name
+from ...utils import normalize_tool_name, utc_iso_now
 from .client import MCPClient
 from .connection import MCPConnectionManager
-
-
-def _utc_iso() -> str:
-    """Return the current UTC time as an ISO 8601 string."""
-    from datetime import datetime, timezone
-
-    return datetime.now(timezone.utc).isoformat()
 
 
 logger = get_logger()
@@ -424,7 +417,7 @@ class MCPIntegration:
             self.registry.register(new_tools[name], namespace=self._resolved_ns)
             added.append(name)
 
-        now = _utc_iso()
+        now = utc_iso_now()
         for name in old_names & new_names:
             candidate = new_tools[name]
             existing = self.registry._tools.get(name)
@@ -445,6 +438,7 @@ class MCPIntegration:
                 existing.metadata.last_refreshed_at = now
                 unchanged += 1
             else:
+                logger.warning("tool tracked but missing from _tools", tool_name=name)
                 unchanged += 1
 
         for name, reason in disabled_snapshot.items():

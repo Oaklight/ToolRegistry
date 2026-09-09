@@ -288,6 +288,7 @@ class Tool:
         self.namespace = namespace
         self.method_name = method_name
         self._inject_toolcall_reason()
+        # Hash after toolcall_reason injection so it reflects the final schema.
         if not self.metadata.schema_hash:
             self.metadata.schema_hash = compute_schema_hash(self.parameters)
 
