@@ -58,8 +58,8 @@ else:
     websearch = WebSearchGoogle()  # Assuming there's a WebSearchGoogle class
 
 
-tool_registry.register_from_class(
-    websearch
+tool_registry.register(
+    websearch, source="class"
 )  # Register the web search tool with the registry
 
 print(tool_registry.get_available_tools())
@@ -123,8 +123,8 @@ else:
     websearch = WebSearchGoogle()  # Assuming there's a WebSearchGoogle class
 
 
-tool_registry.register_from_class(websearch, namespace=True)
-tool_registry.register_from_class(UnitConverter, namespace=True)
+tool_registry.register(websearch, source="class", namespace=True)
+tool_registry.register(UnitConverter, source="class", namespace=True)
 
 print(tool_registry.get_available_tools())
 

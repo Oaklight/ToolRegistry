@@ -110,9 +110,9 @@ python openapi_calculator.py
 ## Step 2: Register and Use the OpenAPI Tool
 
 !!! note "API changes"
-    Previously, `register_from_openapi` requires `spec_url` and optional `base_url`. It was designed to be simple. Yet in practice, we found the need for customization in HTTP requests, for example many OpenAPI services requires authentication headers or custom timeouts. Thus we made the following changes:
+    Previously, the OpenAPI registration method required `spec_url` and optional `base_url`. It was designed to be simple. Yet in practice, we found the need for customization in HTTP requests, for example many OpenAPI services requires authentication headers or custom timeouts. Thus we made the following changes:
   
-    The `register_from_openapi` method new requires two parameters:
+    The `register()` method with `source="openapi"` now requires two parameters:
   
     - `client_config`: Configures the HTTP client (headers, auth, timeout, etc.) using an `HttpClientConfig` object, allowing greater flexibility.
     - `openapi_spec`: The OpenAPI specification loaded as `Dict[str, Any]` using functions like `load_openapi_spec` or `load_openapi_spec_async` from a file path or URL to the service or specification.
@@ -129,8 +129,9 @@ openapi_spec = load_openapi_spec("./openapi_spec.json") # specification at local
 openapi_spec = load_openapi_spec("http://localhost:8000") # URL to service root
 openapi_spec = load_openapi_spec("http://localhost:8000/openapi.json") # URL to specification
 
-registry.register_from_openapi(
-    client_config=client_config,
+registry.register(
+    client_config,
+    source="openapi",
     openapi_spec=openapi_spec,
     namespace=False,
 )
@@ -167,7 +168,7 @@ tool_registry = ToolRegistry()
 
 client_config = HttpClientConfig(base_url="http://localhost:8000")
 openapi_spec = load_openapi_spec("http://localhost:8000")
-tool_registry.register_from_openapi(client_config, openapi_spec)
+tool_registry.register(client_config, source="openapi", openapi_spec=openapi_spec)
 
 print(tool_registry.get_available_tools())
 
@@ -210,7 +211,7 @@ tool_registry = ToolRegistry()
 
 client_config = HttpClientConfig(base_url="http://localhost:8000")
 openapi_spec = load_openapi_spec("http://localhost:8000")
-tool_registry.register_from_openapi(client_config, openapi_spec)
+tool_registry.register(client_config, source="openapi", openapi_spec=openapi_spec)
 
 print(tool_registry.get_available_tools())
 

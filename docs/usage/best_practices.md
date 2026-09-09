@@ -140,11 +140,11 @@ When registering multiple tools from a class or external source, use namespaces 
 
 ```python
 # Class-based tools get automatic namespace
-registry.register_from_class(MathTools, namespace="math")
+registry.register(MathTools, source="class", namespace="math")
 # Registered as: math-add, math-subtract, math-multiply
 
 # MCP tools with namespace
-registry.register_from_mcp("http://localhost:8000/mcp", namespace="search")
+registry.register("http://localhost:8000/mcp", source="mcp", namespace="search")
 ```
 
 ### Clean Up Resources
@@ -154,13 +154,13 @@ When using MCP or OpenAPI integrations, use context managers to ensure connectio
 ```python
 # Recommended: context manager
 with ToolRegistry() as registry:
-    registry.register_from_mcp("http://localhost:8000/mcp")
+    registry.register("http://localhost:8000/mcp", source="mcp")
     results = registry.execute_tool_calls(tool_calls)
 
 # Or explicit cleanup
 registry = ToolRegistry()
 try:
-    registry.register_from_mcp("http://localhost:8000/mcp")
+    registry.register("http://localhost:8000/mcp", source="mcp")
     results = registry.execute_tool_calls(tool_calls)
 finally:
     registry.close()

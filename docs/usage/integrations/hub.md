@@ -20,7 +20,7 @@ Hub encapsulates commonly used tools as methods of a class, including both stati
 4. **Extensibility**: New tool classes or methods can be easily added.
 5. **Safety and Exception Handling**: Encapsulated tools provide better control over security and handle exceptions more effectively compared to allowing models to directly execute commands.
 
-Hub tools can be registered using the `register_from_class` method. Refer to [**Registering Class-Based Python Tools**](class.md) for detailed instructions.
+Hub tools can be registered using the `register()` method with `source="class"`. Refer to [**Registering Class-Based Python Tools**](class.md) for detailed instructions.
 
 ## Example of Using Predefined Tools
 
@@ -34,10 +34,10 @@ from toolregistry.hub import BaseCalculator, Calculator, FileOps
 registry = ToolRegistry()
 
 # Register Calculator tools (with namespace)
-registry.register_from_class(Calculator, namespace=True)
+registry.register(Calculator, source="class", namespace=True)
 
 # Register FileOps tools (without namespace)
-registry.register_from_class(FileOps)
+registry.register(FileOps, source="class")
 
 # Get available tools list
 print(registry.get_available_tools())
@@ -47,7 +47,7 @@ print(registry.get_available_tools())
 Using the `namespace=True` parameter during registration adds the class name as a namespace prefix to tool names, ensuring better organization and avoiding naming conflicts. For example:
 
 ```python
-registry.register_from_class(BaseCalculator, namespace=True)
+registry.register(BaseCalculator, source="class", namespace=True)
 ```
 
 This will register tools with names like `base_calculator-add`, `base_calculator-subtract`, etc.

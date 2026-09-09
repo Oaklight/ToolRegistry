@@ -144,8 +144,8 @@ If you need a user-facing rationale argument in your own function, use a differe
 Rationale augmentation works across all integration paths:
 
 - Native Python functions (`@registry.register`)
-- MCP tools (`register_from_mcp`)
-- OpenAPI tools (`register_from_openapi`)
-- LangChain tools (`register_from_langchain`)
-- Class-based tools (`register_from_class`)
+- MCP tools (`register(transport, source="mcp")`)
+- OpenAPI tools (`register(client, source="openapi", openapi_spec=spec)`)
+- LangChain tools (`register(tool, source="langchain")`)
+- Class-based tools (`register(Cls, source="class")`)
 - Manually constructed `Tool` objects

@@ -31,7 +31,7 @@ transport = {
     "env": {},
 }
 
-registry.register_from_mcp(transport)
+registry.register(transport, source="mcp")
 print("Registered Tools:")
 pprint(registry)
 ```

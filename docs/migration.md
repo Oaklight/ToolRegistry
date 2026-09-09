@@ -2,6 +2,26 @@
 
 This guide covers breaking changes and migration steps between major ToolRegistry releases.
 
+## Unified `register()` Entry Point (v0.17.0+)
+
+All `register_from_*` methods are now **deprecated** in favor of a single `register()` method with auto-detection:
+
+| Before | After |
+|--------|-------|
+| `registry.register_from_class(Cls)` | `registry.register(Cls, source="class")` |
+| `registry.register_from_class(Cls, namespace=True)` | `registry.register(Cls, source="class", namespace=True)` |
+| `registry.register_from_class_async(...)` | `registry.register_async(..., source="class")` |
+| `registry.register_from_mcp(transport)` | `registry.register(transport, source="mcp")` |
+| `registry.register_from_mcp_async(transport)` | `registry.register_async(transport, source="mcp")` |
+| `registry.register_from_openapi(client, spec)` | `registry.register(client, source="openapi", openapi_spec=spec)` |
+| `registry.register_from_openapi_async(client, spec)` | `registry.register_async(client, source="openapi", openapi_spec=spec)` |
+| `registry.register_from_langchain(tool)` | `registry.register(tool, source="langchain")` |
+| `registry.register_from_langchain_async(tool)` | `registry.register_async(tool, source="langchain")` |
+
+Auto-detection works for most types — functions, classes, and LangChain tools don't need `source=`. String/dict targets (MCP, OpenAPI) require an explicit `source=` hint.
+
+The old methods continue to work but emit `DeprecationWarning`. They will be removed in a future major version.
+
 ## 0.12.x → 0.13.0
 
 ### New: Programmatic Tool Calling (PTC)
@@ -203,7 +223,7 @@ from toolregistry.mcp import MCPClient
 # Use 'toolregistry.integrations.mcp' instead.
 ```
 
-**Public API unchanged:** The `ToolRegistry` convenience methods — `register_from_mcp()`, `register_from_openapi()`, `register_from_langchain()`, and `register_from_native()` — continue to work exactly as before with no code changes required.
+**Legacy methods still available:** The `ToolRegistry` convenience methods — `register_from_mcp()`, `register_from_openapi()`, `register_from_langchain()`, and `register_from_native()` — continue to work but now emit `DeprecationWarning`. Migrate to the unified `register()` API (see [Unified `register()` Entry Point](#unified-register-entry-point-v0170) above).
 
 ---
 
@@ -325,7 +345,7 @@ def func(x: str | None = None) -> list[dict[str, int]]: ...
 
 ## 0.4.x → 0.5.0
 
-### `register_from_class()` MRO Default Changed
+### Class Registration MRO Default Changed
 
 `traverse_mro` now defaults to `True`, meaning inherited methods from parent classes are automatically registered.
 
@@ -336,7 +356,7 @@ def func(x: str | None = None) -> list[dict[str, int]]: ...
 To restore the old behavior:
 
 ```python
-registry.register_from_class(MyClass, traverse_mro=False)
+registry.register(MyClass, source="class", traverse_mro=False)
 ```
 
 ### Hub Package Split
@@ -359,4 +379,4 @@ The MCP dependency changed from `fastmcp` to the official `mcp` SDK:
 + pip install toolregistry[mcp]  # now installs mcp>=1.0.0
 ```
 
-No code changes needed — the `register_from_mcp()` API is unchanged. Transport configuration now supports all four transport types: stdio, SSE, streamable-http, and websocket.
+No code changes needed — transport configuration now supports all four transport types: stdio, SSE, streamable-http, and websocket. Use `registry.register(transport, source="mcp")` going forward.

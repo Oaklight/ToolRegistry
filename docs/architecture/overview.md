@@ -68,7 +68,7 @@ toolregistry/
 ├── _rosetta.py             # Schema format conversion (via llm-rosetta)
 │
 ├── _mixins/                # ToolRegistry composition (7 mixins)
-│   ├── registration.py     #   register_from_*() methods
+│   ├── registration.py     #   register() / register_async() unified entry point
 │   ├── namespace.py        #   namespace management, merge/spinoff
 │   ├── permissions.py      #   permission policy integration
 │   ├── admin.py            #   admin panel lifecycle
@@ -123,7 +123,7 @@ toolregistry/
 
 | Mixin | Responsibility |
 |-------|---------------|
-| `RegistrationMixin` | `register_from_mcp()`, `register_from_openapi()`, `register_from_class()`, `register_from_langchain()` |
+| `RegistrationMixin` | `register()` / `register_async()` — unified entry point for all tool sources (functions, classes, MCP, OpenAPI, LangChain) |
 | `NamespaceMixin` | Namespace management, `merge()` / `spinoff()` between registries |
 | `PermissionsMixin` | Permission policy attachment and enforcement |
 | `EnableDisableMixin` | Enable / disable individual tools at runtime |
@@ -152,7 +152,7 @@ Tools are created via `Tool.from_function()` or automatically during integration
 Metadata enriches tools with classification and behavioral hints:
 
 | Field | Purpose |
-|-------|---------|
+|-------|---------:|
 | `tags` | Predefined labels: `READ_ONLY`, `DESTRUCTIVE`, `NETWORK`, `FILE_SYSTEM`, `SLOW`, `PRIVILEGED` |
 | `custom_tags` | User-defined strings for domain-specific classification |
 | `timeout` | Per-call timeout in seconds |
@@ -263,17 +263,17 @@ ToolRegistry supports five tool sources, each with a dedicated integration adapt
 | Source | Registration Method | Connection | Namespace |
 |--------|-------------------|------------|-----------|
 | Python functions | `@registry.register` | Direct | None |
-| MCP servers | `register_from_mcp()` | Persistent (stdio/SSE/streamable HTTP) | Auto |
-| OpenAPI specs | `register_from_openapi()` | Persistent HTTP pool | Auto |
-| Class methods | `register_from_class()` | Direct (bound to instance) | Auto |
-| LangChain tools | `register_from_langchain()` | Direct | Auto |
+| MCP servers | `register(transport, source="mcp")` | Persistent (stdio/SSE/streamable HTTP) | Auto |
+| OpenAPI specs | `register(client, source="openapi", openapi_spec=spec)` | Persistent HTTP pool | Auto |
+| Class methods | `register(Cls, source="class")` | Direct (bound to instance) | Auto |
+| LangChain tools | `register(tool, source="langchain")` | Direct | Auto |
 
 MCP and OpenAPI integrations maintain **persistent connections** by default. Use `ToolRegistry` as a context manager for automatic cleanup:
 
 ```python
 with ToolRegistry() as registry:
-    registry.register_from_mcp("http://localhost:8000/mcp")
-    registry.register_from_openapi(client_config=config, openapi_spec=spec)
+    registry.register("http://localhost:8000/mcp", source="mcp")
+    registry.register(config, source="openapi", openapi_spec=spec)
     # ... use tools ...
 # All connections closed automatically
 ```

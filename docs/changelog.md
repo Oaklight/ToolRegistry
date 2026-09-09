@@ -16,6 +16,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Unified `register()` entry point**: All `register_from_*` methods (`register_from_class`, `register_from_mcp`, `register_from_openapi`, `register_from_langchain`) are now deprecated in favor of a single `register()` method with a `source=` hint for auto-detection. Async counterparts use `register_async()`. The old methods continue to work but emit `DeprecationWarning`.
+
+## [0.16.0] - 2026-08-25
+
+### Added
+
+- **Expanded content block types** (#239): `is_content_block_list()` now recognizes `audio`, `resource_link`, and `resource` content block types in addition to `text` and `image`. Enables the MCP adapter in toolregistry-server to route these types through the multimodal pipeline instead of JSON-dumping them into text.
+- **Runtime warnings in admin execution log** (#237): Tool execution warnings (`logger.warning()`) are now captured and surfaced in the admin dashboard's execution log. Each `ExecutionLogEntry` carries a `warnings` field; the dashboard displays warning counts alongside status badges.
+
+### Fixed
+
+- Thread warnings through `_invoke_raw` exception path so PTC callers see intermediate warnings even when the tool raises.
+- Accept uppercase Gemini type strings from `llm-rosetta>=0.8` in format tests.
+
+### Changed
+
+- Widened `llm-rosetta` upper bound from `<0.9.0` to `<0.10.0` (tested compatible with 0.9.x).
+
 ## [0.15.0] - 2026-08-06
 
 ### Added

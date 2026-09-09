@@ -106,7 +106,7 @@ tools:
 | `kwargs` | dict | No | Keyword arguments passed to the class constructor (default: `{}`) |
 | `enabled` | bool | No | Per-source enable/disable (default: `true`) |
 
-When `class` is specified, the consumer calls `register_from_class()`. When `module` is specified, the consumer registers all public callables from the module.
+When `class` is specified, the consumer calls `register(cls, source="class")`. When `module` is specified, the consumer registers all public callables from the module.
 
 #### Passing Constructor Arguments with `kwargs`
 

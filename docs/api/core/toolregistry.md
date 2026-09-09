@@ -32,11 +32,11 @@ The ToolRegistry follows a registry pattern with the following key responsibilit
 
 ### Registration Methods
 
-- **Native Registration**: `register()` for direct function/instance registration
-- **Class Integration**: `register_from_class()` for Python class method registration. By default, traverses the MRO (Method Resolution Order) to include inherited methods from parent classes. Pass `traverse_mro=False` to register only directly defined methods.
-- **OpenAPI Integration**: Integration with OpenAPI specifications
-- **MCP Integration**: Support for Model Context Protocol servers
-- **LangChain Integration**: Compatibility with LangChain tools
+- **Unified Registration**: `register()` / `register_async()` for all tool sources with auto-detection and explicit `source=` hints
+- **Class Integration**: `register(Cls, source="class")` for Python class method registration. By default, traverses the MRO (Method Resolution Order) to include inherited methods from parent classes. Pass `traverse_mro=False` to register only directly defined methods.
+- **OpenAPI Integration**: `register(client, source="openapi", openapi_spec=spec)` for OpenAPI specifications
+- **MCP Integration**: `register(transport, source="mcp")` for Model Context Protocol servers
+- **LangChain Integration**: `register(tool, source="langchain")` for LangChain tools
 
 ### Execution Models
 
@@ -97,7 +97,7 @@ class Calculator:
         return a / b
 
 # Register all methods from the class
-registry.register_from_class(Calculator)
+registry.register(Calculator, source="class")
 ```
 
 ### Class Integration with MRO Traversal
@@ -118,13 +118,13 @@ class AdvancedCalculator(BaseCalculator):
 registry = ToolRegistry()
 
 # Default behavior (traverse_mro=True): includes inherited methods from BaseCalculator
-registry.register_from_class(AdvancedCalculator)
+registry.register(AdvancedCalculator, source="class")
 print(registry.get_available_tools())
 # Output: ['advanced_calculator-add', 'advanced_calculator-multiply']
 
 # With traverse_mro=False: only methods defined directly on AdvancedCalculator
 registry2 = ToolRegistry()
-registry2.register_from_class(AdvancedCalculator, traverse_mro=False)
+registry2.register(AdvancedCalculator, source="class", traverse_mro=False)
 print(registry2.get_available_tools())
 # Output: ['advanced_calculator-multiply']
 ```

@@ -1,13 +1,15 @@
 # Class-based Tools Usage Guide
 
-Hub tools are registered to ToolRegistry using the `register_from_class` method. This allows developers to extend the functionality of ToolRegistry by creating custom tool classes with reusable methods.
+Hub tools are registered to ToolRegistry using the `register()` method with `source="class"`. This allows developers to extend the functionality of ToolRegistry by creating custom tool classes with reusable methods.
 
 ???+ note "API changes"
-    Previously (before 0.4.12), the method `register_static_tools` and the concept of `StaticMethodIntegration` were used for registering static methods from classes. These have now been replaced by `register_from_class`. Similarly, `register_static_tools_async` has also been replaced. Both old methods are planned to be deprecated soon, so please migrate to the new interfaces as soon as possible. For backward compatibility, `register_static_tools` remains as an alias to `register_from_class`.
+    **v0.17.0+**: The `register_from_class()` method is deprecated in favor of the unified `register()` entry point. Use `registry.register(Cls, source="class")` instead. The old method still works but emits `DeprecationWarning`.
+
+    Previously (before 0.4.12), the method `register_static_tools` and the concept of `StaticMethodIntegration` were used for registering static methods from classes. These have now been replaced by `register()`. Similarly, `register_static_tools_async` has also been replaced. Both old methods are planned to be deprecated soon, so please migrate to the new interfaces as soon as possible. For backward compatibility, `register_static_tools` remains as an alias.
 
 ## Registering Custom Class Methods
 
-The `register_from_class` method in `ToolRegistry` allows you to easily register methods from custom classes, whether they are static methods or instance methods. Below, we explore two distinct use cases: registering classes with only static methods and registering instance-based classes.
+The `register()` method in `ToolRegistry` allows you to easily register methods from custom classes, whether they are static methods or instance methods. Below, we explore two distinct use cases: registering classes with only static methods and registering instance-based classes.
 
 ### Registering a Class with Static Methods
 
@@ -22,7 +24,7 @@ class StaticExample:
         return f"Hello, {name}!"
 
 registry = ToolRegistry()
-registry.register_from_class(StaticExample, namespace=True)
+registry.register(StaticExample, source="class", namespace=True)
 
 # List registered tools
 print(registry.get_available_tools())
@@ -51,7 +53,7 @@ example_instance = InstanceExample("Bob")
 registry = ToolRegistry()
 
 # Register methods using the instance
-registry.register_from_class(InstanceExample, instance=example_instance)
+registry.register(InstanceExample, source="class", instance=example_instance)
 
 # List registered tools
 print(registry.get_available_tools())
@@ -70,14 +72,14 @@ from toolregistry import ToolRegistry
 from toolregistry.hub import BaseCalculator
 
 registry = ToolRegistry()
-registry.register_from_class(BaseCalculator)  # Basic registration for methods of a class
+registry.register(BaseCalculator, source="class")  # Basic registration for methods of a class
 ```
 
 These examples highlight how to manage varying needs for class-based registrations, allowing users to adapt `ToolRegistry` for diverse scenarios.
 
 ### Registering Inherited Methods with `traverse_mro`
 
-By default, `register_from_class()` traverses the MRO (Method Resolution Order) and registers both directly defined and inherited methods. This means inherited public methods from parent classes are automatically included.
+By default, `register(..., source="class")` traverses the MRO (Method Resolution Order) and registers both directly defined and inherited methods. This means inherited public methods from parent classes are automatically included.
 
 ```python
 from toolregistry import ToolRegistry
@@ -102,13 +104,13 @@ class ScientificCalculator(BaseCalculator):
 registry = ToolRegistry()
 
 # Default behavior (traverse_mro=True): inherited methods are included
-registry.register_from_class(ScientificCalculator, namespace=True)
+registry.register(ScientificCalculator, source="class", namespace=True)
 print(registry.get_available_tools())
 # Output: ['scientific_calculator-add', 'scientific_calculator-subtract', 'scientific_calculator-power']
 
 # With traverse_mro=False: only methods defined directly on the class are registered
 registry2 = ToolRegistry()
-registry2.register_from_class(ScientificCalculator, namespace=True, traverse_mro=False)
+registry2.register(ScientificCalculator, source="class", namespace=True, traverse_mro=False)
 print(registry2.get_available_tools())
 # Output: ['scientific_calculator-power']
 ```
@@ -120,7 +122,7 @@ If you want to restrict registration to only methods defined directly on the cla
 Using `namespace=True` parameter adds the class name as a namespace prefix to tool names:
 
 ```python
-registry.register_from_class(BaseCalculator, namespace=True)
+registry.register(BaseCalculator, source="class", namespace=True)
 ```
 
 This will register tools with names like `base_calculator-add`, `base_calculator-subtract`, etc.
@@ -141,10 +143,10 @@ from toolregistry.hub import Calculator, FileOps
 registry = ToolRegistry()
 
 # Register Calculator tools (with namespace)
-registry.register_from_class(Calculator, namespace=True)
+registry.register(Calculator, source="class", namespace=True)
 
 # Register FileOps tools (without namespace)
-registry.register_from_class(FileOps)
+registry.register(FileOps, source="class")
 
 # Get available tools list
 print(registry.get_available_tools())

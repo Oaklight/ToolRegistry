@@ -16,7 +16,7 @@ Integration modules provide compatibility with various frameworks and protocols,
 All integrations share these patterns:
 
 - **Wrapper + Integration classes**: Wrappers handle execution; Integration classes orchestrate registration
-- **Async/sync support**: All integrations support both `register_from_*()` and `register_from_*_async()` methods
+- **Async/sync support**: All integrations support both `register()` and `register_async()` methods via the unified entry point
 - **Namespace support**: `False` (no prefix), `True` (auto-generated), or `str` (custom namespace)
 - **Error preservation**: Original framework exceptions are preserved with additional context
 

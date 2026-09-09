@@ -19,7 +19,7 @@ To integrate LangChain, ensure you have installed the [langchain] dependency ext
 
 2. **Register Tools**
 
-    Use the registry's `register_from_langchain` or `register_from_langchain_async` interface to register LangChain tools into the registry. Here is an example of registering a list of two tools: `ArxivQueryRun` and `PubmedQueryRun`.
+    Use the registry's `register()` with `source="langchain"` or `register_async()` with `source="langchain"` interface to register LangChain tools into the registry. Here is an example of registering a list of two tools: `ArxivQueryRun` and `PubmedQueryRun`.
 
     ```python
     from langchain_community.tools import ArxivQueryRun, PubmedQueryRun
@@ -27,13 +27,13 @@ To integrate LangChain, ensure you have installed the [langchain] dependency ext
 
     registry = ToolRegistry()
     
-    registry.register_from_langchain([ArxivQueryRun(), PubmedQueryRun()])
+    registry.register([ArxivQueryRun(), PubmedQueryRun()], source="langchain")
     ```
 
     You certainly can pass in a single tool instance if needed.
 
     ```python
-    registry.register_from_langchain(ArxivQueryRun())
+    registry.register(ArxivQueryRun(), source="langchain")
     ```
 
 3. **Invoke Tools**
@@ -95,7 +95,7 @@ if __name__ == "__main__":
     # Register LangChain tools
     arxiv_tool = ArxivQueryRun()
     pubmed_tool = PubmedQueryRun()
-    registry.register_from_langchain([arxiv_tool, pubmed_tool])
+    registry.register([arxiv_tool, pubmed_tool], source="langchain")
     print(registry.get_available_tools())
 
     user_input = input("Please enter your research interests: ")

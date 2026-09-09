@@ -24,7 +24,7 @@ Supported inputs include URL strings (`http://`, `https://`, `ws://`, `wss://`),
 !!! note "MCP Client Decoupling"
     Since **`toolregistry 0.5.0`**, the MCP integration uses the official [`mcp`](https://pypi.org/project/mcp/) SDK (`mcp>=1.0.0,<2.0.0`) instead of `fastmcp`. This results in a lighter dependency footprint. The `transport` parameter now accepts `Union[str, Dict[str, Any], Path]` — `ClientTransport` and `FastMCP` instances are no longer accepted.
 
-    The public API (`register_from_mcp` / `register_from_mcp_async`) remains unchanged.
+    The public API (`register()` with `source="mcp"` / `register_async()` with `source="mcp"`) remains unchanged.
 
 !!! note "MCP Transport Update"
     Starting with [`MCP 2025-03-26`](https://modelcontextprotocol.io/specification/2025-03-26/changelog), `http+sse` transport has been replaced by `streamable http`. Since **`toolregistry 0.4.7`**, this transport is supported with fallback for legacy `http+sse`.
@@ -35,7 +35,7 @@ Supported inputs include URL strings (`http://`, `https://`, `ws://`, `wss://`),
 
 ### Registration (synchronous)
 
-To register MCP tools synchronously, use the `register_from_mcp` method with various transport options:
+To register MCP tools synchronously, use the `register()` method with `source="mcp"` and various transport options:
 
 ```python
 from pathlib import Path
@@ -55,16 +55,16 @@ transport = {
 }  # Stdio config dict
 
 # Register tools synchronously
-registry.register_from_mcp(transport)
+registry.register(transport, source="mcp")
 
 print(registry)  # Outputs registered tools
 ```
 
 !!! tip
-    `ToolRegistry.register_from_mcp` supports URL strings, script paths, and dict configurations, which are sufficient for most scenarios.
+    `ToolRegistry.register()` with `source="mcp"` supports URL strings, script paths, and dict configurations, which are sufficient for most scenarios.
 
 !!! tip
-    Emerging MCP hub services, commercial or self-hosted, simplify discovering and centralizing MCP servers. They’re ideal for avoiding stdio servers, reducing environment clutter, or enabling MCP host sharing.
+    Emerging MCP hub services, commercial or self-hosted, simplify discovering and centralizing MCP servers. They're ideal for avoiding stdio servers, reducing environment clutter, or enabling MCP host sharing.
 
 ### Calling MCP Tools (synchronous)
 
@@ -96,7 +96,7 @@ MCP integration supports both synchronous and asynchronous workflows, catering t
 
 ### Asynchronous Registration of MCP Tools
 
-For asynchronous environments, use the `register_from_mcp_async` method:
+For asynchronous environments, use the `register_async()` method with `source="mcp"`:
 
 ```python
 import asyncio
@@ -106,7 +106,7 @@ registry = ToolRegistry()
 transport = "http://localhost:8000/mcp"  # Example transport URL
 
 async def async_register():
-    await registry.register_from_mcp_async(transport)
+    await registry.register_async(transport, source="mcp")
 
 asyncio.run(async_register())
 ```
@@ -140,14 +140,16 @@ asyncio.run(call_async_add_tool())
 For MCP servers that require authentication (e.g. behind an API gateway or OAuth proxy), pass custom HTTP headers via the `headers` parameter:
 
 ```python
-registry.register_from_mcp(
+registry.register(
     "https://mcp.example.com/mcp",
+    source="mcp",
     headers={"Authorization": "Bearer sk-your-token"},
 )
 
 # Also works with async registration
-await registry.register_from_mcp_async(
+await registry.register_async(
     "https://mcp.example.com/mcp",
+    source="mcp",
     headers={"Authorization": "Bearer sk-your-token"},
 )
 ```
@@ -172,13 +174,13 @@ from toolregistry import ToolRegistry
 
 # Synchronous
 with ToolRegistry() as registry:
-    registry.register_from_mcp("http://localhost:8000/mcp")
+    registry.register("http://localhost:8000/mcp", source="mcp")
     result = registry["add"](1, 2)
 # Connections are automatically closed on exit
 
 # Asynchronous
 async with ToolRegistry() as registry:
-    await registry.register_from_mcp_async("http://localhost:8000/mcp")
+    await registry.register_async("http://localhost:8000/mcp", source="mcp")
     result = await registry["add"](1, 2)
 # Connections are automatically closed on exit
 ```
@@ -189,7 +191,7 @@ You can also close connections explicitly:
 
 ```python
 registry = ToolRegistry()
-registry.register_from_mcp("http://localhost:8000/mcp")
+registry.register("http://localhost:8000/mcp", source="mcp")
 # ... use tools ...
 registry.close()  # Close all persistent connections
 
@@ -202,7 +204,7 @@ await registry.close_async()
 If you prefer per-call connections (the old behavior), pass `persistent=False` during registration:
 
 ```python
-registry.register_from_mcp("http://localhost:8000/mcp", persistent=False)
+registry.register("http://localhost:8000/mcp", source="mcp", persistent=False)
 ```
 
 ## Integrating MCP with OpenAI Client
@@ -226,7 +228,7 @@ registry = ToolRegistry()
 mcp_server_url = f"http://localhost:{PORT}/sse"
 
 async def async_register():
-    await registry.register_from_mcp_async(mcp_server_url)
+    await registry.register_async(mcp_server_url, source="mcp")
 
 asyncio.run(async_register())
 
