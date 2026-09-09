@@ -1,6 +1,9 @@
+import hashlib
+import json
 import re
 import uuid
 import warnings
+from datetime import datetime, timezone
 from typing import Any, Literal, overload
 
 from ._vendor.httpclient import AsyncClient, Client
@@ -323,8 +326,10 @@ def compute_schema_hash(parameters: dict[str, Any]) -> str:
     Returns:
         A 64-character lowercase hex string.
     """
-    import hashlib
-    import json
-
     canonical = json.dumps(parameters, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode()).hexdigest()
+
+
+def utc_iso_now() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
+    return datetime.now(timezone.utc).isoformat()

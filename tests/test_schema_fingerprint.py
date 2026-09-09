@@ -147,3 +147,81 @@ class TestRegistrySchemaHash:
         tool = registry.get_tool("hello")
         assert tool is not None
         assert tool.metadata.last_refreshed_at == ""
+
+
+# ---- Refresh-path integration tests ----
+
+
+class TestRefreshPathIntegration:
+    """Verify schema_hash and last_refreshed_at are used/set during refresh."""
+
+    def _make_openapi_spec(self, params: dict) -> dict:
+        return {
+            "openapi": "3.0.0",
+            "info": {"title": "Test", "version": "1.0"},
+            "paths": {
+                "/greet": {
+                    "get": {
+                        "operationId": "greet",
+                        "summary": "Say hello",
+                        "parameters": [
+                            {
+                                "name": k,
+                                "in": "query",
+                                "required": v.get("required", False),
+                                "schema": {"type": v["type"]},
+                            }
+                            for k, v in params.items()
+                        ],
+                        "responses": {"200": {"description": "OK"}},
+                    }
+                }
+            },
+        }
+
+    def test_refresh_sets_last_refreshed_at(self):
+        from toolregistry.utils import HttpClientConfig
+
+        registry = ToolRegistry()
+        spec_v1 = self._make_openapi_spec(
+            {"name": {"type": "string", "required": True}}
+        )
+        client = HttpClientConfig(base_url="https://api.example.com")
+        registry.register(client, source="openapi", openapi_spec=spec_v1)
+
+        tool = registry.get_tool("greet")
+        assert tool is not None
+        assert tool.metadata.last_refreshed_at == ""
+
+        result = registry.refresh_from_openapi(openapi_spec=spec_v1)
+        assert result.unchanged == 1
+
+        tool = registry.get_tool("greet")
+        assert tool is not None
+        assert tool.metadata.last_refreshed_at != ""
+
+    def test_refresh_uses_schema_hash_for_diff(self):
+        from toolregistry.utils import HttpClientConfig
+
+        registry = ToolRegistry()
+        spec_v1 = self._make_openapi_spec(
+            {"name": {"type": "string", "required": True}}
+        )
+        client = HttpClientConfig(base_url="https://api.example.com")
+        registry.register(client, source="openapi", openapi_spec=spec_v1)
+
+        old_hash = registry.get_tool("greet").metadata.schema_hash
+        assert old_hash
+
+        spec_v2 = self._make_openapi_spec(
+            {
+                "name": {"type": "string", "required": True},
+                "greeting": {"type": "string", "required": False},
+            }
+        )
+        result = registry.refresh_from_openapi(openapi_spec=spec_v2)
+        assert result.updated == ("greet",)
+
+        new_hash = registry.get_tool("greet").metadata.schema_hash
+        assert new_hash != old_hash
+        assert registry.get_tool("greet").metadata.last_refreshed_at != ""
