@@ -37,7 +37,7 @@ openapi_spec = load_openapi_spec(base_url)
 
 # Initialize tool registry and register Calculator static methods
 tool_registry = ToolRegistry()
-tool_registry.register_from_openapi(client_config, openapi_spec)
+tool_registry.register(client_config, source="openapi", openapi_spec=openapi_spec)
 print(tool_registry.list_tools())
 
 input_file = "examples/hub_related/concurrent_raw_results.txt"

@@ -55,7 +55,7 @@ class StringUtils:
         return len(text)
 
 
-registry.register_from_class(StringUtils, namespace="StringUtils")
+registry.register(StringUtils, source="class", namespace="StringUtils")
 
 
 # ── 2. Enable execution logging ─────────────────────────────────────────

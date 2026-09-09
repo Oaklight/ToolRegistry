@@ -9,7 +9,7 @@ registry = ToolRegistry()
 
 mcp_server_url = f"http://localhost:{PORT}/sse"
 
-registry.register_from_mcp(mcp_server_url)
+registry.register(mcp_server_url, source="mcp")
 print("Registered Math Tools:")
 pprint(registry)
 

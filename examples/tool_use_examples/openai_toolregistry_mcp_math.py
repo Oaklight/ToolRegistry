@@ -19,12 +19,12 @@ registry = ToolRegistry()
 
 mcp_server_url = f"http://localhost:{PORT}/sse"
 
-# registry.register_from_mcp(mcp_server_url)
+# registry.register(mcp_server_url, source="mcp")
 # pprint(registry)
 
 
 async def async_register():
-    await registry.register_from_mcp_async(mcp_server_url, namespace=True)
+    await registry.register_async(mcp_server_url, source="mcp", namespace=True)
     pprint(registry)
 
 

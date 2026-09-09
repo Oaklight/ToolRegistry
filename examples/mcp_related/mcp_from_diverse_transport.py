@@ -29,6 +29,6 @@ transport = StreamableHttpTransport(
     url="https://mcphub.example.com/mcp", headers={"Authorization": "Bearer token"}
 )  # Transport instance, useful if you have custom headers
 
-registry.register_from_mcp(transport)
+registry.register(transport, source="mcp")
 print("Registered Tools:")
 pprint(registry)

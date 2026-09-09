@@ -10,7 +10,9 @@ client_config = HttpClientConfig(base_url=base_url)
 
 # Initialize the ToolRegistry and register OpenAPI tools synchronously
 registry = ToolRegistry()
-registry.register_from_openapi(client_config, openapi_spec, namespace=True)
+registry.register(
+    client_config, source="openapi", openapi_spec=openapi_spec, namespace=True
+)
 
 # print("Registry:", registry)
 

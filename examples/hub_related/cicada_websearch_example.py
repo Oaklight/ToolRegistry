@@ -49,8 +49,8 @@ else:
     websearch = WebSearchGoogle()  # Assuming there's a WebSearchGoogle class
 
 
-tool_registry.register_from_class(
-    websearch
+tool_registry.register(
+    websearch, source="class"
 )  # Register the web search tool with the registry
 
 print(tool_registry.list_tools())
