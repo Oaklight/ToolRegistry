@@ -46,7 +46,7 @@ def _detect_source(target: Any) -> str:
         pass
     if callable(target):
         return "native"
-    if not isinstance(target, (str, dict, Path)):
+    if not isinstance(target, (str, dict, Path, int, float, bool, bytes, type(None))):
         return "class"
     raise TypeError(
         f"Cannot auto-detect registration source for {type(target).__name__!r}. "
@@ -79,7 +79,7 @@ class RegistrationMixin:
 
     def register(
         self,
-        target: Callable | Tool | type | object = _MISSING,  # type: ignore[assignment]
+        target: Any = _MISSING,
         description: str | None = None,
         name: str | None = None,
         *,
@@ -135,11 +135,11 @@ class RegistrationMixin:
             >>> registry.register("http://localhost:8000", source="mcp")
         """
         target, resolved, ns = self._resolve_registration(
-            target, source, namespace, "register"
+            target, source, namespace, "register", kwargs
         )
 
         if resolved == "native":
-            self._register_native(
+            return self._register_native(
                 target,
                 description=description,
                 name=name,
@@ -147,13 +147,13 @@ class RegistrationMixin:
                 method_name=method_name,
             )
         elif resolved == "class":
-            self._register_class(target, namespace=ns, **kwargs)
+            return self._register_class(target, namespace=ns, **kwargs)
         elif resolved == "mcp":
-            self._register_mcp(target, namespace=ns, **kwargs)
+            return self._register_mcp(target, namespace=ns, **kwargs)
         elif resolved == "openapi":
-            self._register_openapi(target, namespace=ns, **kwargs)
+            return self._register_openapi(target, namespace=ns, **kwargs)
         elif resolved == "langchain":
-            self._register_langchain(target, namespace=ns, **kwargs)
+            return self._register_langchain(target, namespace=ns, **kwargs)
         else:
             raise ValueError(
                 f"Unknown source: {resolved!r}. Supported values: "
@@ -162,7 +162,7 @@ class RegistrationMixin:
 
     async def register_async(
         self,
-        target: Callable | Tool | type | object = _MISSING,  # type: ignore[assignment]
+        target: Any = _MISSING,
         description: str | None = None,
         name: str | None = None,
         *,
@@ -176,11 +176,11 @@ class RegistrationMixin:
         See :meth:`register` for full documentation.
         """
         target, resolved, ns = self._resolve_registration(
-            target, source, namespace, "register_async"
+            target, source, namespace, "register_async", kwargs
         )
 
         if resolved == "native":
-            self._register_native(
+            return self._register_native(
                 target,
                 description=description,
                 name=name,
@@ -188,13 +188,13 @@ class RegistrationMixin:
                 method_name=method_name,
             )
         elif resolved == "class":
-            await self._register_class_async(target, namespace=ns, **kwargs)
+            return await self._register_class_async(target, namespace=ns, **kwargs)
         elif resolved == "mcp":
-            await self._register_mcp_async(target, namespace=ns, **kwargs)
+            return await self._register_mcp_async(target, namespace=ns, **kwargs)
         elif resolved == "openapi":
-            await self._register_openapi_async(target, namespace=ns, **kwargs)
+            return await self._register_openapi_async(target, namespace=ns, **kwargs)
         elif resolved == "langchain":
-            await self._register_langchain_async(target, namespace=ns, **kwargs)
+            return await self._register_langchain_async(target, namespace=ns, **kwargs)
         else:
             raise ValueError(
                 f"Unknown source: {resolved!r}. Supported values: "
@@ -207,12 +207,13 @@ class RegistrationMixin:
         source: str | None,
         namespace: bool | str | None,
         method_name: str,
+        kwargs: dict[str, Any],
     ) -> tuple[Any, str, bool | str]:
         """Validate args and resolve source + namespace for register/register_async."""
         if target is _MISSING:
             raise TypeError(f"{method_name}() missing required argument: 'target'")
         resolved = source or _detect_source(target)
-        ns = _normalise_namespace(namespace)
+        ns = _resolve_namespace_compat(_normalise_namespace(namespace), kwargs)
         return target, resolved, ns
 
     # ------------------------------------------------------------------ #
@@ -287,7 +288,6 @@ class RegistrationMixin:
         return True
 
     def _register_class(self, cls_or_instance, *, namespace, **kwargs):
-        namespace = _resolve_namespace_compat(namespace, kwargs)
         traverse_mro = kwargs.pop("traverse_mro", True)
         constructor_kwargs = kwargs.pop("constructor_kwargs", None)
         from ..integrations.native import ClassToolIntegration
@@ -300,7 +300,6 @@ class RegistrationMixin:
         )
 
     async def _register_class_async(self, cls_or_instance, *, namespace, **kwargs):
-        namespace = _resolve_namespace_compat(namespace, kwargs)
         traverse_mro = kwargs.pop("traverse_mro", True)
         constructor_kwargs = kwargs.pop("constructor_kwargs", None)
         from ..integrations.native import ClassToolIntegration
@@ -313,7 +312,6 @@ class RegistrationMixin:
         )
 
     def _register_mcp(self, transport, *, namespace, **kwargs):
-        namespace = _resolve_namespace_compat(namespace, kwargs)
         persistent = kwargs.pop("persistent", True)
         headers = kwargs.pop("headers", None)
         MCPIntegration = _import_mcp_integration()
@@ -322,7 +320,6 @@ class RegistrationMixin:
         self._mcp_integrations.append(mcp)
 
     async def _register_mcp_async(self, transport, *, namespace, **kwargs):
-        namespace = _resolve_namespace_compat(namespace, kwargs)
         persistent = kwargs.pop("persistent", True)
         headers = kwargs.pop("headers", None)
         MCPIntegration = _import_mcp_integration()
@@ -333,7 +330,6 @@ class RegistrationMixin:
         self._mcp_integrations.append(mcp)
 
     def _register_openapi(self, client, *, namespace, **kwargs):
-        namespace = _resolve_namespace_compat(namespace, kwargs)
         openapi_spec = kwargs.pop("openapi_spec", None)
         if openapi_spec is None:
             raise TypeError(
@@ -349,7 +345,6 @@ class RegistrationMixin:
         self._openapi_integrations.append(openapi)
 
     async def _register_openapi_async(self, client, *, namespace, **kwargs):
-        namespace = _resolve_namespace_compat(namespace, kwargs)
         openapi_spec = kwargs.pop("openapi_spec", None)
         if openapi_spec is None:
             raise TypeError(
@@ -365,13 +360,11 @@ class RegistrationMixin:
         self._openapi_integrations.append(openapi)
 
     def _register_langchain(self, langchain_tool, *, namespace, **kwargs):
-        namespace = _resolve_namespace_compat(namespace, kwargs)
         LangChainIntegration = _import_langchain_integration()
         langchain = LangChainIntegration(cast("ToolRegistry", self))
         return langchain.register_langchain_tools(langchain_tool, namespace)
 
     async def _register_langchain_async(self, langchain_tool, *, namespace, **kwargs):
-        namespace = _resolve_namespace_compat(namespace, kwargs)
         LangChainIntegration = _import_langchain_integration()
         langchain = LangChainIntegration(cast("ToolRegistry", self))
         return await langchain.register_langchain_tools_async(langchain_tool, namespace)

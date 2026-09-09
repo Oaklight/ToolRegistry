@@ -292,6 +292,12 @@ class TestErrors:
         with pytest.raises(TypeError, match="Cannot auto-detect"):
             reg.register(Path("server.py"))
 
+    def test_primitive_types_raise(self):
+        reg = ToolRegistry()
+        for val in [42, 3.14, True, None, b"bytes"]:
+            with pytest.raises(TypeError, match="Cannot auto-detect"):
+                reg.register(val)
+
     def test_namespace_true_on_native_raises(self):
         reg = ToolRegistry()
         with pytest.raises(ValueError, match="namespace=True is not supported"):
