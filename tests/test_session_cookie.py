@@ -24,9 +24,17 @@ class TestSessionCookie:
     def test_tampered_signature_rejected(self):
         sc = SessionCookie()
         token = sc.issue()
-        ts, sig = token.split(".", 1)
-        tampered = f"{ts}.{'a' * len(sig)}"
+        parts = token.rsplit(".", 1)
+        tampered = f"{parts[0]}.{'a' * len(parts[1])}"
         assert not sc.verify(tampered)
+
+    def test_same_second_tokens_differ(self):
+        sc = SessionCookie()
+        t1 = sc.issue()
+        t2 = sc.issue()
+        assert t1 != t2
+        assert sc.verify(t1)
+        assert sc.verify(t2)
 
     def test_malformed_token_rejected(self):
         sc = SessionCookie()
