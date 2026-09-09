@@ -215,3 +215,29 @@ class TestConstructorKwargs:
                 ServiceWithRequiredArgs,
                 constructor_kwargs={"api_key": "key", "unknown_param": 42},
             )
+
+
+class TestCanonicalRegisterAPI:
+    """Test constructor error handling via the new register(cls, source="class") API."""
+
+    def test_required_args_error_via_register(self):
+        import warnings
+
+        registry = ToolRegistry()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            with pytest.raises(TypeError, match=r"register\("):
+                registry.register(ServiceWithRequiredArgs, source="class")
+
+    def test_constructor_kwargs_via_register(self):
+        import warnings
+
+        registry = ToolRegistry()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            registry.register(
+                ServiceWithRequiredArgs,
+                source="class",
+                constructor_kwargs={"api_key": "test", "timeout": 30},
+            )
+            assert "call_api" in registry.list_tools()
