@@ -58,7 +58,7 @@ async def main():
 
     N = 10
     registry = ToolRegistry()
-    registry.register_from_class(AsyncCalculator)
+    registry.register(AsyncCalculator, source="class")
     print(registry.list_tools())
     tool_calls = generate_tool_calls(N)
 

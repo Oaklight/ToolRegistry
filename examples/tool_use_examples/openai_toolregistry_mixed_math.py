@@ -25,8 +25,8 @@ async def async_register():
     client_config = HttpClientConfig(base_url=openapi_spec_url)
     openapi_spec = await load_openapi_spec_async(openapi_spec_url)
 
-    await openapi_registry.register_from_openapi_async(
-        client_config, openapi_spec, namespace=True
+    await openapi_registry.register_async(
+        client_config, source="openapi", openapi_spec=openapi_spec, namespace=True
     )
 
 
@@ -50,7 +50,7 @@ MCP_PORT = os.getenv(
 )  # default MCP_PORT 8000, change via environment variable
 mcp_registry = ToolRegistry("mcp_math")
 mcp_server_url = f"http://localhost:{MCP_PORT}/sse"
-mcp_registry.register_from_mcp(mcp_server_url, namespace=True)
+mcp_registry.register(mcp_server_url, source="mcp", namespace=True)
 pprint(mcp_registry.list_tools())
 pprint(mcp_registry._sub_registries)
 

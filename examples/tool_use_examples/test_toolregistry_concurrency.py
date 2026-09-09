@@ -144,7 +144,7 @@ def main():
     from toolregistry.hub import BaseCalculator
 
     registry = ToolRegistry()
-    registry.register_from_class(BaseCalculator, namespace=True)
+    registry.register(BaseCalculator, source="class", namespace=True)
     # print(registry.list_tools())
     if FUNC:
         target_func_name = [name for name in registry.list_tools() if FUNC in name][0]
@@ -169,7 +169,9 @@ def main():
     client_config = HttpClientConfig(base_url=f"http://localhost:{OPENAPI_PORT}")
     openapi_spec = load_openapi_spec(f"http://localhost:{OPENAPI_PORT}")
 
-    registry.register_from_openapi(client_config, openapi_spec, namespace=True)
+    registry.register(
+        client_config, source="openapi", openapi_spec=openapi_spec, namespace=True
+    )
     # print(registry.list_tools())
     if FUNC:
         target_func_name = [name for name in registry.list_tools() if FUNC in name][0]
@@ -190,7 +192,7 @@ def main():
     registry = ToolRegistry()
 
     MCP_PORT = os.getenv("MCP_PORT", 8001)
-    registry.register_from_mcp(f"http://localhost:{MCP_PORT}/sse", namespace=True)
+    registry.register(f"http://localhost:{MCP_PORT}/sse", source="mcp", namespace=True)
     # print(registry.list_tools())
     if FUNC:
         target_func_name = [name for name in registry.list_tools() if FUNC in name][0]

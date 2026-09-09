@@ -54,8 +54,8 @@ if __name__ == "__main__":
     # Example usage of PubmedQueryRun
     arxiv_tool = ArxivQueryRun()
     pubmed_tool = PubmedQueryRun()
-    registry.register_from_langchain(arxiv_tool)
-    registry.register_from_langchain(pubmed_tool)
+    registry.register(arxiv_tool, source="langchain")
+    registry.register(pubmed_tool, source="langchain")
 
     print(registry.list_tools())
 
