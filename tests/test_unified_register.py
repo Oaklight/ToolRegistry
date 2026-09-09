@@ -200,6 +200,21 @@ class TestOpenAPISource:
         with pytest.raises(TypeError, match="openapi_spec"):
             reg.register(MagicMock(), source="openapi")
 
+    def test_callable_instance_detected_as_native(self):
+        """Callable instances (__call__) go to native, not class."""
+
+        class Adder:
+            def __call__(self, a: int, b: int) -> int:
+                return a + b
+
+            def other_method(self):
+                pass
+
+        reg = ToolRegistry()
+        reg.register(Adder(), name="adder")
+        assert "adder" in reg._tools
+        assert len(reg._tools) == 1
+
     @patch("toolregistry._mixins.registration._import_openapi_integration")
     def test_openapi_explicit(self, mock_import):
         mock_integration_cls = MagicMock()
@@ -277,6 +292,11 @@ class TestErrors:
         with pytest.raises(TypeError, match="Cannot auto-detect"):
             reg.register(Path("server.py"))
 
+    def test_namespace_true_on_native_raises(self):
+        reg = ToolRegistry()
+        with pytest.raises(ValueError, match="namespace=True is not supported"):
+            reg.register(sample_func, namespace=True)
+
 
 # ------------------------------------------------------------------ #
 #  Async variants                                                     #
@@ -338,12 +358,19 @@ class TestRegisterAsync:
 
 
 class TestBackwardCompat:
-    def test_positional_args_still_work(self):
-        """Old-style: register(func, "desc", "name")."""
+    def test_positional_description_and_name(self):
+        """Old-style positional: register(func, "desc", "name")."""
         reg = ToolRegistry()
-        reg.register(sample_func, description="my desc", name="my_name")
+        reg.register(sample_func, "my desc", "my_name")
         assert "my_name" in reg._tools
         assert reg._tools["my_name"].description == "my desc"
+
+    def test_keyword_description_and_name(self):
+        """Keyword style: register(func, description=..., name=...)."""
+        reg = ToolRegistry()
+        reg.register(sample_func, description="kw desc", name="kw_name")
+        assert "kw_name" in reg._tools
+        assert reg._tools["kw_name"].description == "kw desc"
 
     def test_namespace_none_equals_false(self):
         """namespace=None and namespace=False should both mean no namespace."""

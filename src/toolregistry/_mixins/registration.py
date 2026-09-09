@@ -80,11 +80,11 @@ class RegistrationMixin:
     def register(
         self,
         target: Callable | Tool | type | object = _MISSING,  # type: ignore[assignment]
+        description: str | None = None,
+        name: str | None = None,
         *,
         source: str | None = None,
         namespace: bool | str | None = None,
-        description: str | None = None,
-        name: str | None = None,
         method_name: str | None = None,
         **kwargs: Any,
     ):
@@ -124,16 +124,19 @@ class RegistrationMixin:
                 auto-detected and *source* is not given.
             ValueError: If *source* is not a recognised value.
 
+        Note:
+            Callable instances (objects with ``__call__``) are registered
+            as a single native tool.  To register all methods instead,
+            pass ``source="class"`` explicitly.
+
         Examples:
             >>> registry.register(my_func)
             >>> registry.register(MyClass, source="class", namespace="math")
             >>> registry.register("http://localhost:8000", source="mcp")
         """
-        if target is _MISSING:
-            raise TypeError("register() missing required argument: 'target'")
-
-        resolved = source or _detect_source(target)
-        ns = _normalise_namespace(namespace)
+        target, resolved, ns = self._resolve_registration(
+            target, source, namespace, "register"
+        )
 
         if resolved == "native":
             self._register_native(
@@ -160,11 +163,11 @@ class RegistrationMixin:
     async def register_async(
         self,
         target: Callable | Tool | type | object = _MISSING,  # type: ignore[assignment]
+        description: str | None = None,
+        name: str | None = None,
         *,
         source: str | None = None,
         namespace: bool | str | None = None,
-        description: str | None = None,
-        name: str | None = None,
         method_name: str | None = None,
         **kwargs: Any,
     ):
@@ -172,11 +175,9 @@ class RegistrationMixin:
 
         See :meth:`register` for full documentation.
         """
-        if target is _MISSING:
-            raise TypeError("register_async() missing required argument: 'target'")
-
-        resolved = source or _detect_source(target)
-        ns = _normalise_namespace(namespace)
+        target, resolved, ns = self._resolve_registration(
+            target, source, namespace, "register_async"
+        )
 
         if resolved == "native":
             self._register_native(
@@ -200,6 +201,20 @@ class RegistrationMixin:
                 "'native', 'class', 'mcp', 'openapi', 'langchain'."
             )
 
+    def _resolve_registration(
+        self,
+        target: Any,
+        source: str | None,
+        namespace: bool | str | None,
+        method_name: str,
+    ) -> tuple[Any, str, bool | str]:
+        """Validate args and resolve source + namespace for register/register_async."""
+        if target is _MISSING:
+            raise TypeError(f"{method_name}() missing required argument: 'target'")
+        resolved = source or _detect_source(target)
+        ns = _normalise_namespace(namespace)
+        return target, resolved, ns
+
     # ------------------------------------------------------------------ #
     #  Private dispatch methods                                           #
     # ------------------------------------------------------------------ #
@@ -213,6 +228,11 @@ class RegistrationMixin:
         method_name: str | None = None,
     ):
         """Register a single function or ``Tool`` instance."""
+        if namespace is True:
+            raise ValueError(
+                "namespace=True is not supported for native function "
+                "registration; pass a string namespace instead."
+            )
         ns_str: str | None = namespace if isinstance(namespace, str) else None
         if ns_str:
             self._sub_registries.add(normalize_tool_name(ns_str))
@@ -317,8 +337,7 @@ class RegistrationMixin:
         openapi_spec = kwargs.pop("openapi_spec", None)
         if openapi_spec is None:
             raise TypeError(
-                "register() with source='openapi' requires an "
-                "openapi_spec=... keyword argument."
+                "source='openapi' requires an openapi_spec=... keyword argument."
             )
         persistent = kwargs.pop("persistent", True)
         spec_url = kwargs.pop("spec_url", None)
@@ -334,8 +353,7 @@ class RegistrationMixin:
         openapi_spec = kwargs.pop("openapi_spec", None)
         if openapi_spec is None:
             raise TypeError(
-                "register_async() with source='openapi' requires an "
-                "openapi_spec=... keyword argument."
+                "source='openapi' requires an openapi_spec=... keyword argument."
             )
         persistent = kwargs.pop("persistent", True)
         spec_url = kwargs.pop("spec_url", None)
