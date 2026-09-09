@@ -101,32 +101,35 @@ class SessionCookie:
         """Create a signed session token.
 
         Returns:
-            A token string in the format ``timestamp.signature``.
+            A token string in the format ``timestamp.nonce.signature``.
         """
         ts = str(int(time.time()))
-        sig = self._sign(ts)
-        return f"{ts}.{sig}"
+        nonce = secrets.token_hex(4)
+        payload = f"{ts}.{nonce}"
+        sig = self._sign(payload)
+        return f"{payload}.{sig}"
 
     def verify(self, token: str) -> bool:
         """Verify a session token's signature and expiry.
 
         Args:
-            token: The ``timestamp.signature`` token string.
+            token: The ``timestamp.nonce.signature`` token string.
 
         Returns:
             True if the signature is valid and the token has not expired.
         """
-        parts = token.split(".", 1)
-        if len(parts) != 2:
+        parts = token.split(".", 2)
+        if len(parts) != 3:
             return False
-        ts_str, sig = parts
+        ts_str, _nonce, sig = parts
         try:
             ts = int(ts_str)
         except ValueError:
             return False
         if time.time() - ts > self.max_age:
             return False
-        expected = self._sign(ts_str)
+        payload = f"{ts_str}.{_nonce}"
+        expected = self._sign(payload)
         return secrets.compare_digest(sig, expected)
 
     def _sign(self, data: str) -> str:
