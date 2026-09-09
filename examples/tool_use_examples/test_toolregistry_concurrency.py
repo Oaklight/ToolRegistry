@@ -144,7 +144,7 @@ def main():
     from toolregistry.hub import BaseCalculator
 
     registry = ToolRegistry()
-    registry.register(BaseCalculator, source="class", namespace=True)
+    registry.register(BaseCalculator, namespace=True)
     # print(registry.list_tools())
     if FUNC:
         target_func_name = [name for name in registry.list_tools() if FUNC in name][0]

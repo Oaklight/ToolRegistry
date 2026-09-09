@@ -50,7 +50,8 @@ else:
 
 
 tool_registry.register(
-    websearch, source="class"
+    websearch,
+    source="class",  # source= needed: instance, not a type
 )  # Register the web search tool with the registry
 
 print(tool_registry.list_tools())

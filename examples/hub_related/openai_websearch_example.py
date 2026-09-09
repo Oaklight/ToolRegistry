@@ -41,8 +41,9 @@ else:
     websearch = WebSearchGoogle()  # Assuming there's a WebSearchGoogle class
 
 
+# source= needed: websearch is an instance, not a type
 tool_registry.register(websearch, source="class", namespace=True)
-tool_registry.register(UnitConverter, source="class", namespace=True)
+tool_registry.register(UnitConverter, namespace=True)
 
 print(tool_registry.list_tools())
 
