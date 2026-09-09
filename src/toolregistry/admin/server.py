@@ -89,6 +89,7 @@ class AdminServer:
         serve_ui: bool = True,
         remote: bool = False,
         auth_token: str | None = None,
+        session_secret: str | None = None,
         config: "ToolConfig | None" = None,
     ) -> None:
         """Initialize admin server.
@@ -103,6 +104,10 @@ class AdminServer:
             auth_token: Optional authentication token. If None and remote is True,
                 a random token is generated. If None and remote is False, no
                 authentication is required.
+            session_secret: Optional secret for signing session cookies.
+                When None, a random secret is generated per server instance
+                (sessions invalidated on restart).  Pass an explicit value
+                for session persistence across restarts.
             config: Optional ToolConfig for config-aware admin endpoints.
                 When provided, enables ``GET /api/config`` and
                 ``PUT /api/config`` endpoints for viewing and persisting
@@ -125,7 +130,7 @@ class AdminServer:
             self._auth = None
 
         self._session: SessionCookie | None = (
-            SessionCookie() if self._auth is not None else None
+            SessionCookie(secret=session_secret) if self._auth is not None else None
         )
 
         self._app: AdminApp | None = None

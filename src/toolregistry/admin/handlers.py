@@ -155,7 +155,14 @@ def _cors_preflight(request: Request) -> Response | None:
 
 
 def _auth_check(request: Request) -> Response | None:
-    """Check authentication via Bearer token or session cookie."""
+    """Check authentication via Bearer token or session cookie.
+
+    When an ``Authorization`` header is present, it **must** be a valid
+    Bearer token — a malformed or invalid header is always rejected even
+    if a valid session cookie is also present (explicit auth header
+    signals explicit intent).  Cookie fallback only applies when no
+    ``Authorization`` header is sent at all.
+    """
     app = _app(request)
     auth = app.auth
     if auth is None:
@@ -175,14 +182,14 @@ def _auth_check(request: Request) -> Response | None:
             resp = _error_response(401, "Unauthorized", "Invalid token")
             resp.headers["WWW-Authenticate"] = 'Bearer realm="admin"'
             return _add_cors(resp)
-        # Bearer OK — mark for session cookie in after_request
         setattr(request.state, "set_session_cookie", True)
         return None
 
-    # Fall back to session cookie
+    # Fall back to session cookie (sliding window — reissue on each use)
     if session is not None:
         cookie_val = request.cookies.get(session.cookie_name, "")
         if cookie_val and session.verify(cookie_val):
+            setattr(request.state, "set_session_cookie", True)
             return None
 
     resp = _error_response(401, "Unauthorized", "Missing credentials")
@@ -198,6 +205,8 @@ def _set_session_cookie(request: Request, response: Response) -> None:
     if session is None:
         return
     token = session.issue()
+    # Secure omitted — admin panel often runs on localhost (plain HTTP).
+    # Add secure=True when serving behind TLS.
     response.set_cookie(
         session.cookie_name,
         token,

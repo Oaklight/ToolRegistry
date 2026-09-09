@@ -5,7 +5,9 @@ using constant-time comparison to prevent timing attacks.
 """
 
 import hashlib
+import hmac
 import secrets
+import time
 
 
 class TokenAuth:
@@ -71,6 +73,14 @@ class SessionCookie:
     timestamp.  No server-side session store needed — verification
     re-computes the HMAC and checks expiry.
 
+    The signed payload is the timestamp only — tokens are not bound
+    to a specific client or IP.  This matches ``TokenAuth``'s
+    shared-secret model where any holder of the token has access.
+
+    A random secret is generated per server instance by default, so
+    all sessions are invalidated on restart.  Pass an explicit
+    *secret* for session persistence across restarts.
+
     Args:
         secret: Signing secret.  Defaults to a random 32-byte hex string.
         max_age: Session lifetime in seconds.  Default is 3600 (1 hour).
@@ -93,8 +103,6 @@ class SessionCookie:
         Returns:
             A token string in the format ``timestamp.signature``.
         """
-        import time
-
         ts = str(int(time.time()))
         sig = self._sign(ts)
         return f"{ts}.{sig}"
@@ -108,8 +116,6 @@ class SessionCookie:
         Returns:
             True if the signature is valid and the token has not expired.
         """
-        import time
-
         parts = token.split(".", 1)
         if len(parts) != 2:
             return False
@@ -125,8 +131,6 @@ class SessionCookie:
 
     def _sign(self, data: str) -> str:
         """Compute HMAC-SHA256 of *data* with the secret."""
-        import hmac
-
         return hmac.new(
             self._secret.encode(), data.encode(), hashlib.sha256
         ).hexdigest()
