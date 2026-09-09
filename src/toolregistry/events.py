@@ -88,6 +88,7 @@ class RefreshResult:
         updated: Names of tools whose schema or description changed.
         breaking: Subset of *updated* classified as breaking changes.
         compatible: Subset of *updated* classified as compatible changes.
+            Invariant: ``len(breaking) + len(compatible) == len(updated)``.
         unchanged: Count of tools that matched and required no update.
         skipped: ``True`` when the remote source reported no changes
             (e.g. HTTP 304 via ETag).

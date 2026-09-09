@@ -3,7 +3,7 @@ import threading
 from typing import Any
 
 from ...events import ChangeEvent, ChangeEventType, RefreshResult
-from ...schema_diff import SchemaChangeKind, classify_schema_change
+from ...schema_diff import SchemaChangeKind, classify_tool_change
 
 from ...tool import Tool, ToolMetadata
 from ...tool_registry import ToolRegistry
@@ -418,8 +418,11 @@ class OpenAPIIntegration:
                 existing.metadata.schema_hash != candidate.metadata.schema_hash
                 or existing.description != candidate.description
             ):
-                kind, summary = classify_schema_change(
-                    existing.parameters, candidate.parameters
+                kind, summary = classify_tool_change(
+                    existing.metadata.schema_hash,
+                    candidate.metadata.schema_hash,
+                    existing.parameters,
+                    candidate.parameters,
                 )
                 candidate.metadata.last_refreshed_at = now
                 self.registry._tools[name] = candidate
@@ -431,10 +434,9 @@ class OpenAPIIntegration:
                     )
                 )
                 updated.append(name)
-                if kind == SchemaChangeKind.BREAKING:
-                    breaking.append(name)
-                else:
-                    compatible.append(name)
+                (breaking if kind == SchemaChangeKind.BREAKING else compatible).append(
+                    name
+                )
             elif existing:
                 existing.metadata.last_refreshed_at = now
                 unchanged += 1

@@ -320,13 +320,24 @@ def normalize_tool_name(name: str) -> str:
 def compute_schema_hash(parameters: dict[str, Any]) -> str:
     """Compute a deterministic SHA-256 hex digest of a JSON Schema dict.
 
+    The ``toolcall_reason`` property (injected by ``Tool.__init__``) is
+    excluded so that toggling thought-augmented calling does not change
+    the hash.
+
     Args:
         parameters: The JSON Schema dict (typically ``Tool.parameters``).
 
     Returns:
         A 64-character lowercase hex string.
     """
-    canonical = json.dumps(parameters, sort_keys=True, separators=(",", ":"))
+    filtered = parameters
+    props = parameters.get("properties")
+    if isinstance(props, dict) and "toolcall_reason" in props:
+        filtered = {
+            **parameters,
+            "properties": {k: v for k, v in props.items() if k != "toolcall_reason"},
+        }
+    canonical = json.dumps(filtered, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 
