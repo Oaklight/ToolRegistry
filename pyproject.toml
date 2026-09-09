@@ -106,3 +106,6 @@ where = ["src"]
 [tool.setuptools.package-data]
 "toolregistry" = ["py.typed"]
 "toolregistry.admin" = ["*.html"]
+
+[tool.zerodep]
+vendor-dir = "src/toolregistry/_vendor"
