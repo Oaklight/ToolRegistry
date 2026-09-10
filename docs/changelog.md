@@ -16,9 +16,24 @@ hide:
 
 ## [未发布]
 
+## [0.17.0] - 2026-09-10
+
+### 新增
+
+- **统一 `register()` 入口**（#249）：所有 `register_from_*` 方法现已弃用，统一使用 `register()` / `register_async()` 方法。函数、类和 LangChain 工具支持自动检测来源类型；MCP 和 OpenAPI 需要显式指定 `source=`。旧方法仍然可用但会发出 `DeprecationWarning`。
+- **远程工具源刷新**（#248）：新增 `refresh_from_mcp()`、`refresh_from_openapi()` 和 `refresh_all()` 方法同步远程工具 schema。MCP 和 OpenAPI 集成支持 `start_polling(interval)` 后台轮询。OpenAPI 支持基于 ETag 的条件获取（HTTP 304）。
+- **Schema 指纹和新鲜度元数据**（#253）：`ToolMetadata` 新增 `schema_hash`（规范 JSON Schema 的 SHA-256）和 `last_refreshed_at`（ISO 8601 时间戳）。刷新使用哈希比较替代深度字典比较。`utils.py` 中新增 `compute_schema_hash()` 工具函数。
+- **刷新时的破坏性变更分类**（#254）：`classify_schema_change()` 将刷新差异分类为 `COMPATIBLE`、`BREAKING` 或 `UNKNOWN`。`RefreshResult` 新增 `breaking` 和 `compatible` 元组。`ChangeEvent.metadata` 在 `REFRESH` 事件中携带 `change_kind` 和 `diff_summary`。新增 `SchemaChangeKind` 枚举，从 `schema_diff` 模块导出。
+- **`HttpClientConfig` 的 Cookie 支持**（#259）：新增 `cookies` 参数，为底层 httpclient 的持久 cookie jar 提供种子值。Cookie 在持久客户端的请求间通过 `Set-Cookie` 响应头累积。支持 `ProcessPoolBackend` 的 pickle 序列化。
+- **管理面板 Cookie 会话认证**（#260）：`SessionCookie` 类使用 HMAC 签名的无状态令牌。Bearer 认证成功后设置会话 cookie；后续请求可通过 cookie 回退认证。每次认证请求滑动窗口刷新。`AdminServer` 接受 `session_secret` 参数以实现跨重启的持久会话。
+- **`google-interactions` API 格式**（#247）：通过 `llm-rosetta` `tool_ops` 迁移新增 Google interactions 风格的提供商格式。
+
 ### 变更
 
-- **统一 `register()` 入口**：所有 `register_from_*` 方法现已弃用，统一使用 `register()` / `register_async()` 方法。函数、类和 LangChain 工具支持自动检测来源类型；MCP 和 OpenAPI 需要显式指定 `source=`。旧方法仍然可用但会发出 `DeprecationWarning`。详见[迁移指南](migration.md#统一-register-入口-v0170)。
+- **移除 Pydantic 运行时依赖**（#244）：`Tool` 和 `ToolMetadata` 从 Pydantic `BaseModel` 转换为 `dataclasses`。参数验证使用内嵌的 `zerodep validate` 模块。减少安装体积。
+- **`llm-rosetta` `tool_ops` 迁移**（#247）：内部 schema 桥接从旧的 `to_openai`/`to_anthropic` 函数迁移到统一的 `tool_ops` API。
+- **`**kwargs` 的 `additionalProperties`**（#241）：带 `**kwargs` 的函数现在在 JSON Schema 中输出 `"additionalProperties": true`，正确告知 LLM 接受额外参数。
+- **内嵌模块更新**：`httpclient` 0.4.7 → 0.5.0（cookie jar 支持），`httpserver` 0.3.0 → 0.4.0（服务端 cookie 支持）。
 
 ## [0.16.0] - 2026-08-25
 
