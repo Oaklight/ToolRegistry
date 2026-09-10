@@ -16,9 +16,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-09-10
+
 ### Added
 
-- **Unified `register()` entry point**: All `register_from_*` methods (`register_from_class`, `register_from_mcp`, `register_from_openapi`, `register_from_langchain`) are now deprecated in favor of a single `register()` method with a `source=` hint for auto-detection. Async counterparts use `register_async()`. The old methods continue to work but emit `DeprecationWarning`.
+- **Unified `register()` entry point** (#249): All `register_from_*` methods are now deprecated in favor of a single `register()` / `register_async()` method with auto-detection. The old methods continue to work but emit `DeprecationWarning`.
+- **Remote tool source refresh** (#248): `refresh_from_mcp()`, `refresh_from_openapi()`, and `refresh_all()` methods to re-sync remote tool schemas. MCP and OpenAPI integrations support background polling via `start_polling(interval)`. OpenAPI supports ETag-based conditional fetch (HTTP 304).
+- **Schema fingerprint and staleness metadata** (#253): `ToolMetadata` gains `schema_hash` (SHA-256 of canonical JSON Schema) and `last_refreshed_at` (ISO 8601 timestamp). Refresh uses hash comparison instead of deep dict equality. `compute_schema_hash()` utility in `utils.py`.
+- **Breaking-change classification on refresh** (#254): `classify_schema_change()` classifies refresh diffs as `COMPATIBLE`, `BREAKING`, or `UNKNOWN`. `RefreshResult` gains `breaking` and `compatible` tuples. `ChangeEvent.metadata` carries `change_kind` and `diff_summary` for `REFRESH` events. New `SchemaChangeKind` enum exported from `schema_diff` module.
+- **Cookie support in `HttpClientConfig`** (#259): New `cookies` parameter seeds the vendored httpclient's persistent cookie jar. Cookies accumulate from `Set-Cookie` response headers across requests on persistent clients. Survives pickling for `ProcessPoolBackend`.
+- **Cookie-based admin session auth** (#260): `SessionCookie` class using HMAC-signed stateless tokens. Bearer auth sets a session cookie; subsequent requests authenticate via cookie fallback. Sliding window refresh on each authenticated request. `AdminServer` accepts `session_secret` for persistent sessions.
+- **`google-interactions` API format** (#247): New provider format for Google's interactions-based API style, via `llm-rosetta` `tool_ops` migration.
+
+### Changed
+
+- **Pydantic removed from runtime dependencies** (#244): `Tool` and `ToolMetadata` converted from Pydantic `BaseModel` to `dataclasses`. Parameter validation uses vendored `zerodep validate` module. Reduces install footprint.
+- **`llm-rosetta` `tool_ops` migration** (#247): Internal schema bridge migrated from legacy `to_openai`/`to_anthropic` functions to the unified `tool_ops` API.
+- **`additionalProperties` for `**kwargs`** (#241): Functions with `**kwargs` now emit `"additionalProperties": true` in their JSON Schema, correctly signaling to LLMs that extra parameters are accepted.
+- **Vendored module updates**: `httpclient` 0.4.7 → 0.5.0 (cookie jar support), `httpserver` 0.3.0 → 0.4.0 (server-side cookie support).
 
 ## [0.16.0] - 2026-08-25
 
