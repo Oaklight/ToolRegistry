@@ -19,6 +19,65 @@
 
 ---
 
+## 移除 Pydantic 运行时依赖（v0.17.0）
+
+`Tool` 和 `ToolMetadata` 已从 Pydantic `BaseModel` 转换为标准 `dataclasses`。`parameters_model` 现在是 `TypedDict` 类（来自 `zerodep validate`），不再是 Pydantic 模型。
+
+### 变更内容
+
+| 方面 | 之前（v0.16.0） | 之后（v0.17.0） |
+|------|-----------------|-----------------|
+| `Tool` 基类 | `pydantic.BaseModel` | `@dataclass` |
+| `ToolMetadata` 基类 | `pydantic.BaseModel` | `@dataclass` |
+| `Tool.parameters_model` | Pydantic `BaseModel` 子类 | `TypedDict` 类 |
+| 参数验证 | `model.model_validate(data)` | `zerodep validate` |
+| 序列化 | `model.model_dump()` | `dataclasses.asdict()` |
+
+### 对下游的影响
+
+**如果你只使用公开 API**（`register()`、`get_schemas()`、`execute_tool_calls()`），**无需任何更改**——这些 API 保持不变。
+
+**如果你直接访问 `parameters_model`**（例如在服务器适配器中做参数类型转换）：
+
+```python
+# 之前——Pydantic 类型转换
+if issubclass(tool.parameters_model, BaseModel):
+    model = tool.parameters_model(**arguments)
+    arguments = model.model_dump()
+
+# 之后——使用 JSON Schema 进行类型转换，或直接调用 TypedDict
+# tool.parameters_model 现在是 TypedDict 类
+# 类型转换应使用工具的 parameters JSON Schema：
+schema = tool.parameters  # JSON Schema dict
+for key, prop in schema.get("properties", {}).items():
+    if key in arguments and isinstance(arguments[key], str):
+        expected = prop.get("type")
+        if expected == "integer":
+            arguments[key] = int(arguments[key])
+        elif expected == "number":
+            arguments[key] = float(arguments[key])
+        elif expected == "boolean":
+            arguments[key] = arguments[key].lower() in ("true", "1", "yes")
+```
+
+**如果你使用 `model_dump()` / `model_copy()`**：
+
+这些方法作为向后兼容别名保留：
+- `metadata.model_dump()` → 调用 `dataclasses.asdict(self)`
+- `metadata.model_copy(update={...})` → 调用 `dataclasses.replace(self, **update)`
+
+无需更改。
+
+### `toolcall_reason` 注入
+
+v0.17.0 向所有工具参数 schema 中注入 `toolcall_reason` 属性（用于思维增强工具调用）。如果你的 handler 函数不接受 `**kwargs`，可能会因 `unexpected keyword argument 'toolcall_reason'` 而失败。解决方案：
+
+- 为 handler 函数添加 `**kwargs`
+- 在调用 handler 前过滤 `toolcall_reason`：
+  ```python
+  arguments.pop("toolcall_reason", None)
+  ```
+
 ## 0.12.x → 0.13.0
 
 ### 新增：程序化工具调用 (PTC)

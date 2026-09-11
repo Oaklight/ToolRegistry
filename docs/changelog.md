@@ -30,7 +30,7 @@ hide:
 
 ### 变更
 
-- **移除 Pydantic 运行时依赖**（#244）：`Tool` 和 `ToolMetadata` 从 Pydantic `BaseModel` 转换为 `dataclasses`。参数验证使用内嵌的 `zerodep validate` 模块。减少安装体积。
+- **移除 Pydantic 运行时依赖**（#244）（**破坏性变更**）：`Tool` 和 `ToolMetadata` 从 Pydantic `BaseModel` 转换为 `dataclasses`。`parameters_model` 现在是 `TypedDict` 类而非 Pydantic `BaseModel`。参数验证使用内嵌的 `zerodep validate` 模块。直接访问 `parameters_model` 的下游代码（如 `BaseModel.model_validate()`）需要迁移——参见[迁移指南](migration.md#移除-pydantic-运行时依赖v0170)。
 - **`llm-rosetta` `tool_ops` 迁移**（#247）：内部 schema 桥接从旧的 `to_openai`/`to_anthropic` 函数迁移到统一的 `tool_ops` API。
 - **`**kwargs` 的 `additionalProperties`**（#241）：带 `**kwargs` 的函数现在在 JSON Schema 中输出 `"additionalProperties": true`，正确告知 LLM 接受额外参数。
 - **内嵌模块更新**：`httpclient` 0.4.7 → 0.5.0（cookie jar 支持），`httpserver` 0.3.0 → 0.4.0（服务端 cookie 支持）。
