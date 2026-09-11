@@ -705,6 +705,13 @@ class Tool:
         )
         return await self.arun(parameters)
 
+    def with_refreshed_at(self: _ToolT, timestamp: str) -> _ToolT:
+        """Return a copy with ``last_refreshed_at`` updated."""
+        return dataclasses.replace(
+            self,
+            metadata=dataclasses.replace(self.metadata, last_refreshed_at=timestamp),
+        )
+
     def update_namespace(
         self: _ToolT,
         namespace: str | None,
