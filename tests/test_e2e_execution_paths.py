@@ -248,6 +248,8 @@ class TestMCPToolTimeout:
         with ToolRegistry() as reg:
             reg.register_from_mcp(_stdio_config(), persistent=True)
             reg.get_tool("slow_tool")  # ensure tool exists
+            # Use private helper — these metadata fields aren't in the
+            # public update_tool_metadata allowlist.
             reg._replace_tool_metadata("slow_tool", timeout=0.5)
 
             start = time.perf_counter()
@@ -264,6 +266,8 @@ class TestMCPToolTimeout:
         async with ToolRegistry() as reg:
             await reg.register_from_mcp_async(_stdio_config(), persistent=True)
             reg.get_tool("slow_tool")  # ensure tool exists
+            # Use private helper — these metadata fields aren't in the
+            # public update_tool_metadata allowlist.
             reg._replace_tool_metadata("slow_tool", timeout=0.5)
 
             start = time.perf_counter()
@@ -296,6 +300,8 @@ class TestMCPToolTimeout:
         with ToolRegistry() as reg:
             reg.register_from_mcp(_stdio_config(), persistent=True)
             reg.get_tool("slow_tool")  # ensure tool exists
+            # Use private helper — these metadata fields aren't in the
+            # public update_tool_metadata allowlist.
             reg._replace_tool_metadata("slow_tool", timeout=0.5)
 
             tcs = [_tc("c1", "slow_tool", '{"seconds": 5.0}')]
@@ -313,6 +319,8 @@ class TestMCPToolTimeout:
         async with ToolRegistry() as reg:
             await reg.register_from_mcp_async(_stdio_config(), persistent=True)
             reg.get_tool("slow_tool")  # ensure tool exists
+            # Use private helper — these metadata fields aren't in the
+            # public update_tool_metadata allowlist.
             reg._replace_tool_metadata("slow_tool", timeout=0.5)
 
             tcs = [_tc("c1", "slow_tool", '{"seconds": 5.0}')]

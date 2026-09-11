@@ -546,6 +546,8 @@ class TestAdminServerEnrichedAPI:
         registry.register(search, namespace="web")
 
         # Set metadata on tools
+        # Use private helper — these metadata fields aren't in the
+        # public update_tool_metadata allowlist.
         registry._replace_tool_metadata(
             "math-add",
             tags={ToolTag.READ_ONLY},
@@ -554,6 +556,8 @@ class TestAdminServerEnrichedAPI:
             think_augment=True,
         )
 
+        # Use private helper — these metadata fields aren't in the
+        # public update_tool_metadata allowlist.
         registry._replace_tool_metadata(
             "web-search",
             tags={ToolTag.NETWORK, ToolTag.SLOW},

@@ -47,6 +47,12 @@ but uses a unique field name to avoid collisions with native tool parameters.
 class ToolMetadata:
     """Behavioral and classification metadata for a Tool.
 
+    Note:
+        Frozen semantics are shallow — field reassignment is prevented
+        but mutable containers (``tags`` set, ``custom_tags`` set,
+        ``extra`` dict) can still be modified in place.  Mutation
+        should only occur during ``__post_init__``.
+
     Attributes:
         is_async: Whether the tool requires async execution.
         is_concurrency_safe: Whether the tool can be run concurrently.
@@ -192,6 +198,11 @@ class ToolMetadata:
         return dataclasses.replace(self, **(update or {}))
 
 
+# Override frozen=True auto-generated __hash__ to keep ToolMetadata
+# explicitly unhashable, consistent with pre-frozen behavior.
+ToolMetadata.__hash__ = None  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
+
+
 @dataclass(frozen=True, init=False)
 class Tool:
     """Base class representing an executable tool/function.
@@ -201,6 +212,12 @@ class Tool:
         - Parameter validation
         - Synchronous/asynchronous execution
         - JSON schema generation
+
+    Note:
+        Frozen semantics are shallow — field reassignment is prevented
+        but mutable containers (``parameters`` dict, ``metadata.tags``
+        set) can still be modified in place.  Mutation should only occur
+        during ``__init__``.
     """
 
     name: str
@@ -279,6 +296,9 @@ class Tool:
         method_name: str | None = None,
         is_async: bool | None = None,
     ) -> None:
+        # NOTE: dataclasses.replace() re-runs __init__ on every copy.
+        # _inject_toolcall_reason and schema_hash computation are
+        # idempotent, so this is safe but does redundant work.
         if metadata is None:
             metadata = (
                 ToolMetadata(is_async=is_async)
@@ -310,6 +330,9 @@ class Tool:
         The ``toolcall_reason`` field is only added when ``parameters``
         already contains a ``properties`` mapping.
         """
+        # Called during __init__ only. Dict mutations (adding keys to
+        # self.parameters) are safe here because no external reference
+        # exists yet — frozen protects field reassignment, not dict contents.
         had_properties = isinstance(self.parameters.get("properties"), dict)
         if self.parameters.get("type") != "object":
             object.__setattr__(self, "parameters", {"type": "object", "properties": {}})
@@ -700,6 +723,11 @@ class Tool:
         original name is preserved.  If no namespace prefix exists, the
         new *namespace* is prepended.
 
+        Note:
+            When ``force=False`` and the name already contains a
+            namespace prefix, the ``namespace`` field is updated to
+            the new value but ``name`` is preserved unchanged.
+
         Args:
             namespace: The new namespace to apply to the tool's name.
             force: If ``True``, forces the replacement of an existing
@@ -752,3 +780,8 @@ class Tool:
             namespace=namespace,
             method_name=new_method_name,
         )
+
+
+# Override frozen=True auto-generated __hash__ to keep Tool
+# explicitly unhashable, consistent with pre-frozen behavior.
+Tool.__hash__ = None  # type: ignore[assignment]  # ty: ignore[invalid-assignment]

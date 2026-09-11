@@ -11,8 +11,6 @@ The search backend is a vendored copy of *zerodep*'s ``SparseIndex``
 
 from __future__ import annotations
 
-import dataclasses
-
 import re
 from typing import TYPE_CHECKING, Any
 
@@ -161,30 +159,28 @@ class ToolDiscoveryTool:
                     _BASE_DISCOVERY_DESCRIPTION + "\n\nTools available on demand "
                     "(call discover_tools for full schema):\n" + tool_list_str
                 )
-                self._registry._tools[TOOL_DISCOVERY_NAME] = dataclasses.replace(
-                    discovery_tool, description=new_desc
-                )
+                self._registry._replace_tool(TOOL_DISCOVERY_NAME, description=new_desc)
             if call_deferred_tool is not None:
                 new_desc = (
                     BASE_CALL_DEFERRED_DESCRIPTION
                     + "\n\nCurrently deferred:\n"
                     + tool_list_str
                 )
-                self._registry._tools[TOOL_CALL_DEFERRED_NAME] = dataclasses.replace(
-                    call_deferred_tool, description=new_desc
+                self._registry._replace_tool(
+                    TOOL_CALL_DEFERRED_NAME, description=new_desc
                 )
         else:
             if discovery_tool is not None:
-                self._registry._tools[TOOL_DISCOVERY_NAME] = dataclasses.replace(
-                    discovery_tool, description=_BASE_DISCOVERY_DESCRIPTION
+                self._registry._replace_tool(
+                    TOOL_DISCOVERY_NAME, description=_BASE_DISCOVERY_DESCRIPTION
                 )
             if call_deferred_tool is not None:
                 new_desc = (
                     BASE_CALL_DEFERRED_DESCRIPTION
                     + " No deferred tools currently available."
                 )
-                self._registry._tools[TOOL_CALL_DEFERRED_NAME] = dataclasses.replace(
-                    call_deferred_tool, description=new_desc
+                self._registry._replace_tool(
+                    TOOL_CALL_DEFERRED_NAME, description=new_desc
                 )
 
     def discover(

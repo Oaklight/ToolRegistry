@@ -304,6 +304,10 @@ class RegistrationMixin:
         Returns:
             The newly created ``Tool`` instance.
         """
+        assert "name" not in updates, (
+            "_replace_tool cannot change 'name'; it would create a "
+            "key/value mismatch in _tools"
+        )
         old = self._tools[name]
         new_tool = dataclasses.replace(old, **updates)
         self._tools[name] = new_tool
