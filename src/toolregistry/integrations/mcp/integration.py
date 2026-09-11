@@ -1,4 +1,3 @@
-import dataclasses
 import threading
 from collections.abc import Callable
 from pathlib import Path
@@ -435,12 +434,7 @@ class MCPIntegration:
                     existing.parameters,
                     candidate.parameters,
                 )
-                candidate = dataclasses.replace(
-                    candidate,
-                    metadata=dataclasses.replace(
-                        candidate.metadata, last_refreshed_at=now
-                    ),
-                )
+                candidate = candidate.with_refreshed_at(now)
                 self.registry._tools[name] = candidate
                 self.registry._emit_change(
                     ChangeEvent(
