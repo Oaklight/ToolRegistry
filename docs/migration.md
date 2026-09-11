@@ -48,19 +48,14 @@ if issubclass(tool.parameters_model, BaseModel):
     model = tool.parameters_model(**arguments)
     arguments = model.model_dump()
 
-# After — use JSON Schema for coercion, or call the TypedDict directly
-# tool.parameters_model is now a TypedDict class
-# For type coercion, use the tool's parameters JSON Schema:
-schema = tool.parameters  # JSON Schema dict
-for key, prop in schema.get("properties", {}).items():
-    if key in arguments and isinstance(arguments[key], str):
-        expected = prop.get("type")
-        if expected == "integer":
-            arguments[key] = int(arguments[key])
-        elif expected == "number":
-            arguments[key] = float(arguments[key])
-        elif expected == "boolean":
-            arguments[key] = arguments[key].lower() in ("true", "1", "yes")
+# After — use Tool._validate_parameters() (recommended)
+# It calls validate(params, model, coerce=True) internally,
+# handling int/float/bool/list/dict coercion automatically.
+validated = tool._validate_parameters(arguments)
+
+# Or use the vendored validate module directly:
+from toolregistry._vendor.validate import validate
+validated = validate(arguments, tool.parameters_model, coerce=True)
 ```
 
 **If you use `model_dump()` / `model_copy()` on `ToolMetadata`:**
