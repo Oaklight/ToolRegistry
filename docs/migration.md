@@ -45,19 +45,14 @@ if issubclass(tool.parameters_model, BaseModel):
     model = tool.parameters_model(**arguments)
     arguments = model.model_dump()
 
-# 之后——使用 JSON Schema 进行类型转换，或直接调用 TypedDict
-# tool.parameters_model 现在是 TypedDict 类
-# 类型转换应使用工具的 parameters JSON Schema：
-schema = tool.parameters  # JSON Schema dict
-for key, prop in schema.get("properties", {}).items():
-    if key in arguments and isinstance(arguments[key], str):
-        expected = prop.get("type")
-        if expected == "integer":
-            arguments[key] = int(arguments[key])
-        elif expected == "number":
-            arguments[key] = float(arguments[key])
-        elif expected == "boolean":
-            arguments[key] = arguments[key].lower() in ("true", "1", "yes")
+# 之后——使用 Tool._validate_parameters()（推荐）
+# 内部调用 validate(params, model, coerce=True)，
+# 自动处理 int/float/bool/list/dict 类型转换。
+validated = tool._validate_parameters(arguments)
+
+# 或直接使用内嵌的 validate 模块：
+from toolregistry._vendor.validate import validate
+validated = validate(arguments, tool.parameters_model, coerce=True)
 ```
 
 **如果你使用 `model_dump()` / `model_copy()`**：
