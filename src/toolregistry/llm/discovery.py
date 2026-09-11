@@ -32,12 +32,21 @@ _DEFAULT_FIELD_WEIGHTS: dict[str, float] = {
 _SPLIT_RE = re.compile(r"[_\-]+")
 
 TOOL_DISCOVERY_NAME = "discover_tools"
+TOOL_CALL_DEFERRED_NAME = "call_deferred"
+
+_INFRASTRUCTURE_TOOLS = frozenset({TOOL_DISCOVERY_NAME, TOOL_CALL_DEFERRED_NAME})
 
 _BASE_DISCOVERY_DESCRIPTION = (
     "Discover registered tools by exact name or natural language query. "
     "Use this to inspect a specific tool by name (returns full schema) or "
     "to search for relevant tools when you need a capability not visible in "
     "your current tool list."
+)
+
+_BASE_CALL_DEFERRED_DESCRIPTION = (
+    "Call a deferred tool by name. Use this after discover_tools returns "
+    "a deferred tool's schema — pass the tool name and its parameters as "
+    "keyword arguments."
 )
 
 
@@ -114,8 +123,7 @@ class ToolDiscoveryTool:
         self._index = SparseIndex(field_weights=self._field_weights)
 
         for name, tool in self._registry._tools.items():
-            # Skip the discovery tool itself to avoid circular results
-            if name == TOOL_DISCOVERY_NAME:
+            if name in _INFRASTRUCTURE_TOOLS:
                 continue
             fields = _tool_to_fields(tool)
             metadata: dict[str, Any] = {
@@ -184,7 +192,7 @@ class ToolDiscoveryTool:
         """
         # 1. Exact match: return full schema immediately
         tool = self._registry.get_tool(query)
-        if tool is not None and query != TOOL_DISCOVERY_NAME:
+        if tool is not None and query not in _INFRASTRUCTURE_TOOLS:
             is_deferred = tool.metadata.defer if tool.metadata else False
             return [
                 {
@@ -214,3 +222,40 @@ class ToolDiscoveryTool:
                 entry["schema"] = tool.get_schema(api_format)
             out.append(entry)
         return out
+
+    def call_deferred(self, tool_name: str, **kwargs: Any) -> Any:
+        """Call a deferred tool by name with the given arguments.
+
+        Intended as a proxy for MCP clients that cannot dynamically
+        register tools discovered via :meth:`discover`.  The LLM
+        discovers a deferred tool's schema, then invokes this method
+        with the tool name and its parameters as keyword arguments.
+
+        Delegates to :meth:`ToolRegistry.invoke` which runs the full
+        pipeline (permissions, execution backend, logging).
+
+        Args:
+            tool_name: Registered name of the deferred tool to call.
+            **kwargs: Parameters forwarded to the target tool.
+
+        Returns:
+            The tool's result on success, or an error message string
+            on failure.
+        """
+        from .tool_calls import ErrorResult
+
+        target = self._registry.get_tool(tool_name)
+        if target is None:
+            return f"Error: tool '{tool_name}' not found in registry."
+
+        is_deferred = target.metadata.defer if target.metadata else False
+        if not is_deferred:
+            return (
+                f"Error: '{tool_name}' is not a deferred tool — "
+                f"call it directly instead of using call_deferred."
+            )
+
+        result = self._registry.invoke(tool_name, kwargs)
+        if isinstance(result, ErrorResult):
+            return result.message
+        return result.result

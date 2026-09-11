@@ -600,3 +600,130 @@ class TestGetDeferredSummaries:
 
         registry.register(normal)
         assert registry.get_deferred_summaries() == []
+
+
+# -- tests: call_deferred ----------------------------------------------------
+
+
+class TestCallDeferred:
+    """Test cases for ToolDiscoveryTool.call_deferred()."""
+
+    def test_call_deferred_success(self):
+        """Calling a deferred tool should execute it and return the result."""
+        registry = ToolRegistry()
+
+        def secret_add(a: int, b: int) -> int:
+            """Add two numbers (deferred)."""
+            return a + b
+
+        registry.register(
+            Tool.from_function(secret_add, metadata=ToolMetadata(defer=True))
+        )
+        registry.enable_tool_discovery()
+
+        discoverer = registry._tool_discovery
+        assert discoverer is not None
+        result = discoverer.call_deferred("secret_add", a=3, b=4)
+        assert result == "7"
+
+    def test_call_deferred_nonexistent_tool(self):
+        """Calling a non-existent tool should return an error message."""
+        registry = ToolRegistry()
+        registry.enable_tool_discovery()
+
+        discoverer = registry._tool_discovery
+        assert discoverer is not None
+        result = discoverer.call_deferred("no_such_tool")
+        assert "not found" in result
+
+    def test_call_deferred_non_deferred_tool(self):
+        """Calling a non-deferred tool should return an error message."""
+        registry = ToolRegistry()
+
+        def normal_tool(x: int) -> int:
+            """A normal tool."""
+            return x
+
+        registry.register(normal_tool)
+        registry.enable_tool_discovery()
+
+        discoverer = registry._tool_discovery
+        assert discoverer is not None
+        result = discoverer.call_deferred("normal_tool", x=5)
+        assert "not a deferred tool" in result
+        assert "call it directly" in result
+
+    def test_call_deferred_with_validation_error(self):
+        """Bad parameters should propagate an error via invoke()."""
+        registry = ToolRegistry()
+
+        def typed_tool(x: int) -> int:
+            """Typed deferred tool."""
+            return x
+
+        registry.register(
+            Tool.from_function(typed_tool, metadata=ToolMetadata(defer=True))
+        )
+        registry.enable_tool_discovery()
+
+        discoverer = registry._tool_discovery
+        assert discoverer is not None
+        result = discoverer.call_deferred("typed_tool", x="not_an_int")
+        # coerce should handle "not_an_int" → error since it can't become int
+        assert isinstance(result, str)
+        assert "Error" in result or "error" in result
+
+    def test_call_deferred_registered_on_enable(self):
+        """enable_tool_discovery() should register call_deferred in schemas."""
+        registry = ToolRegistry()
+        registry.enable_tool_discovery()
+
+        schemas = registry.get_schemas()
+        names = [s["function"]["name"] for s in schemas]
+        assert "call_deferred" in names
+
+    def test_call_deferred_removed_on_disable(self):
+        """disable_tool_discovery() should remove call_deferred."""
+        registry = ToolRegistry()
+        registry.enable_tool_discovery()
+        registry.disable_tool_discovery()
+
+        schemas = registry.get_schemas()
+        names = [s["function"]["name"] for s in schemas]
+        assert "call_deferred" not in names
+        assert "discover_tools" not in names
+
+    def test_call_deferred_not_deferred_itself(self):
+        """call_deferred should not be deferred — it must be in initial schema."""
+        registry = ToolRegistry()
+        registry.enable_tool_discovery()
+
+        schemas = registry.get_schemas(include_deferred=False)
+        names = [s["function"]["name"] for s in schemas]
+        assert "call_deferred" in names
+
+    def test_call_deferred_has_additional_properties(self):
+        """call_deferred schema should have additionalProperties: true."""
+        registry = ToolRegistry()
+        registry.enable_tool_discovery()
+
+        tool = registry.get_tool("call_deferred")
+        assert tool is not None
+        assert tool.parameters.get("additionalProperties") is True
+
+    def test_call_deferred_not_in_discovery_results(self):
+        """call_deferred should not appear in discover_tools results."""
+        registry = ToolRegistry()
+
+        def add(a: int, b: int) -> int:
+            """Add numbers."""
+            return a + b
+
+        registry.register(add)
+        registry.enable_tool_discovery()
+
+        discoverer = registry._tool_discovery
+        assert discoverer is not None
+        results = discoverer.discover("call deferred")
+        result_names = [r["name"] for r in results]
+        assert "call_deferred" not in result_names
