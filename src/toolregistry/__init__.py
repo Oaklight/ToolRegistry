@@ -28,7 +28,7 @@ from .permissions import (
     PermissionResult,
     PermissionRule,
 )
-from .llm.discovery import ToolDiscoveryTool
+from .llm.discovery import TOOL_CALL_DEFERRED_NAME, ToolDiscoveryTool
 from .llm.tool_calls import ErrorResult, ResultList, ToolCallResult
 from .tool import Tool, ToolMetadata, ToolTag
 from .tool_registry import ToolRegistry
@@ -61,6 +61,7 @@ __all__ = [
     "Tool",
     "ToolMetadata",
     "ToolRegistry",
+    "TOOL_CALL_DEFERRED_NAME",
     "ToolDiscoveryTool",
     "ToolTag",
     "SchemaChangeKind",

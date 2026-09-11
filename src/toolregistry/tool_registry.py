@@ -32,7 +32,10 @@ from .llm.tool_calls import (
 
 from .events import ChangeCallback, ChangeEvent, ChangeEventType
 from .llm.discovery import (
+    TOOL_CALL_DEFERRED_NAME,
     TOOL_DISCOVERY_NAME,
+    _BASE_CALL_DEFERRED_DESCRIPTION,
+    _INFRASTRUCTURE_TOOLS,
     ToolDiscoveryTool,
     _BASE_DISCOVERY_DESCRIPTION,
 )
@@ -293,26 +296,33 @@ class ToolRegistry(
             metadata=ToolMetadata(defer=False),
         )
         self.register(discovery_tool)
+
+        call_deferred_tool = Tool.from_function(
+            discoverer.call_deferred,
+            name=TOOL_CALL_DEFERRED_NAME,
+            description=_BASE_CALL_DEFERRED_DESCRIPTION,
+            metadata=ToolMetadata(defer=False),
+        )
+        self.register(call_deferred_tool)
+
         # Sync description now that discover_tools is registered and deferred
         # tools are known.
         discoverer._sync_description()
 
         def _on_registry_change(event: ChangeEvent) -> None:
+            if event.tool_name in _INFRASTRUCTURE_TOOLS:
+                return
             if event.event_type in {
                 ChangeEventType.REGISTER,
                 ChangeEventType.UNREGISTER,
             }:
-                if event.tool_name != TOOL_DISCOVERY_NAME:
-                    discoverer.rebuild_index()
+                discoverer.rebuild_index()
             elif event.event_type in {
                 ChangeEventType.ENABLE,
                 ChangeEventType.DISABLE,
                 ChangeEventType.METADATA_UPDATE,
             }:
-                if event.tool_name != TOOL_DISCOVERY_NAME:
-                    # Cheap sync — no full index rebuild needed, just update
-                    # the discover_tools description to reflect current state.
-                    discoverer._sync_description()
+                discoverer._sync_description()
 
         self.on_change(_on_registry_change)
 
@@ -325,8 +335,9 @@ class ToolRegistry(
         if self._tool_discovery is None:
             return
 
-        # Remove the discovery tool from registry
+        # Remove infrastructure tools from registry
         self._tools.pop(TOOL_DISCOVERY_NAME, None)
+        self._tools.pop(TOOL_CALL_DEFERRED_NAME, None)
 
         # Remove the change callback
         if self._tool_discovery_callback is not None:
