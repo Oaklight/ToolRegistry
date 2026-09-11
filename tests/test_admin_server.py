@@ -546,18 +546,22 @@ class TestAdminServerEnrichedAPI:
         registry.register(search, namespace="web")
 
         # Set metadata on tools
-        tool_add = registry.get_tool("math-add")
-        tool_add.metadata.tags = {ToolTag.READ_ONLY}
-        tool_add.metadata.locality = "local"
-        tool_add.metadata.timeout = 30.0
-        tool_add.metadata.think_augment = True
+        registry._replace_tool_metadata(
+            "math-add",
+            tags={ToolTag.READ_ONLY},
+            locality="local",
+            timeout=30.0,
+            think_augment=True,
+        )
 
-        tool_search = registry.get_tool("web-search")
-        tool_search.metadata.tags = {ToolTag.NETWORK, ToolTag.SLOW}
-        tool_search.metadata.custom_tags = {"external"}
-        tool_search.metadata.locality = "remote"
-        tool_search.metadata.defer = True
-        tool_search.metadata.search_hint = "web query"
+        registry._replace_tool_metadata(
+            "web-search",
+            tags={ToolTag.NETWORK, ToolTag.SLOW},
+            custom_tags={"external"},
+            locality="remote",
+            defer=True,
+            search_hint="web query",
+        )
 
         server = AdminServer(registry, port=18092)
         info = server.start()
@@ -850,7 +854,9 @@ class TestAdminServerMetadataUpdate:
         assert data["success"] is True
         assert data["updated"] == {"think_augment": True}
 
-        # Verify the metadata was actually updated
+        # Verify the metadata was actually updated (re-fetch; frozen tools
+        # are replaced in the registry, so the old reference is stale)
+        tool = registry.get_tool("math-add")
         assert tool.metadata.think_augment is True
 
     def test_update_tool_defer(self, server_with_tools) -> None:
@@ -867,6 +873,7 @@ class TestAdminServerMetadataUpdate:
         )
         assert status == 200
         assert data["success"] is True
+        tool = registry.get_tool("greet")
         assert tool.metadata.defer is True
 
     def test_update_tool_invalid_field(self, server_with_tools) -> None:
@@ -921,7 +928,9 @@ class TestAdminServerMetadataUpdate:
         assert data["success"] is True
         assert data["tools_updated"] == 2
 
-        # Both tools should be updated
+        # Both tools should be updated (re-fetch; frozen replacement)
+        tool_add = registry.get_tool("math-add")
+        tool_mul = registry.get_tool("math-multiply")
         assert tool_add.metadata.think_augment is True
         assert tool_mul.metadata.think_augment is True
 
