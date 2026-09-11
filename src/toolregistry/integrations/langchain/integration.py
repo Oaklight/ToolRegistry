@@ -123,7 +123,7 @@ class LangChainTool(Tool):
         )
 
         if namespace:
-            tool_instance.update_namespace(namespace)
+            tool_instance = tool_instance.update_namespace(namespace)
 
         return tool_instance
 

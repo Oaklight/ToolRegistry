@@ -114,7 +114,10 @@ class TestToolRegistry:
 
         expected_name = f"{namespace}-{original_name}"
         assert expected_name in sample_registry
-        assert sample_tool.name == expected_name
+        # Tool is frozen; the registry stores the namespaced copy,
+        # but the original reference is unchanged.
+        registered = sample_registry.get_tool(expected_name)
+        assert registered.name == expected_name
 
     def test_list_tools(self, populated_registry):
         """Test listing all tools."""

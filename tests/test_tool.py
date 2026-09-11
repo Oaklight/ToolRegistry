@@ -3,6 +3,7 @@
 import asyncio
 import inspect
 
+import dataclasses
 import pytest
 
 from toolregistry.tool import Tool, ToolMetadata, ToolTag
@@ -266,47 +267,48 @@ class TestTool:
         original_name = sample_tool.name
         namespace = "math"
 
-        sample_tool.update_namespace(namespace)
+        updated = sample_tool.update_namespace(namespace)
 
-        assert sample_tool.name == f"{namespace}-{original_name}"
+        assert updated.name == f"{namespace}-{original_name}"
 
     def test_update_namespace_preserves_existing_namespace_without_force(
         self, sample_tool
     ):
         """Test that existing namespace is preserved when force=False."""
-        sample_tool.name = "existing-tool_name"
-        original_name = sample_tool.name
+        tool = dataclasses.replace(sample_tool, name="existing-tool_name")
+        original_name = tool.name
 
-        sample_tool.update_namespace("new_namespace", force=False)
+        updated = tool.update_namespace("new_namespace", force=False)
 
-        assert sample_tool.name == original_name
+        assert updated.name == original_name
 
     def test_update_namespace_replaces_existing_namespace_with_force(self, sample_tool):
         """Test that existing namespace is replaced when force=True."""
-        sample_tool.name = "existing-tool_name"
+        tool = dataclasses.replace(sample_tool, name="existing-tool_name")
         new_namespace = "new_namespace"
 
-        sample_tool.update_namespace(new_namespace, force=True)
+        updated = tool.update_namespace(new_namespace, force=True)
 
-        assert sample_tool.name == f"{new_namespace}-tool_name"
+        assert updated.name == f"{new_namespace}-tool_name"
 
     def test_update_namespace_with_dot_separator(self, sample_tool):
         """Test namespace update with dot separator."""
         original_name = sample_tool.name
         namespace = "math"
 
-        sample_tool.update_namespace(namespace, sep=".")
+        updated = sample_tool.update_namespace(namespace, sep=".")
 
-        assert sample_tool.name == f"{namespace}.{original_name}"
+        assert updated.name == f"{namespace}.{original_name}"
 
     def test_update_namespace_with_empty_namespace_does_nothing(self, sample_tool):
         """Test that empty namespace does nothing."""
         original_name = sample_tool.name
 
-        sample_tool.update_namespace("")
-        sample_tool.update_namespace(None)
+        updated = sample_tool.update_namespace("")
+        assert updated.name == original_name
 
-        assert sample_tool.name == original_name
+        updated = sample_tool.update_namespace(None)
+        assert updated.name == original_name
 
     def test_tool_with_function_without_docstring(self):
         """Test creating tool from function without docstring."""
@@ -602,3 +604,72 @@ class TestToolMetadataFields:
         tool = Tool.from_function(sample_function)
 
         assert tool.qualified_name == "add_numbers"
+
+
+class TestFrozenDataclasses:
+    """Test that Tool and ToolMetadata are frozen (immutable) dataclasses."""
+
+    def test_tool_is_frozen(self):
+        """Assigning to a Tool field after construction raises FrozenInstanceError."""
+
+        def sample(a: int) -> int:
+            return a
+
+        tool = Tool.from_function(sample, name="sample")
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            tool.name = "other"  # type: ignore[misc]
+
+    def test_tool_metadata_is_frozen(self):
+        """Assigning to a ToolMetadata field after construction raises FrozenInstanceError."""
+        meta = ToolMetadata()
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            meta.timeout = 5.0  # type: ignore[misc]
+
+    def test_tool_metadata_replace(self):
+        """dataclasses.replace() produces a new ToolMetadata with updated fields."""
+        meta = ToolMetadata(timeout=1.0)
+        new_meta = dataclasses.replace(meta, timeout=2.0)
+        assert meta.timeout == 1.0
+        assert new_meta.timeout == 2.0
+
+    def test_tool_replace(self):
+        """dataclasses.replace() produces a new Tool with updated fields."""
+
+        def sample(a: int) -> int:
+            return a
+
+        tool = Tool.from_function(sample, name="sample")
+        new_tool = dataclasses.replace(tool, description="updated")
+        assert tool.description != "updated"
+        assert new_tool.description == "updated"
+
+    def test_update_namespace_returns_new_tool(self):
+        """update_namespace returns a new Tool instead of mutating in place."""
+
+        def sample(a: int) -> int:
+            return a
+
+        original = Tool.from_function(sample, name="sample")
+        updated = original.update_namespace("ns")
+        assert updated is not original
+        assert updated.name == "ns-sample"
+        assert original.name == "sample"
+
+    def test_validate_parameters_public(self):
+        """validate_parameters is accessible as a public method."""
+
+        def sample(a: int, b: int) -> int:
+            return a + b
+
+        tool = Tool.from_function(sample, name="sample")
+        result = tool.validate_parameters({"a": 1, "b": 2})
+        assert result == {"a": 1, "b": 2}
+
+    def test_validate_parameters_backward_compat(self):
+        """_validate_parameters still works as a backward-compat alias."""
+
+        def sample(a: int) -> int:
+            return a
+
+        tool = Tool.from_function(sample, name="sample")
+        assert tool._validate_parameters({"a": 1}) == {"a": 1}

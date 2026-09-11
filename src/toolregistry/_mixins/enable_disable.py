@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 from typing import TYPE_CHECKING, Literal
 
 from ..events import ChangeEvent, ChangeEventType
@@ -158,8 +160,8 @@ class EnableDisableMixin:
                     f"Field '{key}' is not allowed. "
                     f"Allowed fields: {sorted(self._MUTABLE_METADATA_FIELDS)}"
                 )
-        for key, value in kwargs.items():
-            setattr(tool.metadata, key, value)
+        new_meta = dataclasses.replace(tool.metadata, **kwargs)
+        self._tools[tool_name] = dataclasses.replace(tool, metadata=new_meta)
         self._emit_change(
             ChangeEvent(
                 event_type=ChangeEventType.METADATA_UPDATE,
@@ -191,8 +193,8 @@ class EnableDisableMixin:
                     f"Allowed fields: {sorted(self._MUTABLE_METADATA_FIELDS)}"
                 )
         for tool in tools:
-            for key, value in kwargs.items():
-                setattr(tool.metadata, key, value)
+            new_meta = dataclasses.replace(tool.metadata, **kwargs)
+            self._tools[tool.name] = dataclasses.replace(tool, metadata=new_meta)
             self._emit_change(
                 ChangeEvent(
                     event_type=ChangeEventType.METADATA_UPDATE,

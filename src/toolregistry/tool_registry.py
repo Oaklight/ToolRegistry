@@ -1890,10 +1890,13 @@ class ToolRegistry(
             else:
                 hint = getattr(override, "search_hint", "")
                 defer = getattr(override, "defer", None)
+            meta_updates: dict[str, object] = {}
             if hint:
-                tool.metadata.search_hint = hint
+                meta_updates["search_hint"] = hint
             if defer is not None:
-                tool.metadata.defer = defer
+                meta_updates["defer"] = defer
+            if meta_updates:
+                self._replace_tool_metadata(tool.name, **meta_updates)
 
     def get_schemas(
         self,

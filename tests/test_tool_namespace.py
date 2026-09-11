@@ -101,7 +101,7 @@ class TestUpdateNamespace:
 
     def test_update_sets_namespace_field(self):
         tool = Tool.from_function(dummy_add)
-        tool.update_namespace("math")
+        tool = tool.update_namespace("math")
         assert tool.namespace == "math"
         assert tool.method_name == "dummy_add"
         assert tool.name == "math-dummy_add"
@@ -109,13 +109,13 @@ class TestUpdateNamespace:
     def test_update_force_replaces_namespace(self):
         tool = Tool.from_function(dummy_add, namespace="old")
         assert tool.namespace == "old"
-        tool.update_namespace("new", force=True)
+        tool = tool.update_namespace("new", force=True)
         assert tool.namespace == "new"
         assert tool.name == "new-dummy_add"
 
     def test_update_no_force_keeps_existing(self):
         tool = Tool.from_function(dummy_add, namespace="old")
-        tool.update_namespace("new", force=False)
+        tool = tool.update_namespace("new", force=False)
         # namespace field is updated, but name is NOT changed
         assert tool.namespace == "new"
         assert tool.name == "old-dummy_add"
@@ -129,7 +129,7 @@ class TestUpdateNamespace:
             callable=dummy_add,
         )
         assert tool.method_name is None
-        tool.update_namespace("new_ns", force=True)
+        tool = tool.update_namespace("new_ns", force=True)
         assert tool.method_name == "some_func"
         assert tool.namespace == "new_ns"
 
@@ -141,7 +141,7 @@ class TestUpdateNamespace:
             parameters={},
             callable=dummy_add,
         )
-        tool.update_namespace("ns")
+        tool = tool.update_namespace("ns")
         assert tool.method_name == "some_func"
         assert tool.namespace == "ns"
         assert tool.name == "ns-some_func"

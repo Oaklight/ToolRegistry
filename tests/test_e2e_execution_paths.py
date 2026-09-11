@@ -247,8 +247,8 @@ class TestMCPToolTimeout:
         """sync invoke + real MCP tool + timeout → ErrorResult."""
         with ToolRegistry() as reg:
             reg.register_from_mcp(_stdio_config(), persistent=True)
-            tool = reg.get_tool("slow_tool")
-            tool.metadata.timeout = 0.5
+            reg.get_tool("slow_tool")  # ensure tool exists
+            reg._replace_tool_metadata("slow_tool", timeout=0.5)
 
             start = time.perf_counter()
             r = reg.invoke("slow_tool", {"seconds": 5.0})
@@ -263,8 +263,8 @@ class TestMCPToolTimeout:
         """ainvoke + real MCP tool + timeout → ErrorResult."""
         async with ToolRegistry() as reg:
             await reg.register_from_mcp_async(_stdio_config(), persistent=True)
-            tool = reg.get_tool("slow_tool")
-            tool.metadata.timeout = 0.5
+            reg.get_tool("slow_tool")  # ensure tool exists
+            reg._replace_tool_metadata("slow_tool", timeout=0.5)
 
             start = time.perf_counter()
             r = await reg.ainvoke("slow_tool", {"seconds": 5.0})
@@ -295,8 +295,8 @@ class TestMCPToolTimeout:
         """
         with ToolRegistry() as reg:
             reg.register_from_mcp(_stdio_config(), persistent=True)
-            tool = reg.get_tool("slow_tool")
-            tool.metadata.timeout = 0.5
+            reg.get_tool("slow_tool")  # ensure tool exists
+            reg._replace_tool_metadata("slow_tool", timeout=0.5)
 
             tcs = [_tc("c1", "slow_tool", '{"seconds": 5.0}')]
             start = time.perf_counter()
@@ -312,8 +312,8 @@ class TestMCPToolTimeout:
         """async batch: single slow MCP tool times out."""
         async with ToolRegistry() as reg:
             await reg.register_from_mcp_async(_stdio_config(), persistent=True)
-            tool = reg.get_tool("slow_tool")
-            tool.metadata.timeout = 0.5
+            reg.get_tool("slow_tool")  # ensure tool exists
+            reg._replace_tool_metadata("slow_tool", timeout=0.5)
 
             tcs = [_tc("c1", "slow_tool", '{"seconds": 5.0}')]
             start = time.perf_counter()

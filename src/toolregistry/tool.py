@@ -3,13 +3,16 @@ import inspect
 import warnings
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, ClassVar, Literal, get_type_hints
+from typing import Any, ClassVar, Literal, TypeVar, get_type_hints
 from collections.abc import Callable
 
 from .parameter_models import _generate_parameters_model, _simplify_nullable_schemas
 from .llm.tool_calls import API_FORMATS
 from .tool_wrapper import BaseToolWrapper, _FunctionToolWrapper
 from .utils import compute_schema_hash, normalize_tool_name
+
+
+_ToolT = TypeVar("_ToolT", bound="Tool")
 
 
 class ToolTag(str, Enum):
@@ -40,7 +43,7 @@ but uses a unique field name to avoid collisions with native tool parameters.
 """
 
 
-@dataclass
+@dataclass(frozen=True)
 class ToolMetadata:
     """Behavioral and classification metadata for a Tool.
 
@@ -189,7 +192,7 @@ class ToolMetadata:
         return dataclasses.replace(self, **(update or {}))
 
 
-@dataclass(init=False)
+@dataclass(frozen=True, init=False)
 class Tool:
     """Base class representing an executable tool/function.
 
@@ -282,18 +285,20 @@ class Tool:
                 if is_async is not None
                 else ToolMetadata()
             )
-        self.name = name
-        self.description = description
-        self.parameters = parameters
-        self.callable = callable
-        self.metadata = metadata
-        self.parameters_model = parameters_model
-        self.namespace = namespace
-        self.method_name = method_name
+        object.__setattr__(self, "name", name)
+        object.__setattr__(self, "description", description)
+        object.__setattr__(self, "parameters", parameters)
+        object.__setattr__(self, "callable", callable)
+        object.__setattr__(self, "parameters_model", parameters_model)
+        object.__setattr__(self, "namespace", namespace)
+        object.__setattr__(self, "method_name", method_name)
         self._inject_toolcall_reason()
         # Hash after toolcall_reason injection so it reflects the final schema.
-        if not self.metadata.schema_hash:
-            self.metadata.schema_hash = compute_schema_hash(self.parameters)
+        if not metadata.schema_hash:
+            metadata = dataclasses.replace(
+                metadata, schema_hash=compute_schema_hash(self.parameters)
+            )
+        object.__setattr__(self, "metadata", metadata)
 
     def _inject_toolcall_reason(self) -> None:
         """Inject ``toolcall_reason`` property into the tool's parameter schema.
@@ -307,7 +312,7 @@ class Tool:
         """
         had_properties = isinstance(self.parameters.get("properties"), dict)
         if self.parameters.get("type") != "object":
-            self.parameters = {"type": "object", "properties": {}}
+            object.__setattr__(self, "parameters", {"type": "object", "properties": {}})
         elif not had_properties:
             self.parameters["properties"] = {}
 
@@ -455,7 +460,7 @@ class Tool:
         )
 
         if namespace:
-            tool.update_namespace(namespace)
+            tool = tool.update_namespace(namespace)
 
         return tool
 
@@ -573,14 +578,14 @@ class Tool:
         )
         return self.get_schema(api_format)
 
-    def _validate_parameters(self, parameters: dict[str, Any]) -> dict[str, Any]:
+    def validate_parameters(self, parameters: dict[str, Any]) -> dict[str, Any]:
         """Validate parameters against tool schema.
 
         Args:
-            parameters (Dict[str, Any]): Raw input parameters.
+            parameters: Raw input parameters.
 
         Returns:
-            Dict[str, Any]: Validated and normalized parameters.
+            Validated and normalized parameters.
         """
         if self.parameters_model is None:
             return parameters
@@ -596,6 +601,8 @@ class Tool:
             get_type_hints(self.parameters_model, include_extras=True).keys()
         )
         return {k: validated[k] for k in declared if k in validated}
+
+    _validate_parameters = validate_parameters  # backward compat
 
     def run(self, parameters: dict[str, Any]) -> Any:
         """Execute tool synchronously.
@@ -619,7 +626,7 @@ class Tool:
             results without truncation.
         """
         parameters = {k: v for k, v in parameters.items() if k != "toolcall_reason"}
-        validated_params = self._validate_parameters(parameters)
+        validated_params = self.validate_parameters(parameters)
         return self.callable.call_sync(**validated_params)  # ty: ignore[unresolved-attribute]
 
     async def arun(self, parameters: dict[str, Any]) -> Any:
@@ -644,7 +651,7 @@ class Tool:
             results without truncation.
         """
         parameters = {k: v for k, v in parameters.items() if k != "toolcall_reason"}
-        validated_params = self._validate_parameters(parameters)
+        validated_params = self.validate_parameters(parameters)
         return await self.callable.call_async(**validated_params)  # ty: ignore[unresolved-attribute]
 
     def run_raw(self, parameters: dict[str, Any]) -> Any:
@@ -676,64 +683,72 @@ class Tool:
         return await self.arun(parameters)
 
     def update_namespace(
-        self,
+        self: _ToolT,
         namespace: str | None,
         force: bool = False,
         sep: Literal["-", "."] = "-",
-    ) -> None:
-        """Updates the namespace of a tool.
+    ) -> _ToolT:
+        """Return a copy of the tool with an updated namespace.
 
-        This method checks if the tool's name already contains a namespace (indicated by the presence of a separator character).
-        OpenAI requires that function names match the pattern ``^[a-zA-Z0-9_-]+$``. Some other providers allow dot (`.`) as separator.
-        If it does and `force` is `True`, the existing namespace is replaced with the provided `namespace`.
-        If `force` is `False` and an existing namespace is present, no changes are made.
-        If the tool's name does not contain a namespace, the `namespace` is prepended as a prefix to the tool's name.
+        Checks if the tool's name already contains a namespace (indicated
+        by the presence of a separator character).  OpenAI requires that
+        function names match ``^[a-zA-Z0-9_-]+$``; some other providers
+        allow dot (``.``) as separator.
+
+        If a namespace prefix already exists and *force* is ``True``, the
+        existing namespace is replaced.  If *force* is ``False``, the
+        original name is preserved.  If no namespace prefix exists, the
+        new *namespace* is prepended.
 
         Args:
-            namespace (str): The new namespace to apply to the tool's name.
-            force (bool, optional): If `True`, forces the replacement of an existing namespace. Defaults to `False`.
+            namespace: The new namespace to apply to the tool's name.
+            force: If ``True``, forces the replacement of an existing
+                namespace.  Defaults to ``False``.
+            sep: Separator character between namespace and method name.
 
         Returns:
-            None: This method modifies the `tool.name` attribute in place and does not return a value.
+            A new ``Tool`` instance with the updated namespace.  Returns
+            ``self`` unchanged when *namespace* is falsy.
 
         Example:
             ```python
-            tool = Tool(name="example_tool")
-            tool.update_namespace("new_namespace")
+            tool = Tool(name="example_tool", ...)
+            tool = tool.update_namespace("new_namespace")
             tool.name  # 'new_namespace-example_tool'
 
-            tool = Tool(name="old_namespace.example_tool")
-            tool.update_namespace("new_namespace", force=False)
+            tool = Tool(name="old_namespace-example_tool", ...)
+            tool = tool.update_namespace("new_namespace", force=False)
             tool.name  # 'old_namespace-example_tool'
 
-            tool = Tool(name="old_namespace.example_tool")
-            tool.update_namespace("new_namespace", force=True, sep=".")
+            tool = Tool(name="old_namespace.example_tool", ...)
+            tool = tool.update_namespace("new_namespace", force=True, sep=".")
             tool.name  # 'new_namespace.example_tool'
             ```
         """
         if not namespace:
-            return
+            return self
 
         namespace = normalize_tool_name(namespace)
 
-        # Ensure method_name is populated before updating the name.
-        # If method_name was never set, derive it from the current name
-        # (stripping any existing namespace prefix).
-        if not self.method_name:
+        # Derive method_name if not already set.
+        new_method_name = self.method_name
+        if not new_method_name:
             if sep in self.name:
-                self.method_name = self.name.split(sep, 1)[1]
+                new_method_name = self.name.split(sep, 1)[1]
             else:
-                self.method_name = self.name
-
-        self.namespace = namespace
+                new_method_name = self.name
 
         if sep in self.name:
             if force:
-                # Replace existing namespace with the new one if force is True
-                self.name = f"{namespace}{sep}{self.name.split(sep, 1)[1]}"
+                new_name = f"{namespace}{sep}{self.name.split(sep, 1)[1]}"
             else:
-                # Do not change the name if force is False and an existing namespace is present
-                pass
+                new_name = self.name
         else:
-            # Add the new namespace as a prefix if there is no existing namespace
-            self.name = f"{namespace}{sep}{self.name}"
+            new_name = f"{namespace}{sep}{self.name}"
+
+        return dataclasses.replace(
+            self,
+            name=new_name,
+            namespace=namespace,
+            method_name=new_method_name,
+        )

@@ -422,7 +422,7 @@ class TestMCPRefresh:
         sep = getattr(registry, "_name_sep", "-")
         for ts in tool_specs:
             tool = MCPTool.from_tool_json(ts, connection, namespace=None)
-            tool.update_namespace(None, force=True, sep=sep)
+            tool = tool.update_namespace(None, force=True, sep=sep)
             registry.register(tool)
             integration._registered_tool_names.add(tool.name)
 

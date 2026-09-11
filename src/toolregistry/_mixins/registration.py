@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -241,7 +242,7 @@ class RegistrationMixin:
         sep = getattr(self, "_name_sep", "-")
 
         if isinstance(tool_or_func, Tool):
-            tool_or_func.update_namespace(ns_str, force=True, sep=sep)
+            tool_or_func = tool_or_func.update_namespace(ns_str, force=True, sep=sep)
             self._tools[tool_or_func.name] = tool_or_func
             registered_name = tool_or_func.name
             registered_tool = tool_or_func
@@ -288,6 +289,45 @@ class RegistrationMixin:
             )
         )
         return True
+
+    def _replace_tool(self, name: str, **updates: object) -> Tool:
+        """Replace a registered tool with an updated copy.
+
+        Creates a new ``Tool`` via ``dataclasses.replace()`` with the
+        given field overrides and stores it back in the registry.
+
+        Args:
+            name: Registered tool name.
+            **updates: Field-value pairs forwarded to
+                ``dataclasses.replace()``.
+
+        Returns:
+            The newly created ``Tool`` instance.
+        """
+        old = self._tools[name]
+        new_tool = dataclasses.replace(old, **updates)
+        self._tools[name] = new_tool
+        return new_tool
+
+    def _replace_tool_metadata(self, name: str, **meta_updates: object) -> Tool:
+        """Replace a registered tool's metadata with updated fields.
+
+        Creates a new ``ToolMetadata`` via ``dataclasses.replace()`` with
+        the given overrides, then replaces the ``Tool`` itself.
+
+        Args:
+            name: Registered tool name.
+            **meta_updates: Field-value pairs forwarded to
+                ``dataclasses.replace()`` on the tool's metadata.
+
+        Returns:
+            The newly created ``Tool`` instance.
+        """
+        old = self._tools[name]
+        new_meta = dataclasses.replace(old.metadata, **meta_updates)
+        new_tool = dataclasses.replace(old, metadata=new_meta)
+        self._tools[name] = new_tool
+        return new_tool
 
     def _register_class(self, cls_or_instance, *, namespace, **kwargs):
         traverse_mro = kwargs.pop("traverse_mro", True)

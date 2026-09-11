@@ -1,3 +1,4 @@
+import dataclasses
 import threading
 from collections.abc import Callable
 from pathlib import Path
@@ -281,7 +282,7 @@ class MCPTool(Tool):
         )
 
         if namespace:
-            tool.update_namespace(namespace)
+            tool = tool.update_namespace(namespace)
 
         return tool
 
@@ -434,7 +435,12 @@ class MCPIntegration:
                     existing.parameters,
                     candidate.parameters,
                 )
-                candidate.metadata.last_refreshed_at = now
+                candidate = dataclasses.replace(
+                    candidate,
+                    metadata=dataclasses.replace(
+                        candidate.metadata, last_refreshed_at=now
+                    ),
+                )
                 self.registry._tools[name] = candidate
                 self.registry._emit_change(
                     ChangeEvent(
@@ -448,7 +454,7 @@ class MCPIntegration:
                     name
                 )
             elif existing:
-                existing.metadata.last_refreshed_at = now
+                self.registry._replace_tool_metadata(name, last_refreshed_at=now)
                 unchanged += 1
             else:
                 logger.warning("tool tracked but missing from _tools", tool_name=name)
@@ -504,7 +510,9 @@ class MCPIntegration:
                 connection=connection,
                 namespace=self._resolved_ns,
             )
-            candidate.update_namespace(self._resolved_ns, force=True, sep=sep)
+            candidate = candidate.update_namespace(
+                self._resolved_ns, force=True, sep=sep
+            )
             new_tools[candidate.name] = candidate
 
         added, removed, updated, breaking, compatible, unchanged = self._apply_diff(
