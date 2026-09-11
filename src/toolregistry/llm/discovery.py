@@ -34,7 +34,7 @@ _SPLIT_RE = re.compile(r"[_\-]+")
 TOOL_DISCOVERY_NAME = "discover_tools"
 TOOL_CALL_DEFERRED_NAME = "call_deferred"
 
-_INFRASTRUCTURE_TOOLS = frozenset({TOOL_DISCOVERY_NAME, TOOL_CALL_DEFERRED_NAME})
+INFRASTRUCTURE_TOOLS = frozenset({TOOL_DISCOVERY_NAME, TOOL_CALL_DEFERRED_NAME})
 
 _BASE_DISCOVERY_DESCRIPTION = (
     "Discover registered tools by exact name or natural language query. "
@@ -43,7 +43,7 @@ _BASE_DISCOVERY_DESCRIPTION = (
     "your current tool list."
 )
 
-_BASE_CALL_DEFERRED_DESCRIPTION = (
+BASE_CALL_DEFERRED_DESCRIPTION = (
     "Call a deferred tool by name. Use this after discover_tools returns "
     "a deferred tool's schema — pass the tool name and its parameters as "
     "keyword arguments."
@@ -123,7 +123,7 @@ class ToolDiscoveryTool:
         self._index = SparseIndex(field_weights=self._field_weights)
 
         for name, tool in self._registry._tools.items():
-            if name in _INFRASTRUCTURE_TOOLS:
+            if name in INFRASTRUCTURE_TOOLS:
                 continue
             fields = _tool_to_fields(tool)
             metadata: dict[str, Any] = {
@@ -192,7 +192,7 @@ class ToolDiscoveryTool:
         """
         # 1. Exact match: return full schema immediately
         tool = self._registry.get_tool(query)
-        if tool is not None and query not in _INFRASTRUCTURE_TOOLS:
+        if tool is not None and query not in INFRASTRUCTURE_TOOLS:
             is_deferred = tool.metadata.defer if tool.metadata else False
             return [
                 {
@@ -223,7 +223,7 @@ class ToolDiscoveryTool:
             out.append(entry)
         return out
 
-    def call_deferred(self, tool_name: str, **kwargs: Any) -> Any:
+    def call_deferred(self, _target_tool: str, **kwargs: Any) -> Any:
         """Call a deferred tool by name with the given arguments.
 
         Intended as a proxy for MCP clients that cannot dynamically
@@ -231,31 +231,36 @@ class ToolDiscoveryTool:
         discovers a deferred tool's schema, then invokes this method
         with the tool name and its parameters as keyword arguments.
 
-        Delegates to :meth:`ToolRegistry.invoke` which runs the full
-        pipeline (permissions, execution backend, logging).
+        Delegates to :meth:`ToolRegistry._invoke_raw` which runs the
+        full pipeline (permissions, execution backend, logging) and
+        returns the raw Python value — the outer ``execute_tool_calls``
+        handles result wrapping.
+
+        The first parameter is named ``_target_tool`` (not ``tool_name``)
+        to avoid shadowing a deferred tool that has its own ``tool_name``
+        parameter.
 
         Args:
-            tool_name: Registered name of the deferred tool to call.
+            _target_tool: Registered name of the deferred tool to call.
             **kwargs: Parameters forwarded to the target tool.
 
         Returns:
-            The tool's result on success, or an error message string
-            on failure.
-        """
-        from .tool_calls import ErrorResult
+            The tool's raw result on success.
 
-        target = self._registry.get_tool(tool_name)
+        Raises:
+            KeyError: If the tool is not found.
+            ValueError: If the tool is not deferred.
+            Exception: Any exception raised by the target tool.
+        """
+        target = self._registry.get_tool(_target_tool)
         if target is None:
-            return f"Error: tool '{tool_name}' not found in registry."
+            raise KeyError(f"tool '{_target_tool}' not found in registry.")
 
         is_deferred = target.metadata.defer if target.metadata else False
         if not is_deferred:
-            return (
-                f"Error: '{tool_name}' is not a deferred tool — "
+            raise ValueError(
+                f"'{_target_tool}' is not a deferred tool — "
                 f"call it directly instead of using call_deferred."
             )
 
-        result = self._registry.invoke(tool_name, kwargs)
-        if isinstance(result, ErrorResult):
-            return result.message
-        return result.result
+        return self._registry._invoke_raw(_target_tool, kwargs)

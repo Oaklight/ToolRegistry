@@ -34,8 +34,8 @@ from .events import ChangeCallback, ChangeEvent, ChangeEventType
 from .llm.discovery import (
     TOOL_CALL_DEFERRED_NAME,
     TOOL_DISCOVERY_NAME,
-    _BASE_CALL_DEFERRED_DESCRIPTION,
-    _INFRASTRUCTURE_TOOLS,
+    BASE_CALL_DEFERRED_DESCRIPTION,
+    INFRASTRUCTURE_TOOLS,
     ToolDiscoveryTool,
     _BASE_DISCOVERY_DESCRIPTION,
 )
@@ -300,7 +300,7 @@ class ToolRegistry(
         call_deferred_tool = Tool.from_function(
             discoverer.call_deferred,
             name=TOOL_CALL_DEFERRED_NAME,
-            description=_BASE_CALL_DEFERRED_DESCRIPTION,
+            description=BASE_CALL_DEFERRED_DESCRIPTION,
             metadata=ToolMetadata(defer=False),
         )
         self.register(call_deferred_tool)
@@ -310,7 +310,7 @@ class ToolRegistry(
         discoverer._sync_description()
 
         def _on_registry_change(event: ChangeEvent) -> None:
-            if event.tool_name in _INFRASTRUCTURE_TOOLS:
+            if event.tool_name in INFRASTRUCTURE_TOOLS:
                 return
             if event.event_type in {
                 ChangeEventType.REGISTER,
@@ -322,6 +322,7 @@ class ToolRegistry(
                 ChangeEventType.DISABLE,
                 ChangeEventType.METADATA_UPDATE,
             }:
+                # Cheap sync — no full index rebuild, just update description
                 discoverer._sync_description()
 
         self.on_change(_on_registry_change)
