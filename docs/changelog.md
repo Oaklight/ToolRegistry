@@ -30,7 +30,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- **Pydantic removed from runtime dependencies** (#244): `Tool` and `ToolMetadata` converted from Pydantic `BaseModel` to `dataclasses`. Parameter validation uses vendored `zerodep validate` module. Reduces install footprint.
+- **Pydantic removed from runtime dependencies** (#244) (**breaking**): `Tool` and `ToolMetadata` converted from Pydantic `BaseModel` to `dataclasses`. `parameters_model` is now a `TypedDict` class instead of a Pydantic `BaseModel`. Parameter validation uses vendored `zerodep validate` module. Downstream code that accessed `parameters_model` directly (e.g. `BaseModel.model_validate()`) must migrate — see [migration guide](migration.md#pydantic-removed-from-runtime-v0170).
 - **`llm-rosetta` `tool_ops` migration** (#247): Internal schema bridge migrated from legacy `to_openai`/`to_anthropic` functions to the unified `tool_ops` API.
 - **`additionalProperties` for `**kwargs`** (#241): Functions with `**kwargs` now emit `"additionalProperties": true` in their JSON Schema, correctly signaling to LLMs that extra parameters are accepted.
 - **Vendored module updates**: `httpclient` 0.4.7 → 0.5.0 (cookie jar support), `httpserver` 0.3.0 → 0.4.0 (server-side cookie support).

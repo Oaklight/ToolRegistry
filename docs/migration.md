@@ -22,6 +22,65 @@ Auto-detection works for most types — functions, classes, and LangChain tools 
 
 The old methods continue to work but emit `DeprecationWarning`. They will be removed in a future major version.
 
+## Pydantic Removed from Runtime (v0.17.0)
+
+`Tool` and `ToolMetadata` have been converted from Pydantic `BaseModel` to standard `dataclasses`. `parameters_model` is now a `TypedDict` class (from `zerodep validate`) instead of a Pydantic model.
+
+### What changed
+
+| Aspect | Before (v0.16.0) | After (v0.17.0) |
+|--------|-------------------|------------------|
+| `Tool` base class | `pydantic.BaseModel` | `@dataclass` |
+| `ToolMetadata` base class | `pydantic.BaseModel` | `@dataclass` |
+| `Tool.parameters_model` | Pydantic `BaseModel` subclass | `TypedDict` class |
+| Parameter validation | `model.model_validate(data)` | `zerodep validate` |
+| Serialization | `model.model_dump()` | `dataclasses.asdict()` |
+
+### Impact on downstream
+
+**If you only use the public API** (`register()`, `get_schemas()`, `execute_tool_calls()`), **no changes are needed** — these APIs are unchanged.
+
+**If you access `parameters_model` directly** (e.g. for parameter coercion in server adapters):
+
+```python
+# Before — Pydantic coercion
+if issubclass(tool.parameters_model, BaseModel):
+    model = tool.parameters_model(**arguments)
+    arguments = model.model_dump()
+
+# After — use JSON Schema for coercion, or call the TypedDict directly
+# tool.parameters_model is now a TypedDict class
+# For type coercion, use the tool's parameters JSON Schema:
+schema = tool.parameters  # JSON Schema dict
+for key, prop in schema.get("properties", {}).items():
+    if key in arguments and isinstance(arguments[key], str):
+        expected = prop.get("type")
+        if expected == "integer":
+            arguments[key] = int(arguments[key])
+        elif expected == "number":
+            arguments[key] = float(arguments[key])
+        elif expected == "boolean":
+            arguments[key] = arguments[key].lower() in ("true", "1", "yes")
+```
+
+**If you use `model_dump()` / `model_copy()` on `ToolMetadata`:**
+
+These methods are preserved as backward-compatible aliases:
+- `metadata.model_dump()` → calls `dataclasses.asdict(self)`
+- `metadata.model_copy(update={...})` → calls `dataclasses.replace(self, **update)`
+
+No changes needed for these methods.
+
+### `toolcall_reason` injection
+
+v0.17.0 injects a `toolcall_reason` property into all tool parameter schemas (for thought-augmented tool calling). If your handler functions don't accept `**kwargs`, they may fail with `unexpected keyword argument 'toolcall_reason'`. Solutions:
+
+- Add `**kwargs` to handler functions
+- Filter `toolcall_reason` from arguments before calling handlers:
+  ```python
+  arguments.pop("toolcall_reason", None)
+  ```
+
 ## 0.12.x → 0.13.0
 
 ### New: Programmatic Tool Calling (PTC)
