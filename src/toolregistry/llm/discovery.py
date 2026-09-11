@@ -45,8 +45,9 @@ _BASE_DISCOVERY_DESCRIPTION = (
 
 BASE_CALL_DEFERRED_DESCRIPTION = (
     "Call a deferred tool by name. Use this after discover_tools returns "
-    "a deferred tool's schema — pass the tool name and its parameters as "
-    "keyword arguments."
+    "a deferred tool's schema — pass the tool name as _target_tool and "
+    "its parameters as keyword arguments. "
+    "Example: call_deferred(_target_tool='search', query='hello')"
 )
 
 
@@ -135,30 +136,43 @@ class ToolDiscoveryTool:
         self._sync_description()
 
     def _sync_description(self) -> None:
-        """Update the ``discover_tools`` description with deferred tool summaries.
+        """Update tool descriptions with deferred tool summaries.
 
-        Injects a bullet list of deferred tool names and their one-line
-        descriptions so LLMs know which capabilities exist but are not
-        shown in full.  No-ops if ``discover_tools`` is not yet registered.
+        Updates both ``discover_tools`` and ``call_deferred`` descriptions
+        so LLMs know which capabilities exist but are not shown in full.
+        No-ops if the tools are not yet registered.
         """
         discovery_tool = self._registry._tools.get(TOOL_DISCOVERY_NAME)
-        if discovery_tool is None:
-            return
+        call_deferred_tool = self._registry._tools.get(TOOL_CALL_DEFERRED_NAME)
 
         summaries = self._registry.get_deferred_summaries()
         if summaries:
-            lines = [
-                _BASE_DISCOVERY_DESCRIPTION,
-                "",
-                "Tools available on demand (call discover_tools for full schema):",
-            ]
+            tool_list = []
             for s in summaries:
                 desc = s["description"]
                 suffix = f": {desc}" if desc else ""
-                lines.append(f"- {s['name']}{suffix}")
-            discovery_tool.description = "\n".join(lines)
+                tool_list.append(f"- {s['name']}{suffix}")
+            tool_list_str = "\n".join(tool_list)
+
+            if discovery_tool is not None:
+                discovery_tool.description = (
+                    _BASE_DISCOVERY_DESCRIPTION + "\n\nTools available on demand "
+                    "(call discover_tools for full schema):\n" + tool_list_str
+                )
+            if call_deferred_tool is not None:
+                call_deferred_tool.description = (
+                    BASE_CALL_DEFERRED_DESCRIPTION
+                    + "\n\nCurrently deferred:\n"
+                    + tool_list_str
+                )
         else:
-            discovery_tool.description = _BASE_DISCOVERY_DESCRIPTION
+            if discovery_tool is not None:
+                discovery_tool.description = _BASE_DISCOVERY_DESCRIPTION
+            if call_deferred_tool is not None:
+                call_deferred_tool.description = (
+                    BASE_CALL_DEFERRED_DESCRIPTION
+                    + " No deferred tools currently available."
+                )
 
     def discover(
         self,
@@ -224,6 +238,8 @@ class ToolDiscoveryTool:
         return out
 
     def call_deferred(self, _target_tool: str, **kwargs: Any) -> Any:
+        # **kwargs produces additionalProperties: true in the JSON Schema,
+        # which is essential for this proxy to accept arbitrary parameters.
         """Call a deferred tool by name with the given arguments.
 
         Intended as a proxy for MCP clients that cannot dynamically

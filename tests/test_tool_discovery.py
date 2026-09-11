@@ -725,3 +725,23 @@ class TestCallDeferred:
         results = discoverer.discover("call deferred")
         result_names = [r["name"] for r in results]
         assert "call_deferred" not in result_names
+
+    def test_call_deferred_target_tool_no_collision(self):
+        """_target_tool param name should not collide with tool's own params."""
+        registry = ToolRegistry()
+
+        def tool_with_tool_name(tool_name: str, value: int) -> str:
+            """A deferred tool that has its own tool_name parameter."""
+            return f"{tool_name}={value}"
+
+        registry.register(
+            Tool.from_function(tool_with_tool_name, metadata=ToolMetadata(defer=True))
+        )
+        registry.enable_tool_discovery()
+
+        discoverer = registry._tool_discovery
+        assert discoverer is not None
+        result = discoverer.call_deferred(
+            _target_tool="tool_with_tool_name", tool_name="search", value=42
+        )
+        assert result == "search=42"
