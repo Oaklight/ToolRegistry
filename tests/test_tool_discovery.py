@@ -609,7 +609,7 @@ class TestCallDeferred:
     """Test cases for ToolDiscoveryTool.call_deferred()."""
 
     def test_call_deferred_success(self):
-        """Calling a deferred tool should execute it and return the result."""
+        """Calling a deferred tool should execute it and return the raw result."""
         registry = ToolRegistry()
 
         def secret_add(a: int, b: int) -> int:
@@ -623,21 +623,21 @@ class TestCallDeferred:
 
         discoverer = registry._tool_discovery
         assert discoverer is not None
-        result = discoverer.call_deferred("secret_add", a=3, b=4)
-        assert result == "7"
+        result = discoverer.call_deferred(_target_tool="secret_add", a=3, b=4)
+        assert result == 7
 
     def test_call_deferred_nonexistent_tool(self):
-        """Calling a non-existent tool should return an error message."""
+        """Calling a non-existent tool should raise KeyError."""
         registry = ToolRegistry()
         registry.enable_tool_discovery()
 
         discoverer = registry._tool_discovery
         assert discoverer is not None
-        result = discoverer.call_deferred("no_such_tool")
-        assert "not found" in result
+        with pytest.raises(KeyError, match="not found"):
+            discoverer.call_deferred(_target_tool="no_such_tool")
 
     def test_call_deferred_non_deferred_tool(self):
-        """Calling a non-deferred tool should return an error message."""
+        """Calling a non-deferred tool should raise ValueError."""
         registry = ToolRegistry()
 
         def normal_tool(x: int) -> int:
@@ -649,12 +649,11 @@ class TestCallDeferred:
 
         discoverer = registry._tool_discovery
         assert discoverer is not None
-        result = discoverer.call_deferred("normal_tool", x=5)
-        assert "not a deferred tool" in result
-        assert "call it directly" in result
+        with pytest.raises(ValueError, match="not a deferred tool"):
+            discoverer.call_deferred(_target_tool="normal_tool", x=5)
 
     def test_call_deferred_with_validation_error(self):
-        """Bad parameters should propagate an error via invoke()."""
+        """Bad parameters should propagate the exception from _invoke_raw."""
         registry = ToolRegistry()
 
         def typed_tool(x: int) -> int:
@@ -668,10 +667,8 @@ class TestCallDeferred:
 
         discoverer = registry._tool_discovery
         assert discoverer is not None
-        result = discoverer.call_deferred("typed_tool", x="not_an_int")
-        # coerce should handle "not_an_int" → error since it can't become int
-        assert isinstance(result, str)
-        assert "Error" in result or "error" in result
+        with pytest.raises(Exception):
+            discoverer.call_deferred(_target_tool="typed_tool", x="not_an_int")
 
     def test_call_deferred_registered_on_enable(self):
         """enable_tool_discovery() should register call_deferred in schemas."""
@@ -703,13 +700,14 @@ class TestCallDeferred:
         assert "call_deferred" in names
 
     def test_call_deferred_has_additional_properties(self):
-        """call_deferred schema should have additionalProperties: true."""
+        """call_deferred schema should have additionalProperties: true and _target_tool param."""
         registry = ToolRegistry()
         registry.enable_tool_discovery()
 
         tool = registry.get_tool("call_deferred")
         assert tool is not None
         assert tool.parameters.get("additionalProperties") is True
+        assert "_target_tool" in tool.parameters.get("properties", {})
 
     def test_call_deferred_not_in_discovery_results(self):
         """call_deferred should not appear in discover_tools results."""
