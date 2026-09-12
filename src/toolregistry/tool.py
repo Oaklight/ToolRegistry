@@ -512,8 +512,6 @@ class Tool:
         Returns:
             Provider-specific tool definition dict.
         """
-        import copy
-
         from .llm._rosetta import _make_ir_tool_definition
         from .llm.tool_calls import _get_tool_ops, _normalize_api_format
 
@@ -527,13 +525,17 @@ class Tool:
         )
         should_include_reason = effective is True
 
+        base_props = self.parameters.get("properties", {})
         if should_include_reason:
-            params = copy.deepcopy(self.parameters)
-            params.setdefault("properties", {})["toolcall_reason"] = (
-                TOOLCALL_REASON_PROPERTY
-            )
+            params = {
+                **self.parameters,
+                "properties": {
+                    **base_props,
+                    "toolcall_reason": TOOLCALL_REASON_PROPERTY,
+                },
+            }
         else:
-            params = self.parameters
+            params = {**self.parameters, "properties": dict(base_props)}
 
         ir_tool = _make_ir_tool_definition(self.name, self.description, params)
 
