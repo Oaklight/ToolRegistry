@@ -131,7 +131,8 @@ class TestClassifySchemaChange:
         assert kind == SchemaChangeKind.COMPATIBLE
         assert summary == {}
 
-    def test_toolcall_reason_ignored(self):
+    def test_toolcall_reason_treated_as_normal_param(self):
+        """toolcall_reason is no longer special — removing it is a real change."""
         old = {
             "type": "object",
             "properties": {
@@ -146,8 +147,8 @@ class TestClassifySchemaChange:
             },
         }
         kind, summary = classify_schema_change(old, new)
-        assert kind == SchemaChangeKind.COMPATIBLE
-        assert summary == {}
+        assert kind == SchemaChangeKind.BREAKING
+        assert "toolcall_reason" in summary["removed"]
 
     def test_anyof_type_change(self):
         old = {
@@ -222,9 +223,9 @@ class TestSchemaChangeKindEnum:
 
 
 class TestToolcallReasonHashExclusion:
-    """Verify toolcall_reason is excluded from schema hash."""
+    """toolcall_reason is no longer injected into parameters, so hash treats it normally."""
 
-    def test_hash_excludes_toolcall_reason(self):
+    def test_hash_includes_toolcall_reason_when_present(self):
         from toolregistry.utils import compute_schema_hash
 
         schema_with = {
@@ -240,7 +241,7 @@ class TestToolcallReasonHashExclusion:
                 "a": {"type": "string"},
             },
         }
-        assert compute_schema_hash(schema_with) == compute_schema_hash(schema_without)
+        assert compute_schema_hash(schema_with) != compute_schema_hash(schema_without)
 
     def test_hash_still_sensitive_to_real_changes(self):
         from toolregistry.utils import compute_schema_hash
