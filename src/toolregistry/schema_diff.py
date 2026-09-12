@@ -68,8 +68,8 @@ def classify_schema_change(
     old_required = set(old.get("required", []))
     new_required = set(new.get("required", []))
 
-    old_keys = set(old_props.keys()) - {"toolcall_reason"}
-    new_keys = set(new_props.keys()) - {"toolcall_reason"}
+    old_keys = set(old_props.keys())
+    new_keys = set(new_props.keys())
 
     added_keys = new_keys - old_keys
     removed_keys = old_keys - new_keys

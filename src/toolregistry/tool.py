@@ -297,7 +297,7 @@ class Tool:
         is_async: bool | None = None,
     ) -> None:
         # NOTE: dataclasses.replace() re-runs __init__ on every copy.
-        # _inject_toolcall_reason and schema_hash computation are
+        # _normalize_parameters and schema_hash computation are
         # idempotent, so this is safe but does redundant work.
         if metadata is None:
             metadata = (
@@ -307,41 +307,35 @@ class Tool:
             )
         object.__setattr__(self, "name", name)
         object.__setattr__(self, "description", description)
-        object.__setattr__(self, "parameters", parameters)
+        object.__setattr__(self, "parameters", self._normalize_parameters(parameters))
         object.__setattr__(self, "callable", callable)
         object.__setattr__(self, "parameters_model", parameters_model)
         object.__setattr__(self, "namespace", namespace)
         object.__setattr__(self, "method_name", method_name)
-        self._inject_toolcall_reason()
-        # Hash after toolcall_reason injection so it reflects the final schema.
         if not metadata.schema_hash:
             metadata = dataclasses.replace(
                 metadata, schema_hash=compute_schema_hash(self.parameters)
             )
         object.__setattr__(self, "metadata", metadata)
 
-    def _inject_toolcall_reason(self) -> None:
-        """Inject ``toolcall_reason`` property into the tool's parameter schema.
+    @classmethod
+    def _normalize_parameters(cls, parameters: dict[str, Any]) -> dict[str, Any]:
+        """Normalize and flatten a parameter schema at construction time.
 
-        Runs after every ``Tool`` (and subclass) construction, regardless
-        of whether the instance was created via ``from_function()``, or
-        directly (MCP, OpenAPI, LangChain integrations).
-
-        The ``toolcall_reason`` field is only added when ``parameters``
-        already contains a ``properties`` mapping.
+        Ensures the schema is {type: object, properties: {...}},
+        then runs flatten_schema to resolve $ref, merge
+        allOf, simplify anyOf/oneOf, and strip unsupported
+        keywords.  The result is a clean, wire-safe JSON Schema that
+        faithfully represents the function signature.
         """
-        # Called during __init__ only. Dict mutations (adding keys to
-        # self.parameters) are safe here because no external reference
-        # exists yet — frozen protects field reassignment, not dict contents.
-        had_properties = isinstance(self.parameters.get("properties"), dict)
-        if self.parameters.get("type") != "object":
-            object.__setattr__(self, "parameters", {"type": "object", "properties": {}})
-        elif not had_properties:
-            self.parameters["properties"] = {}
+        from ._vendor.jsonschema import flatten_schema
 
-        props = self.parameters["properties"]
-        if had_properties and "toolcall_reason" not in props:
-            props["toolcall_reason"] = TOOLCALL_REASON_PROPERTY
+        if parameters.get("type") != "object":
+            parameters = {"type": "object", "properties": {}}
+        elif not isinstance(parameters.get("properties"), dict):
+            parameters = {**parameters, "properties": {}}
+
+        return flatten_schema(parameters, strip_keys=cls._EXTRA_STRIP_KEYS)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to dict, excluding non-serializable fields."""
@@ -487,18 +481,8 @@ class Tool:
 
         return tool
 
-    def _parameters_without_toolcall_reason(self) -> dict[str, Any]:
-        """Return a deep copy of ``parameters`` with ``toolcall_reason`` removed."""
-        import copy
-
-        params = copy.deepcopy(self.parameters)
-        props = params.get("properties")
-        if props is not None:
-            props.pop("toolcall_reason", None)
-        return params
-
-    #: Schema keys stripped during ``get_schema()`` sanitization.
-    #: ``title`` and ``nullable`` are Pydantic v2 artifacts that most LLM
+    #: Schema keys stripped during parameter normalization.
+    #: title and nullable are Pydantic v2 artifacts that most LLM
     #: providers either reject or misinterpret.
     _EXTRA_STRIP_KEYS: ClassVar[set[str]] = {"title", "nullable"}
 
@@ -510,21 +494,17 @@ class Tool:
     ) -> dict[str, Any]:
         """Generate schema representation of tool for a target API format.
 
-        All formats are produced via llm-rosetta converters, which also
-        apply schema sanitization (stripping unsupported JSON Schema
-        keywords like ``$ref``, ``$schema``, ``anyOf``, etc.).
-
-        Before conversion, the parameter schema is run through
-        :func:`~toolregistry._vendor.jsonschema.flatten_schema` to
-        resolve ``$ref``, merge ``allOf``, collapse ``anyOf``/``oneOf``
-        nullable patterns, and strip Pydantic v2 artifacts (``title``,
-        ``nullable``) that most LLM providers reject.
+        Parameters are already flattened and sanitized at construction
+        (see :meth:`_normalize_parameters`).  This method wraps them in
+        the target provider format and optionally injects a
+        ``toolcall_reason`` property for think-augmented calling.
 
         Args:
             api_format: Target API format. One of ``"openai-chat"``,
                 ``"openai-responses"``, ``"anthropic"``, ``"gemini"``.
-            _think_augment: Internal override for toolcall_reason injection.
-                When ``None`` (default), falls back to
+            _think_augment: Override for toolcall_reason injection.
+                ``True`` → include, ``False``/``None`` → exclude.
+                When ``None``, falls back to
                 ``self.metadata.think_augment``.  Used by
                 :meth:`ToolRegistry.get_schemas` to pass the resolved
                 effective value.
@@ -532,9 +512,10 @@ class Tool:
         Returns:
             Provider-specific tool definition dict.
         """
+        import copy
+
         from .llm._rosetta import _make_ir_tool_definition
         from .llm.tool_calls import _get_tool_ops, _normalize_api_format
-        from ._vendor.jsonschema import flatten_schema
 
         api_format = _normalize_api_format(api_format)
 
@@ -544,19 +525,15 @@ class Tool:
             if _think_augment is not None
             else self.metadata.think_augment
         )
-        # None means "include" when called directly (no registry context)
-        should_include_reason = effective is not False
+        should_include_reason = effective is True
 
-        params = (
-            self.parameters
-            if should_include_reason
-            else self._parameters_without_toolcall_reason()
-        )
-
-        # Sanitize: resolve $ref, merge allOf, collapse anyOf/oneOf nullable
-        # patterns, and strip Pydantic v2 artifacts (title, nullable) that
-        # LLM providers reject or misinterpret.
-        params = flatten_schema(params, strip_keys=self._EXTRA_STRIP_KEYS)
+        if should_include_reason:
+            params = copy.deepcopy(self.parameters)
+            params.setdefault("properties", {})["toolcall_reason"] = (
+                TOOLCALL_REASON_PROPERTY
+            )
+        else:
+            params = self.parameters
 
         ir_tool = _make_ir_tool_definition(self.name, self.description, params)
 
