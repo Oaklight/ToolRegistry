@@ -358,38 +358,47 @@ class TestTool:
 
 
 class TestThinkAugmented:
-    """Test cases for think-augmented function calling (toolcall_reason)."""
+    """Test cases for think-augmented function calling (toolcall_reason).
 
-    def test_toolcall_reason_in_schema(self, sample_tool):
-        """Test that toolcall_reason property is injected into tool schema."""
-        assert "toolcall_reason" in sample_tool.parameters["properties"]
-        reason = sample_tool.parameters["properties"]["toolcall_reason"]
-        assert reason["type"] == "string"
-        assert "chose" in reason["description"]
+    Two-layer model: tool.parameters never contains toolcall_reason.
+    get_schema(_think_augment=True) adds it on demand.
+    """
 
-    def test_toolcall_reason_in_openai_format(self, sample_tool):
-        """Test that toolcall_reason appears in OpenAI format schema."""
-        schema = sample_tool.get_schema("openai-chat")
-        params = schema["function"]["parameters"]
-        assert "toolcall_reason" in params["properties"]
+    def test_toolcall_reason_not_in_parameters(self, sample_tool):
+        """toolcall_reason is never stored in tool.parameters."""
+        assert "toolcall_reason" not in sample_tool.parameters["properties"]
 
-    def test_toolcall_reason_in_anthropic_format(self, sample_tool):
-        """Test that toolcall_reason appears in Anthropic format schema."""
-        schema = sample_tool.get_schema("anthropic")
-        assert "toolcall_reason" in schema["input_schema"]["properties"]
+    def test_toolcall_reason_excluded_by_default_all_formats(self, sample_tool):
+        """Standalone get_schema() excludes toolcall_reason (matches registry default)."""
+        for fmt, extract in [
+            ("openai-chat", lambda s: s["function"]["parameters"]["properties"]),
+            ("anthropic", lambda s: s["input_schema"]["properties"]),
+            ("gemini", lambda s: s["parameters"]["properties"]),
+            ("google-interactions", lambda s: s["parameters"]["properties"]),
+        ]:
+            schema = sample_tool.get_schema(fmt)
+            assert "toolcall_reason" not in extract(schema), (
+                f"toolcall_reason should not appear for {fmt} by default"
+            )
 
-    def test_toolcall_reason_in_gemini_format(self, sample_tool):
-        """Test that toolcall_reason appears in Gemini format schema."""
-        schema = sample_tool.get_schema("gemini")
-        assert "toolcall_reason" in schema["parameters"]["properties"]
-
-    def test_toolcall_reason_in_google_interactions_format(self, sample_tool):
-        """Test that toolcall_reason appears in Google Interactions format."""
-        schema = sample_tool.get_schema("google-interactions")
-        assert "toolcall_reason" in schema["parameters"]["properties"]
+    def test_toolcall_reason_included_when_think_augment_true(self, sample_function):
+        """get_schema(_think_augment=True) injects toolcall_reason."""
+        tool = Tool.from_function(sample_function)
+        for fmt, extract in [
+            ("openai-chat", lambda s: s["function"]["parameters"]["properties"]),
+            ("anthropic", lambda s: s["input_schema"]["properties"]),
+            ("gemini", lambda s: s["parameters"]["properties"]),
+            ("google-interactions", lambda s: s["parameters"]["properties"]),
+        ]:
+            schema = tool.get_schema(fmt, _think_augment=True)
+            props = extract(schema)
+            assert "toolcall_reason" in props, (
+                f"toolcall_reason missing for {fmt} with think_augment=True"
+            )
+            assert props["toolcall_reason"]["type"].lower() == "string"
 
     def test_toolcall_reason_stripped_on_run(self, sample_tool):
-        """Test that toolcall_reason is stripped before execution in run()."""
+        """toolcall_reason is stripped before execution in run()."""
         result = sample_tool.run(
             {"a": 5, "b": 3, "toolcall_reason": "I need to add these numbers"}
         )
@@ -397,31 +406,28 @@ class TestThinkAugmented:
 
     @pytest.mark.asyncio
     async def test_toolcall_reason_stripped_on_arun(self, async_sample_function):
-        """Test that toolcall_reason is stripped before execution in arun()."""
+        """toolcall_reason is stripped before execution in arun()."""
         tool = Tool.from_function(async_sample_function)
         result = await tool.arun(
             {"a": 10, "b": 20, "toolcall_reason": "Adding asynchronously"}
         )
         assert result == 30
 
-    def test_toolcall_reason_no_collision_with_native_params(self):
-        """Test that native 'thought' parameter is not affected by toolcall_reason."""
+    def test_native_thought_param_not_affected(self):
+        """Native 'thought' parameter is not affected by toolcall_reason."""
 
         def func_with_thought(thought: str, value: int) -> str:
             """A function that uses thought as a real parameter."""
             return f"{thought}: {value}"
 
         tool = Tool.from_function(func_with_thought)
-        # Native 'thought' param is preserved
         assert "thought" in tool.parameters["properties"]
-        # toolcall_reason is also injected (no collision)
-        assert "toolcall_reason" in tool.parameters["properties"]
-        # Native 'thought' is passed through; toolcall_reason is stripped
+        assert "toolcall_reason" not in tool.parameters["properties"]
         result = tool.run({"thought": "hello", "value": 42, "toolcall_reason": "test"})
         assert result == "hello: 42"
 
-    def test_toolcall_reason_manual_tool_creation(self):
-        """Test that manually created Tool also gets toolcall_reason injected."""
+    def test_manual_tool_no_toolcall_reason(self):
+        """Manually created Tool does not get toolcall_reason in parameters."""
         tool = Tool(
             name="manual_tool",
             description="A manually created tool",
@@ -434,10 +440,10 @@ class TestThinkAugmented:
             },
             callable=lambda x: x * 2,
         )
-        assert "toolcall_reason" in tool.parameters["properties"]
+        assert "toolcall_reason" not in tool.parameters["properties"]
 
-    def test_toolcall_reason_empty_schema_no_inject(self):
-        """Test that toolcall_reason is not injected into normalized empty schemas."""
+    def test_empty_schema_normalized(self):
+        """Empty schema is normalized without toolcall_reason."""
         tool = Tool(
             name="empty_tool",
             description="Tool with empty schema",
@@ -446,59 +452,54 @@ class TestThinkAugmented:
         )
         assert tool.parameters == {"type": "object", "properties": {}}
 
-    def test_think_metadata_false_strips_from_schema(self, sample_function):
-        """Test that think_augment=False strips toolcall_reason from get_schema output."""
+    def test_think_metadata_false_excludes(self, sample_function):
+        """think_augment=False excludes toolcall_reason from get_schema."""
         tool = Tool.from_function(
             sample_function, metadata=ToolMetadata(think_augment=False)
         )
-        # Internal storage still has toolcall_reason
-        assert "toolcall_reason" in tool.parameters["properties"]
-        # But get_schema strips it
+        assert "toolcall_reason" not in tool.parameters["properties"]
         schema = tool.get_schema("openai-chat")
         assert "toolcall_reason" not in schema["function"]["parameters"]["properties"]
 
-    def test_think_metadata_true_includes_in_schema(self, sample_function):
-        """Test that think_augment=True always includes toolcall_reason in schema."""
+    def test_think_metadata_true_includes(self, sample_function):
+        """think_augment=True includes toolcall_reason in get_schema."""
         tool = Tool.from_function(
             sample_function, metadata=ToolMetadata(think_augment=True)
         )
         schema = tool.get_schema("openai-chat")
         assert "toolcall_reason" in schema["function"]["parameters"]["properties"]
 
-    def test_think_metadata_none_includes_by_default(self, sample_function):
-        """Test that think_augment=None (default) includes toolcall_reason when called directly."""
+    def test_think_metadata_none_excludes_by_default(self, sample_function):
+        """think_augment=None (default) excludes toolcall_reason (matches registry default)."""
         tool = Tool.from_function(sample_function)
         assert tool.metadata.think_augment is None
         schema = tool.get_schema("openai-chat")
-        assert "toolcall_reason" in schema["function"]["parameters"]["properties"]
+        assert "toolcall_reason" not in schema["function"]["parameters"]["properties"]
 
     def test_think_override_false_strips(self, sample_function):
-        """Test _think_augment=False override strips toolcall_reason from output."""
+        """_think_augment=False override excludes toolcall_reason."""
         tool = Tool.from_function(sample_function)
         schema = tool.get_schema("openai-chat", _think_augment=False)
         assert "toolcall_reason" not in schema["function"]["parameters"]["properties"]
 
     def test_think_override_true_includes(self, sample_function):
-        """Test _think_augment=True override includes toolcall_reason in output."""
+        """_think_augment=True override includes toolcall_reason even if per-tool=False."""
         tool = Tool.from_function(
             sample_function, metadata=ToolMetadata(think_augment=False)
         )
-        # Per-tool says False, but override says True
         schema = tool.get_schema("openai-chat", _think_augment=True)
         assert "toolcall_reason" in schema["function"]["parameters"]["properties"]
 
-    def test_toolcall_reason_strip_all_formats(self, sample_function):
-        """Test that toolcall_reason is stripped across all API formats."""
-        tool = Tool.from_function(sample_function)
-        for fmt, path in [
-            ("openai-chat", lambda s: s["function"]["parameters"]["properties"]),
-            ("anthropic", lambda s: s["input_schema"]["properties"]),
-            ("gemini", lambda s: s["parameters"]["properties"]),
-        ]:
-            schema = tool.get_schema(fmt, _think_augment=False)
-            assert "toolcall_reason" not in path(schema), (
-                f"toolcall_reason not stripped for {fmt}"
-            )
+    def test_param_named_toolcall_reason_survives(self):
+        """A function with a parameter literally named toolcall_reason preserves it."""
+
+        def func_with_reason(query: str, toolcall_reason: str = "default") -> str:
+            """A function with toolcall_reason as a real parameter."""
+            return f"{query}: {toolcall_reason}"
+
+        tool = Tool.from_function(func_with_reason)
+        assert "toolcall_reason" in tool.parameters["properties"]
+        assert "query" in tool.parameters["properties"]
 
 
 class TestToolMetadataFields:

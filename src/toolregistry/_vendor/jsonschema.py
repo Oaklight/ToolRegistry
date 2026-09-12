@@ -1,9 +1,9 @@
 # /// zerodep
-# version = "0.2.0"
+# version = "0.3.0"
 # deps = []
 # tier = "medium"
 # category = "validation"
-# note = "Install/update via `zerodep add jsonschema`"
+# note = "Install/update via: https://zerodep.readthedocs.io/en/latest/guide/cli/"
 # ///
 """JSON Schema flattening & sanitization — zero dependencies, stdlib only.
 
@@ -57,6 +57,12 @@ __all__ = [
 # ---------------------------------------------------------------------------
 
 _DEFS_KEYS: set[str] = {"$defs", "definitions"}
+
+# Keys whose *values* are property-name maps (not schema nodes).
+# When a walker enters one of these, it must NOT treat the map's keys as
+# schema keywords — they are user-defined parameter names.  The map's
+# *values* are sub-schemas and should still be processed.
+_PROPERTY_MAP_KEYS: set[str] = {"properties", "patternProperties", "dependentSchemas"}
 
 UNSUPPORTED_SCHEMA_KEYS: set[str] = {
     # JSON Schema meta
@@ -300,22 +306,30 @@ def _merge_allof_node(schema: dict[str, Any]) -> dict[str, Any]:
     return base
 
 
-def _walk_merge_allof(schema: dict[str, Any]) -> dict[str, Any]:
+def _walk_merge_allof(
+    schema: dict[str, Any],
+    *,
+    _in_property_map: bool = False,
+) -> dict[str, Any]:
     """Recursively merge all ``allOf`` nodes in *schema*."""
     # First recurse into children so nested allOf are resolved bottom-up.
     result: dict[str, Any] = {}
     for key, value in schema.items():
         if isinstance(value, dict):
-            result[key] = _walk_merge_allof(value)
+            result[key] = _walk_merge_allof(
+                value, _in_property_map=key in _PROPERTY_MAP_KEYS
+            )
         elif isinstance(value, list):
             result[key] = [
-                _walk_merge_allof(item) if isinstance(item, dict) else item
+                _walk_merge_allof(item, _in_property_map=False)
+                if isinstance(item, dict)
+                else item
                 for item in value
             ]
         else:
             result[key] = value
 
-    if "allOf" in result and isinstance(result["allOf"], list):
+    if not _in_property_map and "allOf" in result and isinstance(result["allOf"], list):
         result = _merge_allof_node(result)
     return result
 
@@ -367,21 +381,29 @@ def _simplify_node(schema: dict[str, Any]) -> dict[str, Any]:
     return schema
 
 
-def _walk_simplify(schema: dict[str, Any]) -> dict[str, Any]:
+def _walk_simplify(
+    schema: dict[str, Any],
+    *,
+    _in_property_map: bool = False,
+) -> dict[str, Any]:
     """Recursively simplify all ``anyOf``/``oneOf`` nodes."""
     result: dict[str, Any] = {}
     for key, value in schema.items():
         if isinstance(value, dict):
-            result[key] = _walk_simplify(value)
+            result[key] = _walk_simplify(
+                value, _in_property_map=key in _PROPERTY_MAP_KEYS
+            )
         elif isinstance(value, list):
             result[key] = [
-                _walk_simplify(item) if isinstance(item, dict) else item
+                _walk_simplify(item, _in_property_map=False)
+                if isinstance(item, dict)
+                else item
                 for item in value
             ]
         else:
             result[key] = value
 
-    if result.keys() & {"anyOf", "oneOf"}:
+    if not _in_property_map and result.keys() & {"anyOf", "oneOf"}:
         result = _simplify_node(result)
     return result
 
@@ -411,17 +433,23 @@ def simplify_unions(schema: dict[str, Any]) -> dict[str, Any]:
 def _walk_sanitize(
     schema: dict[str, Any],
     strip: set[str],
+    *,
+    _in_property_map: bool = False,
 ) -> dict[str, Any]:
     """Recursively strip unsupported keys and prune orphaned ``required``."""
     result: dict[str, Any] = {}
     for key, value in schema.items():
-        if key in strip:
+        if not _in_property_map and key in strip:
             continue
         if isinstance(value, dict):
-            result[key] = _walk_sanitize(value, strip)
+            result[key] = _walk_sanitize(
+                value, strip, _in_property_map=key in _PROPERTY_MAP_KEYS
+            )
         elif isinstance(value, list):
             result[key] = [
-                _walk_sanitize(item, strip) if isinstance(item, dict) else item
+                _walk_sanitize(item, strip, _in_property_map=False)
+                if isinstance(item, dict)
+                else item
                 for item in value
             ]
         else:
