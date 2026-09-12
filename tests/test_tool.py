@@ -501,6 +501,18 @@ class TestThinkAugmented:
         assert "toolcall_reason" in tool.parameters["properties"]
         assert "query" in tool.parameters["properties"]
 
+    def test_think_augment_overrides_native_toolcall_reason(self):
+        """think_augment=True replaces a native toolcall_reason param with the framework property."""
+
+        def func_with_reason(query: str, toolcall_reason: str = "default") -> str:
+            """A function with toolcall_reason as a real parameter."""
+            return f"{query}: {toolcall_reason}"
+
+        tool = Tool.from_function(func_with_reason)
+        schema = tool.get_schema("openai-chat", _think_augment=True)
+        props = schema["function"]["parameters"]["properties"]
+        assert "chose" in props["toolcall_reason"]["description"]
+
 
 class TestToolMetadataFields:
     """Test cases for ToolMetadata and ToolTag."""
