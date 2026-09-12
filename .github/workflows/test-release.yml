@@ -13,7 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
-    environment: testpypi
     steps:
       - uses: actions/checkout@v4
 
