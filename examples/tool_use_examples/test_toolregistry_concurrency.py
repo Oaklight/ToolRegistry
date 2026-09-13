@@ -29,10 +29,10 @@ def analyze_results(
         Tuple of (success_rate, throughput)
     """
     error_count = 0
-    for call_id, result_val in results.items():
+    for result_val in results:
         if isinstance(result_val, str) and "Error" in result_val:
             error_count += 1
-            print(f"Call {call_id} error: {result_val}")
+            print(f"Call {result_val.id} error: {result_val}")
 
     success_count = N - error_count
     success_rate = success_count / N * 100

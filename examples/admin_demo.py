@@ -93,8 +93,8 @@ tool_calls = [
 
 print("[*] Executing tool calls...")
 results = registry.execute_tool_calls(tool_calls)
-for call_id, result in results.items():
-    print(f"    {call_id}: {result}")
+for result in results:
+    print(f"    {result.id}: {result}")
 print()
 
 # ── 4b. Disable a single method and call it ──────────────────────────────
@@ -116,8 +116,8 @@ tool_calls_2 = [
 
 print("[*] Executing with 'string_utils-reverse' disabled (method-level)...")
 results2 = registry.execute_tool_calls(tool_calls_2)
-for call_id, result in results2.items():
-    print(f"    {call_id}: {result}")
+for result in results2:
+    print(f"    {result.id}: {result}")
 print()
 
 # Re-enable the method, then disable at namespace level
@@ -140,8 +140,8 @@ tool_calls_3 = [
 
 print("[*] Executing with 'string_utils' namespace disabled (class-level)...")
 results3 = registry.execute_tool_calls(tool_calls_3)
-for call_id, result in results3.items():
-    print(f"    {call_id}: {result}")
+for result in results3:
+    print(f"    {result.id}: {result}")
 print()
 
 # Re-enable namespace for admin panel demo
