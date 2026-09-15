@@ -16,6 +16,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-09-15
+
+### Added
+
+- **`call_deferred` proxy tool** (#261): New infrastructure tool registered alongside `discover_tools` via `enable_tool_discovery()`. Bridges the gap for MCP clients that cache `tools/list` at init — after discovering a deferred tool's schema via `discover_tools`, the LLM calls `call_deferred(_target_tool=..., **kwargs)` to invoke it through the full registry pipeline (permissions, execution, logging). Non-deferred tools are rejected with `ValueError`.
+- **`with_refreshed_at()` helper**: Convenience method on `Tool` that returns a copy with updated `last_refreshed_at` metadata, replacing verbose nested `dataclasses.replace()` patterns.
+- **Test release workflow**: CI workflow for publishing dev versions to Test PyPI.
+
+### Changed
+
+- **Frozen `Tool` and `ToolMetadata`** (**breaking**): Both are now `frozen=True` dataclasses. Direct field assignment raises `FrozenInstanceError`. Use `dataclasses.replace()` for copies or `registry._replace_tool()` / `registry._replace_tool_metadata()` for in-place registry updates. `update_namespace()` returns a new `Tool` instead of mutating in-place — all call sites must capture the return value.
+- **Two-layer schema model** (#265, #266) (**breaking**): `tool.parameters` is now the canonical, clean JSON Schema faithfully representing the function signature. `get_schema()` wraps it and optionally injects `toolcall_reason` when `think_augment=True`. The `_inject_toolcall_reason()` and `_parameters_without_toolcall_reason()` internal methods are removed. Five hardcoded `toolcall_reason` exclusion sites eliminated.
+- **`execute_tool_calls()` returns `ResultList`** (**breaking**): Returns a `ResultList` (list subclass) instead of a dict. Iterate directly; each item has `.id` and result attributes.
+- **`validate_parameters` made public**: Renamed from `_validate_parameters` (backward-compat alias retained).
+- **Infrastructure tool constants made public**: `TOOL_DISCOVERY_NAME`, `TOOL_CALL_DEFERRED_NAME`, `INFRASTRUCTURE_TOOLS`, `BASE_CALL_DEFERRED_DESCRIPTION` exported from `toolregistry` and `toolregistry.llm.discovery`.
+
+### Fixed
+
+- Re-vendored `jsonschema` 0.3.0 from zerodep (position-aware walkers fix parameter names colliding with schema keywords like `title`).
+- Relaxed e2e timeout assertions (2.0s → 4.0s) for CI stability.
+
 ## [0.17.0] - 2026-09-10
 
 ### Added
