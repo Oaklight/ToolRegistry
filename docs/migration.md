@@ -2,6 +2,60 @@
 
 This guide covers breaking changes and migration steps between major ToolRegistry releases.
 
+## 0.17.0 → 0.18.0
+
+### Frozen `Tool` and `ToolMetadata`
+
+`Tool` and `ToolMetadata` are now `frozen=True` dataclasses. Direct field assignment raises `FrozenInstanceError`.
+
+**Before:**
+```python
+tool.metadata.defer = True
+tool.metadata.tags = {ToolTag.READ_ONLY}
+```
+
+**After:**
+```python
+import dataclasses
+tool = dataclasses.replace(tool, metadata=dataclasses.replace(tool.metadata, defer=True))
+# Or use registry helpers:
+registry._replace_tool_metadata("tool_name", defer=True, tags={ToolTag.READ_ONLY})
+```
+
+`update_namespace()` now returns a new `Tool` — capture the return value:
+```python
+# Before:
+tool.update_namespace("math")
+# After:
+tool = tool.update_namespace("math")
+```
+
+### `execute_tool_calls()` returns `ResultList`
+
+`execute_tool_calls()` now returns a `ResultList` (list subclass) instead of a dict.
+
+**Before:**
+```python
+results = registry.execute_tool_calls(tool_calls)
+for call_id, result in results.items():
+    print(call_id, result)
+```
+
+**After:**
+```python
+results = registry.execute_tool_calls(tool_calls)
+for result in results:
+    print(result.id, result)
+# Or lookup by ID:
+result = results.by_id("call_abc123")
+```
+
+Note: `build_tool_call_messages()` accepts `ResultList` directly — no changes needed there.
+
+### `validate_parameters` renamed
+
+`_validate_parameters` is now public as `validate_parameters`. The old name is retained as an alias.
+
 ## Unified `register()` Entry Point (v0.17.0+)
 
 All `register_from_*` methods are now **deprecated** in favor of a single `register()` method with auto-detection:

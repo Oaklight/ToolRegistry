@@ -17,7 +17,7 @@ backend.submit(fn, kwargs, timeout=...)
     ↓
 ExecutionHandle (cancel, status, result, progress)
     ↓
-Collect results → dict[str, str]
+Collect results → ResultList
 ```
 
 ## Backends

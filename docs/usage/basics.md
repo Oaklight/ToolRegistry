@@ -197,7 +197,7 @@ tool_responses = registry.execute_tool_calls(tool_calls)
 
 By default the `execution_mode` parameter is set to `process`, which means the tool calls will be executed in parallel using multiple processes. For more information about the `execution_mode` parameter, please refer to the [Concurrency Modes: Thread Mode and Process Mode](concurrency_modes) section.
 
-Results will be packed as a dictionary with the tool call ID as the key and the result as the value.
+Results are returned as a `ResultList` (a list subclass). Each item has an `.id` attribute (the tool call ID) and the execution result. `ResultList` also supports `by_id()` for O(1) lookup by tool call ID.
 
 Please read [OpenAI Chat Completion Integration](providers/openai_chat) or specific format integration guide for detailed example and step-by-step breakdown with explanation.
 

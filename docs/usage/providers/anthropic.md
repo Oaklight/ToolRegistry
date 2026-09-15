@@ -109,10 +109,10 @@ ToolRegistry handles Anthropic `tool_use` blocks natively:
 tool_responses = registry.execute_tool_calls(tool_calls)
 ```
 
-Returns a dict mapping tool call IDs to results:
+Returns a `ResultList` — a list subclass where each item has an `.id` attribute and the execution result:
 
-```json
-{"toolu_01A09q90qw90lq917835lq9": "12"}
+```python
+[ToolCallResult(id="toolu_01A09q90qw90lq917835lq9", result="12")]
 ```
 
 ## Feed Results Back to LLM

@@ -34,7 +34,7 @@ The Tool class follows a data-transfer-object pattern with the following key com
 
 ### Design Philosophy
 
-- **Immutability**: Tool instances are designed to be immutable after creation
+- **Immutability**: `Tool` and `ToolMetadata` are `frozen=True` dataclasses — fields cannot be reassigned after construction. Use `dataclasses.replace()` to create modified copies.
 - **Schema-Driven**: Parameter validation based on JSON Schema standards
 - **Execution Flexibility**: Support for both sync and async execution patterns
 - **Metadata Preservation**: Complete preservation of tool metadata for LLM consumption
@@ -136,7 +136,7 @@ from toolregistry import Tool
 math_tool = Tool.from_function(lambda a, b: a * b, name="multiply")
 
 # Update with namespace
-math_tool.update_namespace("math_operations")
+math_tool = math_tool.update_namespace("math_operations")
 print(math_tool.name)           # Output: "math_operations-multiply"
 print(math_tool.namespace)      # Output: "math_operations"
 print(math_tool.method_name)    # Output: "multiply"

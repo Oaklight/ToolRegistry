@@ -285,7 +285,8 @@ When registries grow large, sending all tool schemas in every prompt wastes toke
 1. Mark tools as `defer=True` in their metadata — their schemas are excluded from the initial prompt
 2. A built-in `discover_tools` tool is injected into the registry
 3. The LLM calls `discover_tools(query="...")` to find relevant tools by natural language
-4. Matched tool schemas are injected into the conversation on demand
+4. If the client cannot dynamically register tools, it invokes the deferred tool via `call_deferred(_target_tool=..., **kwargs)`
+5. Matched tool schemas are injected into the conversation on demand
 
 The search backend uses **BM25F scoring** (vendored, zero external dependencies) across multiple fields: tool name, description, tags, parameter names, and `search_hint`. See [Tool Discovery](../usage/tool_discovery.md) for configuration.
 

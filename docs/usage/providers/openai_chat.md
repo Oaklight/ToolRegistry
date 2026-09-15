@@ -151,10 +151,10 @@ Using the `ToolRegistry`, you can easily process results from **all** `tool_call
 tool_responses = registry.execute_tool_calls(tool_calls)
 ```
 
-The tool execution results from the registry are returned as a Python dictionary mapping `tool_call_id` to results:
+The tool execution results from the registry are returned as a `ResultList` — a list subclass where each item has an `.id` attribute and the execution result:
 
-```json
-{ "call_0_bfa567b8-2f10-4113-953a-56e87b664e0f": 12 }
+```python
+[ToolCallResult(id="call_0_bfa567b8-2f10-4113-953a-56e87b664e0f", result=12)]
 ```
 
 ## Feed Results back to LLM

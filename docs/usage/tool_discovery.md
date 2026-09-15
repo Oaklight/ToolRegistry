@@ -177,6 +177,19 @@ Each summary contains:
 
 Only **enabled** deferred tools are included. The description is truncated to the first sentence (text before the first `. ` on the first line).
 
+### Invoking Deferred Tools via `call_deferred`
+
+When tool discovery is enabled, a `call_deferred` proxy tool is registered alongside `discover_tools`. It bridges the gap for MCP clients that cache `tools/list` at initialization and cannot dynamically register newly discovered tools.
+
+The workflow is:
+
+1. LLM calls `discover_tools(query="search")` → receives the deferred tool's full schema
+2. LLM calls `call_deferred(_target_tool="search", query="hello")` → the registry executes the deferred tool through the full pipeline (permissions, execution backend, logging)
+
+`call_deferred` only accepts deferred tools — calling it with a non-deferred tool raises `ValueError`.
+
+Both `discover_tools` and `call_deferred` are registered and unregistered together via `enable_tool_discovery()` / `disable_tool_discovery()`. Their names are available as constants: `TOOL_DISCOVERY_NAME` and `TOOL_CALL_DEFERRED_NAME` from `toolregistry.llm.discovery`.
+
 ## Search Hints
 
 Use `ToolMetadata.search_hint` to add synonyms, related concepts, or domain-specific terms that improve discoverability:
