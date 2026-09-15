@@ -72,4 +72,4 @@ __all__ = [
     "SchemaChangeKind",
 ]
 
-__version__ = "0.18.0.dev2"
+__version__ = "0.18.0"
