@@ -143,6 +143,18 @@ print(math_tool.method_name)    # Output: "multiply"
 print(math_tool.qualified_name) # Output: "math_operations-multiply"
 ```
 
+### 刷新元数据
+
+```python
+from toolregistry import Tool
+
+tool = Tool.from_function(lambda x: x, name="echo")
+
+# 更新 last_refreshed_at 时间戳（返回一个新的冻结 Tool）
+updated = tool.with_refreshed_at("2026-09-15T08:00:00Z")
+print(updated.metadata.last_refreshed_at)  # "2026-09-15T08:00:00Z"
+```
+
 ### 异步工具
 
 ```python
