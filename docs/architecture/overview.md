@@ -162,6 +162,8 @@ toolregistry/
 | `defer` | 从初始 prompt 中排除；可通过 `ToolDiscoveryTool` 发现 |
 | `search_hint` | 额外关键词，提升 BM25 可发现性 |
 | `think_augment` | 单工具级别是否暴露 `toolcall_reason` 理由字段的覆盖开关 |
+| `source` | 工具来源：`"native"`、`"mcp"`、`"openapi"` 或 `"langchain"`（由集成层自动设置） |
+| `source_detail` | 集成层特定的来源信息（传输方式、URL、类名） |
 | `extra` | 应用自定义的任意键值对 |
 
 标签驱动权限系统 — 你编写基于标签匹配的规则，而不是工具名称。
@@ -283,7 +285,8 @@ with ToolRegistry() as registry:
 1. 在元数据中标记 `defer=True` 的工具 — 其 Schema 不会出现在初始 prompt 中
 2. 注册表自动注入内置的 `discover_tools` 工具
 3. LLM 调用 `discover_tools(query="...")` 通过自然语言查找相关工具
-4. 匹配到的工具 Schema 按需注入对话上下文
+4. 如果客户端无法动态注册工具，可通过 `call_deferred(_target_tool=..., **kwargs)` 调用延迟工具
+5. 匹配到的工具 Schema 按需注入对话上下文
 
 搜索后端使用 **BM25F 评分**（内置、零外部依赖），跨多个字段索引：工具名称、描述、标签、参数名和 `search_hint`。详见[工具发现](../usage/tool_discovery.md)。
 

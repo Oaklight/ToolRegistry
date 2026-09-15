@@ -157,10 +157,10 @@ for each in response.output:
 tool_responses = registry.execute_tool_calls(tool_calls)
 ```
 
-注册表返回的工具执行结果是一个 Python 字典，键为 `tool_call_id`，值为对应的结果：
+注册表返回的工具执行结果是一个 `ResultList`——列表子类，每个元素都有 `.id` 属性和执行结果：
 
-```json
-{ "call_FbBTgiYFPuLwdk6jNW2JaNQh": 12 }
+```python
+[ToolCallResult(id="call_FbBTgiYFPuLwdk6jNW2JaNQh", result=12)]
 ```
 
 ## 将结果反馈给 LLM

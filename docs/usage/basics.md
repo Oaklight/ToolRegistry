@@ -197,7 +197,7 @@ tool_responses = registry.execute_tool_calls(tool_calls)
 
 默认情况下，`execution_mode` 参数设置为 `process`，这意味着工具调用将使用多个进程并行执行。有关 `execution_mode` 参数的更多信息，请参阅[并发模式：线程模式和进程模式](concurrency_modes)部分。
 
-结果将打包为字典，工具调用 ID 作为键，结果作为值。
+结果以 `ResultList`（列表子类）的形式返回。每个元素都有 `.id` 属性（工具调用 ID）和执行结果。`ResultList` 还支持 `by_id()` 方法，可通过工具调用 ID 进行 O(1) 查找。
 
 请阅读 [OpenAI Chat Completion 集成](providers/openai_chat)或特定格式集成指南，了解详细示例和逐步分解说明。
 

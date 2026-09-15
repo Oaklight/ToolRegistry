@@ -17,7 +17,7 @@ backend.submit(fn, kwargs, timeout=...)
     ↓
 ExecutionHandle（cancel、status、result、progress）
     ↓
-收集结果 → dict[str, str]
+收集结果 → ResultList
 ```
 
 ## 后端

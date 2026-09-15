@@ -27,10 +27,11 @@ def subtract(a: float, b: float) -> float:
 ## 导出工具 Schema
 
 ```python
-schemas = registry.get_schemas(api_format="openai-chat")
+schemas = registry.get_schemas(api_format="openai-chat") # v0.7.0 起的规范名称
+# 旧别名 "openai" 和 "openai-chatcompletion" 仍然可用，但会发出 DeprecationWarning
 ```
 
-以上两种写法均会返回符合 OpenAI Chat Completion API 要求的工具 Schema。格式化后的 JSON 输出如下：
+以上写法均会返回符合 OpenAI Chat Completion API 要求的工具 Schema。格式化后的 JSON 输出如下：
 
 ```json
 [
@@ -150,10 +151,10 @@ if response.choices[0].message.tool_calls:
 tool_responses = registry.execute_tool_calls(tool_calls)
 ```
 
-注册表返回的工具执行结果是一个 Python 字典，键为 `tool_call_id`，值为对应的结果：
+注册表返回的工具执行结果是一个 `ResultList`——列表子类，每个元素都有 `.id` 属性和执行结果：
 
-```json
-{ "call_0_bfa567b8-2f10-4113-953a-56e87b664e0f": 12 }
+```python
+[ToolCallResult(id="call_0_bfa567b8-2f10-4113-953a-56e87b664e0f", result=12)]
 ```
 
 ## 将结果反馈给 LLM

@@ -2,6 +2,60 @@
 
 本指南涵盖 ToolRegistry 主要版本之间的破坏性变更和迁移步骤。
 
+## 0.17.0 → 0.18.0
+
+### 冻结的 `Tool` 和 `ToolMetadata`
+
+`Tool` 和 `ToolMetadata` 现在是 `frozen=True` 数据类。直接字段赋值会抛出 `FrozenInstanceError`。
+
+**之前：**
+```python
+tool.metadata.defer = True
+tool.metadata.tags = {ToolTag.READ_ONLY}
+```
+
+**之后：**
+```python
+import dataclasses
+tool = dataclasses.replace(tool, metadata=dataclasses.replace(tool.metadata, defer=True))
+# 或使用 registry 辅助方法：
+registry._replace_tool_metadata("tool_name", defer=True, tags={ToolTag.READ_ONLY})
+```
+
+`update_namespace()` 现在返回新的 `Tool`——需要捕获返回值：
+```python
+# 之前：
+tool.update_namespace("math")
+# 之后：
+tool = tool.update_namespace("math")
+```
+
+### `execute_tool_calls()` 返回 `ResultList`
+
+`execute_tool_calls()` 现在返回 `ResultList`（列表子类），而非字典。
+
+**之前：**
+```python
+results = registry.execute_tool_calls(tool_calls)
+for call_id, result in results.items():
+    print(call_id, result)
+```
+
+**之后：**
+```python
+results = registry.execute_tool_calls(tool_calls)
+for result in results:
+    print(result.id, result)
+# 或按 ID 查找：
+result = results.by_id("call_abc123")
+```
+
+注意：`build_tool_call_messages()` 直接接受 `ResultList`——无需修改。
+
+### `validate_parameters` 重命名
+
+`_validate_parameters` 现已公开为 `validate_parameters`。旧名称保留为别名。
+
 ## 统一 `register()` 入口 (v0.17.0+)
 
 所有 `register_from_*` 方法现已**弃用**，统一使用 `register()` 方法并支持自动检测：
@@ -220,6 +274,15 @@ pip install toolregistry[mcp]
 ```
 
 核心 OpenAPI 功能现在使用内置的零依赖 HTTP 客户端。
+
+### PyYAML 和 jsonref 从 OpenAPI 可选依赖中移除
+
+OpenAPI 集成不再需要 `PyYAML` 和 `jsonref`，已由内置的 vendored 模块替代：
+
+- YAML 解析现在使用 `_vendor.yaml`（zerodep）
+- `$ref` 解析现在使用 `_vendor.jsonschema.resolve_refs()`（zerodep）
+
+`openapi` 可选依赖组现在为空——`pip install toolregistry[openapi]` 仍保留用于前向兼容，但不会安装任何额外的包。无需修改代码；此变更仅影响依赖占用。
 
 ---
 

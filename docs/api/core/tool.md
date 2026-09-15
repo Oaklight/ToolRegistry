@@ -34,7 +34,7 @@ Tool 类遵循数据传输对象模式，包含以下关键组件：
 
 ### 设计理念
 
-- **不可变性**：Tool 实例设计为创建后不可变
+- **不可变性**：`Tool` 和 `ToolMetadata` 是 `frozen=True` 数据类——字段在构造后不可重新赋值。使用 `dataclasses.replace()` 创建修改后的副本。
 - **模式驱动**：基于 JSON Schema 标准的参数验证
 - **执行灵活性**：支持同步和异步执行模式
 - **元数据保留**：完整保留工具元数据以供 LLM 使用
@@ -136,7 +136,7 @@ from toolregistry import Tool
 math_tool = Tool.from_function(lambda a, b: a * b, name="multiply")
 
 # Update with namespace
-math_tool.update_namespace("math_operations")
+math_tool = math_tool.update_namespace("math_operations")
 print(math_tool.name)           # Output: "math_operations-multiply"
 print(math_tool.namespace)      # Output: "math_operations"
 print(math_tool.method_name)    # Output: "multiply"

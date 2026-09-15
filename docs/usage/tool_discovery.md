@@ -177,6 +177,19 @@ for s in summaries:
 
 仅包含**已启用**的延迟工具。描述会截断到第一句话（第一行中首个 `. ` 之前的文本）。
 
+### 通过 `call_deferred` 调用延迟工具
+
+启用工具发现后，`call_deferred` 代理工具会与 `discover_tools` 一起注册。它为那些在初始化时缓存 `tools/list` 且无法动态注册新发现工具的 MCP 客户端提供了桥接方案。
+
+工作流程如下：
+
+1. LLM 调用 `discover_tools(query="search")` → 接收延迟工具的完整 schema
+2. LLM 调用 `call_deferred(_target_tool="search", query="hello")` → 注册表通过完整管线（权限、执行后端、日志）执行延迟工具
+
+`call_deferred` 仅接受延迟工具——对非延迟工具调用会抛出 `ValueError`。
+
+`discover_tools` 和 `call_deferred` 通过 `enable_tool_discovery()` / `disable_tool_discovery()` 一起注册和注销。它们的名称可通过 `toolregistry.llm.discovery` 中的常量 `TOOL_DISCOVERY_NAME` 和 `TOOL_CALL_DEFERRED_NAME` 获取。
+
 ## 搜索提示
 
 使用 `ToolMetadata.search_hint` 添加同义词、相关概念或领域特定术语，以提高工具的可发现性：

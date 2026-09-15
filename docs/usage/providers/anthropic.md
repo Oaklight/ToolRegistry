@@ -109,10 +109,10 @@ ToolRegistry 原生支持 Anthropic 的 `tool_use` 块：
 tool_responses = registry.execute_tool_calls(tool_calls)
 ```
 
-返回一个字典，键为工具调用 ID，值为执行结果：
+返回一个 `ResultList`——列表子类，每个元素都有 `.id` 属性和执行结果：
 
-```json
-{"toolu_01A09q90qw90lq917835lq9": "12"}
+```python
+[ToolCallResult(id="toolu_01A09q90qw90lq917835lq9", result="12")]
 ```
 
 ## 将结果反馈给 LLM
