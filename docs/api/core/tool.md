@@ -143,6 +143,18 @@ print(math_tool.method_name)    # Output: "multiply"
 print(math_tool.qualified_name) # Output: "math_operations-multiply"
 ```
 
+### Refreshing Metadata
+
+```python
+from toolregistry import Tool
+
+tool = Tool.from_function(lambda x: x, name="echo")
+
+# Update last_refreshed_at timestamp (returns a new frozen Tool)
+updated = tool.with_refreshed_at("2026-09-15T08:00:00Z")
+print(updated.metadata.last_refreshed_at)  # "2026-09-15T08:00:00Z"
+```
+
 ### Async Tool
 
 ```python
