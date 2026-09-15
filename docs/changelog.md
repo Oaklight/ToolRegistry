@@ -16,6 +16,27 @@ hide:
 
 ## [未发布]
 
+## [0.18.0] - 2026-09-15
+
+### 新增
+
+- **`call_deferred` 代理工具** (#261)：通过 `enable_tool_discovery()` 与 `discover_tools` 同步注册的新基础设施工具。解决 MCP 客户端在初始化时缓存 `tools/list` 后无法动态注册新发现工具的问题——LLM 通过 `discover_tools` 发现延迟工具的 schema 后，可调用 `call_deferred(_target_tool=..., **kwargs)` 执行，走完整的注册管线（权限、执行、日志）。对非延迟工具调用会抛出 `ValueError`。
+- **`with_refreshed_at()` 辅助方法**：`Tool` 上的便捷方法，返回更新了 `last_refreshed_at` 元数据的副本，替代冗长的嵌套 `dataclasses.replace()` 写法。
+- **测试发布工作流**：新增向 Test PyPI 发布开发版本的 CI 工作流。
+
+### 变更
+
+- **`Tool` 和 `ToolMetadata` 冻结化** (**破坏性变更**)：两者均改为 `frozen=True` 数据类。直接字段赋值将抛出 `FrozenInstanceError`。使用 `dataclasses.replace()` 创建副本，或使用 `registry._replace_tool()` / `registry._replace_tool_metadata()` 进行注册表内更新。`update_namespace()` 现在返回新 `Tool` 而非就地修改——所有调用处必须捕获返回值。
+- **两层 Schema 模型** (#265, #266) (**破坏性变更**)：`tool.parameters` 现在是忠实反映函数签名的干净 JSON Schema。`get_schema()` 在此基础上包装并按需注入 `toolcall_reason`（当 `think_augment=True` 时）。移除了 `_inject_toolcall_reason()` 和 `_parameters_without_toolcall_reason()` 内部方法，消除了五处硬编码的 `toolcall_reason` 排除逻辑。
+- **`execute_tool_calls()` 返回 `ResultList`** (**破坏性变更**)：返回 `ResultList`（list 子类）而非 dict。直接迭代即可，每个元素包含 `.id` 和结果属性。
+- **`validate_parameters` 公开化**：从 `_validate_parameters` 重命名（保留向后兼容别名）。
+- **基础设施工具常量公开化**：`TOOL_DISCOVERY_NAME`、`TOOL_CALL_DEFERRED_NAME`、`INFRASTRUCTURE_TOOLS`、`BASE_CALL_DEFERRED_DESCRIPTION` 从 `toolregistry` 和 `toolregistry.llm.discovery` 导出。
+
+### 修复
+
+- 从 zerodep 重新 vendor `jsonschema` 0.3.0（位置感知遍历器修复参数名与 schema 关键字如 `title` 的冲突）。
+- 放宽端到端超时断言（2.0s → 4.0s）以提高 CI 稳定性。
+
 ## [0.17.0] - 2026-09-10
 
 ### 新增
