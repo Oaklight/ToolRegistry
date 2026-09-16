@@ -16,6 +16,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.18.1] - 2026-09-16
+
+### Fixed
+
+- **Admin panel reverse proxy support**: `API_BASE` now derived from `window.location.href` instead of `window.location.origin`, so the admin panel UI works correctly when served behind a reverse proxy at a sub-path (e.g. `/admin/openapi/`). Previously, API calls would go to the root path and miss the proxy prefix.
+
 ## [0.18.0] - 2026-09-15
 
 ### Added
