@@ -1827,7 +1827,7 @@ ADMIN_HTML: str = """<!DOCTYPE html>
 
     <script>
         // ============== Configuration ==============
-        const API_BASE = window.location.origin;
+        const API_BASE = window.location.href.replace(/\/+$/, '');
         let AUTH_TOKEN = localStorage.getItem('admin_token') || '';
         let autoRefreshInterval = null;
         let allTools = [];
