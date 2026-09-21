@@ -1,20 +1,19 @@
 # /// zerodep
-# version = "0.3.0"
+# version = "0.4.0"
 # deps = []
-# tier = "medium"
+# tier = "subsystem"
 # category = "validation"
-# note = "Install/update via: https://zerodep.readthedocs.io/en/latest/guide/cli/"
+# note = "Install/update via `zerodep add jsonschema`"
 # ///
-"""JSON Schema flattening & sanitization — zero dependencies, stdlib only.
+"""JSON Schema flattening, sanitization & validation — zero dependencies, stdlib only.
 
-Flatten complex JSON Schemas containing ``$ref``, ``allOf``, ``anyOf``, and
-``oneOf`` into simple, LLM-provider-compatible schemas.  Designed for tool
-schemas consumed by Anthropic, OpenAI, and Google GenAI APIs.
+Flatten complex JSON Schemas for LLM providers, and validate data instances
+against JSON Schema (Draft 2020-12 subset used by OpenAPI 3.x).
 
 Part of zerodep: https://github.com/Oaklight/zerodep
 Copyright (c) 2026 Peng Ding. MIT License.
 
-Example::
+Flattening example::
 
     >>> from jsonschema import flatten_schema
     >>> schema = {
@@ -32,7 +31,33 @@ Example::
     >>> flatten_schema(schema)
     {'type': 'object', 'properties': {'user': {'type': 'object', 'properties': {'name': {'type': 'string'}}}}}
 
-Pipeline::
+Validation example::
+
+    >>> from jsonschema import schema_validate, iter_errors
+    >>> schema = {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}
+    >>> schema_validate({"name": "Alice"}, schema)
+    >>> errors = iter_errors({}, schema)
+    >>> len(errors)
+    1
+
+Supported validation keywords (Draft 2020-12 subset)::
+
+    type, enum, const,
+    minLength, maxLength, pattern,
+    minimum, maximum, exclusiveMinimum, exclusiveMaximum, multipleOf,
+    properties, required, additionalProperties, patternProperties,
+    minProperties, maxProperties,
+    items, prefixItems, minItems, maxItems, uniqueItems, contains,
+    allOf, anyOf, oneOf, not, if/then/else
+
+Not implemented: dependentRequired, dependentSchemas, propertyNames,
+minContains, maxContains, format.
+
+Note: OpenAPI 3.0 ``nullable: true`` is not handled by the validator.
+Use ``flatten_schema`` to convert ``nullable`` to ``type: [..., "null"]``
+before validating, or write schemas using Draft 2020-12 type arrays.
+
+Flattening pipeline::
 
     resolve_refs  →  merge_allof  →  simplify_unions  →  sanitize
 """
@@ -40,16 +65,25 @@ Pipeline::
 from __future__ import annotations
 
 import copy
+import dataclasses
+import math
+import re
 import warnings
 from typing import Any
 
 __all__ = [
+    # Schema transformation
     "flatten_schema",
     "resolve_refs",
     "merge_allof",
     "simplify_unions",
     "sanitize",
     "UNSUPPORTED_SCHEMA_KEYS",
+    # Schema validation
+    "schema_validate",
+    "iter_errors",
+    "SchemaErrorDetail",
+    "SchemaValidationError",
 ]
 
 # ---------------------------------------------------------------------------
@@ -156,6 +190,10 @@ def _inline_refs(
     if isinstance(ref, str):
         if ref in _seen:
             # Circular reference — drop the $ref and keep sibling keys.
+            warnings.warn(
+                f"Circular $ref: {ref!r} — dropped",
+                stacklevel=2,
+            )
             return {k: v for k, v in schema.items() if k != "$ref"}
         resolved = _resolve_ref(ref, root)
         if resolved:
@@ -514,3 +552,742 @@ def flatten_schema(
     strip = UNSUPPORTED_SCHEMA_KEYS | (strip_keys or set())
     result = _walk_sanitize(result, strip)
     return result
+
+
+# ---------------------------------------------------------------------------
+# Phase 6 — Data validation
+# ---------------------------------------------------------------------------
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class SchemaErrorDetail:
+    """A single JSON Schema validation error.
+
+    Attributes:
+        path: Dotted/bracketed path to the failing instance location.
+        schema_path: Dotted path into the schema that triggered the error.
+        validator: The JSON Schema keyword that failed.
+        message: Human-readable error message.
+    """
+
+    path: str
+    schema_path: str
+    validator: str
+    message: str
+
+
+class SchemaValidationError(Exception):
+    """Raised when data validation against a JSON Schema fails.
+
+    Attributes:
+        errors: List of all validation errors found.
+    """
+
+    def __init__(self, errors: list[SchemaErrorDetail]) -> None:
+        self.errors = errors
+        msgs = "; ".join(e.message for e in errors[:5])
+        if len(errors) > 5:
+            msgs += f" ... and {len(errors) - 5} more"
+        super().__init__(f"{len(errors)} schema validation error(s): {msgs}")
+
+
+def _jp(base: str, key: str | int) -> str:
+    """Join a path segment (dotted for strings, bracketed for indices)."""
+    if isinstance(key, int):
+        return f"{base}[{key}]" if base else f"[{key}]"
+    return f"{base}.{key}" if base else key
+
+
+_JSON_TYPE_CHECKS: dict[str, type | tuple[type, ...]] = {
+    "null": type(None),
+    "boolean": bool,
+    "string": str,
+    "array": list,
+    "object": dict,
+}
+
+
+def _is_json_type(instance: Any, type_name: str) -> bool:
+    """Check if *instance* matches the JSON Schema *type_name*."""
+    if type_name == "integer":
+        return isinstance(instance, int) and not isinstance(instance, bool)
+    if type_name == "number":
+        return isinstance(instance, (int, float)) and not isinstance(instance, bool)
+    check = _JSON_TYPE_CHECKS.get(type_name)
+    if check is None:
+        return False
+    return type(instance) is check if check is bool else isinstance(instance, check)
+
+
+def _type_name(instance: Any) -> str:
+    """Return the JSON Schema type name for a Python value."""
+    if instance is None:
+        return "null"
+    if isinstance(instance, bool):
+        return "boolean"
+    if isinstance(instance, int):
+        return "integer"
+    if isinstance(instance, float):
+        return "number"
+    if isinstance(instance, str):
+        return "string"
+    if isinstance(instance, list):
+        return "array"
+    if isinstance(instance, dict):
+        return "object"
+    return type(instance).__name__
+
+
+# -- Keyword handlers -------------------------------------------------------
+
+
+def _check_type(
+    instance: Any,
+    type_val: str | list[str],
+    errors: list[SchemaErrorDetail],
+    path: str,
+    schema_path: str,
+) -> None:
+    """Validate the ``type`` keyword."""
+    types = [type_val] if isinstance(type_val, str) else type_val
+    if any(_is_json_type(instance, t) for t in types):
+        return
+    expected = type_val if isinstance(type_val, str) else types
+    errors.append(
+        SchemaErrorDetail(
+            path=path or "$",
+            schema_path=_jp(schema_path, "type"),
+            validator="type",
+            message=f"Expected type {expected} at '{path or '$'}', got {_type_name(instance)}",
+        )
+    )
+
+
+def _check_enum(
+    instance: Any,
+    enum_val: list[Any],
+    errors: list[SchemaErrorDetail],
+    path: str,
+    schema_path: str,
+) -> None:
+    if not any(type(instance) is type(v) and instance == v for v in enum_val):
+        errors.append(
+            SchemaErrorDetail(
+                path=path or "$",
+                schema_path=_jp(schema_path, "enum"),
+                validator="enum",
+                message=f"Value {instance!r} at '{path or '$'}' is not one of {enum_val}",
+            )
+        )
+
+
+def _check_const(
+    instance: Any,
+    const_val: Any,
+    errors: list[SchemaErrorDetail],
+    path: str,
+    schema_path: str,
+) -> None:
+    if type(instance) is not type(const_val) or instance != const_val:
+        errors.append(
+            SchemaErrorDetail(
+                path=path or "$",
+                schema_path=_jp(schema_path, "const"),
+                validator="const",
+                message=f"Value {instance!r} at '{path or '$'}' does not match const {const_val!r}",
+            )
+        )
+
+
+def _check_string(
+    instance: Any,
+    schema: dict[str, Any],
+    errors: list[SchemaErrorDetail],
+    path: str,
+    schema_path: str,
+) -> None:
+    if not isinstance(instance, str):
+        return
+    if "minLength" in schema and len(instance) < schema["minLength"]:
+        errors.append(
+            SchemaErrorDetail(
+                path=path or "$",
+                schema_path=_jp(schema_path, "minLength"),
+                validator="minLength",
+                message=f"String at '{path or '$'}' is too short (length {len(instance)} < {schema['minLength']})",
+            )
+        )
+    if "maxLength" in schema and len(instance) > schema["maxLength"]:
+        errors.append(
+            SchemaErrorDetail(
+                path=path or "$",
+                schema_path=_jp(schema_path, "maxLength"),
+                validator="maxLength",
+                message=f"String at '{path or '$'}' is too long (length {len(instance)} > {schema['maxLength']})",
+            )
+        )
+    if "pattern" in schema and not re.search(schema["pattern"], instance):
+        errors.append(
+            SchemaErrorDetail(
+                path=path or "$",
+                schema_path=_jp(schema_path, "pattern"),
+                validator="pattern",
+                message=f"String {instance!r} at '{path or '$'}' does not match pattern {schema['pattern']!r}",
+            )
+        )
+
+
+def _check_number(
+    instance: Any,
+    schema: dict[str, Any],
+    errors: list[SchemaErrorDetail],
+    path: str,
+    schema_path: str,
+) -> None:
+    if not isinstance(instance, (int, float)) or isinstance(instance, bool):
+        return
+    if "minimum" in schema and instance < schema["minimum"]:
+        errors.append(
+            SchemaErrorDetail(
+                path=path or "$",
+                schema_path=_jp(schema_path, "minimum"),
+                validator="minimum",
+                message=f"Value {instance} at '{path or '$'}' is less than minimum {schema['minimum']}",
+            )
+        )
+    if "maximum" in schema and instance > schema["maximum"]:
+        errors.append(
+            SchemaErrorDetail(
+                path=path or "$",
+                schema_path=_jp(schema_path, "maximum"),
+                validator="maximum",
+                message=f"Value {instance} at '{path or '$'}' is greater than maximum {schema['maximum']}",
+            )
+        )
+    if "exclusiveMinimum" in schema and instance <= schema["exclusiveMinimum"]:
+        errors.append(
+            SchemaErrorDetail(
+                path=path or "$",
+                schema_path=_jp(schema_path, "exclusiveMinimum"),
+                validator="exclusiveMinimum",
+                message=f"Value {instance} at '{path or '$'}' must be > {schema['exclusiveMinimum']}",
+            )
+        )
+    if "exclusiveMaximum" in schema and instance >= schema["exclusiveMaximum"]:
+        errors.append(
+            SchemaErrorDetail(
+                path=path or "$",
+                schema_path=_jp(schema_path, "exclusiveMaximum"),
+                validator="exclusiveMaximum",
+                message=f"Value {instance} at '{path or '$'}' must be < {schema['exclusiveMaximum']}",
+            )
+        )
+    if "multipleOf" in schema:
+        divisor = schema["multipleOf"]
+        if isinstance(divisor, float) or isinstance(instance, float):
+            quotient = instance / divisor
+            if not math.isclose(quotient, round(quotient)):
+                errors.append(
+                    SchemaErrorDetail(
+                        path=path or "$",
+                        schema_path=_jp(schema_path, "multipleOf"),
+                        validator="multipleOf",
+                        message=f"Value {instance} at '{path or '$'}' is not a multiple of {divisor}",
+                    )
+                )
+        elif instance % divisor != 0:
+            errors.append(
+                SchemaErrorDetail(
+                    path=path or "$",
+                    schema_path=_jp(schema_path, "multipleOf"),
+                    validator="multipleOf",
+                    message=f"Value {instance} at '{path or '$'}' is not a multiple of {divisor}",
+                )
+            )
+
+
+def _check_object_props(
+    instance: dict[str, Any],
+    schema: dict[str, Any],
+    errors: list[SchemaErrorDetail],
+    path: str,
+    schema_path: str,
+) -> set[str]:
+    """Validate properties and patternProperties, return covered key names."""
+    covered_keys: set[str] = set()
+    properties = schema.get("properties", {})
+    pattern_properties = schema.get("patternProperties", {})
+
+    for prop_name, prop_schema in properties.items():
+        if prop_name in instance:
+            covered_keys.add(prop_name)
+            if isinstance(prop_schema, (dict, bool)):
+                _validate_schema(
+                    instance[prop_name],
+                    prop_schema,
+                    errors,
+                    _jp(path, prop_name),
+                    _jp(schema_path, f"properties.{prop_name}"),
+                )
+
+    for pattern, pat_schema in pattern_properties.items():
+        compiled = re.compile(pattern)
+        for key in instance:
+            if compiled.search(key):
+                covered_keys.add(key)
+                if isinstance(pat_schema, (dict, bool)):
+                    _validate_schema(
+                        instance[key],
+                        pat_schema,
+                        errors,
+                        _jp(path, key),
+                        _jp(schema_path, f"patternProperties.{pattern}"),
+                    )
+
+    return covered_keys
+
+
+def _check_object(
+    instance: Any,
+    schema: dict[str, Any],
+    errors: list[SchemaErrorDetail],
+    path: str,
+    schema_path: str,
+) -> None:
+    if not isinstance(instance, dict):
+        return
+
+    if "required" in schema:
+        for name in schema["required"]:
+            if name not in instance:
+                errors.append(
+                    SchemaErrorDetail(
+                        path=path or "$",
+                        schema_path=_jp(schema_path, "required"),
+                        validator="required",
+                        message=f"Required property {name!r} is missing at '{path or '$'}'",
+                    )
+                )
+
+    covered_keys = _check_object_props(instance, schema, errors, path, schema_path)
+
+    if "additionalProperties" in schema:
+        additional = schema["additionalProperties"]
+        uncovered = set(instance.keys()) - covered_keys
+        if additional is False:
+            for key in sorted(uncovered):
+                errors.append(
+                    SchemaErrorDetail(
+                        path=_jp(path, key),
+                        schema_path=_jp(schema_path, "additionalProperties"),
+                        validator="additionalProperties",
+                        message=f"Additional property {key!r} is not allowed at '{_jp(path, key)}'",
+                    )
+                )
+        elif isinstance(additional, dict):
+            for key in sorted(uncovered):
+                _validate_schema(
+                    instance[key],
+                    additional,
+                    errors,
+                    _jp(path, key),
+                    _jp(schema_path, "additionalProperties"),
+                )
+
+    if "minProperties" in schema and len(instance) < schema["minProperties"]:
+        errors.append(
+            SchemaErrorDetail(
+                path=path or "$",
+                schema_path=_jp(schema_path, "minProperties"),
+                validator="minProperties",
+                message=f"Object at '{path or '$'}' has {len(instance)} properties, minimum is {schema['minProperties']}",
+            )
+        )
+    if "maxProperties" in schema and len(instance) > schema["maxProperties"]:
+        errors.append(
+            SchemaErrorDetail(
+                path=path or "$",
+                schema_path=_jp(schema_path, "maxProperties"),
+                validator="maxProperties",
+                message=f"Object at '{path or '$'}' has {len(instance)} properties, maximum is {schema['maxProperties']}",
+            )
+        )
+
+
+def _check_array_items(
+    instance: list[Any],
+    schema: dict[str, Any],
+    errors: list[SchemaErrorDetail],
+    path: str,
+    schema_path: str,
+) -> None:
+    """Validate prefixItems and items keywords."""
+    prefix_items = schema.get("prefixItems")
+    items_schema = schema.get("items")
+
+    if prefix_items and isinstance(prefix_items, list):
+        for i in range(min(len(prefix_items), len(instance))):
+            pi_schema = prefix_items[i]
+            if isinstance(pi_schema, dict):
+                _validate_schema(
+                    instance[i],
+                    pi_schema,
+                    errors,
+                    _jp(path, i),
+                    _jp(schema_path, f"prefixItems[{i}]"),
+                )
+
+    if items_schema is not None:
+        start = len(prefix_items) if prefix_items else 0
+        if items_schema is False:
+            for i in range(start, len(instance)):
+                errors.append(
+                    SchemaErrorDetail(
+                        path=_jp(path, i),
+                        schema_path=_jp(schema_path, "items"),
+                        validator="items",
+                        message=f"Additional item at index {i} is not allowed at '{_jp(path, i)}'",
+                    )
+                )
+        elif isinstance(items_schema, dict):
+            for i in range(start, len(instance)):
+                _validate_schema(
+                    instance[i],
+                    items_schema,
+                    errors,
+                    _jp(path, i),
+                    _jp(schema_path, "items"),
+                )
+
+
+def _check_unique_items(
+    instance: list[Any],
+    errors: list[SchemaErrorDetail],
+    path: str,
+    schema_path: str,
+) -> None:
+    """Check uniqueItems constraint."""
+    try:
+        seen: set[Any] = set()
+        for i, item in enumerate(instance):
+            key = (type(item), item)
+            if key in seen:
+                errors.append(
+                    SchemaErrorDetail(
+                        path=_jp(path, i),
+                        schema_path=_jp(schema_path, "uniqueItems"),
+                        validator="uniqueItems",
+                        message=f"Duplicate item {item!r} at '{_jp(path, i)}'",
+                    )
+                )
+                break
+            seen.add(key)
+    except TypeError:
+        for i in range(len(instance)):
+            for j in range(i + 1, len(instance)):
+                if (
+                    type(instance[i]) is type(instance[j])
+                    and instance[i] == instance[j]
+                ):
+                    errors.append(
+                        SchemaErrorDetail(
+                            path=_jp(path, j),
+                            schema_path=_jp(schema_path, "uniqueItems"),
+                            validator="uniqueItems",
+                            message=f"Duplicate item {instance[j]!r} at '{_jp(path, j)}'",
+                        )
+                    )
+                    break
+            else:
+                continue
+            break
+
+
+def _check_array(
+    instance: Any,
+    schema: dict[str, Any],
+    errors: list[SchemaErrorDetail],
+    path: str,
+    schema_path: str,
+) -> None:
+    if not isinstance(instance, list):
+        return
+
+    _check_array_items(instance, schema, errors, path, schema_path)
+
+    if "minItems" in schema and len(instance) < schema["minItems"]:
+        errors.append(
+            SchemaErrorDetail(
+                path=path or "$",
+                schema_path=_jp(schema_path, "minItems"),
+                validator="minItems",
+                message=f"Array at '{path or '$'}' has {len(instance)} items, minimum is {schema['minItems']}",
+            )
+        )
+    if "maxItems" in schema and len(instance) > schema["maxItems"]:
+        errors.append(
+            SchemaErrorDetail(
+                path=path or "$",
+                schema_path=_jp(schema_path, "maxItems"),
+                validator="maxItems",
+                message=f"Array at '{path or '$'}' has {len(instance)} items, maximum is {schema['maxItems']}",
+            )
+        )
+
+    if schema.get("uniqueItems"):
+        _check_unique_items(instance, errors, path, schema_path)
+
+    if "contains" in schema and isinstance(schema["contains"], dict):
+        contains_schema = schema["contains"]
+        found = False
+        for item in instance:
+            trial: list[SchemaErrorDetail] = []
+            _validate_schema(item, contains_schema, trial, "", "")
+            if not trial:
+                found = True
+                break
+        if not found:
+            errors.append(
+                SchemaErrorDetail(
+                    path=path or "$",
+                    schema_path=_jp(schema_path, "contains"),
+                    validator="contains",
+                    message=f"No item in array at '{path or '$'}' matches the 'contains' schema",
+                )
+            )
+
+
+# -- Composition handlers ----------------------------------------------------
+
+
+def _check_allof(
+    instance: Any,
+    schemas: list[Any],
+    errors: list[SchemaErrorDetail],
+    path: str,
+    schema_path: str,
+) -> None:
+    for i, sub in enumerate(schemas):
+        if isinstance(sub, (dict, bool)):
+            _validate_schema(
+                instance, sub, errors, path, _jp(schema_path, f"allOf[{i}]")
+            )
+
+
+def _check_anyof(
+    instance: Any,
+    schemas: list[Any],
+    errors: list[SchemaErrorDetail],
+    path: str,
+    schema_path: str,
+) -> None:
+    for sub in schemas:
+        if isinstance(sub, (dict, bool)):
+            trial: list[SchemaErrorDetail] = []
+            _validate_schema(instance, sub, trial, path, "")
+            if not trial:
+                return
+    errors.append(
+        SchemaErrorDetail(
+            path=path or "$",
+            schema_path=_jp(schema_path, "anyOf"),
+            validator="anyOf",
+            message=f"Value at '{path or '$'}' does not match any schema in 'anyOf'",
+        )
+    )
+
+
+def _check_oneof(
+    instance: Any,
+    schemas: list[Any],
+    errors: list[SchemaErrorDetail],
+    path: str,
+    schema_path: str,
+) -> None:
+    match_indices: list[int] = []
+    for i, sub in enumerate(schemas):
+        if isinstance(sub, (dict, bool)):
+            trial: list[SchemaErrorDetail] = []
+            _validate_schema(instance, sub, trial, path, "")
+            if not trial:
+                match_indices.append(i)
+    if len(match_indices) == 0:
+        errors.append(
+            SchemaErrorDetail(
+                path=path or "$",
+                schema_path=_jp(schema_path, "oneOf"),
+                validator="oneOf",
+                message=f"Value at '{path or '$'}' does not match any schema in 'oneOf'",
+            )
+        )
+    elif len(match_indices) > 1:
+        errors.append(
+            SchemaErrorDetail(
+                path=path or "$",
+                schema_path=_jp(schema_path, "oneOf"),
+                validator="oneOf",
+                message=f"Value at '{path or '$'}' matches more than one schema in 'oneOf' (indices {match_indices})",
+            )
+        )
+
+
+def _check_not(
+    instance: Any,
+    not_schema: dict[str, Any] | bool,
+    errors: list[SchemaErrorDetail],
+    path: str,
+    schema_path: str,
+) -> None:
+    trial: list[SchemaErrorDetail] = []
+    _validate_schema(instance, not_schema, trial, path, "")
+    if not trial:
+        errors.append(
+            SchemaErrorDetail(
+                path=path or "$",
+                schema_path=_jp(schema_path, "not"),
+                validator="not",
+                message=f"Value at '{path or '$'}' should not match the schema in 'not'",
+            )
+        )
+
+
+def _check_if_then_else(
+    instance: Any,
+    schema: dict[str, Any],
+    errors: list[SchemaErrorDetail],
+    path: str,
+    schema_path: str,
+) -> None:
+    """Handle ``if``/``then``/``else`` conditional keywords."""
+    if_schema = schema["if"]
+    trial: list[SchemaErrorDetail] = []
+    _validate_schema(instance, if_schema, trial, path, "")
+    if not trial:
+        then_schema = schema.get("then")
+        if then_schema is not None:
+            _validate_schema(
+                instance, then_schema, errors, path, _jp(schema_path, "then")
+            )
+    else:
+        else_schema = schema.get("else")
+        if else_schema is not None:
+            _validate_schema(
+                instance, else_schema, errors, path, _jp(schema_path, "else")
+            )
+
+
+# -- Core dispatcher ---------------------------------------------------------
+
+
+def _validate_schema(
+    instance: Any,
+    schema: dict[str, Any] | bool,
+    errors: list[SchemaErrorDetail],
+    path: str,
+    schema_path: str,
+) -> None:
+    """Validate *instance* against a single schema node, collecting errors."""
+    if schema is True or schema == {}:
+        return
+    if schema is False:
+        errors.append(
+            SchemaErrorDetail(
+                path=path or "$",
+                schema_path=schema_path or "$",
+                validator="false_schema",
+                message=f"Value at '{path or '$'}' is not allowed (schema is false)",
+            )
+        )
+        return
+    if not isinstance(schema, dict):
+        return
+
+    if "type" in schema:
+        _check_type(instance, schema["type"], errors, path, schema_path)
+    if "enum" in schema:
+        _check_enum(instance, schema["enum"], errors, path, schema_path)
+    if "const" in schema:
+        _check_const(instance, schema["const"], errors, path, schema_path)
+    _check_string(instance, schema, errors, path, schema_path)
+    _check_number(instance, schema, errors, path, schema_path)
+    _check_object(instance, schema, errors, path, schema_path)
+    _check_array(instance, schema, errors, path, schema_path)
+    if "allOf" in schema and isinstance(schema["allOf"], list):
+        _check_allof(instance, schema["allOf"], errors, path, schema_path)
+    if "anyOf" in schema and isinstance(schema["anyOf"], list):
+        _check_anyof(instance, schema["anyOf"], errors, path, schema_path)
+    if "oneOf" in schema and isinstance(schema["oneOf"], list):
+        _check_oneof(instance, schema["oneOf"], errors, path, schema_path)
+    if "not" in schema:
+        _check_not(instance, schema["not"], errors, path, schema_path)
+    if "if" in schema:
+        _check_if_then_else(instance, schema, errors, path, schema_path)
+
+
+# ---------------------------------------------------------------------------
+# Phase 6 — Public validation API
+# ---------------------------------------------------------------------------
+
+
+def iter_errors(
+    instance: Any,
+    schema: dict[str, Any] | bool,
+    *,
+    resolved: bool = False,
+) -> list[SchemaErrorDetail]:
+    """Validate *instance* against JSON Schema *schema* and return all errors.
+
+    The schema is preprocessed: ``$ref`` pointers are resolved before
+    validation.  Composition keywords (``allOf``, ``anyOf``, ``oneOf``,
+    ``not``) are evaluated semantically, not merged.
+
+    When validating many instances against the same schema, resolve once
+    and pass ``resolved=True`` to skip redundant ``$ref`` resolution::
+
+        schema = resolve_refs(raw_schema)
+        for item in items:
+            errors = iter_errors(item, schema, resolved=True)
+
+    Args:
+        instance: The data to validate.
+        schema: A JSON Schema dict, or a boolean schema.
+        resolved: If ``True``, skip ``$ref`` resolution (caller already
+            called :func:`resolve_refs`).  Defaults to ``False`` because
+            passing an unresolved schema with ``resolved=True`` silently
+            skips ``$ref`` targets — the validator would ignore them and
+            report no errors for the referenced sub-schemas.
+
+    Returns:
+        A list of :class:`SchemaErrorDetail`; empty if valid.
+    """
+    errors: list[SchemaErrorDetail] = []
+    if isinstance(schema, bool):
+        _validate_schema(instance, schema, errors, "", "")
+        return errors
+    effective = schema if resolved else resolve_refs(schema)
+    _validate_schema(instance, effective, errors, "", "")
+    return errors
+
+
+def schema_validate(
+    instance: Any,
+    schema: dict[str, Any] | bool,
+    *,
+    resolved: bool = False,
+) -> None:
+    """Validate *instance* against JSON Schema *schema*.
+
+    Args:
+        instance: The data to validate.
+        schema: A JSON Schema dict.
+        resolved: If ``True``, skip ``$ref`` resolution (caller already
+            called :func:`resolve_refs`).  Must not be set to ``True``
+            unless the schema has been resolved — unresolved ``$ref``
+            nodes would be silently ignored.
+
+    Raises:
+        SchemaValidationError: If validation fails, with all errors collected.
+    """
+    errors = iter_errors(instance, schema, resolved=resolved)
+    if errors:
+        raise SchemaValidationError(errors)
