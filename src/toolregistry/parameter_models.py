@@ -1,4 +1,5 @@
 import inspect
+import types
 import typing
 import warnings
 from enum import Enum
@@ -176,6 +177,23 @@ def _translate_annotated_metadata(annotation: Any) -> Any:
     return base
 
 
+def _normalize_bare_tuple(annotation: Any) -> Any:
+    """Represent a bare ``tuple`` as a variable-length JSON array.
+
+    The schema backend renders bare ``tuple`` as an unconstrained ``{}``, while
+    ``tuple[Any, ...]`` correctly renders as an array. Normalize it recursively
+    so tuple branches inside unions retain their container type.
+    """
+    if annotation is tuple:
+        return tuple[Any, ...]
+
+    origin = typing.get_origin(annotation)
+    if origin in (Union, types.UnionType):
+        args = tuple(_normalize_bare_tuple(a) for a in typing.get_args(annotation))
+        return Union[args]  # type: ignore[valid-type]
+    return annotation
+
+
 def _resolve_enum(annotation: Any) -> Any:
     """Convert Enum subclass annotations to Literal equivalents.
 
@@ -183,7 +201,7 @@ def _resolve_enum(annotation: Any) -> Any:
     ``Optional[Literal[...]]``.
     """
     origin = typing.get_origin(annotation)
-    if origin is Union:
+    if origin in (Union, types.UnionType):
         args = tuple(_resolve_enum(a) for a in typing.get_args(annotation))
         return Union[args]  # type: ignore[valid-type]
     if isinstance(annotation, type) and issubclass(annotation, Enum):
@@ -208,6 +226,7 @@ def _field_def_for_parameter(
             annotation = resolved_hints.get(param.name)
             if annotation is None:
                 annotation = _get_typed_annotation(param.annotation, globalns)
+            annotation = _normalize_bare_tuple(annotation)
             annotation = _resolve_enum(annotation)
             annotation = _translate_annotated_metadata(annotation)
             field_def = _create_field(param, annotation)
@@ -227,11 +246,11 @@ def _field_def_for_parameter(
 
 
 def _simplify_nullable_schemas(schema: dict[str, Any]) -> dict[str, Any]:
-    """Collapse nullable schema patterns into simpler forms.
+    """Remove null alternatives while preserving heterogeneous unions.
 
-    Handles two patterns:
-    - Pydantic v2: ``anyOf: [{type: T}, {type: null}]`` → ``type: T``
-    - zerodep:     ``type: [T, "null"]`` → ``type: T``
+    Optional parameters are already represented by ``required`` and their
+    default. This recursively removes explicit null alternatives from
+    ``anyOf``/``oneOf`` and type arrays without discarding other branches.
 
     This function mutates *schema* in place and returns it.
 
@@ -241,30 +260,37 @@ def _simplify_nullable_schemas(schema: dict[str, Any]) -> dict[str, Any]:
     Returns:
         The same dict with nullable patterns simplified.
     """
-    props = schema.get("properties")
-    if not props:
-        return schema
+    for value in schema.values():
+        if isinstance(value, dict):
+            _simplify_nullable_schemas(value)
+        elif isinstance(value, list):
+            for item in value:
+                if isinstance(item, dict):
+                    _simplify_nullable_schemas(item)
 
-    for prop_schema in props.values():
-        # Handle anyOf pattern (Pydantic v2 style)
-        any_of = prop_schema.get("anyOf")
-        if any_of and isinstance(any_of, list):
-            non_null = [v for v in any_of if v != {"type": "null"}]
-            if len(non_null) < len(any_of):
-                if len(non_null) == 1:
-                    del prop_schema["anyOf"]
-                    prop_schema.update(non_null[0])
-                else:
-                    prop_schema["anyOf"] = non_null
+    for keyword in ("anyOf", "oneOf"):
+        variants = schema.get(keyword)
+        if not isinstance(variants, list):
+            continue
+        non_null: list[dict[str, Any]] = []
+        for variant in variants:
+            if variant != {"type": "null"} and variant not in non_null:
+                non_null.append(variant)
+        if non_null == variants:
+            continue
+        if len(non_null) == 1:
+            del schema[keyword]
+            schema.update(non_null[0])
+        else:
+            schema[keyword] = non_null
 
-        # Handle type-array pattern (zerodep style): type: ["string", "null"]
-        type_val = prop_schema.get("type")
-        if isinstance(type_val, list) and "null" in type_val:
-            non_null_types = [t for t in type_val if t != "null"]
-            if len(non_null_types) == 1:
-                prop_schema["type"] = non_null_types[0]
-            elif len(non_null_types) > 1:
-                prop_schema["type"] = non_null_types
+    type_val = schema.get("type")
+    if isinstance(type_val, list) and "null" in type_val:
+        non_null_types = [t for t in type_val if t != "null"]
+        if len(non_null_types) == 1:
+            schema["type"] = non_null_types[0]
+        elif non_null_types:
+            schema["type"] = non_null_types
 
     return schema
 
