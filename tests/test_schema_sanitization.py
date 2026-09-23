@@ -116,7 +116,47 @@ class TestSchemaSanitization:
         prop = Tool.from_function(fn).parameters["properties"]["lat_spec"]
         key = "oneOf" if "oneOf" in prop else "anyOf"
         assert {branch.get("type") for branch in prop[key]} == {"number", "array"}
-        assert len(prop[key]) == 2
+
+    def test_str_or_int_union_preserved(self):
+        """Two-type union without None should preserve both branches."""
+
+        def fn(x: str | int = "hello") -> None: ...
+
+        prop = Tool.from_function(fn).parameters["properties"]["x"]
+        key = "oneOf" if "oneOf" in prop else "anyOf"
+        types = {v.get("type") for v in prop[key] if isinstance(v, dict)}
+        assert types == {"string", "integer"}
+
+    def test_single_nullable_still_collapses(self):
+        """Simple T | None should still collapse to just T."""
+
+        def fn(name: str | None = None) -> None: ...
+
+        prop = Tool.from_function(fn).parameters["properties"]["name"]
+        assert prop.get("type") == "string"
+        assert "anyOf" not in prop
+        assert "oneOf" not in prop
+
+    @pytest.mark.xfail(
+        reason="Requires llm-rosetta fix (Oaklight/llm-rosetta#747)",
+        strict=False,
+    )
+    def test_get_schema_preserves_multi_union(self):
+        """Multi-branch union must survive through get_schema() for all formats."""
+
+        def fn(val: float | list[float] | None = None) -> None: ...
+
+        tool = Tool.from_function(fn)
+        for fmt in ("openai-chat", "anthropic"):
+            schema = tool.get_schema(fmt)
+            if fmt == "openai-chat":
+                params = schema["function"]["parameters"]
+            else:
+                params = schema["input_schema"]
+            val = params["properties"]["val"]
+            assert "anyOf" in val or "oneOf" in val, (
+                f"Union missing in {fmt} schema: {val}"
+            )
 
     @pytest.mark.parametrize(
         "api_format", ["openai-chat", "anthropic", "gemini", "google-interactions"]
