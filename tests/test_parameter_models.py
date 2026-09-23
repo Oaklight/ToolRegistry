@@ -459,6 +459,17 @@ class TestComplexTypeSchemaGeneration:
         prop = schema["properties"]["value"]
         assert "oneOf" in prop or "anyOf" in prop
 
+    def test_bare_tuple_union_preserves_container_type(self):
+        """A bare tuple branch should render as an array, not an empty schema."""
+
+        def f(value: tuple | float | list[Any] | None = None) -> None: ...
+
+        schema = self._schema_for(f)
+        prop = schema["properties"]["value"]
+        key = "oneOf" if "oneOf" in prop else "anyOf"
+        types = {branch.get("type") for branch in prop[key]}
+        assert types == {"array", "number", "null"}
+
     # --- Nested generic types ---
 
     def test_list_str(self):
