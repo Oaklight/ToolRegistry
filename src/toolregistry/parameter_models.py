@@ -246,11 +246,11 @@ def _field_def_for_parameter(
 
 
 def _simplify_nullable_schemas(schema: dict[str, Any]) -> dict[str, Any]:
-    """Remove null alternatives while preserving heterogeneous unions.
+    """Collapse nullable schema patterns into simpler forms.
 
-    Optional parameters are already represented by ``required`` and their
-    default. This recursively removes explicit null alternatives from
-    ``anyOf``/``oneOf`` and type arrays without discarding other branches.
+    Handles two patterns:
+    - Pydantic v2: ``anyOf: [{type: T}, {type: null}]`` → ``type: T``
+    - zerodep:     ``type: [T, "null"]`` → ``type: T``
 
     This function mutates *schema* in place and returns it.
 
@@ -260,37 +260,30 @@ def _simplify_nullable_schemas(schema: dict[str, Any]) -> dict[str, Any]:
     Returns:
         The same dict with nullable patterns simplified.
     """
-    for value in schema.values():
-        if isinstance(value, dict):
-            _simplify_nullable_schemas(value)
-        elif isinstance(value, list):
-            for item in value:
-                if isinstance(item, dict):
-                    _simplify_nullable_schemas(item)
+    props = schema.get("properties")
+    if not props:
+        return schema
 
-    for keyword in ("anyOf", "oneOf"):
-        variants = schema.get(keyword)
-        if not isinstance(variants, list):
-            continue
-        non_null: list[dict[str, Any]] = []
-        for variant in variants:
-            if variant != {"type": "null"} and variant not in non_null:
-                non_null.append(variant)
-        if non_null == variants:
-            continue
-        if len(non_null) == 1:
-            del schema[keyword]
-            schema.update(non_null[0])
-        else:
-            schema[keyword] = non_null
+    for prop_schema in props.values():
+        # Handle anyOf pattern (Pydantic v2 style)
+        any_of = prop_schema.get("anyOf")
+        if any_of and isinstance(any_of, list):
+            non_null = [v for v in any_of if v != {"type": "null"}]
+            if len(non_null) < len(any_of):
+                if len(non_null) == 1:
+                    del prop_schema["anyOf"]
+                    prop_schema.update(non_null[0])
+                else:
+                    prop_schema["anyOf"] = non_null
 
-    type_val = schema.get("type")
-    if isinstance(type_val, list) and "null" in type_val:
-        non_null_types = [t for t in type_val if t != "null"]
-        if len(non_null_types) == 1:
-            schema["type"] = non_null_types[0]
-        elif non_null_types:
-            schema["type"] = non_null_types
+        # Handle type-array pattern (zerodep style): type: ["string", "null"]
+        type_val = prop_schema.get("type")
+        if isinstance(type_val, list) and "null" in type_val:
+            non_null_types = [t for t in type_val if t != "null"]
+            if len(non_null_types) == 1:
+                prop_schema["type"] = non_null_types[0]
+            elif len(non_null_types) > 1:
+                prop_schema["type"] = non_null_types
 
     return schema
 

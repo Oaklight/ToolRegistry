@@ -307,7 +307,6 @@ class Tool:
             )
         object.__setattr__(self, "name", name)
         object.__setattr__(self, "description", description)
-        parameters = _simplify_nullable_schemas(parameters)
         object.__setattr__(self, "parameters", self._normalize_parameters(parameters))
         object.__setattr__(self, "callable", callable)
         object.__setattr__(self, "parameters_model", parameters_model)
@@ -329,20 +328,14 @@ class Tool:
         keywords.  The result is a clean, wire-safe JSON Schema that
         faithfully represents the function signature.
         """
-        from ._vendor.jsonschema import merge_allof, resolve_refs, sanitize
+        from ._vendor.jsonschema import flatten_schema
 
         if parameters.get("type") != "object":
             parameters = {"type": "object", "properties": {}}
         elif not isinstance(parameters.get("properties"), dict):
             parameters = {**parameters, "properties": {}}
 
-        # Resolve references and allOf while preserving heterogeneous unions.
-        # Their alternatives are part of the callable's wire contract; the
-        # generic flatten_schema() pipeline intentionally simplifies them for
-        # providers that cannot consume unions, which is lossy here.
-        parameters = resolve_refs(parameters)
-        parameters = merge_allof(parameters)
-        return sanitize(parameters, strip_keys=cls._EXTRA_STRIP_KEYS)
+        return flatten_schema(parameters, strip_keys=cls._EXTRA_STRIP_KEYS)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to dict, excluding non-serializable fields."""
