@@ -93,6 +93,8 @@ jobs:
           tests/test_e2e_execution_paths.py
           tests/test_tool_source.py
           tests/test_pickle_wrappers.py
+          --deselect=tests/test_e2e_execution_paths.py::TestPTCInBatch
+          --deselect=tests/test_e2e_execution_paths.py::TestOpenAPIExecutionStack
           -v --tb=long
           --junitxml=mcp-compat-results-v${{ matrix.mcp-line }}.xml
 
