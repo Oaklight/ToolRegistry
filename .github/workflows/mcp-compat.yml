@@ -72,7 +72,11 @@ jobs:
         id: install-mcp
         if: steps.resolve.outputs.skip != 'true'
         run: |
-          pip install "${{ steps.resolve.outputs.mcp_spec }}"
+          if ! pip install "${{ steps.resolve.outputs.mcp_spec }}" 2>&1; then
+            echo "::warning::No matching MCP SDK version for '${{ steps.resolve.outputs.mcp_spec }}'"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
           LINE="${{ matrix.mcp-line }}"
           if [ "$LINE" = "1" ]; then
@@ -80,11 +84,12 @@ jobs:
           fi
 
           INSTALLED=$(pip show mcp | grep '^Version:' | awk '{print $2}')
+          echo "skip=false" >> "$GITHUB_OUTPUT"
           echo "version=$INSTALLED" >> "$GITHUB_OUTPUT"
           echo "Installed mcp $INSTALLED"
 
       - name: Run MCP compatibility tests
-        if: steps.resolve.outputs.skip != 'true'
+        if: steps.resolve.outputs.skip != 'true' && steps.install-mcp.outputs.skip != 'true'
         run: >
           python -m pytest
           tests/test_mcp_client.py
@@ -99,21 +104,21 @@ jobs:
           --junitxml=mcp-compat-results-v${{ matrix.mcp-line }}.xml
 
       - name: Upload test results
-        if: always() && steps.resolve.outputs.skip != 'true'
+        if: always() && steps.resolve.outputs.skip != 'true' && steps.install-mcp.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: mcp-compat-results-v${{ matrix.mcp-line }}
           path: mcp-compat-results-v${{ matrix.mcp-line }}.xml
 
       - name: Create issue on failure
-        if: failure() && steps.resolve.outputs.skip != 'true'
+        if: failure() && steps.resolve.outputs.skip != 'true' && steps.install-mcp.outputs.skip != 'true'
         uses: actions/github-script@v7
         with:
           script: |
             const version = '${{ steps.install-mcp.outputs.version }}';
             const line = '${{ matrix.mcp-line }}';
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const title = `[CI] MCP SDK ${version} (v${line}.x) compatibility failure`;
+            const title = `[CI] MCP SDK v${line}.x compatibility failure`;
             const body = [
               `## MCP SDK Compatibility Failure`,
               ``,
@@ -136,7 +141,7 @@ jobs:
               labels: 'mcp-compat',
             });
 
-            const existing = issues.find(i => i.title.includes(`v${line}.x`));
+            const existing = issues.find(i => i.title === title);
             if (!existing) {
               await github.rest.issues.create({
                 owner: context.repo.owner,
