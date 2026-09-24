@@ -8,6 +8,7 @@ See: https://github.com/Oaklight/ToolRegistry/issues/215
 
 from __future__ import annotations
 
+import typing
 
 import pytest
 
@@ -91,6 +92,67 @@ def fn_nested_optional(
 
 class TestSchemaSanitization:
     """Verify that get_schema() strips Pydantic v2 artifacts."""
+
+    def test_heterogeneous_union_preserves_all_non_null_branches(self):
+        """Normalization must not narrow values accepted by the callable."""
+
+        def fn(lat_spec: float | list[float] | None = None) -> None: ...
+
+        prop = Tool.from_function(fn).parameters["properties"]["lat_spec"]
+        key = "oneOf" if "oneOf" in prop else "anyOf"
+        types = {branch.get("type") for branch in prop[key]}
+        assert types == {"number", "array"}
+        array = next(branch for branch in prop[key] if branch.get("type") == "array")
+        assert array["items"]["type"] == "number"
+        assert not _has_anyof_null(prop)
+
+    def test_bare_tuple_scalar_list_union_has_wire_types(self):
+        """The union from issue #269 should expose number and array types."""
+
+        def fn(
+            lat_spec: tuple | float | list[typing.Any] | None = None,
+        ) -> None: ...
+
+        prop = Tool.from_function(fn).parameters["properties"]["lat_spec"]
+        key = "oneOf" if "oneOf" in prop else "anyOf"
+        assert {branch.get("type") for branch in prop[key]} == {"number", "array"}
+
+    def test_str_or_int_union_preserved(self):
+        """Two-type union without None should preserve both branches."""
+
+        def fn(x: str | int = "hello") -> None: ...
+
+        prop = Tool.from_function(fn).parameters["properties"]["x"]
+        key = "oneOf" if "oneOf" in prop else "anyOf"
+        types = {v.get("type") for v in prop[key] if isinstance(v, dict)}
+        assert types == {"string", "integer"}
+
+    def test_single_nullable_still_collapses(self):
+        """Simple T | None should still collapse to just T."""
+
+        def fn(name: str | None = None) -> None: ...
+
+        prop = Tool.from_function(fn).parameters["properties"]["name"]
+        assert prop.get("type") == "string"
+        assert "anyOf" not in prop
+        assert "oneOf" not in prop
+
+    def test_get_schema_preserves_multi_union(self):
+        """Multi-branch union must survive through get_schema() for all formats."""
+
+        def fn(val: float | list[float] | None = None) -> None: ...
+
+        tool = Tool.from_function(fn)
+        for fmt in ("openai-chat", "anthropic"):
+            schema = tool.get_schema(fmt)
+            if fmt == "openai-chat":
+                params = schema["function"]["parameters"]
+            else:
+                params = schema["input_schema"]
+            val = params["properties"]["val"]
+            assert "anyOf" in val or "oneOf" in val, (
+                f"Union missing in {fmt} schema: {val}"
+            )
 
     @pytest.mark.parametrize(
         "api_format", ["openai-chat", "anthropic", "gemini", "google-interactions"]

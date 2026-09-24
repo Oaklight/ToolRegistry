@@ -1,4 +1,5 @@
 import inspect
+import types
 import typing
 import warnings
 from enum import Enum
@@ -176,6 +177,23 @@ def _translate_annotated_metadata(annotation: Any) -> Any:
     return base
 
 
+def _normalize_bare_tuple(annotation: Any) -> Any:
+    """Represent a bare ``tuple`` as a variable-length JSON array.
+
+    The schema backend renders bare ``tuple`` as an unconstrained ``{}``, while
+    ``tuple[Any, ...]`` correctly renders as an array. Normalize it recursively
+    so tuple branches inside unions retain their container type.
+    """
+    if annotation is tuple:
+        return tuple[Any, ...]
+
+    origin = typing.get_origin(annotation)
+    if origin in (Union, types.UnionType):
+        args = tuple(_normalize_bare_tuple(a) for a in typing.get_args(annotation))
+        return Union[args]  # type: ignore[valid-type]
+    return annotation
+
+
 def _resolve_enum(annotation: Any) -> Any:
     """Convert Enum subclass annotations to Literal equivalents.
 
@@ -183,7 +201,7 @@ def _resolve_enum(annotation: Any) -> Any:
     ``Optional[Literal[...]]``.
     """
     origin = typing.get_origin(annotation)
-    if origin is Union:
+    if origin in (Union, types.UnionType):
         args = tuple(_resolve_enum(a) for a in typing.get_args(annotation))
         return Union[args]  # type: ignore[valid-type]
     if isinstance(annotation, type) and issubclass(annotation, Enum):
@@ -208,6 +226,7 @@ def _field_def_for_parameter(
             annotation = resolved_hints.get(param.name)
             if annotation is None:
                 annotation = _get_typed_annotation(param.annotation, globalns)
+            annotation = _normalize_bare_tuple(annotation)
             annotation = _resolve_enum(annotation)
             annotation = _translate_annotated_metadata(annotation)
             field_def = _create_field(param, annotation)
