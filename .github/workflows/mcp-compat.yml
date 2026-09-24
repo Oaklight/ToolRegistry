@@ -72,7 +72,7 @@ jobs:
         id: install-mcp
         if: steps.resolve.outputs.skip != 'true'
         run: |
-          if ! pip install "${{ steps.resolve.outputs.mcp_spec }}" 2>&1; then
+          if ! pip install "${{ steps.resolve.outputs.mcp_spec }}"; then
             echo "::warning::No matching MCP SDK version for '${{ steps.resolve.outputs.mcp_spec }}'"
             echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
