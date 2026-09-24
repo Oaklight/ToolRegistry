@@ -1,0 +1,153 @@
+name: MCP SDK Compatibility
+
+on:
+  schedule:
+    - cron: "41 4 * * 3" # Wednesday 04:41 UTC
+
+  workflow_dispatch:
+    inputs:
+      mcp_version:
+        description: "MCP SDK version to test (blank = latest in each line)"
+        required: false
+        default: ""
+
+permissions:
+  issues: write
+
+jobs:
+  compat-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mcp-line: ["1", "2"]
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+
+      - name: Determine MCP version to install
+        id: resolve
+        run: |
+          INPUT_VERSION="${{ github.event.inputs.mcp_version }}"
+          LINE="${{ matrix.mcp-line }}"
+
+          if [ -n "$INPUT_VERSION" ]; then
+            # Validate format
+            if ! echo "$INPUT_VERSION" | grep -qE '^[0-9]+\.[0-9]+'; then
+              echo "::error::Invalid version format: '$INPUT_VERSION'"
+              exit 1
+            fi
+            # Check if the specified version matches this matrix leg
+            INPUT_MAJOR=$(echo "$INPUT_VERSION" | cut -d. -f1)
+            if [ "$INPUT_MAJOR" != "$LINE" ]; then
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              echo "Skipping v$LINE leg: input version $INPUT_VERSION targets v$INPUT_MAJOR"
+              exit 0
+            fi
+            MCP_SPEC="mcp==$INPUT_VERSION"
+          else
+            if [ "$LINE" = "1" ]; then
+              MCP_SPEC="mcp>=1.24.0,<2"
+            else
+              MCP_SPEC="mcp>=2.0.0,<3"
+            fi
+          fi
+
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "mcp_spec=$MCP_SPEC" >> "$GITHUB_OUTPUT"
+          echo "Will install: $MCP_SPEC"
+
+      - name: Install dependencies
+        if: steps.resolve.outputs.skip != 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test]"
+
+      - name: Install MCP SDK (v${{ matrix.mcp-line }})
+        id: install-mcp
+        if: steps.resolve.outputs.skip != 'true'
+        run: |
+          pip install "${{ steps.resolve.outputs.mcp_spec }}"
+
+          LINE="${{ matrix.mcp-line }}"
+          if [ "$LINE" = "1" ]; then
+            pip install "httpx>=0.28.1" websockets
+          fi
+
+          INSTALLED=$(pip show mcp | grep '^Version:' | awk '{print $2}')
+          echo "version=$INSTALLED" >> "$GITHUB_OUTPUT"
+          echo "Installed mcp $INSTALLED"
+
+      - name: Run MCP compatibility tests
+        if: steps.resolve.outputs.skip != 'true'
+        run: >
+          python -m pytest
+          tests/test_mcp_client.py
+          tests/test_mcp_post_processing.py
+          tests/test_persistent_connection.py
+          tests/test_e2e_execution_paths.py
+          tests/test_tool_source.py
+          tests/test_pickle_wrappers.py
+          -v --tb=long
+          --junitxml=mcp-compat-results-v${{ matrix.mcp-line }}.xml
+
+      - name: Upload test results
+        if: always() && steps.resolve.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-compat-results-v${{ matrix.mcp-line }}
+          path: mcp-compat-results-v${{ matrix.mcp-line }}.xml
+
+      - name: Create issue on failure
+        if: failure() && steps.resolve.outputs.skip != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = '${{ steps.install-mcp.outputs.version }}';
+            const line = '${{ matrix.mcp-line }}';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const title = `[CI] MCP SDK ${version} (v${line}.x) compatibility failure`;
+            const body = [
+              `## MCP SDK Compatibility Failure`,
+              ``,
+              `MCP Python SDK **${version}** (v${line}.x line) breaks toolregistry's MCP integration tests.`,
+              ``,
+              `**Workflow run:** ${runUrl}`,
+              `**Triggered by:** ${context.eventName}`,
+              ``,
+              `### Next Steps`,
+              `- Check the [test results](${runUrl}) for details`,
+              `- Determine if this is a breaking change in the MCP SDK or a test issue`,
+              `- Update \`src/toolregistry/integrations/mcp/_compat.py\` if the SDK API changed`,
+              `- Update \`pyproject.toml\` MCP version bounds if needed`,
+            ].join('\n');
+
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'mcp-compat',
+            });
+
+            const existing = issues.find(i => i.title.includes(`v${line}.x`));
+            if (!existing) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ['mcp-compat', 'P1'],
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: `Still failing with MCP SDK **${version}**.\n\n${runUrl}`,
+              });
+            }

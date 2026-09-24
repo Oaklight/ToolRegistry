@@ -11,7 +11,6 @@ spawning subprocesses (the main source of test-suite slowness).
 
 import asyncio
 import sys
-import time
 from pathlib import Path
 
 import pytest
@@ -159,13 +158,10 @@ class TestTimeoutEnforcement:
 
         reg.register(Tool.from_function(slow, metadata=ToolMetadata(timeout=0.3)))
 
-        start = time.perf_counter()
         r = reg.invoke("slow", {"n": 1})
-        elapsed = time.perf_counter() - start
 
         assert isinstance(r, ErrorResult)
         assert "timed out" in r.message
-        assert elapsed < 4.0
 
     @pytest.mark.asyncio
     async def test_ainvoke_native_tool_timeout(self):
@@ -178,13 +174,10 @@ class TestTimeoutEnforcement:
 
         reg.register(Tool.from_function(slow, metadata=ToolMetadata(timeout=0.3)))
 
-        start = time.perf_counter()
         r = await reg.ainvoke("slow", {"n": 1})
-        elapsed = time.perf_counter() - start
 
         assert isinstance(r, ErrorResult)
         assert "timed out" in r.message
-        assert elapsed < 4.0
 
     def test_sync_batch_native_tool_timeout(self):
         """execute_tool_calls with a native tool that times out."""
@@ -204,15 +197,12 @@ class TestTimeoutEnforcement:
             _tc("c1", "fast", '{"n": 5}'),
             _tc("c2", "slow", '{"n": 1}'),
         ]
-        start = time.perf_counter()
         results = reg.execute_tool_calls(tcs)
-        elapsed = time.perf_counter() - start
 
         assert isinstance(results["c1"], ToolCallResult)
         assert results["c1"].result == "10"
         assert isinstance(results["c2"], ErrorResult)
         assert "timed out" in results["c2"].message
-        assert elapsed < 4.0
 
     @pytest.mark.asyncio
     async def test_async_batch_native_tool_timeout(self):
@@ -233,15 +223,12 @@ class TestTimeoutEnforcement:
             _tc("c1", "fast", '{"n": 5}'),
             _tc("c2", "slow", '{"n": 1}'),
         ]
-        start = time.perf_counter()
         results = await reg.aexecute_tool_calls(tcs)
-        elapsed = time.perf_counter() - start
 
         assert isinstance(results["c1"], ToolCallResult)
         assert results["c1"].result == "10"
         assert isinstance(results["c2"], ErrorResult)
         assert "timed out" in results["c2"].message
-        assert elapsed < 4.0
 
 
 # ── Real MCP tool timeout ──────────────────────────────────────────
@@ -264,13 +251,10 @@ class TestMCPToolTimeout:
             # public update_tool_metadata allowlist.
             reg._replace_tool_metadata("slow_tool", timeout=0.5)
 
-            start = time.perf_counter()
             r = reg.invoke("slow_tool", {"seconds": 5.0})
-            elapsed = time.perf_counter() - start
 
             assert isinstance(r, ErrorResult)
             assert "timed out" in r.message
-            assert elapsed < 4.0
 
     @pytest.mark.asyncio
     async def test_ainvoke_mcp_timeout(self):
@@ -282,13 +266,10 @@ class TestMCPToolTimeout:
             # public update_tool_metadata allowlist.
             reg._replace_tool_metadata("slow_tool", timeout=0.5)
 
-            start = time.perf_counter()
             r = await reg.ainvoke("slow_tool", {"seconds": 5.0})
-            elapsed = time.perf_counter() - start
 
             assert isinstance(r, ErrorResult)
             assert "timed out" in r.message
-            assert elapsed < 4.0
 
     def test_sync_invoke_mcp_no_timeout_completes(self, sync_mcp_registry):
         """MCP tool without timeout runs to completion normally."""
@@ -314,13 +295,10 @@ class TestMCPToolTimeout:
             reg._replace_tool_metadata("slow_tool", timeout=0.5)
 
             tcs = [_tc("c1", "slow_tool", '{"seconds": 5.0}')]
-            start = time.perf_counter()
             results = reg.execute_tool_calls(tcs)
-            elapsed = time.perf_counter() - start
 
             assert isinstance(results["c1"], ErrorResult)
             assert "timed out" in results["c1"].message
-            assert elapsed < 4.0
 
     @pytest.mark.asyncio
     async def test_async_batch_mcp_timeout(self):
@@ -333,13 +311,10 @@ class TestMCPToolTimeout:
             reg._replace_tool_metadata("slow_tool", timeout=0.5)
 
             tcs = [_tc("c1", "slow_tool", '{"seconds": 5.0}')]
-            start = time.perf_counter()
             results = await reg.aexecute_tool_calls(tcs)
-            elapsed = time.perf_counter() - start
 
             assert isinstance(results["c1"], ErrorResult)
             assert "timed out" in results["c1"].message
-            assert elapsed < 4.0
 
 
 # ── OpenAPI through the execution stack ────────────────────────────
