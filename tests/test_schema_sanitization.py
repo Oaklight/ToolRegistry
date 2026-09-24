@@ -137,10 +137,6 @@ class TestSchemaSanitization:
         assert "anyOf" not in prop
         assert "oneOf" not in prop
 
-    @pytest.mark.xfail(
-        reason="Requires llm-rosetta fix (Oaklight/llm-rosetta#747)",
-        strict=False,
-    )
     def test_get_schema_preserves_multi_union(self):
         """Multi-branch union must survive through get_schema() for all formats."""
 
