@@ -3,7 +3,7 @@
 # deps = []
 # tier = "subsystem"
 # category = "validation"
-# note = "Install/update via: https://zerodep.readthedocs.io/en/latest/guide/cli/"
+# note = "Install/update via `zerodep add jsonschema`"
 # ///
 """JSON Schema flattening, sanitization & validation — zero dependencies, stdlib only.
 
