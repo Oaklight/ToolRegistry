@@ -363,9 +363,9 @@ class ToolResultJSONEncoder(json.JSONEncoder):
     - ``Decimal`` / ``UUID`` -> ``str``
     - ``datetime`` / ``date`` / ``time`` -> ISO 8601 string
     - ``bytes`` -> base64-encoded ASCII string
-    - ``set`` / ``frozenset`` -> JSON array, sorted when the elements are
-      orderable so the encoding is reproducible across processes
-      (tuples are native to JSON)
+    - ``set`` / ``frozenset`` -> JSON array, ordered by ``repr`` so the
+      encoding is reproducible across processes for orderable and
+      mixed-type elements alike (tuples are native to JSON)
     - dataclass instances -> :func:`dataclasses.asdict`
     - Pydantic v2 models (``model_dump``), v1 models (``dict``), any
       object exposing a zero-argument ``to_dict`` -> ``dict``, and
@@ -390,12 +390,10 @@ class ToolResultJSONEncoder(json.JSONEncoder):
         if isinstance(o, bytes):
             return base64.b64encode(o).decode("ascii")
         if isinstance(o, (set, frozenset)):
-            try:
-                return sorted(o)
-            except TypeError:
-                # Elements are not mutually orderable; keep them in
-                # iteration order rather than failing.
-                return list(o)
+            # A total order: ``repr`` is always a string, so mixed-type
+            # elements sort deterministically instead of following
+            # interpreter (process-seeded) iteration order.
+            return sorted(o, key=repr)
         if dataclasses.is_dataclass(o) and not isinstance(o, type):
             return dataclasses.asdict(o)
         for attr in ("model_dump", "to_dict", "dict", "tolist"):
@@ -409,9 +407,11 @@ class ToolResultJSONEncoder(json.JSONEncoder):
 # top level: their ``str()`` already matches the encoder's projection, so
 # the historical plain-string form is preserved.  ``datetime`` is excluded
 # even though it subclasses ``date`` -- ``str()`` uses a space separator
-# while ``isoformat()`` uses ``T``.  ``Enum`` and ``bytes`` are excluded
-# because ``str()`` yields ``Color.RED`` / ``b'...'``: exactly the
-# unparseable forms this encoder exists to remove.
+# while ``isoformat()`` uses ``T``.  ``Enum`` is handled before this
+# allowlist (see ``encode_tool_result``) so a str-mixin member is not
+# swallowed by the plain-``str`` branch: ``str()`` yields ``Color.RED`` /
+# ``S.A``, exactly the unparseable forms this encoder exists to remove.
+# ``bytes`` is likewise excluded on purpose.
 _STR_LIKE_SCALARS = (str, Path, Decimal, uuid.UUID, date, time)
 
 
@@ -419,12 +419,15 @@ def encode_tool_result(result: Any, *, tool_name: str = "") -> str:
     """Encode a tool result to a string suitable for the wire.
 
     Plain strings pass through unchanged.  Values in the str-like scalar
-    allowlist keep their historical ``str()`` textual form.  Everything
-    else -- including a bare ``Enum``, ``bytes`` or ``datetime`` -- is
-    serialized with :class:`ToolResultJSONEncoder`, so dataclasses,
-    Pydantic models, enums, paths, and other common types produce valid
-    JSON instead of Python ``repr`` text, and the top-level and nested
-    projections agree.
+    allowlist keep their historical ``str()`` textual form.  ``Enum``
+    members are projected through ``.value`` at the top level, matching
+    their nested projection; this also covers ``IntEnum`` and ``StrEnum``,
+    whose ``int`` / ``str`` base would otherwise let the plain scalar
+    branch return the bare member.  Everything else -- including ``bytes``
+    or ``datetime`` -- is serialized with :class:`ToolResultJSONEncoder`,
+    so dataclasses, Pydantic models, paths, and other common types produce
+    valid JSON instead of Python ``repr`` text, and the top-level and
+    nested projections agree.
 
     Args:
         result: Raw value returned by a tool.
@@ -439,6 +442,11 @@ def encode_tool_result(result: Any, *, tool_name: str = "") -> str:
             the tool and the offending type, and suggests how to make the
             value encodable.
     """
+    if isinstance(result, Enum):
+        # Must precede the ``str`` check: ``StrEnum`` (and any
+        # ``str``-mixin enum) is a ``str`` instance, and returning the
+        # member would put ``S.A`` on the wire instead of ``"a"``.
+        return json.dumps(result.value, cls=ToolResultJSONEncoder)
     if isinstance(result, str):
         return result
     if isinstance(result, _STR_LIKE_SCALARS) and not isinstance(result, datetime):
