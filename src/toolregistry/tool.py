@@ -169,6 +169,63 @@ class ToolMetadata:
     their transport would be wrong or impossible.
     """
 
+    title: str | None = None
+    """Human-readable display title for the tool.
+
+    ``None`` (default) means no title was declared.  When set, transports
+    may surface it to hosts as a display name distinct from the
+    machine-readable ``name``.
+    """
+
+    read_only_hint: bool | None = None
+    """Whether the tool only reads data and has no side effects.
+
+    Tri-state: ``None`` (default) means *unset / unknown* — the tool makes
+    no claim.  ``True`` and ``False`` are explicit declarations and stay
+    distinguishable from ``None``.  When unset, the value is derived from
+    :attr:`tags` (``ToolTag.READ_ONLY`` → ``True``) by
+    :attr:`execution_hints`; an explicit value always wins over the tag.
+
+    Maps to the MCP ``readOnlyHint`` annotation (MCP 2025-06-18), whose
+    protocol default is ``false``.  Because a host may treat an absent
+    hint as write-capable, emitting ``True`` for known read-only tools
+    avoids a per-call approval prompt.
+    """
+
+    destructive_hint: bool | None = None
+    """Whether the tool may perform destructive or irreversible updates.
+
+    Tri-state, same contract as :attr:`read_only_hint`.  When unset, the
+    value is derived from :attr:`tags` (``ToolTag.DESTRUCTIVE`` →
+    ``True``).
+
+    Maps to the MCP ``destructiveHint`` annotation (MCP 2025-06-18),
+    whose protocol default is ``true``.  ``None`` here means *unset*, not
+    ``False``, so the transport adapter decides whether to emit it.
+    """
+
+    idempotent_hint: bool | None = None
+    """Whether repeating the call with identical arguments has no
+    additional effect.
+
+    Tri-state, same contract as :attr:`read_only_hint`.  Not derived from
+    tags — a ``FILE_SYSTEM`` or ``NETWORK`` tag does not imply
+    idempotency.
+
+    Maps to the MCP ``idempotentHint`` annotation (MCP 2025-06-18).
+    """
+
+    open_world_hint: bool | None = None
+    """Whether the tool interacts with an open, external world (for
+    example the public web) rather than a closed local domain.
+
+    Tri-state, same contract as :attr:`read_only_hint`.  Not derived from
+    tags — a ``NETWORK`` tag does not by itself imply an open world.
+
+    Maps to the MCP ``openWorldHint`` annotation (MCP 2025-06-18), whose
+    protocol default is ``true``.
+    """
+
     _VALID_LOCALITY = {"local", "remote", "any"}
     _VALID_BACKEND = {"inline", "thread", "process", None}
 
@@ -188,6 +245,46 @@ class ToolMetadata:
     def all_tags(self) -> set[str]:
         """Union of predefined and custom tags (all as str)."""
         return {t.value for t in self.tags} | self.custom_tags
+
+    @property
+    def execution_hints(self) -> dict[str, bool | str]:
+        """Resolved execution hints, including tag-derived defaults.
+
+        Returns only the hints that are actually determined, keyed by the
+        snake_case :class:`ToolMetadata` field names.  A hint that is
+        absent from the result is *unset* and must be distinguished from
+        one explicitly set to ``False``.
+
+        Derivation lives here and nowhere else: an unset
+        ``read_only_hint`` resolves to ``True`` when ``ToolTag.READ_ONLY``
+        is present, and an unset ``destructive_hint`` resolves to ``True``
+        when ``ToolTag.DESTRUCTIVE`` is present.  An explicit field value
+        always wins over the tag.  ``idempotent_hint`` and
+        ``open_world_hint`` are never derived.
+
+        The result is transport-neutral: the keys are core field names,
+        and a transport (for example an MCP server adapter) maps them onto
+        protocol-specific names such as ``readOnlyHint``.
+
+        Returns:
+            Mapping of hint name to value; empty when nothing is set.
+        """
+        hints: dict[str, bool | str] = {}
+        if self.title is not None:
+            hints["title"] = self.title
+        if self.read_only_hint is not None:
+            hints["read_only_hint"] = self.read_only_hint
+        elif ToolTag.READ_ONLY in self.tags:
+            hints["read_only_hint"] = True
+        if self.destructive_hint is not None:
+            hints["destructive_hint"] = self.destructive_hint
+        elif ToolTag.DESTRUCTIVE in self.tags:
+            hints["destructive_hint"] = True
+        if self.idempotent_hint is not None:
+            hints["idempotent_hint"] = self.idempotent_hint
+        if self.open_world_hint is not None:
+            hints["open_world_hint"] = self.open_world_hint
+        return hints
 
     def model_dump(self) -> dict[str, Any]:
         """Serialize to dict. Backward-compatible alias."""
@@ -359,6 +456,16 @@ class Tool:
         Backward-compatible proxy to ``metadata.is_async``.
         """
         return self.metadata.is_async
+
+    @property
+    def execution_hints(self) -> dict[str, bool | str]:
+        """Resolved execution hints from :attr:`metadata`.
+
+        Convenience proxy to ``metadata.execution_hints``; see
+        :attr:`ToolMetadata.execution_hints` for the tri-state contract
+        and tag-derivation rule.
+        """
+        return self.metadata.execution_hints
 
     @property
     def fn(self) -> Callable[..., Any]:

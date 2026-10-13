@@ -13,6 +13,7 @@ from toolregistry.config import (
     OpenAPISource,
     PythonSource,
     ToolConfig,
+    ToolMetadataOverride,
     load_config,
     save_config,
 )
@@ -1131,3 +1132,72 @@ class TestSaveConfig:
         config = ToolConfig()
         with pytest.raises(ConfigError, match="Unsupported"):
             save_config(config, tmp_path / "config.toml")
+
+
+# ---------------------------------------------------------------------------
+# tool_metadata overrides (execution hints, issue #280)
+# ---------------------------------------------------------------------------
+
+
+class TestToolMetadataOverrides:
+    """Parsing and round-tripping of the ``tool_metadata`` section."""
+
+    def test_parse_execution_hint_fields(self, tmp_path: Path) -> None:
+        """All hint fields and title are parsed from the config file."""
+        path = _write(
+            tmp_path,
+            "hints.json",
+            '{"mode":"denylist","tool_metadata":{"calc-eval":{'
+            '"title":"Evaluate","read_only_hint":true,'
+            '"destructive_hint":false,"idempotent_hint":true,'
+            '"open_world_hint":false}}}',
+        )
+        override = load_config(path).tool_metadata["calc-eval"]
+        assert override.title == "Evaluate"
+        assert override.read_only_hint is True
+        assert override.destructive_hint is False
+        assert override.idempotent_hint is True
+        assert override.open_world_hint is False
+
+    def test_unset_hints_default_to_none(self, tmp_path: Path) -> None:
+        """Absent hints stay unset (``None``), not ``False``."""
+        path = _write(
+            tmp_path, "empty.json", '{"mode":"denylist","tool_metadata":{"x":{}}}'
+        )
+        override = load_config(path).tool_metadata["x"]
+        assert override.title is None
+        assert override.read_only_hint is None
+        assert override.destructive_hint is None
+        assert override.idempotent_hint is None
+        assert override.open_world_hint is None
+        assert override.to_dict() == {}
+
+    def test_explicit_false_hint_round_trips(self, tmp_path: Path) -> None:
+        """An explicit ``False`` survives save/load in both formats."""
+        config = ToolConfig(
+            tool_metadata={"x": ToolMetadataOverride(read_only_hint=False, title="T")}
+        )
+        for ext in (".json", ".yaml"):
+            path = tmp_path / f"cfg{ext}"
+            save_config(config, path)
+            override = load_config(path).tool_metadata["x"]
+            assert override.read_only_hint is False
+            assert override.title == "T"
+
+    def test_rejects_non_bool_hint(self, tmp_path: Path) -> None:
+        path = _write(
+            tmp_path,
+            "bad.json",
+            '{"mode":"denylist","tool_metadata":{"x":{"read_only_hint":"yes"}}}',
+        )
+        with pytest.raises(ConfigError, match="read_only_hint"):
+            load_config(path)
+
+    def test_rejects_non_string_title(self, tmp_path: Path) -> None:
+        path = _write(
+            tmp_path,
+            "bad_title.json",
+            '{"mode":"denylist","tool_metadata":{"x":{"title":5}}}',
+        )
+        with pytest.raises(ConfigError, match="title"):
+            load_config(path)

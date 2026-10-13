@@ -317,6 +317,7 @@ def _get_tool(request: Request, name: str) -> Response:
             "defer": tool.metadata.defer,
             "search_hint": tool.metadata.search_hint,
             "think_augment": tool.metadata.think_augment,
+            "execution_hints": tool.metadata.execution_hints,
             "extra": tool.metadata.extra,
         },
     }
@@ -417,9 +418,19 @@ def _update_tool_metadata(request: Request, name: str) -> Response:
     except ValueError as e:
         return _error_response(400, "Bad Request", str(e))
 
-    # Persist search_hint / defer to config file if one is loaded
+    # Persist whitelisted metadata fields to the config file when one is
+    # loaded.  Reuse the previous override (when present) so fields absent
+    # from this request are preserved instead of silently dropped.
     saved = False
-    persist_fields = {"search_hint", "defer"}
+    persist_fields = {
+        "search_hint",
+        "defer",
+        "title",
+        "read_only_hint",
+        "destructive_hint",
+        "idempotent_hint",
+        "open_world_hint",
+    }
     if persist_fields & set(data):
         config = app.config
         if config is not None and config.source:
@@ -429,9 +440,11 @@ def _update_tool_metadata(request: Request, name: str) -> Response:
 
             existing = dict(config.tool_metadata)
             prev = existing.get(name)
-            new_override = ToolMetadataOverride(
-                search_hint=data.get("search_hint", prev.search_hint if prev else ""),
-                defer=data.get("defer", prev.defer if prev else None),
+            updates = {field: data[field] for field in persist_fields if field in data}
+            new_override = (
+                replace(prev, **updates)
+                if prev is not None
+                else ToolMetadataOverride(**updates)
             )
             existing[name] = new_override
             new_config = replace(config, tool_metadata=existing)

@@ -1788,6 +1788,9 @@ class ToolRegistry(
                   (e.g. transport URI, spec URL, class name)
                 - think_augment (bool | None): Think-augmented calling setting
                 - defer (bool): Whether the tool is deferred from initial prompt
+                - execution_hints (dict[str, bool | str]): Resolved execution
+                  hints (``title`` and the ``*_hint`` fields), including
+                  values derived from tags; unset hints are omitted
 
         Example:
             >>> registry = ToolRegistry()
@@ -1805,6 +1808,7 @@ class ToolRegistry(
                     "is_async": False,
                     "think_augment": None,
                     "defer": False,
+                    "execution_hints": {},
                 }
             ]
         """
@@ -1826,6 +1830,7 @@ class ToolRegistry(
                     "source_detail": meta.source_detail,
                     "think_augment": meta.think_augment,
                     "defer": meta.defer,
+                    "execution_hints": meta.execution_hints,
                 }
             )
         return status_list
@@ -1877,9 +1882,21 @@ class ToolRegistry(
 
         Args:
             overrides: Mapping of exact tool name → metadata override.
-                Each value must have ``search_hint`` (str) and optionally
-                ``defer`` (bool | None) as attributes or dict keys.
+                Each value must provide ``search_hint`` (str), ``defer``
+                (``bool | None``), ``title`` (``str | None``), and the
+                execution hints ``read_only_hint``, ``destructive_hint``,
+                ``idempotent_hint`` and ``open_world_hint`` (each
+                ``bool | None``) as attributes or dict keys.  ``None``
+                leaves the registered value untouched; an explicit
+                ``False`` is applied.
         """
+        override_fields = (
+            "title",
+            "read_only_hint",
+            "destructive_hint",
+            "idempotent_hint",
+            "open_world_hint",
+        )
         for name, override in overrides.items():
             tool = self._tools.get(name)
             if tool is None:
@@ -1887,14 +1904,19 @@ class ToolRegistry(
             if isinstance(override, dict):
                 hint = override.get("search_hint", "")
                 defer = override.get("defer")
+                field_values = {f: override.get(f) for f in override_fields}
             else:
                 hint = getattr(override, "search_hint", "")
                 defer = getattr(override, "defer", None)
+                field_values = {f: getattr(override, f, None) for f in override_fields}
             meta_updates: dict[str, object] = {}
             if hint:
                 meta_updates["search_hint"] = hint
             if defer is not None:
                 meta_updates["defer"] = defer
+            for field_name, value in field_values.items():
+                if value is not None:
+                    meta_updates[field_name] = value
             if meta_updates:
                 self._replace_tool_metadata(tool.name, **meta_updates)
 
