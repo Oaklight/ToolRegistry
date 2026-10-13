@@ -1068,8 +1068,8 @@ class TestDiscoverNameResolution:
                 """Flat underscore tool."""
                 return "U"
 
-            hyphen = Tool.from_function(bar)
-            under = Tool.from_function(foo_bar)
+            hyphen = Tool.from_function(bar, metadata=ToolMetadata(defer=True))
+            under = Tool.from_function(foo_bar, metadata=ToolMetadata(defer=True))
             if order == "hyphen-first":
                 registry.register(hyphen, namespace="foo")  # key foo-bar
                 registry.register(under)  # key foo_bar
@@ -1082,6 +1082,10 @@ class TestDiscoverNameResolution:
 
             assert [r["name"] for r in discoverer.discover("foo-bar")] == ["foo-bar"]
             assert [r["name"] for r in discoverer.discover("foo_bar")] == ["foo_bar"]
+            # call_deferred must use the same exact-first resolution: the
+            # exact registered spelling dispatches to its own tool.
+            assert discoverer.call_deferred(_target_tool="foo-bar") == "H"
+            assert discoverer.call_deferred(_target_tool="foo_bar") == "U"
 
 
 # -- tests: lazy index refresh on metadata / bulk changes ---------------------
