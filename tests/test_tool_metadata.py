@@ -400,6 +400,15 @@ class TestExecutionHints:
             reg.update_namespace_metadata("ns", open_world_hint="nope")
         assert reg.get_tool(reg.list_tools()[0]).execution_hints == {}
 
+    def test_direct_construction_rejects_wrong_types(self):
+        with pytest.raises(ValueError, match="read_only_hint.*a boolean"):
+            ToolMetadata(read_only_hint="yes")
+        with pytest.raises(ValueError, match="title.*a string"):
+            ToolMetadata(title=123)
+        # The same rule applies through Tool.from_function's metadata arg.
+        with pytest.raises(ValueError, match="open_world_hint.*a boolean"):
+            Tool.from_function(_sync_func, metadata=ToolMetadata(open_world_hint="x"))
+
     def test_contradictory_tag_hints_warn(self):
         with pytest.warns(UserWarning, match="destructive"):
             m = ToolMetadata(tags={ToolTag.READ_ONLY, ToolTag.DESTRUCTIVE})

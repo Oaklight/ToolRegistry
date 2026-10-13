@@ -6,6 +6,7 @@ from enum import Enum
 from typing import Any, ClassVar, Literal, TypeVar, get_type_hints
 from collections.abc import Callable
 
+from ._validation import HINT_METADATA_FIELDS, validate_metadata_field
 from .parameter_models import _generate_parameters_model, _simplify_nullable_schemas
 from .llm.tool_calls import API_FORMATS
 from .tool_wrapper import BaseToolWrapper, _FunctionToolWrapper
@@ -243,6 +244,8 @@ class ToolMetadata:
                 f"Invalid natural_backend {self.natural_backend!r}, "
                 f"must be one of {self._VALID_BACKEND}"
             )
+        for field_name in HINT_METADATA_FIELDS:
+            validate_metadata_field(field_name, getattr(self, field_name))
         self._warn_if_contradictory_hints()
 
     @property
