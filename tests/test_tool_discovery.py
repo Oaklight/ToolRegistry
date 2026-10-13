@@ -745,3 +745,248 @@ class TestCallDeferred:
             _target_tool="tool_with_tool_name", tool_name="search", value=42
         )
         assert result == "search=42"
+
+
+# -- tests: enabled/disabled filtering (#276) ---------------------------------
+
+
+class TestDiscoveryEnabledFiltering:
+    """Disabled tools must not be discoverable (#276)."""
+
+    def test_disabled_deferred_tool_excluded_then_restored(self):
+        """A disabled deferred tool leaves discover() and summaries, then returns."""
+        registry = ToolRegistry()
+
+        def hidden_tool(x: int) -> int:
+            """A deferred tool about weather."""
+            return x
+
+        registry.register(
+            Tool.from_function(hidden_tool, metadata=ToolMetadata(defer=True))
+        )
+        registry.enable_tool_discovery()
+        discoverer = registry._tool_discovery
+        assert discoverer is not None
+
+        assert [r["name"] for r in discoverer.discover("hidden")] == ["hidden_tool"]
+        assert [s["name"] for s in registry.get_deferred_summaries()] == ["hidden_tool"]
+
+        registry.disable("hidden_tool")
+        assert discoverer.discover("hidden") == []
+        assert registry.get_deferred_summaries() == []
+
+        registry.enable("hidden_tool")
+        assert [r["name"] for r in discoverer.discover("hidden")] == ["hidden_tool"]
+        assert [s["name"] for s in registry.get_deferred_summaries()] == ["hidden_tool"]
+
+    def test_disabled_tool_exact_match_not_returned(self):
+        """The exact-name path must not return a disabled tool."""
+        registry = ToolRegistry()
+
+        def my_tool(x: int) -> int:
+            """Some tool."""
+            return x
+
+        registry.register(my_tool)
+        registry.enable_tool_discovery()
+        discoverer = registry._tool_discovery
+        assert discoverer is not None
+
+        registry.disable("my_tool")
+        assert discoverer.discover("my_tool") == []
+
+    def test_namespace_disable_excludes_tools(self):
+        """Disabling a namespace must drop all of its tools from discovery."""
+        registry = ToolRegistry()
+
+        def my_tool(x: int) -> int:
+            """A deferred tool."""
+            return x
+
+        registry.register(
+            Tool.from_function(my_tool, metadata=ToolMetadata(defer=True)),
+            namespace="weather",
+        )
+        registry.enable_tool_discovery()
+        discoverer = registry._tool_discovery
+        assert discoverer is not None
+
+        assert discoverer.discover("weather-my_tool") != []
+        assert registry.get_deferred_summaries() != []
+
+        registry.disable("weather")
+        assert discoverer.discover("weather-my_tool") == []
+        assert registry.get_deferred_summaries() == []
+
+        registry.enable("weather")
+        assert discoverer.discover("weather-my_tool") != []
+        assert registry.get_deferred_summaries() != []
+
+
+# -- tests: call_deferred name normalization (#277) ---------------------------
+
+
+class TestCallDeferredNameNormalization:
+    """call_deferred must tolerate client-normalized tool names (#277)."""
+
+    def test_normalized_hyphen_hit(self):
+        """'weather_get_current' resolves to the registered hyphenated name."""
+        registry = ToolRegistry()
+
+        def get_current(city: str) -> str:
+            """Deferred weather tool."""
+            return f"weather in {city}"
+
+        registry.register(
+            Tool.from_function(get_current, metadata=ToolMetadata(defer=True)),
+            namespace="weather",
+        )
+        assert "weather-get_current" in registry._tools
+
+        registry.enable_tool_discovery()
+        discoverer = registry._tool_discovery
+        assert discoverer is not None
+
+        result = discoverer.call_deferred(
+            _target_tool="weather_get_current", city="NYC"
+        )
+        assert result == "weather in NYC"
+
+    def test_normalized_slash_hit(self):
+        """A registered '/' name is reachable through its '_' spelling."""
+        registry = ToolRegistry()
+
+        def get_weather(city: str) -> str:
+            """Deferred weather tool."""
+            return f"weather in {city}"
+
+        registry.register(
+            Tool.from_function(
+                get_weather,
+                name="weather/get",
+                metadata=ToolMetadata(defer=True),
+            )
+        )
+        assert "weather/get" in registry._tools
+
+        registry.enable_tool_discovery()
+        discoverer = registry._tool_discovery
+        assert discoverer is not None
+
+        result = discoverer.call_deferred(_target_tool="weather_get", city="LA")
+        assert result == "weather in LA"
+
+    def test_miss_includes_suggestions(self):
+        """A miss lists close registered names in normalized space."""
+        registry = ToolRegistry()
+
+        def now() -> str:
+            """Deferred datetime tool."""
+            return "now"
+
+        registry.register(
+            Tool.from_function(now, metadata=ToolMetadata(defer=True)),
+            namespace="datetime",
+        )
+        assert "datetime-now" in registry._tools
+
+        registry.enable_tool_discovery()
+        discoverer = registry._tool_discovery
+        assert discoverer is not None
+
+        with pytest.raises(KeyError, match="Did you mean: datetime-now"):
+            discoverer.call_deferred(_target_tool="datetime_nowx")
+
+    def test_not_deferred_echoes_canonical_name(self):
+        """The not-deferred error reports the registered spelling."""
+        registry = ToolRegistry()
+
+        def gear(x: int) -> int:
+            """A normal tool."""
+            return x
+
+        registry.register(Tool.from_function(gear), namespace="normal")
+        assert "normal-gear" in registry._tools
+
+        registry.enable_tool_discovery()
+        discoverer = registry._tool_discovery
+        assert discoverer is not None
+
+        with pytest.raises(ValueError, match="'normal-gear' is not a deferred tool"):
+            discoverer.call_deferred(_target_tool="normal_gear", x=1)
+
+
+# -- tests: input validation and CJK search (#278) ----------------------------
+
+
+class TestDiscoveryInputValidation:
+    """discover() must reject empty queries and invalid top_k (#278)."""
+
+    def test_empty_query_raises(self, discoverer):
+        """An empty query raises instead of silently returning []."""
+        with pytest.raises(ValueError, match="empty query"):
+            discoverer.discover("")
+
+    def test_whitespace_query_raises(self, discoverer):
+        """A whitespace-only query raises."""
+        with pytest.raises(ValueError, match="empty query"):
+            discoverer.discover("   ")
+
+    @pytest.mark.parametrize("top_k", [0, -3])
+    def test_invalid_top_k_raises(self, discoverer, top_k):
+        """top_k below 1 raises instead of being silently ignored."""
+        with pytest.raises(ValueError, match="top_k must be >= 1"):
+            discoverer.discover("add numbers", top_k=top_k)
+
+    def test_schema_declares_constraints(self):
+        """The generated discover_tools schema carries minLength and minimum."""
+        registry = ToolRegistry()
+        registry.enable_tool_discovery()
+        tool = registry.get_tool("discover_tools")
+        assert tool is not None
+        props = tool.parameters["properties"]
+        assert props["query"]["minLength"] == 1
+        assert props["top_k"]["minimum"] == 1
+
+
+class TestDiscoveryCjkSearch:
+    """Non-English (CJK) queries must match CJK tool descriptions (#278)."""
+
+    def test_cjk_query_returns_weather_tools(self):
+        """A CJK query matches a tool described in CJK text."""
+        registry = ToolRegistry()
+
+        def weather_get_current(city: str) -> str:
+            """查询指定城市的当前天气情况，返回温度与天气描述。"""
+            return city
+
+        registry.register(
+            Tool.from_function(
+                weather_get_current,
+                metadata=ToolMetadata(defer=True, search_hint="天气 查询"),
+            )
+        )
+        discoverer = ToolDiscoveryTool(registry)
+        names = [r["name"] for r in discoverer.discover("天气")]
+        assert "weather_get_current" in names
+
+    def test_ascii_tokenization_unchanged(self):
+        """The CJK-aware tokenizer leaves ASCII tokenization identical."""
+        from toolregistry._vendor.sparse_search import _default_tokenize
+        from toolregistry.llm.discovery import _tokenize_for_search
+
+        for text in [
+            "add numbers",
+            "read_file",
+            "subject body",
+            "google bing internet browse",
+            "file_system",
+        ]:
+            assert _tokenize_for_search(text) == _default_tokenize(text)
+
+    def test_cjk_bigrams_generated(self):
+        """CJK runs also yield character bigrams."""
+        from toolregistry.llm.discovery import _tokenize_for_search
+
+        tokens = _tokenize_for_search("天气 查询")
+        assert {"天气", "气查", "查询"} <= set(tokens)
