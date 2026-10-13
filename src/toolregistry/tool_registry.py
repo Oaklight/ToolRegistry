@@ -30,6 +30,7 @@ from .llm.tool_calls import (
     convert_tool_calls,
 )
 
+from .utils import encode_tool_result
 from .events import ChangeCallback, ChangeEvent, ChangeEventType
 from .llm.discovery import (
     TOOL_CALL_DEFERRED_NAME,
@@ -961,12 +962,10 @@ class ToolRegistry(
                 result = self._truncate_content_blocks(result, max_size, tool_name)
             return result
 
-        # Serialize to string
-        try:
-            json.dumps(result)
-        except (TypeError, ValueError):
-            result = str(result)
-        result_str: str = result if isinstance(result, str) else json.dumps(result)
+        # Serialize to string.  Values with no JSON projection raise a
+        # TypeError naming the tool and the offending type rather than
+        # silently degrading to an unparseable ``repr`` string.
+        result_str = encode_tool_result(result, tool_name=tool_name)
 
         # Determine effective max size
         tool_obj = self._tools.get(tool_name)

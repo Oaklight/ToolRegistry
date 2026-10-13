@@ -1,9 +1,14 @@
+import base64
+import dataclasses
 import hashlib
 import json
 import re
 import uuid
 import warnings
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timezone
+from decimal import Decimal
+from enum import Enum
+from pathlib import Path
 from typing import Any, Literal, overload
 
 from ._vendor.httpclient import AsyncClient, Client
@@ -342,3 +347,85 @@ def compute_schema_hash(parameters: dict[str, Any]) -> str:
 def utc_iso_now() -> str:
     """Return the current UTC time as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat()
+
+
+class ToolResultJSONEncoder(json.JSONEncoder):
+    """JSON encoder for values returned by tools.
+
+    Projects common non-JSON-native Python values to a JSON-safe
+    representation.  ``json`` traverses containers itself, so this only
+    needs to handle the leaf values it cannot serialize.
+
+    Handled values:
+
+    - ``Enum`` members -> their ``.value``
+    - ``pathlib.Path`` -> ``str``
+    - ``Decimal`` / ``UUID`` -> ``str``
+    - ``datetime`` / ``date`` / ``time`` -> ISO 8601 string
+    - ``bytes`` -> base64-encoded ASCII string
+    - ``set`` / ``frozenset`` -> JSON array (tuples are native to JSON)
+    - dataclass instances -> :func:`dataclasses.asdict`
+    - Pydantic v2 models (``model_dump``), v1 models (``dict``), and any
+      object exposing a zero-argument ``to_dict`` -> ``dict``
+
+    Anything else has no JSON projection and raises ``TypeError``.
+    """
+
+    def default(self, o: Any) -> Any:
+        if isinstance(o, Enum):
+            return o.value
+        if isinstance(o, Path):
+            return str(o)
+        if isinstance(o, (Decimal, uuid.UUID)):
+            return str(o)
+        if isinstance(o, (datetime, date, time)):
+            return o.isoformat()
+        if isinstance(o, bytes):
+            return base64.b64encode(o).decode("ascii")
+        if isinstance(o, (set, frozenset)):
+            return list(o)
+        if dataclasses.is_dataclass(o) and not isinstance(o, type):
+            return dataclasses.asdict(o)
+        for attr in ("model_dump", "to_dict", "dict"):
+            method = getattr(o, attr, None)
+            if callable(method):
+                return method()
+        raise TypeError(f"Object of type {type(o).__name__} is not JSON serializable")
+
+
+# Types that may be emitted as a bare string without JSON-quoting at the
+# top level.  Nested occurrences are projected by ``ToolResultJSONEncoder``.
+_STR_LIKE_SCALARS = (str, Path, Decimal, Enum, uuid.UUID, datetime, date, time, bytes)
+
+
+def encode_tool_result(result: Any, *, tool_name: str = "") -> str:
+    """Encode a tool result to a string suitable for the wire.
+
+    Plain strings pass through unchanged.  Values in the str-like scalar
+    allowlist keep their historical ``str()`` textual form.  Everything
+    else is serialized with :class:`ToolResultJSONEncoder`, so dataclasses,
+    Pydantic models, enums, paths, and other common types produce valid
+    JSON instead of Python ``repr`` text.
+
+    Args:
+        result: Raw value returned by a tool.
+        tool_name: Tool name, used in the error message when *result* (or
+            a value nested inside it) cannot be encoded.
+
+    Returns:
+        The encoded result string.
+
+    Raises:
+        TypeError: If *result* has no JSON projection.  The message names
+            the tool and the offending type so the failure is actionable.
+    """
+    if isinstance(result, str):
+        return result
+    if isinstance(result, _STR_LIKE_SCALARS):
+        return str(result)
+    try:
+        return json.dumps(result, cls=ToolResultJSONEncoder)
+    except (TypeError, ValueError) as exc:
+        raise TypeError(
+            f"Tool {tool_name!r} returned a value that cannot be encoded to JSON: {exc}"
+        ) from exc
