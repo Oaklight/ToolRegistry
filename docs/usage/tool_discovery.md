@@ -110,6 +110,8 @@ print(results[0]["score"])  # 1.23 (BM25 分数)
 
 **精确匹配**时，无论是否为延迟工具，结果始终包含完整 schema。**模糊搜索**时，仅延迟工具包含 schema，使 LLM 发现后可以立即调用。
 
+只有**已启用**的工具可被检索：在方法级或命名空间级被禁用的工具，会同时从 `discover_tools` 和 `get_deferred_summaries()` 中消失。`query` 必须是非空且非纯空白的字符串，`top_k` 至少为 1——生成的 schema 已声明这两点，运行时若仍收到非法值会抛出 `ValueError`。匹配针对每个工具的名称、描述、标签、参数名与 `search_hint`；对英文关键词的覆盖最好，中文查询通过字符二元组支持。
+
 ```python
 results = discoverer.discover("email", top_k=3)
 for r in results:
@@ -187,6 +189,8 @@ for s in summaries:
 2. LLM 调用 `call_deferred(_target_tool="search", query="hello")` → 注册表通过完整管线（权限、执行后端、日志）执行延迟工具
 
 `call_deferred` 仅接受延迟工具——对非延迟工具调用会抛出 `ValueError`。
+
+工具名的匹配是宽松的。`discover_tools` 与 `call_deferred` 都会在把 `/` 和 `-` 折叠为 `_`、并忽略大小写之后解析名称，因此被 MCP 客户端改写过的名字（注册名为 `weather-get-current`，实际传入 `weather_get_current`）同样能命中正确的工具。精确的注册拼写优先于归一化匹配。没有工具匹配时，错误信息会列出最接近的注册名，便于调用方一次自我纠正。
 
 `discover_tools` 和 `call_deferred` 通过 `enable_tool_discovery()` / `disable_tool_discovery()` 一起注册和注销。它们的名称可通过 `toolregistry.llm.discovery` 中的常量 `TOOL_DISCOVERY_NAME` 和 `TOOL_CALL_DEFERRED_NAME` 获取。
 

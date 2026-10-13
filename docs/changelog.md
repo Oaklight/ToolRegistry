@@ -16,6 +16,23 @@ hide:
 
 ## [未发布]
 
+### 新增
+
+- **`call_deferred` 兼容客户端改写过的工具名** (#277)：解析 `_target_tool` 时把 `/` 和 `-` 折叠为 `_` 并忽略大小写，因此被 MCP 客户端改写过的名字（`weather_get_current`）也能命中注册名（`weather-get-current`）。精确的注册拼写优先于归一化匹配，所以归一化后相撞的两个名字仍各自派发到自己。未命中时错误信息会列出最接近的注册名（`Did you mean: datetime-now?`），让模型一次就能自我纠正。
+- **`discover_tools` 输入校验与中文检索** (#278)：`query` 现在带 `minLength: 1` 和非空白的 `pattern`，`top_k` 带 `minimum: 1`；运行时同样会抛出 `ValueError`。一个零依赖的切词器在 BM25 索引前为连续 CJK 文本补充字符二元组，使中文查询能命中中文工具描述，而不是静默返回空。`discover_tools` 的描述现在会说明查询匹配的是工具的哪些文本。
+- **执行提示元数据** (#280)：`ToolMetadata` 新增 `title`、`read_only_hint`、`destructive_hint`、`idempotent_hint` 和 `open_world_hint`。全部默认 `None`（未声明 / 未知），并与显式的 `False` 保持可区分。`ToolMetadata.execution_hints` 返回解析后的 `dict[str, bool]`：由 `ToolTag.READ_ONLY` 推导 `read_only_hint`，由 `ToolTag.DESTRUCTIVE` 推导 `destructive_hint`，并为只读工具补上 `destructive_hint=False`，使其不会与协议默认值互相矛盾。键与 MCP 的 `readOnlyHint` / `destructiveHint` / `idempotentHint` / `openWorldHint` 一一对应；由传输层发出这些字段属于后续工作。同时声明只读与破坏性提示会触发 `UserWarning`，配置加载器也会对 `tool_metadata.<tool>` 下无法识别的键告警。
+
+### 变更
+
+- **无 JSON 投影的工具结果现在会显式失败** (**破坏性变更**) (#279)：无法编码为 JSON 的结果不再被 `str()` 静默转换，而是抛出 `TypeError`，指出工具名与类型，并提示修复方式（`to_dict()`、`model_dump()`、`tolist()`，或返回 `str`）。`invoke()` 会把它呈现为 `ErrorResult`，因此公开的「不抛异常」契约不变。
+- **进程后端的结果改由父进程编码** (#279)：进程 worker 不再对其结果做字符串化，因此编码器（以及上述抛错行为）现在在默认执行模式下同样生效，而不再只作用于线程后端。跨进程边界返回的工具结果因此必须可 pickle。
+
+### 修复
+
+- **`discover_tools` 不再返回已禁用的工具** (#276)：BM25 索引只收录已启用的工具，与 `get_deferred_summaries()` 保持一致，精确匹配路径也会拒绝已禁用的工具。`ENABLE` / `DISABLE` / `METADATA_UPDATE` 改为把索引标记为陈旧，而不是逐事件重建，因此批量禁用或应用 profile 只需在下一次 `discover()` 时重建一次。这同时修复了每文档 `deferred` 标志陈旧的问题——此前在 `update_tool_metadata(defer=True)` 之后，`discover()` 会漏掉 `schema` 并报告 `deferred: false`，而 `get_deferred_summaries()` 却列出该工具。
+- **不可 JSON 序列化的工具结果现在会被正确编码** (#279)：数据类、Pydantic 模型、提供 `to_dict()` / `tolist()` 的对象、枚举、路径、Decimal、UUID、日期时间、bytes 与集合现在以合法 JSON 上线，而不是 Python 的 `repr()` 文本。顶层与嵌套的投影结果现已一致，集合编码也具备确定性。
+- **`ToolMetadata.all_tags` 兼容字符串标签**：`update_tool_metadata(tags=["x"])` 不再因 `AttributeError` 中断索引重建。
+
 ## [0.18.1] - 2026-09-16
 
 ### 修复
