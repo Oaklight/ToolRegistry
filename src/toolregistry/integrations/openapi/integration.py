@@ -391,6 +391,13 @@ class OpenAPIIntegration:
         old_names = set(self._registered_tool_names)
         new_names = set(new_tools.keys())
 
+        # Locally overridden names are left untouched across refresh: the
+        # override wins over the remote tool whether it changed, disappeared,
+        # or reappeared.  Exclude them from the diff below.
+        overridden = set(self.registry._overrides)
+        old_tracked = old_names - overridden
+        new_tracked = new_names - overridden
+
         # Snapshot disabled state
         disabled_snapshot: dict[str, str] = {}
         for name in old_names:
@@ -404,16 +411,16 @@ class OpenAPIIntegration:
         compatible: list[str] = []
         unchanged = 0
 
-        for name in old_names - new_names:
+        for name in old_tracked - new_tracked:
             self.registry._unregister(name)
             removed.append(name)
 
-        for name in new_names - old_names:
+        for name in new_tracked - old_tracked:
             self.registry.register(new_tools[name], namespace=self._resolved_ns)
             added.append(name)
 
         now = utc_iso_now()
-        for name in old_names & new_names:
+        for name in old_tracked & new_tracked:
             candidate = new_tools[name]
             existing = self.registry._tools.get(name)
             if existing and (
@@ -444,6 +451,9 @@ class OpenAPIIntegration:
                 unchanged += 1
             else:
                 unchanged += 1
+
+        # Overridden names the remote still lists are present and unchanged.
+        unchanged += len((old_names & new_names) & overridden)
 
         for name, reason in disabled_snapshot.items():
             if name in new_names:
