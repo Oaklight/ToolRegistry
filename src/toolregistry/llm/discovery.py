@@ -16,9 +16,13 @@ import logging
 import re
 from typing import TYPE_CHECKING, Annotated, Any
 
-from pydantic import Field, StringConstraints
-
+# ``_default_tokenize`` is a private helper of the vendored search backend.
+# The coupling is intra-repo: `sparse_search.py` ships in this wheel and is
+# pinned by its ``# /// zerodep / version = "0.4.0"`` banner.  Importing it
+# keeps our tokenizer byte-identical to the default; drift is caught by
+# tests/test_tool_discovery.py::TestDiscoveryCjkSearch::test_ascii_tokenization_unchanged.
 from .._vendor.sparse_search import SparseIndex, _default_tokenize
+from .._vendor.validate import Ge, Match, MinLen
 from .tool_calls import API_FORMATS
 
 if TYPE_CHECKING:
@@ -52,7 +56,9 @@ _BASE_DISCOVERY_DESCRIPTION = (
     "Discover registered tools by exact name or natural language query. "
     "Use this to inspect a specific tool by name (returns full schema) or "
     "to search for relevant tools when you need a capability not visible in "
-    "your current tool list."
+    "your current tool list. Queries match each tool's registered metadata "
+    "(name, description, tags, parameters, search hint); English keywords "
+    "match most reliably."
 )
 
 BASE_CALL_DEFERRED_DESCRIPTION = (
@@ -91,9 +97,10 @@ def _tokenize_for_search(text: str) -> list[str]:
     ``_default_tokenize`` (Unicode ``[\\w]+`` split + lowercasing), so
     English ranking is unchanged.  For text containing CJK characters the
     default tokenizer would emit a contiguous ideograph run as one
-    unmatchable token, so this adds character bigrams over the CJK
-    characters in order (e.g. ``天气 查询`` also yields ``气查``), which
-    lets a short CJK query match a longer CJK description.
+    unmatchable token, so this adds character bigrams within each CJK run
+    (e.g. ``天气`` yields ``天气``; ``天气查询`` yields ``天气``, ``气查``,
+    ``查询``).  Bigrams never span runs, so a comma, space or ASCII text
+    between two CJK runs cannot produce a token the source text lacks.
 
     Args:
         text: Raw document or query text.
@@ -102,14 +109,15 @@ def _tokenize_for_search(text: str) -> list[str]:
         List of search tokens.
     """
     tokens = _default_tokenize(text)
-    cjk_text = "".join(_CJK_RE.findall(text))
-    if not cjk_text:
+    extra: list[str] = []
+    for run in _CJK_RE.findall(text):
+        # ``_CJK_RE`` matches maximal runs; bigram within each run only.
+        if len(run) == 1:
+            extra.append(run)
+        else:
+            extra.extend(run[i : i + 2] for i in range(len(run) - 1))
+    if not extra:
         return tokens
-
-    if len(cjk_text) == 1:
-        extra = [cjk_text]
-    else:
-        extra = [cjk_text[i : i + 2] for i in range(len(cjk_text) - 1)]
 
     # Preserve the default tokens (which still help for exact CJK runs) and
     # append only the bigrams not already present.
@@ -182,6 +190,10 @@ class ToolDiscoveryTool:
             field_weights=self._field_weights,
             tokenize=_tokenize_for_search,
         )
+        # Set by _mark_dirty() on enable/disable/metadata changes and cleared
+        # by rebuild_index(); discover() rebuilds lazily so a bulk change pays
+        # one rebuild, not one per event.
+        self._index_dirty = False
         self.rebuild_index()
 
     def rebuild_index(self) -> None:
@@ -213,6 +225,19 @@ class ToolDiscoveryTool:
             }
             self._index.add(name, fields, metadata=metadata)
 
+        self._index_dirty = False
+        self._sync_description()
+
+    def _mark_dirty(self) -> None:
+        """Mark the search index stale after a registry change.
+
+        Called on enable/disable/metadata changes.  The rebuild is deferred
+        to the next :meth:`discover` call so a bulk change (e.g. disabling
+        many tools by tag) pays one rebuild instead of one per event.  The
+        deferred summaries are refreshed eagerly because the ``discover_tools``
+        description is read before any call.
+        """
+        self._index_dirty = True
         self._sync_description()
 
     def _sync_description(self) -> None:
@@ -265,8 +290,8 @@ class ToolDiscoveryTool:
 
     def discover(
         self,
-        query: Annotated[str, StringConstraints(min_length=1)],
-        top_k: Annotated[int, Field(ge=1)] = 10,
+        query: Annotated[str, MinLen(1), Match(r"\S")],
+        top_k: Annotated[int, Ge(1)] = 10,
         api_format: API_FORMATS = "openai-chat",
     ) -> list[dict[str, Any]]:
         """Discover tools by exact name or natural language query.
@@ -307,29 +332,79 @@ class ToolDiscoveryTool:
         if top_k < 1:
             raise ValueError(f"top_k must be >= 1, got {top_k}")
 
-        # 1. Exact match: return full schema immediately
-        tool = self._registry.get_tool(query)
-        if (
-            tool is not None
-            and query not in INFRASTRUCTURE_TOOLS
-            and self._registry.is_enabled(tool.name)
-        ):
-            is_deferred = tool.metadata.defer if tool.metadata else False
-            return [
-                {
-                    "name": tool.name,
-                    "description": tool.description or "",
-                    "score": 1.0,
-                    "namespace": tool.namespace,
-                    "deferred": is_deferred,
-                    "schema": tool.get_schema(api_format),
-                }
-            ]
+        # Rebuild lazily if a prior enable/disable/metadata change marked the
+        # index stale, so results never reflect a stale document.
+        if self._index_dirty:
+            self.rebuild_index()
 
-        # 2. Fuzzy search via BM25
-        results = self._index.search(query, top_k=top_k)
+        exact = self._exact_match(query, api_format)
+        if exact is not None:
+            return [exact]
+
+        out = self._fuzzy_match(query, top_k, api_format)
+        if not out:
+            logger.warning(
+                "discover(%r) matched no registered tool metadata "
+                "(name/description/tags/params/search_hint); English keywords "
+                "match most reliably",
+                query,
+            )
+        return out
+
+    def _exact_match(
+        self, query: str, api_format: API_FORMATS
+    ) -> dict[str, Any] | None:
+        """Return a full-schema result if *query* names an enabled tool.
+
+        Prefers the exact registered spelling, then falls back to a
+        normalized match so a client-rewritten name resolves here exactly as
+        it does in :meth:`call_deferred` (and case-insensitively).
+
+        Args:
+            query: Tool name in any spelling.
+            api_format: Target API format for schema generation.
+
+        Returns:
+            A single result dict, or ``None`` when no enabled tool matches.
+        """
+        exact = self._registry.get_tool(query)
+        canonical = (
+            exact.name if exact is not None else self._resolve_registered_name(query)
+        )
+        if canonical is None:
+            return None
+        tool = self._registry.get_tool(canonical)
+        if (
+            tool is None
+            or tool.name in INFRASTRUCTURE_TOOLS
+            or not self._registry.is_enabled(tool.name)
+        ):
+            return None
+        is_deferred = tool.metadata.defer if tool.metadata else False
+        return {
+            "name": tool.name,
+            "description": tool.description or "",
+            "score": 1.0,
+            "namespace": tool.namespace,
+            "deferred": is_deferred,
+            "schema": tool.get_schema(api_format),
+        }
+
+    def _fuzzy_match(
+        self, query: str, top_k: int, api_format: API_FORMATS
+    ) -> list[dict[str, Any]]:
+        """Return BM25 fuzzy results, attaching metadata to each hit.
+
+        Args:
+            query: Natural language query.
+            top_k: Maximum number of results.
+            api_format: Target API format for schema generation.
+
+        Returns:
+            List of result dicts, best first.
+        """
         out: list[dict[str, Any]] = []
-        for r in results:
+        for r in self._index.search(query, top_k=top_k):
             tool = self._registry.get_tool(r.doc_id)
             is_deferred = r.metadata.get("deferred", False) if r.metadata else False
             entry: dict[str, Any] = {
@@ -342,14 +417,6 @@ class ToolDiscoveryTool:
             if is_deferred and tool is not None:
                 entry["schema"] = tool.get_schema(api_format)
             out.append(entry)
-
-        if not out:
-            logger.warning(
-                "discover(%r) matched no tools; queries are matched against "
-                "English tool descriptions (name, description, tags, params, "
-                "search_hint)",
-                query,
-            )
         return out
 
     def _resolve_registered_name(self, requested: str) -> str | None:
@@ -435,7 +502,12 @@ class ToolDiscoveryTool:
             ValueError: If the tool is not deferred.
             Exception: Any exception raised by the target tool.
         """
-        canonical = self._resolve_registered_name(_target_tool)
+        exact = self._registry.get_tool(_target_tool)
+        canonical = (
+            exact.name
+            if exact is not None
+            else self._resolve_registered_name(_target_tool)
+        )
         if canonical is None:
             suggestions = self._suggest_tool_names(_target_tool)
             message = f"tool '{_target_tool}' not found in registry."

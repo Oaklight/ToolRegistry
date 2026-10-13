@@ -187,7 +187,9 @@ class ToolMetadata:
     @property
     def all_tags(self) -> set[str]:
         """Union of predefined and custom tags (all as str)."""
-        return {t.value for t in self.tags} | self.custom_tags
+        return {
+            t if isinstance(t, str) else t.value for t in self.tags
+        } | self.custom_tags
 
     def model_dump(self) -> dict[str, Any]:
         """Serialize to dict. Backward-compatible alias."""

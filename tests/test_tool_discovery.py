@@ -1,5 +1,7 @@
 """Unit tests for ToolDiscoveryTool."""
 
+import logging
+
 import pytest
 
 from toolregistry import Tool, ToolMetadata, ToolRegistry, ToolDiscoveryTool, ToolTag
@@ -946,6 +948,7 @@ class TestDiscoveryInputValidation:
         assert tool is not None
         props = tool.parameters["properties"]
         assert props["query"]["minLength"] == 1
+        assert props["query"]["pattern"] == r"\S"
         assert props["top_k"]["minimum"] == 1
 
 
@@ -985,8 +988,276 @@ class TestDiscoveryCjkSearch:
             assert _tokenize_for_search(text) == _default_tokenize(text)
 
     def test_cjk_bigrams_generated(self):
-        """CJK runs also yield character bigrams."""
+        """CJK runs yield within-run character bigrams only."""
         from toolregistry.llm.discovery import _tokenize_for_search
 
         tokens = _tokenize_for_search("天气 查询")
-        assert {"天气", "气查", "查询"} <= set(tokens)
+        assert {"天气", "查询"} <= set(tokens)
+        # bigrams must not span the space between the two runs
+        assert "气查" not in tokens
+
+    def test_cjk_bigrams_do_not_span_boundaries(self):
+        """A separator between CJK runs must not create a boundary bigram."""
+        from toolregistry.llm.discovery import _tokenize_for_search
+
+        tokens = _tokenize_for_search("今日天气晴朗，查询温度")
+        assert "朗查" not in tokens  # would span the comma
+        assert {"天气", "查询"} <= set(tokens)
+        assert all("," not in tok and " " not in tok for tok in tokens)
+
+    def test_cjk_query_with_separate_runs_matches(self):
+        """Two separate CJK runs in the query still match a CJK tool."""
+        registry = ToolRegistry()
+
+        def weather_get_current(city: str) -> str:
+            """查询指定城市的当前天气情况。"""
+            return city
+
+        registry.register(Tool.from_function(weather_get_current))
+        discoverer = ToolDiscoveryTool(registry)
+        names = [r["name"] for r in discoverer.discover("城市 天气")]
+        assert "weather_get_current" in names
+
+
+# -- tests: discover() name resolution (#277 / Milo item 2) -------------------
+
+
+class TestDiscoverNameResolution:
+    """discover() must resolve the same spellings call_deferred() accepts."""
+
+    @staticmethod
+    def _namespaced_registry():
+        registry = ToolRegistry()
+
+        def get_current(city: str) -> str:
+            """Weather tool."""
+            return city
+
+        registry.register(Tool.from_function(get_current), namespace="weather")
+        registry.enable_tool_discovery()
+        return registry
+
+    def test_rewritten_spelling_resolves(self):
+        """'weather_get_current' resolves to the registered hyphenated name."""
+        registry = self._namespaced_registry()
+        discoverer = registry._tool_discovery
+        assert discoverer is not None
+        assert [r["name"] for r in discoverer.discover("weather_get_current")] == [
+            "weather-get_current"
+        ]
+
+    def test_case_variant_resolves(self):
+        """A case-variant spelling resolves to the registered name."""
+        registry = self._namespaced_registry()
+        discoverer = registry._tool_discovery
+        assert discoverer is not None
+        assert [r["name"] for r in discoverer.discover("WEATHER-GET_CURRENT")] == [
+            "weather-get_current"
+        ]
+
+    def test_exact_spelling_wins_when_two_names_collide(self):
+        """The exact registered spelling always wins over a normalized match."""
+        for order in ("hyphen-first", "underscore-first"):
+            registry = ToolRegistry()
+
+            def bar() -> str:
+                """Namespaced hyphen tool."""
+                return "H"
+
+            def foo_bar() -> str:
+                """Flat underscore tool."""
+                return "U"
+
+            hyphen = Tool.from_function(bar)
+            under = Tool.from_function(foo_bar)
+            if order == "hyphen-first":
+                registry.register(hyphen, namespace="foo")  # key foo-bar
+                registry.register(under)  # key foo_bar
+            else:
+                registry.register(under)
+                registry.register(hyphen, namespace="foo")
+            registry.enable_tool_discovery()
+            discoverer = registry._tool_discovery
+            assert discoverer is not None
+
+            assert [r["name"] for r in discoverer.discover("foo-bar")] == ["foo-bar"]
+            assert [r["name"] for r in discoverer.discover("foo_bar")] == ["foo_bar"]
+
+
+# -- tests: lazy index refresh on metadata / bulk changes ---------------------
+
+
+class TestLazyIndexRefresh:
+    """Metadata changes and bulk disables refresh the index lazily."""
+
+    def test_metadata_search_hint_reindexed(self):
+        """A new search_hint becomes searchable; the old hint retires."""
+        registry = ToolRegistry()
+
+        def probe(value: str = "x") -> str:
+            """A probe tool."""
+            return value
+
+        registry.register(
+            Tool.from_function(
+                probe, metadata=ToolMetadata(search_hint="giraffe stripes")
+            )
+        )
+        registry.enable_tool_discovery()
+        discoverer = registry._tool_discovery
+        assert discoverer is not None
+
+        assert [r["name"] for r in discoverer.discover("giraffe")] == ["probe"]
+
+        registry.update_tool_metadata("probe", search_hint="quagga unicorn")
+
+        assert [r["name"] for r in discoverer.discover("quagga unicorn")] == ["probe"]
+        assert discoverer.discover("giraffe stripes") == []
+
+    def test_metadata_defer_reflected_in_discover(self):
+        """defer=True must show up in discover() as deferred + schema."""
+        registry = ToolRegistry()
+
+        def probe(value: str = "x") -> str:
+            """A probe tool."""
+            return value
+
+        registry.register(probe)
+        registry.enable_tool_discovery()
+        discoverer = registry._tool_discovery
+        assert discoverer is not None
+
+        before = discoverer.discover("probe tool")[0]
+        assert before["deferred"] is False
+        assert "schema" not in before
+
+        registry.update_tool_metadata("probe", defer=True)
+
+        after = discoverer.discover("probe tool")[0]
+        assert after["deferred"] is True
+        assert "schema" in after
+        # Both halves of the discovery contract now agree.
+        assert [s["name"] for s in registry.get_deferred_summaries()] == ["probe"]
+
+    def test_bulk_disable_defers_rebuild(self, monkeypatch):
+        """N disables must not trigger N index rebuilds."""
+        registry = ToolRegistry()
+        for i in range(20):
+            registry.register(Tool.from_function(lambda i=i: i, name=f"bulk_{i}"))
+        registry.enable_tool_discovery()
+        discoverer = registry._tool_discovery
+        assert discoverer is not None
+
+        count = {"n": 0}
+        real = discoverer.rebuild_index
+
+        def counting() -> None:
+            count["n"] += 1
+            real()
+
+        monkeypatch.setattr(discoverer, "rebuild_index", counting)
+
+        for i in range(20):
+            registry.disable(f"bulk_{i}")
+        assert count["n"] == 0  # lazily deferred, not one rebuild per event
+
+        discoverer.discover("bulk 5")
+        assert count["n"] == 1  # one rebuild on the next discover()
+
+
+# -- tests: plain-string tags (#286 non-blocking) -----------------------------
+
+
+class TestPlainStringTags:
+    """Plain-string tags must not break the discovery index."""
+
+    def test_plain_string_tags_classify_safely(self):
+        """ToolMetadata.all_tags accepts plain strings."""
+        assert ToolMetadata(tags={"zzz_unique_tag"}).all_tags == {"zzz_unique_tag"}
+
+    def test_update_tags_then_disable_does_not_break_index(self, caplog):
+        """A plain-string tag update must not corrupt the index on disable."""
+        registry = ToolRegistry()
+
+        def first() -> str:
+            """First tool."""
+            return "1"
+
+        def second() -> str:
+            """Second tool."""
+            return "2"
+
+        registry.register(first)
+        registry.register(second)
+        registry.enable_tool_discovery()
+        discoverer = registry._tool_discovery
+        assert discoverer is not None
+
+        registry.update_tool_metadata("first", tags=["zzz_unique_tag"])
+
+        with caplog.at_level(logging.WARNING, logger="toolregistry._mixins.callbacks"):
+            registry.disable("second")
+
+        assert "raised exception" not in caplog.text
+        assert [r["name"] for r in discoverer.discover("first tool")] == ["first"]
+
+
+# -- tests: model-visible guidance and dependency-free import -----------------
+
+
+class TestDiscoveryGuidanceAndDeps:
+    """The discover_tools description and the pydantic-free import path."""
+
+    def test_description_mentions_matching_scope(self):
+        """The description tells the model how queries are matched."""
+        registry = ToolRegistry()
+        registry.enable_tool_discovery()
+        tool = registry.get_tool("discover_tools")
+        assert tool is not None
+        assert "English" in (tool.description or "")
+
+    def test_import_toolregistry_without_pydantic(self):
+        """import toolregistry must work when pydantic is unavailable."""
+        import os
+        import pathlib
+        import subprocess
+        import sys
+        import textwrap
+
+        import toolregistry as _tr
+
+        src = pathlib.Path(_tr.__file__).resolve().parent.parent
+        script = textwrap.dedent("""
+            import sys
+
+            class _BlockPydantic:
+                def find_spec(self, name, path=None, target=None):
+                    if name == "pydantic" or name.startswith("pydantic."):
+                        raise ModuleNotFoundError(f"No module named {name!r}")
+                    return None
+
+            for mod in [m for m in sys.modules
+                        if m == "pydantic" or m.startswith("pydantic.")]:
+                del sys.modules[mod]
+            sys.meta_path.insert(0, _BlockPydantic())
+
+            import toolregistry
+            assert "pydantic" not in sys.modules
+
+            registry = toolregistry.ToolRegistry()
+            registry.enable_tool_discovery()
+            props = registry.get_tool("discover_tools").parameters["properties"]
+            assert props["query"]["minLength"] == 1, props["query"]
+            assert props["query"].get("pattern"), props["query"]
+            assert props["top_k"]["minimum"] == 1, props["top_k"]
+            print("OK")
+        """)
+        env = dict(os.environ, PYTHONPATH=str(src))
+        proc = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        assert proc.returncode == 0, proc.stderr
+        assert "OK" in proc.stdout
