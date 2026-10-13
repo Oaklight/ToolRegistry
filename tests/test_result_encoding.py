@@ -9,9 +9,12 @@ instead of silently degrading to unusable text.
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 import uuid
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from enum import Enum
 from pathlib import Path
@@ -22,6 +25,9 @@ from pydantic import BaseModel
 from toolregistry import Tool, ToolRegistry
 from toolregistry.llm.tool_calls import ErrorResult, ToolCallResult
 from toolregistry.tool import ToolMetadata
+from toolregistry.utils import encode_tool_result
+
+_SRC = str(Path(__file__).resolve().parents[1] / "src")
 
 
 @dataclass
@@ -66,6 +72,23 @@ class Unencodable:
 
     def __init__(self) -> None:
         self.payload = object()
+
+
+class ArrayLike:
+    """Exposes only ``tolist()``, like numpy arrays and torch tensors."""
+
+    def __init__(self, values: list) -> None:
+        self._values = values
+
+    def tolist(self) -> list:
+        return self._values
+
+
+@dataclass(frozen=True)
+class FrozenPoint:
+    """Hashable (so usable in a set) but not orderable."""
+
+    x: int
 
 
 def _invoke_result(reg: ToolRegistry, name: str, kwargs: dict | None = None) -> str:
@@ -159,7 +182,7 @@ class TestEncodesJSONNative:
         reg.register(collections)
         parsed = json.loads(_invoke_result(reg, "collections"))
 
-        assert sorted(parsed["s"]) == ["a", "b"]
+        assert parsed["s"] == ["a", "b"]
         assert parsed["f"] == [1]
         assert parsed["t"] == [1, 2]
 
@@ -271,4 +294,147 @@ class TestUnencodableRaises:
 
         assert isinstance(result, ErrorResult)
         assert "bad" in result.message
+        assert "Unencodable" in result.message
+
+    def test_error_message_names_the_fix(self):
+        reg = ToolRegistry()
+
+        with pytest.raises(TypeError) as excinfo:
+            reg._finalize_result(Unencodable(), "bad_tool")
+
+        message = str(excinfo.value)
+        assert "to_dict" in message or "model_dump" in message
+        assert "str" in message
+
+
+class TestTopLevelProjection:
+    """Top-level projection must agree with the nested one for every type."""
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            (Path("/tmp/x"), "/tmp/x"),
+            (Decimal("1.50"), "1.50"),
+            (uuid.UUID(int=0), str(uuid.UUID(int=0))),
+            (date(2024, 1, 2), "2024-01-02"),
+            (time(3, 4, 5), "03:04:05"),
+            (Color.RED, "red"),
+            (datetime(2024, 1, 2, 3, 4, 5), "2024-01-02T03:04:05"),
+            (b"\x00\x01", "AAE="),
+        ],
+    )
+    def test_top_level_matches_nested(self, value, expected):
+        nested = json.loads(encode_tool_result({"v": value}))["v"]
+        top_raw = encode_tool_result(value)
+        # Allowlisted scalars are emitted as a bare string; everything
+        # else is JSON text, so decode it before comparing content.
+        top = top_raw if top_raw == expected else json.loads(top_raw)
+
+        assert top == expected
+        assert nested == expected
+
+    def test_plain_str_stays_bare(self):
+        assert encode_tool_result("hello") == "hello"
+
+
+class TestSetDeterminism:
+    """Orderable sets encode deterministically; unordered ones still work."""
+
+    def test_orderable_set_is_sorted(self):
+        reg = ToolRegistry()
+
+        def tags() -> dict:
+            """Return an unordered set."""
+            return {"tags": {"delta", "alpha", "charlie", "bravo"}}
+
+        reg.register(tags)
+        parsed = json.loads(_invoke_result(reg, "tags"))
+
+        assert parsed["tags"] == ["alpha", "bravo", "charlie", "delta"]
+
+    def test_set_encoding_identical_across_processes(self):
+        code = (
+            "from toolregistry.utils import encode_tool_result;"
+            "print(encode_tool_result({'s': {'delta', 'alpha', 'charlie', 'bravo'}}))"
+        )
+        env = {
+            **os.environ,
+            "PYTHONPATH": os.pathsep.join(
+                p for p in (_SRC, os.environ.get("PYTHONPATH", "")) if p
+            ),
+        }
+
+        def run_once() -> str:
+            proc = subprocess.run(
+                [sys.executable, "-c", code],
+                capture_output=True,
+                text=True,
+                check=True,
+                env=env,
+            )
+            return proc.stdout
+
+        first, second = run_once(), run_once()
+
+        assert first == second
+        assert '"alpha"' in first
+
+    def test_unorderable_set_falls_back(self):
+        reg = ToolRegistry()
+
+        def mixed() -> dict:
+            """Return a set with non-comparable elements."""
+            return {"mixed": {1, "a"}}
+
+        reg.register(mixed)
+        parsed = json.loads(_invoke_result(reg, "mixed"))
+
+        assert set(parsed["mixed"]) == {1, "a"}
+
+    def test_unorderable_dataclass_set_falls_back(self):
+        reg = ToolRegistry()
+
+        def fuzzy() -> dict:
+            """Return a set of non-comparable dataclasses."""
+            return {"fuzzy": {FrozenPoint(1), FrozenPoint(2)}}
+
+        reg.register(fuzzy)
+        parsed = json.loads(_invoke_result(reg, "fuzzy"))
+
+        assert sorted(d["x"] for d in parsed["fuzzy"]) == [1, 2]
+
+
+class TestTolistProjection:
+    """Array-like objects project through ``tolist()``."""
+
+    def test_tolist_routes_through_encoder(self):
+        reg = ToolRegistry()
+
+        def arr() -> dict:
+            """Return an array-like object."""
+            return {"a": ArrayLike([Decimal("1.5"), datetime(2024, 1, 2, 3, 4, 5)])}
+
+        reg.register(arr)
+        parsed = json.loads(_invoke_result(reg, "arr"))
+
+        assert parsed["a"] == ["1.5", "2024-01-02T03:04:05"]
+
+    def test_tolist_non_native_element_raises(self):
+        class BadArray:
+            """``tolist`` returning a value with no JSON projection."""
+
+            def tolist(self) -> list:
+                return [Unencodable()]
+
+        reg = ToolRegistry()
+
+        def arr() -> BadArray:
+            """Return an array-like with a non-native element."""
+            return BadArray()
+
+        reg.register(arr)
+        result = reg.invoke("arr", {})
+
+        assert isinstance(result, ErrorResult)
+        assert "arr" in result.message
         assert "Unencodable" in result.message
