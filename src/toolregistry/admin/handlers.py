@@ -316,6 +316,7 @@ def _get_tool(request: Request, name: str) -> Response:
             "source_detail": tool.metadata.source_detail,
             "defer": tool.metadata.defer,
             "search_hint": tool.metadata.search_hint,
+            "title": tool.metadata.title,
             "think_augment": tool.metadata.think_augment,
             "execution_hints": tool.metadata.execution_hints,
             "extra": tool.metadata.extra,

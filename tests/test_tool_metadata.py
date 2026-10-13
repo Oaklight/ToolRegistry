@@ -1,6 +1,7 @@
 """Tests for ToolTag, ToolMetadata, and Tool.metadata integration."""
 
 import dataclasses
+import warnings
 from pathlib import Path
 
 import pytest
@@ -202,8 +203,9 @@ class TestExecutionHints:
             idempotent_hint=False,
             open_world_hint=True,
         )
+        # ``title`` is a display name, not a hint; it is not in the mapping.
+        assert m.title == "My Tool"
         assert m.execution_hints == {
-            "title": "My Tool",
             "read_only_hint": False,
             "destructive_hint": True,
             "idempotent_hint": False,
@@ -219,7 +221,12 @@ class TestExecutionHints:
 
     def test_read_only_hint_derived_from_tag_when_unset(self):
         m = ToolMetadata(tags={ToolTag.READ_ONLY})
-        assert m.execution_hints == {"read_only_hint": True}
+        # A read-only tool also resolves destructive_hint to False, because
+        # MCP otherwise defaults destructiveHint to true on the wire.
+        assert m.execution_hints == {
+            "read_only_hint": True,
+            "destructive_hint": False,
+        }
 
     def test_destructive_hint_derived_from_tag_when_unset(self):
         m = ToolMetadata(tags={ToolTag.DESTRUCTIVE})
@@ -234,9 +241,31 @@ class TestExecutionHints:
         assert ToolMetadata(
             destructive_hint=False, tags={ToolTag.DESTRUCTIVE}
         ).execution_hints == {"destructive_hint": False}
-        # Explicit True wins without any tag.
+        # Explicit True wins without any tag (and resolves the complement).
         assert ToolMetadata(read_only_hint=True).execution_hints == {
-            "read_only_hint": True
+            "read_only_hint": True,
+            "destructive_hint": False,
+        }
+
+    def test_read_only_complement_filled_only_when_destructive_unset(self):
+        # An explicit destructive_hint=True beats the read-only complement.
+        with pytest.warns(UserWarning, match="destructive"):
+            m = ToolMetadata(read_only_hint=True, destructive_hint=True)
+        assert m.execution_hints == {
+            "read_only_hint": True,
+            "destructive_hint": True,
+        }
+        # A DESTRUCTIVE tag likewise beats the complement.
+        with pytest.warns(UserWarning, match="destructive"):
+            m2 = ToolMetadata(tags={ToolTag.READ_ONLY, ToolTag.DESTRUCTIVE})
+        assert m2.execution_hints == {
+            "read_only_hint": True,
+            "destructive_hint": True,
+        }
+        # With no destructive signal at all, the complement is filled in.
+        assert ToolMetadata(read_only_hint=True).execution_hints == {
+            "read_only_hint": True,
+            "destructive_hint": False,
         }
 
     def test_non_deriving_tags_do_not_imply_hints(self):
@@ -252,9 +281,14 @@ class TestExecutionHints:
         assert m.idempotent_hint is None
         assert m.open_world_hint is None
 
-    def test_accessor_keys_are_snake_case_field_names(self):
+    def test_accessor_keys_are_snake_case_hint_fields(self):
         m = ToolMetadata(tags={ToolTag.READ_ONLY}, title="t", open_world_hint=True)
-        assert set(m.execution_hints) == {"title", "read_only_hint", "open_world_hint"}
+        assert set(m.execution_hints) == {
+            "read_only_hint",
+            "destructive_hint",
+            "open_world_hint",
+        }
+        assert "title" not in m.execution_hints
         field_names = {f.name for f in dataclasses.fields(ToolMetadata)}
         for key in m.execution_hints:
             assert key in field_names
@@ -286,19 +320,23 @@ class TestExecutionHints:
         tool = Tool.from_function(
             _sync_func, metadata=ToolMetadata(tags={ToolTag.READ_ONLY}, title="G")
         )
-        assert tool.execution_hints == {"title": "G", "read_only_hint": True}
+        assert tool.metadata.title == "G"
+        assert tool.execution_hints == {
+            "read_only_hint": True,
+            "destructive_hint": False,
+        }
 
     def test_tool_replace_and_refresh_preserve_hints(self):
         tool = Tool.from_function(
             _sync_func, metadata=ToolMetadata(title="T", read_only_hint=True)
         )
         assert tool.with_refreshed_at("2026-01-01T00:00:00Z").execution_hints == {
-            "title": "T",
             "read_only_hint": True,
+            "destructive_hint": False,
         }
         assert tool.update_namespace("ns").execution_hints == {
-            "title": "T",
             "read_only_hint": True,
+            "destructive_hint": False,
         }
 
     def test_generated_schema_unaffected_by_hints(self):
@@ -332,7 +370,8 @@ class TestExecutionHints:
         name = reg.list_tools()[0]
         reg.update_tool_metadata(name, read_only_hint=False, title="Runtime")
         tool = reg.get_tool(name)
-        assert tool.execution_hints == {"title": "Runtime", "read_only_hint": False}
+        assert tool.execution_hints == {"read_only_hint": False}
+        assert tool.metadata.title == "Runtime"
         assert tool.metadata.read_only_hint is False
 
         # Namespace-wide update also accepts the hint fields.
@@ -341,6 +380,51 @@ class TestExecutionHints:
         name2 = reg2.list_tools()[0]
         reg2.update_namespace_metadata("ns", open_world_hint=True)
         assert reg2.get_tool(name2).execution_hints == {"open_world_hint": True}
+
+    def test_runtime_update_rejects_wrong_types(self):
+        reg = ToolRegistry()
+        reg.register(_sync_func)
+        name = reg.list_tools()[0]
+        with pytest.raises(ValueError, match="read_only_hint.*a boolean"):
+            reg.update_tool_metadata(name, read_only_hint="yes")
+        with pytest.raises(ValueError, match="title.*a string"):
+            reg.update_tool_metadata(name, title=42)
+        # Rejected updates must not be applied.
+        assert reg.get_tool(name).execution_hints == {}
+        assert reg.get_tool(name).metadata.title is None
+
+    def test_namespace_update_rejects_wrong_types(self):
+        reg = ToolRegistry()
+        reg.register(_sync_func, namespace="ns")
+        with pytest.raises(ValueError, match="open_world_hint.*a boolean"):
+            reg.update_namespace_metadata("ns", open_world_hint="nope")
+        assert reg.get_tool(reg.list_tools()[0]).execution_hints == {}
+
+    def test_contradictory_tag_hints_warn(self):
+        with pytest.warns(UserWarning, match="destructive"):
+            m = ToolMetadata(tags={ToolTag.READ_ONLY, ToolTag.DESTRUCTIVE})
+        assert m.execution_hints == {
+            "read_only_hint": True,
+            "destructive_hint": True,
+        }
+
+    def test_contradictory_explicit_hints_warn(self):
+        with pytest.warns(UserWarning, match="read_only_hint"):
+            ToolMetadata(read_only_hint=True, destructive_hint=True)
+
+    def test_single_hint_does_not_warn(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            ToolMetadata(tags={ToolTag.READ_ONLY})
+            ToolMetadata(destructive_hint=True)
+            ToolMetadata(read_only_hint=True, destructive_hint=False)
+
+    def test_contradiction_warns_through_runtime_update(self):
+        reg = ToolRegistry()
+        reg.register(Tool.from_function(_sync_func, metadata=ToolMetadata()))
+        name = reg.list_tools()[0]
+        with pytest.warns(UserWarning, match="destructive"):
+            reg.update_tool_metadata(name, read_only_hint=True, destructive_hint=True)
 
 
 class TestExecutionHintsConfigOverride:
@@ -353,9 +437,10 @@ class TestExecutionHintsConfigOverride:
         reg.apply_metadata_config(
             {name: ToolMetadataOverride(title="Add", read_only_hint=True)}
         )
+        assert reg.get_tool(name).metadata.title == "Add"
         assert reg.get_tool(name).execution_hints == {
-            "title": "Add",
             "read_only_hint": True,
+            "destructive_hint": False,
         }
 
     def test_apply_metadata_config_with_plain_dict(self):
@@ -380,9 +465,10 @@ class TestExecutionHintsConfigOverride:
         name = reg.list_tools()[0]
         # Only title is overridden; the READ_ONLY tag still derives read_only.
         reg.apply_metadata_config({name: ToolMetadataOverride(title="T")})
+        assert reg.get_tool(name).metadata.title == "T"
         assert reg.get_tool(name).execution_hints == {
-            "title": "T",
             "read_only_hint": True,
+            "destructive_hint": False,
         }
 
     def test_loader_parses_and_round_trips_hints(self, tmp_path: Path):
@@ -438,7 +524,10 @@ class TestExecutionHintsSerialization:
             )
         )
         status = reg.get_tools_status()[0]
-        assert status["execution_hints"] == {"read_only_hint": True}
+        assert status["execution_hints"] == {
+            "read_only_hint": True,
+            "destructive_hint": False,
+        }
 
     def test_get_tools_status_empty_when_unset(self):
         reg = ToolRegistry()

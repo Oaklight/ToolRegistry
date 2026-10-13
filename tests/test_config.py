@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
 
 import pytest
@@ -1200,4 +1201,25 @@ class TestToolMetadataOverrides:
             '{"mode":"denylist","tool_metadata":{"x":{"title":5}}}',
         )
         with pytest.raises(ConfigError, match="title"):
+            load_config(path)
+
+    def test_warns_on_unrecognised_key(self, tmp_path: Path) -> None:
+        """A misspelled key warns instead of being dropped silently."""
+        path = _write(
+            tmp_path,
+            "typo.json",
+            '{"mode":"denylist","tool_metadata":{"x":{"readonly_hint":true}}}',
+        )
+        with pytest.warns(UserWarning, match="readonly_hint"):
+            override = load_config(path).tool_metadata["x"]
+        assert override.to_dict() == {}
+
+    def test_no_warning_for_recognised_keys(self, tmp_path: Path) -> None:
+        path = _write(
+            tmp_path,
+            "ok.json",
+            '{"mode":"denylist","tool_metadata":{"x":{"read_only_hint":true}}}',
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
             load_config(path)
