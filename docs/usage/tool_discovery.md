@@ -110,6 +110,8 @@ Each result is a dict with these keys:
 
 For **exact matches**, the result always includes the full tool schema regardless of deferred status. For **fuzzy search**, only deferred tools include their schema so the LLM can call them immediately after discovery.
 
+Only **enabled** tools are searchable: a tool disabled at the method or namespace level disappears from both `discover_tools` and `get_deferred_summaries()`. `query` must be a non-empty, non-whitespace string and `top_k` must be at least 1 — the generated schema declares both, and the runtime raises `ValueError` if they arrive anyway. Matching runs against each tool's name, description, tags, parameter names and `search_hint`; coverage is strongest for English keywords, and CJK queries are supported through character bigrams.
+
 ```python
 results = discoverer.discover("email", top_k=3)
 for r in results:
@@ -187,6 +189,8 @@ The workflow is:
 2. LLM calls `call_deferred(_target_tool="search", query="hello")` → the registry executes the deferred tool through the full pipeline (permissions, execution backend, logging)
 
 `call_deferred` only accepts deferred tools — calling it with a non-deferred tool raises `ValueError`.
+
+Tool names are matched leniently. Both `discover_tools` and `call_deferred` resolve a name after collapsing `/` and `-` to `_` and folding case, so a name rewritten by an MCP client — `weather_get_current` for the registered `weather-get-current` — still reaches the right tool. An exact registered spelling always wins over a normalized match. When no tool matches, the error lists the closest registered names so the caller can self-correct in one turn.
 
 Both `discover_tools` and `call_deferred` are registered and unregistered together via `enable_tool_discovery()` / `disable_tool_discovery()`. Their names are available as constants: `TOOL_DISCOVERY_NAME` and `TOOL_CALL_DEFERRED_NAME` from `toolregistry.llm.discovery`.
 
