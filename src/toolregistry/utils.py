@@ -363,10 +363,17 @@ class ToolResultJSONEncoder(json.JSONEncoder):
     - ``Decimal`` / ``UUID`` -> ``str``
     - ``datetime`` / ``date`` / ``time`` -> ISO 8601 string
     - ``bytes`` -> base64-encoded ASCII string
-    - ``set`` / ``frozenset`` -> JSON array (tuples are native to JSON)
+    - ``set`` / ``frozenset`` -> JSON array, sorted when the elements are
+      orderable so the encoding is reproducible across processes
+      (tuples are native to JSON)
     - dataclass instances -> :func:`dataclasses.asdict`
-    - Pydantic v2 models (``model_dump``), v1 models (``dict``), and any
-      object exposing a zero-argument ``to_dict`` -> ``dict``
+    - Pydantic v2 models (``model_dump``), v1 models (``dict``), any
+      object exposing a zero-argument ``to_dict`` -> ``dict``, and
+      array-like objects exposing ``tolist`` (numpy arrays, torch
+      tensors) -> list
+
+    Whatever ``tolist`` returns is serialized by ``json`` normally, so a
+    non-native element inside it is routed back through this encoder.
 
     Anything else has no JSON projection and raises ``TypeError``.
     """
@@ -383,10 +390,15 @@ class ToolResultJSONEncoder(json.JSONEncoder):
         if isinstance(o, bytes):
             return base64.b64encode(o).decode("ascii")
         if isinstance(o, (set, frozenset)):
-            return list(o)
+            try:
+                return sorted(o)
+            except TypeError:
+                # Elements are not mutually orderable; keep them in
+                # iteration order rather than failing.
+                return list(o)
         if dataclasses.is_dataclass(o) and not isinstance(o, type):
             return dataclasses.asdict(o)
-        for attr in ("model_dump", "to_dict", "dict"):
+        for attr in ("model_dump", "to_dict", "dict", "tolist"):
             method = getattr(o, attr, None)
             if callable(method):
                 return method()
@@ -394,8 +406,13 @@ class ToolResultJSONEncoder(json.JSONEncoder):
 
 
 # Types that may be emitted as a bare string without JSON-quoting at the
-# top level.  Nested occurrences are projected by ``ToolResultJSONEncoder``.
-_STR_LIKE_SCALARS = (str, Path, Decimal, Enum, uuid.UUID, datetime, date, time, bytes)
+# top level: their ``str()`` already matches the encoder's projection, so
+# the historical plain-string form is preserved.  ``datetime`` is excluded
+# even though it subclasses ``date`` -- ``str()`` uses a space separator
+# while ``isoformat()`` uses ``T``.  ``Enum`` and ``bytes`` are excluded
+# because ``str()`` yields ``Color.RED`` / ``b'...'``: exactly the
+# unparseable forms this encoder exists to remove.
+_STR_LIKE_SCALARS = (str, Path, Decimal, uuid.UUID, date, time)
 
 
 def encode_tool_result(result: Any, *, tool_name: str = "") -> str:
@@ -403,9 +420,11 @@ def encode_tool_result(result: Any, *, tool_name: str = "") -> str:
 
     Plain strings pass through unchanged.  Values in the str-like scalar
     allowlist keep their historical ``str()`` textual form.  Everything
-    else is serialized with :class:`ToolResultJSONEncoder`, so dataclasses,
+    else -- including a bare ``Enum``, ``bytes`` or ``datetime`` -- is
+    serialized with :class:`ToolResultJSONEncoder`, so dataclasses,
     Pydantic models, enums, paths, and other common types produce valid
-    JSON instead of Python ``repr`` text.
+    JSON instead of Python ``repr`` text, and the top-level and nested
+    projections agree.
 
     Args:
         result: Raw value returned by a tool.
@@ -417,15 +436,18 @@ def encode_tool_result(result: Any, *, tool_name: str = "") -> str:
 
     Raises:
         TypeError: If *result* has no JSON projection.  The message names
-            the tool and the offending type so the failure is actionable.
+            the tool and the offending type, and suggests how to make the
+            value encodable.
     """
     if isinstance(result, str):
         return result
-    if isinstance(result, _STR_LIKE_SCALARS):
+    if isinstance(result, _STR_LIKE_SCALARS) and not isinstance(result, datetime):
         return str(result)
     try:
         return json.dumps(result, cls=ToolResultJSONEncoder)
     except (TypeError, ValueError) as exc:
         raise TypeError(
-            f"Tool {tool_name!r} returned a value that cannot be encoded to JSON: {exc}"
+            f"Tool {tool_name!r} returned a value that cannot be encoded to JSON "
+            f"({exc}). Add a to_dict() or model_dump() method to the returned "
+            f"type, expose tolist(), or return a str."
         ) from exc
