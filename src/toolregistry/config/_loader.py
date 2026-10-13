@@ -3,9 +3,15 @@
 from __future__ import annotations
 
 import os
+import warnings
 from pathlib import Path
 from typing import Any, Literal, cast
 
+from .._validation import (
+    MetadataFieldTypeError,
+    ensure_optional_bool,
+    ensure_optional_string,
+)
 from ._types import (
     AuthConfig,
     ConfigError,
@@ -204,9 +210,31 @@ def _build_profile_config(data: dict[str, Any], name: str) -> ProfileConfig:
 
 # --- tool_metadata section ---------------------------------------------------
 
+#: Keys recognised under ``tool_metadata.<tool>``.  Anything else is likely a
+#: typo and is warned about rather than silently dropped.
+_KNOWN_TOOL_METADATA_KEYS: frozenset[str] = frozenset(
+    {
+        "search_hint",
+        "defer",
+        "title",
+        "read_only_hint",
+        "destructive_hint",
+        "idempotent_hint",
+        "open_world_hint",
+    }
+)
+
 
 def _build_tool_metadata(data: dict[str, Any]) -> dict[str, ToolMetadataOverride]:
     """Parse the ``tool_metadata`` section of a config file.
+
+    Note:
+        A missing or ``null`` field means "no override was declared" and is
+        stored as ``None``.  That differs from
+        :meth:`ToolRegistry.apply_metadata_config`, which skips ``None`` and
+        keeps the registered value, and from
+        :meth:`ToolRegistry.update_tool_metadata`, where ``None`` clears the
+        field.  An explicit ``false`` is preserved.
 
     Args:
         data: Top-level config mapping.
@@ -229,14 +257,27 @@ def _build_tool_metadata(data: dict[str, Any]) -> dict[str, ToolMetadataOverride
                 f"'tool_metadata.{tool_name}' must be a mapping, "
                 f"got {type(entry).__name__}."
             )
+        unknown = sorted(set(entry) - _KNOWN_TOOL_METADATA_KEYS)
+        if unknown:
+            warnings.warn(
+                f"Ignoring unrecognised key(s) under 'tool_metadata.{tool_name}': "
+                f"{', '.join(unknown)}. Check for typos; an unrecognised key "
+                f"silently drops the intended override.",
+                UserWarning,
+                stacklevel=2,
+            )
         search_hint = entry.get("search_hint", "")
         if not isinstance(search_hint, str):
             raise ConfigError(
                 f"'tool_metadata.{tool_name}.search_hint' must be a string."
             )
         title = entry.get("title")
-        if title is not None and not isinstance(title, str):
-            raise ConfigError(f"'tool_metadata.{tool_name}.title' must be a string.")
+        try:
+            ensure_optional_string("title", title)
+        except MetadataFieldTypeError:
+            raise ConfigError(
+                f"'tool_metadata.{tool_name}.title' must be a string."
+            ) from None
         overrides[tool_name] = ToolMetadataOverride(
             search_hint=search_hint,
             defer=_optional_bool(entry, tool_name, "defer"),
@@ -264,10 +305,12 @@ def _optional_bool(entry: dict[str, Any], tool_name: str, key: str) -> bool | No
         ConfigError: If the value is present and is not a boolean.
     """
     value = entry.get(key)
-    if value is None:
-        return None
-    if not isinstance(value, bool):
-        raise ConfigError(f"'tool_metadata.{tool_name}.{key}' must be a boolean.")
+    try:
+        ensure_optional_bool(key, value)
+    except MetadataFieldTypeError:
+        raise ConfigError(
+            f"'tool_metadata.{tool_name}.{key}' must be a boolean."
+        ) from None
     return value
 
 

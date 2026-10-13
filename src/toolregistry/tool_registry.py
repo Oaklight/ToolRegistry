@@ -1795,9 +1795,11 @@ class ToolRegistry(
                   (e.g. transport URI, spec URL, class name)
                 - think_augment (bool | None): Think-augmented calling setting
                 - defer (bool): Whether the tool is deferred from initial prompt
-                - execution_hints (dict[str, bool | str]): Resolved execution
-                  hints (``title`` and the ``*_hint`` fields), including
-                  values derived from tags; unset hints are omitted
+                - title (str | None): Human-readable display title, if set
+                - execution_hints (dict[str, bool]): Resolved boolean
+                  execution hints (the ``*_hint`` fields), including values
+                  derived from tags; unset hints are omitted.  ``title`` is
+                  reported separately and is not part of this mapping.
 
         Example:
             >>> registry = ToolRegistry()
@@ -1815,6 +1817,7 @@ class ToolRegistry(
                     "is_async": False,
                     "think_augment": None,
                     "defer": False,
+                    "title": None,
                     "execution_hints": {},
                 }
             ]
@@ -1837,6 +1840,7 @@ class ToolRegistry(
                     "source_detail": meta.source_detail,
                     "think_augment": meta.think_augment,
                     "defer": meta.defer,
+                    "title": meta.title,
                     "execution_hints": meta.execution_hints,
                 }
             )
@@ -1896,6 +1900,14 @@ class ToolRegistry(
                 ``bool | None``) as attributes or dict keys.  ``None``
                 leaves the registered value untouched; an explicit
                 ``False`` is applied.
+
+        Note:
+            ``None`` here means "skip this field" — the already-registered
+            value is kept.  That differs from the config loader, where
+            ``None`` means "no override was declared", and from
+            :meth:`update_tool_metadata`, where ``title=None`` clears the
+            field.  An explicit ``False`` is always applied, never treated
+            as "unset".
         """
         override_fields = (
             "title",

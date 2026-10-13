@@ -6,6 +6,7 @@ import dataclasses
 
 from typing import TYPE_CHECKING, Literal
 
+from .._validation import HINT_METADATA_FIELDS, validate_metadata_field
 from ..events import ChangeEvent, ChangeEventType
 
 if TYPE_CHECKING:
@@ -148,10 +149,38 @@ class EnableDisableMixin:
         }
     )
 
+    def _check_metadata_updates(self, updates: dict[str, object]) -> None:
+        """Validate field names and types for a metadata update.
+
+        Args:
+            updates: Field-value pairs passed to an update method.
+
+        Raises:
+            ValueError: If a field is not mutable, or an execution-hint
+                field has the wrong type.
+        """
+        for key, value in updates.items():
+            if key not in self._MUTABLE_METADATA_FIELDS:
+                raise ValueError(
+                    f"Field '{key}' is not allowed. "
+                    f"Allowed fields: {sorted(self._MUTABLE_METADATA_FIELDS)}"
+                )
+            if key in HINT_METADATA_FIELDS:
+                validate_metadata_field(key, value)
+
     def update_tool_metadata(self, tool_name: str, **kwargs: object) -> None:
         """Update mutable metadata fields for a tool at runtime.
 
         Only fields listed in ``_MUTABLE_METADATA_FIELDS`` can be modified.
+        Execution-hint fields (``title`` and the ``*_hint`` booleans) are
+        type-checked against the same rules the config loader enforces.
+
+        Note:
+            ``None`` clears an execution-hint field on this path.  That
+            differs from the config loader, where ``None`` means "no
+            override was declared", and from
+            :meth:`ToolRegistry.apply_metadata_config`, which skips ``None``
+            and keeps the registered value.
 
         Args:
             tool_name: The name of the tool to update.
@@ -159,17 +188,13 @@ class EnableDisableMixin:
 
         Raises:
             KeyError: If the tool is not found.
-            ValueError: If an unknown or disallowed field is specified.
+            ValueError: If a field is not allowed, or an execution-hint
+                field has the wrong type.
         """
         tool = self._tools.get(tool_name)
         if tool is None:
             raise KeyError(f"Tool not found: {tool_name}")
-        for key in kwargs:
-            if key not in self._MUTABLE_METADATA_FIELDS:
-                raise ValueError(
-                    f"Field '{key}' is not allowed. "
-                    f"Allowed fields: {sorted(self._MUTABLE_METADATA_FIELDS)}"
-                )
+        self._check_metadata_updates(kwargs)
         new_meta = dataclasses.replace(tool.metadata, **kwargs)
         self._tools[tool_name] = dataclasses.replace(tool, metadata=new_meta)
         self._emit_change(
@@ -191,17 +216,13 @@ class EnableDisableMixin:
 
         Raises:
             KeyError: If no tools are found in the namespace.
-            ValueError: If an unknown or disallowed field is specified.
+            ValueError: If a field is not allowed, or an execution-hint
+                field has the wrong type.
         """
         tools = [t for t in self._tools.values() if t.namespace == namespace]
         if not tools:
             raise KeyError(f"Namespace not found: {namespace}")
-        for key in kwargs:
-            if key not in self._MUTABLE_METADATA_FIELDS:
-                raise ValueError(
-                    f"Field '{key}' is not allowed. "
-                    f"Allowed fields: {sorted(self._MUTABLE_METADATA_FIELDS)}"
-                )
+        self._check_metadata_updates(kwargs)
         for tool in tools:
             new_meta = dataclasses.replace(tool.metadata, **kwargs)
             self._tools[tool.name] = dataclasses.replace(tool, metadata=new_meta)

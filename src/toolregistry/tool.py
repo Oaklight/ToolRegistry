@@ -185,6 +185,8 @@ class ToolMetadata:
     distinguishable from ``None``.  When unset, the value is derived from
     :attr:`tags` (``ToolTag.READ_ONLY`` → ``True``) by
     :attr:`execution_hints`; an explicit value always wins over the tag.
+    Resolving ``True`` also resolves an unset :attr:`destructive_hint` to
+    ``False`` (see :attr:`execution_hints`).
 
     Maps to the MCP ``readOnlyHint`` annotation (MCP 2025-06-18), whose
     protocol default is ``false``.  Because a host may treat an absent
@@ -197,7 +199,8 @@ class ToolMetadata:
 
     Tri-state, same contract as :attr:`read_only_hint`.  When unset, the
     value is derived from :attr:`tags` (``ToolTag.DESTRUCTIVE`` →
-    ``True``).
+    ``True``), and to ``False`` when :attr:`read_only_hint` resolves
+    ``True`` and nothing marks the tool destructive.
 
     Maps to the MCP ``destructiveHint`` annotation (MCP 2025-06-18),
     whose protocol default is ``true``.  ``None`` here means *unset*, not
@@ -240,6 +243,7 @@ class ToolMetadata:
                 f"Invalid natural_backend {self.natural_backend!r}, "
                 f"must be one of {self._VALID_BACKEND}"
             )
+        self._warn_if_contradictory_hints()
 
     @property
     def all_tags(self) -> set[str]:
@@ -249,7 +253,7 @@ class ToolMetadata:
         } | self.custom_tags
 
     @property
-    def execution_hints(self) -> dict[str, bool | str]:
+    def execution_hints(self) -> dict[str, bool]:
         """Resolved execution hints, including tag-derived defaults.
 
         Returns only the hints that are actually determined, keyed by the
@@ -257,36 +261,88 @@ class ToolMetadata:
         absent from the result is *unset* and must be distinguished from
         one explicitly set to ``False``.
 
-        Derivation lives here and nowhere else: an unset
-        ``read_only_hint`` resolves to ``True`` when ``ToolTag.READ_ONLY``
-        is present, and an unset ``destructive_hint`` resolves to ``True``
-        when ``ToolTag.DESTRUCTIVE`` is present.  An explicit field value
-        always wins over the tag.  ``idempotent_hint`` and
-        ``open_world_hint`` are never derived.
+        Derivation lives here and nowhere else.  An unset ``read_only_hint``
+        resolves to ``True`` when ``ToolTag.READ_ONLY`` is present.  An
+        unset ``destructive_hint`` resolves to ``True`` when
+        ``ToolTag.DESTRUCTIVE`` is present, and to ``False`` when
+        ``read_only_hint`` resolves to ``True`` with no destructive signal
+        (tag or explicit value): MCP defaults ``destructiveHint`` to
+        ``true``, so a read-only tool that left it unset would emit the
+        contradictory pair ``readOnlyHint=true`` / ``destructiveHint=true``.
+        An explicit field value always wins over the tag and over the
+        derived complement.  ``idempotent_hint`` and ``open_world_hint``
+        are never derived.
 
-        The result is transport-neutral: the keys are core field names,
-        and a transport (for example an MCP server adapter) maps them onto
-        protocol-specific names such as ``readOnlyHint``.
+        The result is transport-neutral: the keys are core field names and
+        map 1:1 onto protocol annotation names, so a transport (for example
+        an MCP server adapter) can carry them straight onto
+        ``readOnlyHint``, ``destructiveHint``, ``idempotentHint`` and
+        ``openWorldHint``.  :attr:`title` is a display name rather than a
+        hint and is exposed separately, not through this mapping.
+
+        ``read_only_hint`` and ``destructive_hint`` are independent: the
+        MCP hints do not override one another, and a tool that resolves
+        both to ``True`` is self-contradictory.  That combination emits a
+        :class:`UserWarning` when the metadata is built — after the
+        complement rule above, it can only arise from an explicit
+        ``destructive_hint=True`` alongside a read-only resolution.  See
+        :meth:`_warn_if_contradictory_hints`.
 
         Returns:
-            Mapping of hint name to value; empty when nothing is set.
+            Mapping of hint name to boolean value; empty when nothing is
+            set.
         """
-        hints: dict[str, bool | str] = {}
-        if self.title is not None:
-            hints["title"] = self.title
-        if self.read_only_hint is not None:
-            hints["read_only_hint"] = self.read_only_hint
-        elif ToolTag.READ_ONLY in self.tags:
-            hints["read_only_hint"] = True
-        if self.destructive_hint is not None:
-            hints["destructive_hint"] = self.destructive_hint
-        elif ToolTag.DESTRUCTIVE in self.tags:
-            hints["destructive_hint"] = True
+        hints: dict[str, bool] = {}
+
+        read_only = self.read_only_hint
+        if read_only is None and ToolTag.READ_ONLY in self.tags:
+            read_only = True
+        if read_only is not None:
+            hints["read_only_hint"] = read_only
+
+        destructive = self.destructive_hint
+        if destructive is None and ToolTag.DESTRUCTIVE in self.tags:
+            destructive = True
+        if destructive is None and read_only:
+            # MCP defaults ``destructiveHint`` to true, so a read-only tool
+            # that left it unset would ship readOnlyHint=true next to
+            # destructiveHint=true.  Fill the unset case with False; an
+            # explicit value (or a DESTRUCTIVE tag) still wins.
+            destructive = False
+        if destructive is not None:
+            hints["destructive_hint"] = destructive
+
         if self.idempotent_hint is not None:
             hints["idempotent_hint"] = self.idempotent_hint
         if self.open_world_hint is not None:
             hints["open_world_hint"] = self.open_world_hint
         return hints
+
+    def _warn_if_contradictory_hints(self) -> None:
+        """Warn when a tool declares itself both read-only and destructive.
+
+        The two MCP hints are independent, so resolving both to ``True`` is
+        not protocol-illegal, but a host that trusts ``readOnlyHint`` to
+        skip a confirmation prompt would also skip it for a tool that
+        declares itself destructive.
+
+        Called once per metadata instance from :meth:`__post_init__`, which
+        is the single choke point for both direct construction and every
+        ``dataclasses.replace``-based mutation (runtime updates,
+        ``apply_metadata_config``, ``model_copy``).  Reading
+        :attr:`execution_hints` never warns.
+        """
+        hints = self.execution_hints
+        if hints.get("read_only_hint") and hints.get("destructive_hint"):
+            warnings.warn(
+                "ToolMetadata resolves both read_only_hint=True and "
+                "destructive_hint=True. These MCP hints are independent and "
+                "neither overrides the other, but a host that trusts "
+                "readOnlyHint to skip a confirmation prompt may skip it for a "
+                "destructive tool.",
+                UserWarning,
+                stacklevel=2,
+            )
 
     def model_dump(self) -> dict[str, Any]:
         """Serialize to dict. Backward-compatible alias."""
@@ -460,12 +516,13 @@ class Tool:
         return self.metadata.is_async
 
     @property
-    def execution_hints(self) -> dict[str, bool | str]:
+    def execution_hints(self) -> dict[str, bool]:
         """Resolved execution hints from :attr:`metadata`.
 
         Convenience proxy to ``metadata.execution_hints``; see
         :attr:`ToolMetadata.execution_hints` for the tri-state contract
-        and tag-derivation rule.
+        and tag-derivation rule.  ``title`` is not part of this mapping;
+        read :attr:`ToolMetadata.title` for the display name.
         """
         return self.metadata.execution_hints
 
