@@ -320,9 +320,16 @@ class ToolRegistry(
             elif event.event_type in {
                 ChangeEventType.ENABLE,
                 ChangeEventType.DISABLE,
-                ChangeEventType.METADATA_UPDATE,
             }:
-                # Cheap sync — no full index rebuild, just update description
+                # Enable/disable flips the set of searchable tools.  A
+                # full rebuild is correct for namespace-level disables too
+                # (is_enabled() checks the tool's namespace) and refreshes
+                # the descriptions as a side effect.  Not a hot path.
+                discoverer.rebuild_index()
+            elif event.event_type == ChangeEventType.METADATA_UPDATE:
+                # Metadata updates cannot change enabled-ness: is_enabled()
+                # depends only on _disabled and the (immutable) namespace.
+                # Keep the cheap sync used before — no full rebuild.
                 discoverer._sync_description()
 
         self.on_change(_on_registry_change)

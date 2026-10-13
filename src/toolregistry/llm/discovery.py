@@ -11,15 +11,21 @@ The search backend is a vendored copy of *zerodep*'s ``SparseIndex``
 
 from __future__ import annotations
 
+import difflib
+import logging
 import re
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
-from .._vendor.sparse_search import SparseIndex
+from pydantic import Field, StringConstraints
+
+from .._vendor.sparse_search import SparseIndex, _default_tokenize
 from .tool_calls import API_FORMATS
 
 if TYPE_CHECKING:
     from ..tool import Tool
     from ..tool_registry import ToolRegistry
+
+logger = logging.getLogger(__name__)
 
 _DEFAULT_FIELD_WEIGHTS: dict[str, float] = {
     "name": 3.0,
@@ -30,6 +36,12 @@ _DEFAULT_FIELD_WEIGHTS: dict[str, float] = {
 }
 
 _SPLIT_RE = re.compile(r"[_\-]+")
+
+# CJK scripts whose characters the default ``[\w]+`` tokenizer lumps into a
+# single token.  Covers Hiragana/Katakana, CJK Unified Ideographs (plus
+# Extension A and Compatibility Ideographs for Chinese/Japanese), and Hangul
+# syllables for Korean.
+_CJK_RE = re.compile("[぀-ヿ㐀-䶿一-鿿豈-﫿가-힯]+")
 
 TOOL_DISCOVERY_NAME = "discover_tools"
 TOOL_CALL_DEFERRED_NAME = "call_deferred"
@@ -54,6 +66,59 @@ BASE_CALL_DEFERRED_DESCRIPTION = (
 def _tool_name_to_text(name: str) -> str:
     """Convert a tool name like ``read_file`` to ``read file``."""
     return _SPLIT_RE.sub(" ", name)
+
+
+def _normalize_tool_name(name: str) -> str:
+    """Normalize a tool name for client-tolerant matching.
+
+    Some MCP clients rewrite ``/`` and ``-`` into ``_`` in function names,
+    so the spelling the model holds may not match the registered name.
+    Lowercasing both sides makes the comparison case-insensitive too.
+
+    Args:
+        name: A tool name in any spelling.
+
+    Returns:
+        The normalized name used for lookup and suggestion comparison.
+    """
+    return name.replace("/", "_").replace("-", "_").lower()
+
+
+def _tokenize_for_search(text: str) -> list[str]:
+    """Tokenize search text, adding CJK bigrams on top of default tokens.
+
+    ASCII/alphanumeric text tokenizes exactly like the vendored
+    ``_default_tokenize`` (Unicode ``[\\w]+`` split + lowercasing), so
+    English ranking is unchanged.  For text containing CJK characters the
+    default tokenizer would emit a contiguous ideograph run as one
+    unmatchable token, so this adds character bigrams over the CJK
+    characters in order (e.g. ``天气 查询`` also yields ``气查``), which
+    lets a short CJK query match a longer CJK description.
+
+    Args:
+        text: Raw document or query text.
+
+    Returns:
+        List of search tokens.
+    """
+    tokens = _default_tokenize(text)
+    cjk_text = "".join(_CJK_RE.findall(text))
+    if not cjk_text:
+        return tokens
+
+    if len(cjk_text) == 1:
+        extra = [cjk_text]
+    else:
+        extra = [cjk_text[i : i + 2] for i in range(len(cjk_text) - 1)]
+
+    # Preserve the default tokens (which still help for exact CJK runs) and
+    # append only the bigrams not already present.
+    seen = set(tokens)
+    for token in extra:
+        if token not in seen:
+            seen.add(token)
+            tokens.append(token)
+    return tokens
 
 
 def _extract_param_names(tool: Tool) -> str:
@@ -84,6 +149,10 @@ class ToolDiscoveryTool:
     If the query matches a registered tool name, its full schema is
     returned immediately.  Otherwise a BM25 fuzzy search is performed.
 
+    Only enabled tools are indexed.  Tools disabled at the method level
+    or via their namespace are excluded, matching
+    :meth:`ToolRegistry.get_deferred_summaries`.
+
     Example::
 
         from toolregistry import ToolRegistry
@@ -109,22 +178,33 @@ class ToolDiscoveryTool:
     ) -> None:
         self._registry = registry
         self._field_weights = field_weights or dict(_DEFAULT_FIELD_WEIGHTS)
-        self._index = SparseIndex(field_weights=self._field_weights)
+        self._index = SparseIndex(
+            field_weights=self._field_weights,
+            tokenize=_tokenize_for_search,
+        )
         self.rebuild_index()
 
     def rebuild_index(self) -> None:
         """Rebuild the search index from current registry state.
 
-        Clears the existing index and re-indexes every tool currently
-        registered in the associated :class:`~toolregistry.ToolRegistry`.
-        Also updates the ``discover_tools`` description with current
-        deferred tool summaries so LLMs are aware of hidden capabilities.
+        Clears the existing index and re-indexes every enabled tool
+        currently registered in the associated
+        :class:`~toolregistry.ToolRegistry`.  Disabled tools (including
+        those disabled through their namespace) are skipped so the index
+        agrees with :meth:`ToolRegistry.get_deferred_summaries`.  Also
+        updates the ``discover_tools`` description with current deferred
+        tool summaries so LLMs are aware of hidden capabilities.
         """
         # Reset index with same config
-        self._index = SparseIndex(field_weights=self._field_weights)
+        self._index = SparseIndex(
+            field_weights=self._field_weights,
+            tokenize=_tokenize_for_search,
+        )
 
         for name, tool in self._registry._tools.items():
             if name in INFRASTRUCTURE_TOOLS:
+                continue
+            if not self._registry.is_enabled(name):
                 continue
             fields = _tool_to_fields(tool)
             metadata: dict[str, Any] = {
@@ -185,20 +265,22 @@ class ToolDiscoveryTool:
 
     def discover(
         self,
-        query: str,
-        top_k: int = 10,
+        query: Annotated[str, StringConstraints(min_length=1)],
+        top_k: Annotated[int, Field(ge=1)] = 10,
         api_format: API_FORMATS = "openai-chat",
     ) -> list[dict[str, Any]]:
         """Discover tools by exact name or natural language query.
 
-        If *query* exactly matches a registered tool name, a single
-        result with the full tool schema is returned.  Otherwise a
+        If *query* exactly matches an enabled registered tool name, a
+        single result with the full tool schema is returned.  Otherwise a
         BM25 fuzzy search is performed over tool names, descriptions,
         tags, parameter names, and search hints.
 
         Args:
             query: Tool name (exact match) or natural language query.
-            top_k: Maximum number of results for fuzzy search.
+                Must be non-empty.
+            top_k: Maximum number of results for fuzzy search. Must be
+                at least 1.
             api_format: Target API format for schema generation.
                 Defaults to ``"openai-chat"``.
 
@@ -212,10 +294,26 @@ class ToolDiscoveryTool:
             - ``deferred`` (bool): Whether the tool is deferred.
             - ``schema`` (dict): Full tool schema (only for deferred
               tools in fuzzy mode; always included for exact match).
+
+        Raises:
+            ValueError: If *query* is empty or whitespace-only, or if
+                *top_k* is less than 1.
         """
+        if not query or not query.strip():
+            raise ValueError(
+                "empty query — pass a capability keyword, e.g. 'web search'. "
+                "Queries are matched against English tool descriptions."
+            )
+        if top_k < 1:
+            raise ValueError(f"top_k must be >= 1, got {top_k}")
+
         # 1. Exact match: return full schema immediately
         tool = self._registry.get_tool(query)
-        if tool is not None and query not in INFRASTRUCTURE_TOOLS:
+        if (
+            tool is not None
+            and query not in INFRASTRUCTURE_TOOLS
+            and self._registry.is_enabled(tool.name)
+        ):
             is_deferred = tool.metadata.defer if tool.metadata else False
             return [
                 {
@@ -244,7 +342,61 @@ class ToolDiscoveryTool:
             if is_deferred and tool is not None:
                 entry["schema"] = tool.get_schema(api_format)
             out.append(entry)
+
+        if not out:
+            logger.warning(
+                "discover(%r) matched no tools; queries are matched against "
+                "English tool descriptions (name, description, tags, params, "
+                "search_hint)",
+                query,
+            )
         return out
+
+    def _resolve_registered_name(self, requested: str) -> str | None:
+        """Resolve a requested tool name to its registered spelling.
+
+        Clients commonly rewrite ``/`` and ``-`` as ``_`` in function
+        names, so the name held by the model may not equal the registry
+        key.  This matches on the normalized form and returns the
+        registry's own spelling.
+
+        Args:
+            requested: The tool name as supplied by the caller.
+
+        Returns:
+            The registered name, or ``None`` if no registered tool
+            normalizes to the same form.
+        """
+        target = _normalize_tool_name(requested)
+        for name in self._registry._tools:
+            if _normalize_tool_name(name) == target:
+                return name
+        return None
+
+    def _suggest_tool_names(self, requested: str, limit: int = 3) -> list[str]:
+        """Return close registered names for a failed lookup.
+
+        Comparison happens in normalized space so a client-rewritten name
+        such as ``weather_get_current`` still suggests ``weather-get-current``.
+        Suggestions are reported using the registered spelling.
+
+        Args:
+            requested: The tool name that failed to resolve.
+            limit: Maximum number of suggestions.
+
+        Returns:
+            Registered tool names, closest first.
+        """
+        by_normalized: dict[str, str] = {}
+        for name in self._registry._tools:
+            by_normalized.setdefault(_normalize_tool_name(name), name)
+        matches = difflib.get_close_matches(
+            _normalize_tool_name(requested),
+            list(by_normalized),
+            n=limit,
+            cutoff=0.5,
+        )
+        return [by_normalized[m] for m in matches]
 
     def call_deferred(self, _target_tool: str, **kwargs: Any) -> Any:
         # **kwargs produces additionalProperties: true in the JSON Schema,
@@ -260,6 +412,12 @@ class ToolDiscoveryTool:
         full pipeline (permissions, execution backend, logging) and
         returns the raw Python value — the outer ``execute_tool_calls``
         handles result wrapping.
+
+        The target name is normalized before lookup (``/`` and ``-`` are
+        treated like ``_``, and case is ignored) so a name rewritten by an
+        MCP client still resolves to the registered tool.  On a miss, the
+        error lists close registered names so the model can self-correct
+        in one turn.
 
         The first parameter is named ``_target_tool`` (not ``tool_name``)
         to avoid shadowing a deferred tool that has its own ``tool_name``
@@ -277,15 +435,21 @@ class ToolDiscoveryTool:
             ValueError: If the tool is not deferred.
             Exception: Any exception raised by the target tool.
         """
-        target = self._registry.get_tool(_target_tool)
-        if target is None:
-            raise KeyError(f"tool '{_target_tool}' not found in registry.")
+        canonical = self._resolve_registered_name(_target_tool)
+        if canonical is None:
+            suggestions = self._suggest_tool_names(_target_tool)
+            message = f"tool '{_target_tool}' not found in registry."
+            if suggestions:
+                message += f" Did you mean: {', '.join(suggestions)}?"
+            raise KeyError(message)
 
+        target = self._registry.get_tool(canonical)
+        assert target is not None  # canonical came from the registry
         is_deferred = target.metadata.defer if target.metadata else False
         if not is_deferred:
             raise ValueError(
-                f"'{_target_tool}' is not a deferred tool — "
+                f"'{canonical}' is not a deferred tool — "
                 f"call it directly instead of using call_deferred."
             )
 
-        return self._registry._invoke_raw(_target_tool, kwargs)
+        return self._registry._invoke_raw(canonical, kwargs)
