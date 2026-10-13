@@ -234,14 +234,41 @@ def _build_tool_metadata(data: dict[str, Any]) -> dict[str, ToolMetadataOverride
             raise ConfigError(
                 f"'tool_metadata.{tool_name}.search_hint' must be a string."
             )
-        defer = entry.get("defer", None)
-        if defer is not None and not isinstance(defer, bool):
-            raise ConfigError(f"'tool_metadata.{tool_name}.defer' must be a boolean.")
+        title = entry.get("title")
+        if title is not None and not isinstance(title, str):
+            raise ConfigError(f"'tool_metadata.{tool_name}.title' must be a string.")
         overrides[tool_name] = ToolMetadataOverride(
             search_hint=search_hint,
-            defer=defer,
+            defer=_optional_bool(entry, tool_name, "defer"),
+            title=title,
+            read_only_hint=_optional_bool(entry, tool_name, "read_only_hint"),
+            destructive_hint=_optional_bool(entry, tool_name, "destructive_hint"),
+            idempotent_hint=_optional_bool(entry, tool_name, "idempotent_hint"),
+            open_world_hint=_optional_bool(entry, tool_name, "open_world_hint"),
         )
     return overrides
+
+
+def _optional_bool(entry: dict[str, Any], tool_name: str, key: str) -> bool | None:
+    """Read an optional boolean field from a ``tool_metadata`` entry.
+
+    Args:
+        entry: Raw mapping for a single tool's metadata override.
+        tool_name: Tool name (used in error messages).
+        key: Field name to read.
+
+    Returns:
+        The boolean value, or ``None`` when the key is absent or null.
+
+    Raises:
+        ConfigError: If the value is present and is not a boolean.
+    """
+    value = entry.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, bool):
+        raise ConfigError(f"'tool_metadata.{tool_name}.{key}' must be a boolean.")
+    return value
 
 
 # --- tool source dispatch ----------------------------------------------------

@@ -273,21 +273,50 @@ class ToolMetadataOverride:
             and shorten the bullet description in ``discover_tools``.
         defer: Override whether this tool is deferred from the initial
             prompt.  ``None`` means no override (use the registered value).
+        title: Override the tool's display title.  ``None`` means keep the
+            registered value.
+        read_only_hint: Override whether the tool is read-only.
+            ``None`` means no override; an explicit ``False`` clears a
+            value that would otherwise be derived from
+            ``ToolTag.READ_ONLY``.
+        destructive_hint: Override whether the tool is destructive.
+            ``None`` means no override.
+        idempotent_hint: Override whether the tool is idempotent.
+            ``None`` means no override.
+        open_world_hint: Override whether the tool acts on an open world.
+            ``None`` means no override.
     """
 
     search_hint: str = ""
     defer: bool | None = None
+    title: str | None = None
+    read_only_hint: bool | None = None
+    destructive_hint: bool | None = None
+    idempotent_hint: bool | None = None
+    open_world_hint: bool | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a config-file-compatible dict.
 
-        Omits fields with default/None values for cleaner output.
+        Omits fields with default/None values for cleaner output.  An
+        explicit ``False`` on a hint field is preserved, since it is
+        distinct from an unset (``None``) hint.
         """
         d: dict[str, Any] = {}
         if self.search_hint:
             d["search_hint"] = self.search_hint
         if self.defer is not None:
             d["defer"] = self.defer
+        if self.title is not None:
+            d["title"] = self.title
+        if self.read_only_hint is not None:
+            d["read_only_hint"] = self.read_only_hint
+        if self.destructive_hint is not None:
+            d["destructive_hint"] = self.destructive_hint
+        if self.idempotent_hint is not None:
+            d["idempotent_hint"] = self.idempotent_hint
+        if self.open_world_hint is not None:
+            d["open_world_hint"] = self.open_world_hint
         return d
 
 

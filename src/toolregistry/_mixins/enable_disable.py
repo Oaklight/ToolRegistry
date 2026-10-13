@@ -135,13 +135,23 @@ class EnableDisableMixin:
 
     # Fields safe to update at runtime via update_tool_metadata()
     _MUTABLE_METADATA_FIELDS: frozenset[str] = frozenset(
-        {"think_augment", "defer", "search_hint", "tags"}
+        {
+            "think_augment",
+            "defer",
+            "search_hint",
+            "tags",
+            "title",
+            "read_only_hint",
+            "destructive_hint",
+            "idempotent_hint",
+            "open_world_hint",
+        }
     )
 
     def update_tool_metadata(self, tool_name: str, **kwargs: object) -> None:
         """Update mutable metadata fields for a tool at runtime.
 
-        Only whitelisted fields (think_augment, defer, search_hint) can be modified.
+        Only fields listed in ``_MUTABLE_METADATA_FIELDS`` can be modified.
 
         Args:
             tool_name: The name of the tool to update.
@@ -173,7 +183,7 @@ class EnableDisableMixin:
     def update_namespace_metadata(self, namespace: str, **kwargs: object) -> None:
         """Update mutable metadata fields for all tools in a namespace.
 
-        Only whitelisted fields (think_augment, defer) can be modified.
+        Only fields listed in ``_MUTABLE_METADATA_FIELDS`` can be modified.
 
         Args:
             namespace: The namespace to update.
