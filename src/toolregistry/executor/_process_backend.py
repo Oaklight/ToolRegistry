@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import pickle
 import uuid
 from concurrent.futures import Future, ProcessPoolExecutor
@@ -31,16 +30,13 @@ def _process_worker(
         kwargs: Keyword arguments to pass to the callable.
 
     Returns:
-        The function result (JSON-serializable or stringified).
+        The raw function result.  Encoding is the caller's responsibility:
+        the parent process runs the value through the tool result encoder
+        exactly once, so nothing is stringified here.  The value must
+        therefore be picklable to cross the process boundary.
     """
     fn = pickle.loads(serialized_fn)
-    result = fn(**kwargs)
-    # Ensure JSON-serializable result
-    try:
-        json.dumps(result)
-    except (TypeError, ValueError):
-        result = str(result)
-    return result
+    return fn(**kwargs)
 
 
 class ProcessExecutionHandle(ExecutionHandle):
