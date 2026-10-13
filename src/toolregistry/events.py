@@ -23,6 +23,8 @@ class ChangeEventType(str, Enum):
     Attributes:
         REGISTER: A tool was registered.
         UNREGISTER: A tool was unregistered.
+        OVERRIDE: A registered tool was replaced by an override, or an
+            override was restored.
         ENABLE: A tool was enabled.
         DISABLE: A tool was disabled.
         REFRESH: A single tool was refreshed.
@@ -32,6 +34,7 @@ class ChangeEventType(str, Enum):
 
     REGISTER = "register"
     UNREGISTER = "unregister"
+    OVERRIDE = "override"
     ENABLE = "enable"
     DISABLE = "disable"
     REFRESH = "refresh"

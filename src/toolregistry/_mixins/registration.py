@@ -62,6 +62,7 @@ class RegistrationMixin:
     _tools: dict[str, Tool]
     _sub_registries: set[str]
     _disabled: dict[str, str]  # Owned by EnableDisableMixin
+    _overrides: dict[str, Tool]  # name -> displaced original tool
 
     if TYPE_CHECKING:
 
@@ -73,6 +74,7 @@ class RegistrationMixin:
         super().__init__(**kwargs)
         self._mcp_integrations: list = []
         self._openapi_integrations: list = []
+        self._overrides: dict[str, Tool] = {}
 
     # ------------------------------------------------------------------ #
     #  Unified public API                                                 #
@@ -282,6 +284,7 @@ class RegistrationMixin:
         if tool is None:
             return False
         self._disabled.pop(name, None)
+        self._overrides.pop(name, None)
         self._emit_change(
             ChangeEvent(
                 event_type=ChangeEventType.UNREGISTER,
@@ -332,6 +335,105 @@ class RegistrationMixin:
         new_tool = dataclasses.replace(old, metadata=new_meta)
         self._tools[name] = new_tool
         return new_tool
+
+    # ------------------------------------------------------------------ #
+    #  Tool override                                                      #
+    # ------------------------------------------------------------------ #
+
+    def override(
+        self,
+        name: str,
+        tool: Tool | Callable,
+        *,
+        create: bool = False,
+    ) -> Tool:
+        """Replace a registered tool with a new implementation.
+
+        The currently registered ``Tool`` under *name* is recorded in an
+        internal ``_overrides`` map so it can be restored later with
+        :meth:`restore_override`, and ``_tools[name]`` is swapped for *tool*.
+        An :attr:`ChangeEventType.OVERRIDE` event is emitted.
+
+        Args:
+            name: Registered name of the tool to override.
+            tool: Replacement ``Tool`` instance or plain callable.  A bare
+                callable is converted with ``Tool.from_function`` using
+                *name* as the tool name.
+            create: When ``True``, register *tool* under *name* even when no
+                tool is currently registered.  Defaults to ``False``.
+
+        Returns:
+            The replacement ``Tool`` now stored in the registry.
+
+        Raises:
+            KeyError: If *name* is not registered and *create* is ``False``.
+
+        Note:
+            - The registry key stays *name*; the replacement's own ``name``
+              field is aligned to it.
+            - Disabled state is preserved: overriding a disabled tool
+              replaces its behaviour without re-enabling it.
+            - When *create* is ``True`` and nothing was registered, no
+              displaced tool is recorded, so :meth:`restore_override`
+              raises :class:`KeyError` for *name*.
+            - Only the tool displaced by the *first* override is recorded;
+              repeated overrides keep the original restorable.
+        """
+        existing = self._tools.get(name)
+        if existing is None and not create:
+            raise KeyError(f"Tool not registered: {name}")
+
+        new_tool = self._coerce_override_tool(name, tool)
+        if existing is not None and name not in self._overrides:
+            self._overrides[name] = existing
+
+        self._tools[name] = new_tool
+        self._emit_change(
+            ChangeEvent(event_type=ChangeEventType.OVERRIDE, tool_name=name)
+        )
+        return new_tool
+
+    def restore_override(self, name: str) -> Tool:
+        """Restore the tool displaced by :meth:`override`.
+
+        Args:
+            name: Name whose override should be reverted.
+
+        Returns:
+            The displaced ``Tool`` that is installed back under *name*.
+
+        Raises:
+            KeyError: If no override is recorded for *name*.
+        """
+        displaced = self._overrides.pop(name, None)
+        if displaced is None:
+            raise KeyError(f"No override recorded for: {name}")
+        self._tools[name] = displaced
+        self._emit_change(
+            ChangeEvent(
+                event_type=ChangeEventType.OVERRIDE,
+                tool_name=name,
+                metadata={"restored": True},
+            )
+        )
+        return displaced
+
+    def list_overrides(self) -> dict[str, Tool]:
+        """Return the tools currently displaced by overrides.
+
+        Returns:
+            A copy of the ``{name: displaced_tool}`` mapping.  Mutating the
+            returned dict does not affect the registry.
+        """
+        return dict(self._overrides)
+
+    def _coerce_override_tool(self, name: str, tool: Tool | Callable) -> Tool:
+        """Normalise an override target into a ``Tool`` keyed by *name*."""
+        if isinstance(tool, Tool):
+            if tool.name == name:
+                return tool
+            return dataclasses.replace(tool, name=name)
+        return Tool.from_function(tool, name=name)
 
     def _register_class(self, cls_or_instance, *, namespace, **kwargs):
         traverse_mro = kwargs.pop("traverse_mro", True)
