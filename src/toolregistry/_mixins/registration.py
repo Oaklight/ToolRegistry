@@ -55,6 +55,53 @@ def _detect_source(target: Any) -> str:
     )
 
 
+def _validate_filter_kwargs(source: str, kwargs: dict[str, Any]) -> None:
+    """Validate registration-time ``include`` / ``exclude`` arguments.
+
+    Args:
+        source: The resolved registration source.
+        kwargs: Keyword arguments passed to ``register()`` /
+            ``register_async()``.
+
+    Raises:
+        ValueError: If both ``include`` and ``exclude`` are given, or if a
+            filter is passed to a source that does not support it.
+    """
+    include = kwargs.get("include")
+    exclude = kwargs.get("exclude")
+    if include is None and exclude is None:
+        return
+    if include is not None and exclude is not None:
+        raise ValueError("include and exclude are mutually exclusive; pass only one.")
+    if source not in ("mcp", "openapi", "langchain"):
+        raise ValueError(
+            f"include/exclude filters are not supported for source={source!r}; "
+            "they apply to the 'mcp', 'openapi', and 'langchain' sources only."
+        )
+
+
+def _pop_filter_kwargs(kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Pop ``include`` / ``exclude`` from *kwargs*, dropping unset values.
+
+    Only forwards a filter when the caller actually passed one, so the
+    integration call signature is unchanged for the common unfiltered case.
+
+    Args:
+        kwargs: Keyword arguments forwarded to an integration dispatch method.
+
+    Returns:
+        A dict containing ``include`` and/or ``exclude``, possibly empty.
+    """
+    include = kwargs.pop("include", None)
+    exclude = kwargs.pop("exclude", None)
+    filter_kwargs: dict[str, Any] = {}
+    if include is not None:
+        filter_kwargs["include"] = include
+    if exclude is not None:
+        filter_kwargs["exclude"] = exclude
+    return filter_kwargs
+
+
 class RegistrationMixin:
     """Mixin providing tool registration methods."""
 
@@ -120,12 +167,22 @@ class RegistrationMixin:
             **kwargs: Additional keyword arguments forwarded to the
                 underlying integration (e.g. ``persistent``, ``headers``,
                 ``traverse_mro``, ``constructor_kwargs``, ``openapi_spec``,
-                ``spec_url``).
+                ``spec_url``, ``include``, ``exclude``).
+                ``include`` / ``exclude`` are accepted by the ``"mcp"``,
+                ``"openapi"``, and ``"langchain"`` sources.  Each is a list
+                of exact names or ``fnmatch`` glob patterns matched against
+                BOTH the raw remote tool name (the MCP tool name or the
+                OpenAPI ``operationId``) and the post-namespace registered
+                name (e.g. ``gh-list_issues``).  Only one of the two may be
+                given.  Filtered-out tools never reach the registry, so they
+                stay invisible to discovery and the admin panel.
 
         Raises:
             TypeError: If *target* is missing, or its type cannot be
                 auto-detected and *source* is not given.
-            ValueError: If *source* is not a recognised value.
+            ValueError: If *source* is not a recognised value, if both
+                ``include`` and ``exclude`` are given, or if a filter is
+                passed to a source that does not support it.
 
         Note:
             Callable instances (objects with ``__call__``) are registered
@@ -217,6 +274,7 @@ class RegistrationMixin:
             raise TypeError(f"{method_name}() missing required argument: 'target'")
         resolved = source or _detect_source(target)
         ns = _resolve_namespace_compat(_normalise_namespace(namespace), kwargs)
+        _validate_filter_kwargs(resolved, kwargs)
         return target, resolved, ns
 
     # ------------------------------------------------------------------ #
@@ -504,18 +562,22 @@ class RegistrationMixin:
     def _register_mcp(self, transport, *, namespace, **kwargs):
         persistent = kwargs.pop("persistent", True)
         headers = kwargs.pop("headers", None)
+        filter_kwargs = _pop_filter_kwargs(kwargs)
         MCPIntegration = _import_mcp_integration()
         mcp = MCPIntegration(cast("ToolRegistry", self))
-        mcp.register_mcp_tools(transport, namespace, persistent, headers=headers)
+        mcp.register_mcp_tools(
+            transport, namespace, persistent, headers=headers, **filter_kwargs
+        )
         self._mcp_integrations.append(mcp)
 
     async def _register_mcp_async(self, transport, *, namespace, **kwargs):
         persistent = kwargs.pop("persistent", True)
         headers = kwargs.pop("headers", None)
+        filter_kwargs = _pop_filter_kwargs(kwargs)
         MCPIntegration = _import_mcp_integration()
         mcp = MCPIntegration(cast("ToolRegistry", self))
         await mcp.register_mcp_tools_async(
-            transport, namespace, persistent, headers=headers
+            transport, namespace, persistent, headers=headers, **filter_kwargs
         )
         self._mcp_integrations.append(mcp)
 
@@ -527,10 +589,16 @@ class RegistrationMixin:
             )
         persistent = kwargs.pop("persistent", True)
         spec_url = kwargs.pop("spec_url", None)
+        filter_kwargs = _pop_filter_kwargs(kwargs)
         OpenAPIIntegration = _import_openapi_integration()
         openapi = OpenAPIIntegration(cast("ToolRegistry", self))
         openapi.register_openapi_tools(
-            client, openapi_spec, namespace, persistent, spec_url=spec_url
+            client,
+            openapi_spec,
+            namespace,
+            persistent,
+            spec_url=spec_url,
+            **filter_kwargs,
         )
         self._openapi_integrations.append(openapi)
 
@@ -542,22 +610,34 @@ class RegistrationMixin:
             )
         persistent = kwargs.pop("persistent", True)
         spec_url = kwargs.pop("spec_url", None)
+        filter_kwargs = _pop_filter_kwargs(kwargs)
         OpenAPIIntegration = _import_openapi_integration()
         openapi = OpenAPIIntegration(cast("ToolRegistry", self))
         await openapi.register_openapi_tools_async(
-            client, openapi_spec, namespace, persistent, spec_url=spec_url
+            client,
+            openapi_spec,
+            namespace,
+            persistent,
+            spec_url=spec_url,
+            **filter_kwargs,
         )
         self._openapi_integrations.append(openapi)
 
     def _register_langchain(self, langchain_tool, *, namespace, **kwargs):
+        filter_kwargs = _pop_filter_kwargs(kwargs)
         LangChainIntegration = _import_langchain_integration()
         langchain = LangChainIntegration(cast("ToolRegistry", self))
-        return langchain.register_langchain_tools(langchain_tool, namespace)
+        return langchain.register_langchain_tools(
+            langchain_tool, namespace, **filter_kwargs
+        )
 
     async def _register_langchain_async(self, langchain_tool, *, namespace, **kwargs):
+        filter_kwargs = _pop_filter_kwargs(kwargs)
         LangChainIntegration = _import_langchain_integration()
         langchain = LangChainIntegration(cast("ToolRegistry", self))
-        return await langchain.register_langchain_tools_async(langchain_tool, namespace)
+        return await langchain.register_langchain_tools_async(
+            langchain_tool, namespace, **filter_kwargs
+        )
 
     # ------------------------------------------------------------------ #
     #  Deprecated aliases                                                 #

@@ -20,7 +20,7 @@ from ...schema_diff import SchemaChangeKind, classify_tool_change
 from ...tool import Tool, ToolMetadata
 from ...tool_registry import ToolRegistry
 from ...tool_wrapper import BaseToolWrapper
-from ...utils import normalize_tool_name, utc_iso_now
+from ...utils import ToolNameFilter, normalize_tool_name, utc_iso_now
 from .client import MCPClient
 from .connection import MCPConnectionManager
 
@@ -301,6 +301,7 @@ class MCPIntegration:
         self._resolved_ns: str | None = None
         self._persistent: bool = True
         self._headers: dict[str, str] | None = None
+        self._filter: ToolNameFilter = ToolNameFilter()
         self._refresh_lock = threading.Lock()
         self._poll_timer: threading.Timer | None = None
         self._poll_interval: float | None = None
@@ -311,6 +312,8 @@ class MCPIntegration:
         namespace: bool | str = False,
         persistent: bool = True,
         headers: dict[str, str] | None = None,
+        include: list[str] | None = None,
+        exclude: list[str] | None = None,
     ) -> None:
         """Async implementation to register all tools from an MCP server.
 
@@ -323,13 +326,20 @@ class MCPIntegration:
             persistent: If True (default), keep the connection open across
                 tool calls.
             headers: HTTP headers for SSE or streamable-http transports.
+            include: Optional names or glob patterns to keep.  Matched
+                against both the raw MCP tool name and the post-namespace
+                name; see :class:`~toolregistry.utils.ToolNameFilter`.
+            exclude: Optional names or glob patterns to drop.  Mutually
+                exclusive with *include*.
 
         Raises:
             RuntimeError: If connection to server fails.
+            ValueError: If both *include* and *exclude* are given.
         """
         self._transport = transport
         self._persistent = persistent
         self._headers = headers
+        self._filter = ToolNameFilter(include, exclude)
 
         connection = MCPConnectionManager(
             transport=transport,
@@ -357,6 +367,8 @@ class MCPIntegration:
                     connection=connection,
                     namespace=resolved_ns,
                 )
+                if not self._filter.accepts(tool_spec.name, mcp_tool.name):
+                    continue
                 self.registry.register(mcp_tool, namespace=resolved_ns)
                 self._registered_tool_names.add(mcp_tool.name)
 
@@ -366,6 +378,8 @@ class MCPIntegration:
         namespace: bool | str = False,
         persistent: bool = True,
         headers: dict[str, str] | None = None,
+        include: list[str] | None = None,
+        exclude: list[str] | None = None,
     ) -> None:
         """Register all tools from an MCP server (synchronous entry point).
 
@@ -376,12 +390,19 @@ class MCPIntegration:
             persistent: If True (default), keep the connection open across
                 tool calls.
             headers: HTTP headers for SSE or streamable-http transports.
+            include: Optional names or glob patterns to keep.
+            exclude: Optional names or glob patterns to drop.
         """
         from ..._async_runtime import AsyncRuntime
 
         AsyncRuntime.run_sync(
             self.register_mcp_tools_async(
-                transport, namespace, persistent, headers=headers
+                transport,
+                namespace,
+                persistent,
+                headers=headers,
+                include=include,
+                exclude=exclude,
             )
         )
 
@@ -526,7 +547,9 @@ class MCPIntegration:
 
         sep = getattr(self.registry, "_name_sep", "-")
 
-        # Build candidate tools from the fresh response
+        # Build candidate tools from the fresh response.  The stored
+        # registration filter is applied here so excluded tools stay out of
+        # the diff and are never reported as added or removed.
         new_tools: dict[str, MCPTool] = {}
         for tool_spec in tools_response:
             candidate = MCPTool.from_tool_json(
@@ -537,6 +560,8 @@ class MCPIntegration:
             candidate = candidate.update_namespace(
                 self._resolved_ns, force=True, sep=sep
             )
+            if not self._filter.accepts(tool_spec.name, candidate.name):
+                continue
             new_tools[candidate.name] = candidate
 
         (
