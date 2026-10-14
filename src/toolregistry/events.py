@@ -93,13 +93,13 @@ class RefreshResult:
         breaking: Subset of *updated* classified as breaking changes.
         compatible: Subset of *updated* classified as compatible changes.
             Invariant: ``len(breaking) + len(compatible) == len(updated)``.
+        unchanged: Count of tools that matched and required no update.
+        skipped: ``True`` when the remote source reported no changes
+            (e.g. HTTP 304 via ETag).
         overridden: Names the remote source still serves that were left
             untouched because a local override holds them.  These are *not*
             counted in *unchanged*: the remote definition may have changed,
             and the refresh suppressed that change rather than matching it.
-        unchanged: Count of tools that matched and required no update.
-        skipped: ``True`` when the remote source reported no changes
-            (e.g. HTTP 304 via ETag).
 
     Note:
         *overridden* names are excluded from :attr:`changed`, because the
@@ -113,9 +113,9 @@ class RefreshResult:
     updated: tuple[str, ...] = ()
     breaking: tuple[str, ...] = ()
     compatible: tuple[str, ...] = ()
-    overridden: tuple[str, ...] = ()
     unchanged: int = 0
     skipped: bool = False
+    overridden: tuple[str, ...] = ()
 
     @property
     def changed(self) -> bool:
