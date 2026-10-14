@@ -12,6 +12,7 @@ class NamespaceMixin:
     """Mixin providing namespace management, tool lookup, merge, and spinoff."""
 
     name: str
+    _overrides: dict[str, Tool]  # Owned by RegistrationMixin
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
@@ -39,6 +40,28 @@ class NamespaceMixin:
                 prefixes.add(tool.name.split(".", 1)[0])
         self._sub_registries = prefixes
 
+    def _sync_overrides(self, remap: Callable[[str, Tool], tuple[str, Tool]]) -> None:
+        """Rebuild ``_overrides`` after the ``_tools`` keys change.
+
+        ``_overrides`` (owned by :class:`RegistrationMixin`) is keyed by
+        registered tool name, so every helper that renames or moves tools must
+        keep it in sync.  Names that were renamed are remapped; records whose
+        new name is no longer registered are dropped as stranded.
+
+        Args:
+            remap: Maps an ``(old_name, displaced_tool)`` pair to its new
+                ``(name, tool)``.
+        """
+        overrides = getattr(self, "_overrides", None)
+        if not overrides:
+            return
+        rebuilt: dict[str, Tool] = {}
+        for name, displaced in overrides.items():
+            new_name, new_tool = remap(name, displaced)
+            if new_name in self._tools:
+                rebuilt[new_name] = new_tool
+        self._overrides = rebuilt
+
     def _prefix_tools_namespace(self, force: bool = False) -> None:
         """Add the registry name as a prefix to the names of tools in the registry.
 
@@ -52,6 +75,7 @@ class NamespaceMixin:
 
         Side Effects:
             Updates the `_tools` dictionary with potentially modified tool names.
+            Re-keys `_overrides` alongside it.
 
         Example:
             If the registry name is "MainRegistry":
@@ -64,10 +88,18 @@ class NamespaceMixin:
         """
         sep = getattr(self, "_name_sep", "-")
         new_tools: dict[str, Tool] = {}
-        for tool in self._tools.values():
-            tool = tool.update_namespace(self.name, force=force, sep=sep)
-            new_tools[tool.name] = tool
+        rename: dict[str, str] = {}
+        for old_name, tool in self._tools.items():
+            updated = tool.update_namespace(self.name, force=force, sep=sep)
+            new_tools[updated.name] = updated
+            rename[old_name] = updated.name
         self._tools = new_tools
+        self._sync_overrides(
+            lambda name, displaced: (
+                rename.get(name, name),
+                displaced.update_namespace(self.name, force=force, sep=sep),
+            )
+        )
 
     def merge(
         self,
@@ -103,7 +135,12 @@ class NamespaceMixin:
                 if name not in self._tools:
                     self._tools[name] = tool
         else:
+            incoming = set(other._tools)
             self._tools.update(other._tools)
+            # Incoming tools supersede any override holding the same name, so
+            # the displaced record no longer describes the current tool.
+            for name in incoming:
+                self._overrides.pop(name, None)
 
         if force_namespace:
             # update namespace if required after merge done
@@ -128,10 +165,9 @@ class NamespaceMixin:
         """
         if len(self._sub_registries) == 1:
             remaining_prefix = next(iter(self._sub_registries))
-            self._tools = {
-                name[len(remaining_prefix) + 1 :]: tool
-                for name, tool in self._tools.items()
-            }
+            strip = len(remaining_prefix) + 1
+            self._tools = {name[strip:]: tool for name, tool in self._tools.items()}
+            self._sync_overrides(lambda name, displaced: (name[strip:], displaced))
             self._sub_registries.clear()
 
     def spinoff(self, prefix: str, retain_namespace: bool = False) -> NamespaceMixin:
@@ -171,6 +207,16 @@ class NamespaceMixin:
         new_registry = ToolRegistry(name=prefix)
         new_registry._sub_registries.add(prefix)
         new_registry._tools = spun_off_tools  # Initialize with spun-off tools
+        moved_overrides = {
+            name: displaced
+            for name, displaced in self._overrides.items()
+            if name in spun_off_tools
+        }
+        if moved_overrides:
+            # Override records follow the tools they belong to.
+            new_registry._overrides = moved_overrides
+            for name in moved_overrides:
+                self._overrides.pop(name, None)
         if not retain_namespace:
             new_registry.reduce_namespace()  # Optimize namespace removal using reduce_namespace
 

@@ -23,8 +23,9 @@ class ChangeEventType(str, Enum):
     Attributes:
         REGISTER: A tool was registered.
         UNREGISTER: A tool was unregistered.
-        OVERRIDE: A registered tool was replaced by an override, or an
-            override was restored.
+        OVERRIDE: A registered tool was replaced by an override, an
+            override was restored, or ``override(..., create=True)``
+            registered a tool that did not exist before.
         ENABLE: A tool was enabled.
         DISABLE: A tool was disabled.
         REFRESH: A single tool was refreshed.
@@ -92,9 +93,17 @@ class RefreshResult:
         breaking: Subset of *updated* classified as breaking changes.
         compatible: Subset of *updated* classified as compatible changes.
             Invariant: ``len(breaking) + len(compatible) == len(updated)``.
+        overridden: Names the remote source still serves that were left
+            untouched because a local override holds them.  These are *not*
+            counted in *unchanged*: the remote definition may have changed,
+            and the refresh suppressed that change rather than matching it.
         unchanged: Count of tools that matched and required no update.
         skipped: ``True`` when the remote source reported no changes
             (e.g. HTTP 304 via ETag).
+
+    Note:
+        *overridden* names are excluded from :attr:`changed`, because the
+        registry itself did not change; the override kept winning.
     """
 
     source: str
@@ -104,6 +113,7 @@ class RefreshResult:
     updated: tuple[str, ...] = ()
     breaking: tuple[str, ...] = ()
     compatible: tuple[str, ...] = ()
+    overridden: tuple[str, ...] = ()
     unchanged: int = 0
     skipped: bool = False
 
