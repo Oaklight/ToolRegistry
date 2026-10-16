@@ -390,14 +390,22 @@ class MCPIntegration:
     def _apply_diff(
         self,
         new_tools: dict[str, "MCPTool"],
-    ) -> tuple[list[str], list[str], list[str], list[str], list[str], int]:
+    ) -> tuple[list[str], list[str], list[str], list[str], list[str], int, list[str]]:
         """Diff *new_tools* against registered tools and apply changes.
 
         Returns:
-            ``(added, removed, updated, breaking, compatible, unchanged)``.
+            ``(added, removed, updated, breaking, compatible, unchanged,
+            overridden)``.
         """
         old_names = set(self._registered_tool_names)
         new_names = set(new_tools.keys())
+
+        # Locally overridden names are left untouched across refresh: the
+        # override wins over the remote tool whether it changed, disappeared,
+        # or reappeared.  Exclude them from the diff below.
+        overridden = set(self.registry.list_overrides())
+        old_tracked = old_names - overridden
+        new_tracked = new_names - overridden
 
         # Snapshot disabled state
         disabled_snapshot: dict[str, str] = {}
@@ -412,16 +420,16 @@ class MCPIntegration:
         compatible: list[str] = []
         unchanged = 0
 
-        for name in old_names - new_names:
+        for name in old_tracked - new_tracked:
             self.registry._unregister(name)
             removed.append(name)
 
-        for name in new_names - old_names:
+        for name in new_tracked - old_tracked:
             self.registry.register(new_tools[name], namespace=self._resolved_ns)
             added.append(name)
 
         now = utc_iso_now()
-        for name in old_names & new_names:
+        for name in old_tracked & new_tracked:
             candidate = new_tools[name]
             existing = self.registry._tools.get(name)
             if existing and (
@@ -454,12 +462,34 @@ class MCPIntegration:
                 logger.warning("tool tracked but missing from _tools", tool_name=name)
                 unchanged += 1
 
+        # Overridden names the remote still lists: keep the override, but
+        # re-record the displaced definition from the current remote tool so
+        # restore_override() reverts to what the remote serves now.  Report
+        # them separately instead of as `unchanged`, because a remote change
+        # was suppressed rather than matched.
+        overridden_names: list[str] = []
+        for name in sorted(overridden & (old_names | new_names)):
+            candidate = new_tools.get(name)
+            if candidate is not None:
+                self.registry._update_override_record(
+                    name, candidate.with_refreshed_at(now)
+                )
+            overridden_names.append(name)
+
         for name, reason in disabled_snapshot.items():
             if name in new_names:
                 self.registry.disable(name, reason)
 
         self._registered_tool_names = new_names
-        return added, removed, updated, breaking, compatible, unchanged
+        return (
+            added,
+            removed,
+            updated,
+            breaking,
+            compatible,
+            unchanged,
+            overridden_names,
+        )
 
     async def refresh_async(self) -> RefreshResult:
         """Re-list tools from the MCP server and synchronise the registry.
@@ -509,9 +539,15 @@ class MCPIntegration:
             )
             new_tools[candidate.name] = candidate
 
-        added, removed, updated, breaking, compatible, unchanged = self._apply_diff(
-            new_tools
-        )
+        (
+            added,
+            removed,
+            updated,
+            breaking,
+            compatible,
+            unchanged,
+            overridden,
+        ) = self._apply_diff(new_tools)
 
         return RefreshResult(
             source="mcp",
@@ -521,6 +557,7 @@ class MCPIntegration:
             updated=tuple(updated),
             breaking=tuple(breaking),
             compatible=tuple(compatible),
+            overridden=tuple(overridden),
             unchanged=unchanged,
         )
 

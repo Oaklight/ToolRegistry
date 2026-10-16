@@ -316,6 +316,7 @@ class ToolRegistry(
             if event.event_type in {
                 ChangeEventType.REGISTER,
                 ChangeEventType.UNREGISTER,
+                ChangeEventType.OVERRIDE,
             }:
                 discoverer.rebuild_index()
             elif event.event_type in {
