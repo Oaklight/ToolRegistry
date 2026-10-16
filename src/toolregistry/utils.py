@@ -1,5 +1,6 @@
 import base64
 import dataclasses
+import fnmatch
 import hashlib
 import json
 import re
@@ -329,6 +330,70 @@ def normalize_tool_name(name: str) -> str:
 
     # Collapse multiple underscores into single underscore
     return re.sub(r"_+", "_", name)
+
+
+class ToolNameFilter:
+    """Include/exclude filter applied when registering remote tools.
+
+    Patterns are matched with :func:`fnmatch.fnmatchcase` against both the
+    raw remote tool name (the name the source advertises, e.g. the MCP tool
+    name or the OpenAPI ``operationId``) and the final post-namespace name
+    (e.g. ``gh-list_issues``).  A pattern therefore matches a tool when it
+    matches either name.
+
+    ``include`` and ``exclude`` are mutually exclusive.  ``None`` means the
+    corresponding side is not filtered; an empty list matches nothing, so
+    ``include=[]`` drops every tool.
+
+    Args:
+        include: Names or glob patterns to keep.  When given, a tool is
+            kept only if the raw or post-namespace name matches one of the
+            patterns.
+        exclude: Names or glob patterns to drop.  When given, a tool is
+            dropped if the raw or post-namespace name matches any pattern.
+
+    Raises:
+        ValueError: If both ``include`` and ``exclude`` are given.
+    """
+
+    def __init__(
+        self,
+        include: list[str] | None = None,
+        exclude: list[str] | None = None,
+    ) -> None:
+        if include is not None and exclude is not None:
+            raise ValueError(
+                "include and exclude are mutually exclusive; pass only one."
+            )
+        self.include = list(include) if include is not None else None
+        self.exclude = list(exclude) if exclude is not None else None
+
+    def accepts(self, raw_name: str, namespaced_name: str) -> bool:
+        """Return whether a tool passes the filter.
+
+        Args:
+            raw_name: The remote tool name before namespace handling.
+            namespaced_name: The final registered name (``raw_name`` plus
+                any namespace prefix).
+
+        Returns:
+            True if the tool should be registered, False if it must be
+            dropped.
+        """
+        candidates = (raw_name, namespaced_name)
+        if self.include is not None:
+            return any(
+                fnmatch.fnmatchcase(name, pattern)
+                for pattern in self.include
+                for name in candidates
+            )
+        if self.exclude is not None:
+            return not any(
+                fnmatch.fnmatchcase(name, pattern)
+                for pattern in self.exclude
+                for name in candidates
+            )
+        return True
 
 
 def compute_schema_hash(parameters: dict[str, Any]) -> str:

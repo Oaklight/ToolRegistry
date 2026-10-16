@@ -8,7 +8,26 @@ from ...schema_diff import SchemaChangeKind, classify_tool_change
 from ...tool import Tool, ToolMetadata
 from ...tool_registry import ToolRegistry
 from ...tool_wrapper import BaseToolWrapper
-from ...utils import HttpClientConfig, normalize_tool_name, utc_iso_now
+from ...utils import (
+    HttpClientConfig,
+    ToolNameFilter,
+    normalize_tool_name,
+    utc_iso_now,
+)
+
+
+def _operation_id(spec: dict[str, Any], path: str, method: str) -> str:
+    """Return the OpenAPI operation identifier for a path/method pair.
+
+    Args:
+        spec: The OpenAPI operation object for this path/method.
+        path: The request path.
+        method: The HTTP method.
+
+    Returns:
+        The ``operationId`` if present, otherwise a synthesized name.
+    """
+    return spec.get("operationId", f"{method}_{path.replace('/', '_')}")
 
 
 class OpenAPIToolWrapper(BaseToolWrapper):
@@ -144,7 +163,7 @@ class OpenAPITool(Tool):
         Returns:
             OpenAPITool: An instance of OpenAPITool configured for the specified operation.
         """
-        operation_id = spec.get("operationId", f"{method}_{path.replace('/', '_')}")
+        operation_id = _operation_id(spec, path, method)
         func_name = normalize_tool_name(operation_id)
 
         description = spec.get("description", spec.get("summary", ""))
@@ -229,6 +248,7 @@ class OpenAPIIntegration:
         self._client_config: HttpClientConfig | None = None
         self._resolved_ns: str | None = None
         self._persistent: bool = True
+        self._filter: ToolNameFilter = ToolNameFilter()
         self._openapi_spec: dict[str, Any] | None = None
         self._etag: str | None = None
         self._refresh_lock = threading.Lock()
@@ -242,6 +262,8 @@ class OpenAPIIntegration:
         namespace: bool | str = False,
         persistent: bool = True,
         spec_url: str | None = None,
+        include: list[str] | None = None,
+        exclude: list[str] | None = None,
     ) -> None:
         """Asynchronously register all tools defined in an OpenAPI specification.
 
@@ -257,7 +279,16 @@ class OpenAPIIntegration:
                 connection pooling.
             spec_url: Optional URL where the spec was fetched from.  Stored for
                 later ETag-based refresh via :meth:`refresh_async`.
+            include: Optional names or glob patterns to keep.  Matched
+                against both the raw ``operationId`` and the post-namespace
+                name; see :class:`~toolregistry.utils.ToolNameFilter`.
+            exclude: Optional names or glob patterns to drop.  Mutually
+                exclusive with *include*.
+
+        Raises:
+            ValueError: If both *include* and *exclude* are given.
         """
+        self._filter = ToolNameFilter(include, exclude)
         try:
             self._client_configs.append(client_config)
             self._client_config = client_config
@@ -287,6 +318,9 @@ class OpenAPIIntegration:
                         namespace=resolved_ns,
                         persistent=persistent,
                     )
+                    raw_name = _operation_id(spec, path, method)
+                    if not self._filter.accepts(raw_name, open_api_tool.name):
+                        continue
                     self.registry.register(open_api_tool, namespace=resolved_ns)
                     self._registered_tool_names.add(open_api_tool.name)
         except Exception as e:
@@ -299,6 +333,8 @@ class OpenAPIIntegration:
         namespace: bool | str = False,
         persistent: bool = True,
         spec_url: str | None = None,
+        include: list[str] | None = None,
+        exclude: list[str] | None = None,
     ) -> None:
         """Synchronously register all tools defined in an OpenAPI specification.
 
@@ -310,12 +346,20 @@ class OpenAPIIntegration:
             persistent: If True (default), reuse a persistent HTTP client for
                 connection pooling.
             spec_url: Optional URL where the spec was fetched from.
+            include: Optional names or glob patterns to keep.
+            exclude: Optional names or glob patterns to drop.
         """
         from ..._async_runtime import AsyncRuntime
 
         AsyncRuntime.run_sync(
             self.register_openapi_tools_async(
-                client_config, openapi_spec, namespace, persistent, spec_url
+                client_config,
+                openapi_spec,
+                namespace,
+                persistent,
+                spec_url,
+                include=include,
+                exclude=exclude,
             )
         )
 
@@ -358,7 +402,12 @@ class OpenAPIIntegration:
         openapi_spec: dict[str, Any],
         client_config: HttpClientConfig,
     ) -> dict[str, OpenAPITool]:
-        """Build ``{name: OpenAPITool}`` from a parsed spec."""
+        """Build ``{name: OpenAPITool}`` from a parsed spec.
+
+        The stored registration filter is applied here so excluded tools
+        stay out of the refresh diff and are never reported as added or
+        removed.
+        """
         sep = getattr(self.registry, "_name_sep", "-")
         tools: dict[str, OpenAPITool] = {}
         for path, methods in openapi_spec.get("paths", {}).items():
@@ -376,6 +425,9 @@ class OpenAPIIntegration:
                 candidate = candidate.update_namespace(
                     self._resolved_ns, force=True, sep=sep
                 )
+                raw_name = _operation_id(spec, path, method)
+                if not self._filter.accepts(raw_name, candidate.name):
+                    continue
                 tools[candidate.name] = candidate
         return tools
 

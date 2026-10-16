@@ -1,4 +1,5 @@
 import asyncio
+import functools
 from typing import Any
 
 from langchain_core.tools import BaseTool as LCBaseTool
@@ -7,7 +8,7 @@ from ..._vendor.structlog import get_logger
 from ...tool import Tool, ToolMetadata
 from ...tool_registry import ToolRegistry
 from ...tool_wrapper import BaseToolWrapper
-from ...utils import normalize_tool_name
+from ...utils import ToolNameFilter, normalize_tool_name
 
 logger = get_logger()
 
@@ -142,6 +143,8 @@ class LangChainIntegration:
         self,
         tool: LCBaseTool,
         namespace: bool | str = False,
+        include: list[str] | None = None,
+        exclude: list[str] | None = None,
     ) -> None:
         """Async implementation to register LangChain tool using asyncio.
 
@@ -152,17 +155,34 @@ class LangChainIntegration:
                 - If ``True``, the namespace is derived from the tool's metadata if available.
                 - If a string is provided, it is used as the namespace.
                 Defaults to False.
+            include: Optional names or glob patterns to keep.  Matched
+                against both the raw LangChain tool name and the
+                post-namespace name.
+            exclude: Optional names or glob patterns to drop.  Mutually
+                exclusive with *include*.
 
         Raises:
-            ValueError: If tools argument is invalid.
+            ValueError: If tools argument is invalid, or both *include* and
+                *exclude* are given.
         """
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, self.register_langchain_tools, tool, namespace)
+        await loop.run_in_executor(
+            None,
+            functools.partial(
+                self.register_langchain_tools,
+                tool,
+                namespace,
+                include=include,
+                exclude=exclude,
+            ),
+        )
 
     def register_langchain_tools(
         self,
         tool: LCBaseTool,
         namespace: bool | str = False,
+        include: list[str] | None = None,
+        exclude: list[str] | None = None,
     ) -> None:
         """Register LangChain tool (synchronous entry point).
 
@@ -173,7 +193,13 @@ class LangChainIntegration:
                 - If ``True``, the namespace is derived from the tool's metadata if available.
                 - If a string is provided, it is used as the namespace.
                 Defaults to False.
+            include: Optional names or glob patterns to keep.
+            exclude: Optional names or glob patterns to drop.
+
+        Raises:
+            ValueError: If both *include* and *exclude* are given.
         """
+        name_filter = ToolNameFilter(include, exclude)
 
         if isinstance(namespace, str):
             resolved_ns = namespace
@@ -186,4 +212,6 @@ class LangChainIntegration:
             tool=tool,
             namespace=resolved_ns,
         )
+        if not name_filter.accepts(tool.name, langchain_tool.name):
+            return
         self.registry.register(langchain_tool, namespace=resolved_ns)
