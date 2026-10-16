@@ -96,10 +96,12 @@ class RefreshResult:
         unchanged: Count of tools that matched and required no update.
         skipped: ``True`` when the remote source reported no changes
             (e.g. HTTP 304 via ETag).
-        overridden: Names the remote source still serves that were left
-            untouched because a local override holds them.  These are *not*
-            counted in *unchanged*: the remote definition may have changed,
-            and the refresh suppressed that change rather than matching it.
+        overridden: Names a remote refresh left untouched because a local
+            override holds them, whether the remote changed, removed, or
+            re-served them.  These are *not* counted in *unchanged*: the
+            refresh suppressed the remote's definition rather than matching
+            it.  A name the remote dropped keeps the last-served definition,
+            so it is not a signal that a newer remote definition exists.
 
     Note:
         *overridden* names are excluded from :attr:`changed`, because the
