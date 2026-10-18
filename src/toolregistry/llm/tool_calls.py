@@ -62,17 +62,24 @@ def _normalize_api_format(api_format: API_FORMATS) -> API_FORMATS:
 
 # ── Rosetta tool ops accessors ─────────────────────────────────────
 
-_FORMAT_TO_PROVIDER: dict[str, str] = {
-    "openai-chat": "openai_chat",
-    "openai-responses": "openai_responses",
-    "anthropic": "anthropic",
-    "gemini": "google",
-    "google-interactions": "google_interactions",
+_FORMAT_TO_PROVIDERS: dict[str, tuple[str, ...]] = {
+    # Canonical rosetta spelling first, legacy spelling second.  rosetta
+    # renamed several providers in 0.14 (``openai_chat`` → ``chat_completions``,
+    # ``anthropic`` → ``messages``, …); legacy names still resolve until 0.16,
+    # so trying both keeps toolregistry working across releases.
+    "openai-chat": ("chat_completions", "openai_chat"),
+    "openai-responses": ("open_responses", "openai_responses"),
+    "anthropic": ("messages", "anthropic"),
+    "gemini": ("google_generate", "google"),
+    "google-interactions": ("google_interactions",),
 }
 
 
 def _get_tool_ops(api_format: API_FORMATS) -> Any:
     """Return the rosetta ToolOps class for the given format.
+
+    Tries the canonical provider spelling for the installed rosetta release
+    first, then falls back to its legacy spelling.
 
     Args:
         api_format: Canonical API format string.
@@ -83,12 +90,18 @@ def _get_tool_ops(api_format: API_FORMATS) -> Any:
     Raises:
         ValueError: If the format is unsupported.
     """
-    provider = _FORMAT_TO_PROVIDER.get(api_format)
-    if provider is None:
+    providers = _FORMAT_TO_PROVIDERS.get(api_format)
+    if providers is None:
         raise ValueError(f"Unsupported API format: {api_format}")
     from ._rosetta import _get_tool_ops as _rosetta_get
 
-    return _rosetta_get(provider)
+    last_error: ValueError | None = None
+    for provider in providers:
+        try:
+            return _rosetta_get(provider)
+        except ValueError as exc:
+            last_error = exc
+    raise last_error or ValueError(f"Unsupported API format: {api_format}")
 
 
 # ── Internal types ─────────────────────────────────────────────────
