@@ -116,7 +116,115 @@ class TestSchemaSanitization:
         prop = Tool.from_function(fn).parameters["properties"]["lat_spec"]
         key = "oneOf" if "oneOf" in prop else "anyOf"
         assert {branch.get("type") for branch in prop[key]} == {"number", "array"}
-        assert len(prop[key]) == 2
+
+    def test_str_or_int_union_preserved(self):
+        """Two-type union without None should preserve both branches."""
+
+        def fn(x: str | int = "hello") -> None: ...
+
+        prop = Tool.from_function(fn).parameters["properties"]["x"]
+        key = "oneOf" if "oneOf" in prop else "anyOf"
+        types = {v.get("type") for v in prop[key] if isinstance(v, dict)}
+        assert types == {"string", "integer"}
+
+    def test_single_nullable_still_collapses(self):
+        """Simple T | None should still collapse to just T."""
+
+        def fn(name: str | None = None) -> None: ...
+
+        prop = Tool.from_function(fn).parameters["properties"]["name"]
+        assert prop.get("type") == "string"
+        assert "anyOf" not in prop
+        assert "oneOf" not in prop
+
+    def test_get_schema_preserves_multi_union(self):
+        """Multi-branch union must survive through get_schema() for all formats."""
+
+        def fn(val: float | list[float] | None = None) -> None: ...
+
+        tool = Tool.from_function(fn)
+        for fmt in (
+            "openai-chat",
+            "openai-responses",
+            "anthropic",
+            "google-interactions",
+        ):
+            schema = tool.get_schema(fmt)
+            if fmt == "openai-chat":
+                params = schema["function"]["parameters"]
+            elif fmt == "anthropic":
+                params = schema["input_schema"]
+            else:
+                params = schema["parameters"]
+            val = params["properties"]["val"]
+            assert "anyOf" in val, f"Union missing in {fmt} schema: {val}"
+            assert "oneOf" not in val, f"Union made exclusive in {fmt}: {val}"
+            types = {
+                branch.get("type")
+                for branch in val["anyOf"]
+                if isinstance(branch, dict)
+            }
+            assert types == {"number", "array"}
+
+    def test_get_schema_returns_independent_parameters(self):
+        """Callers must not be able to mutate the tool's stored schema."""
+
+        def fn(val: float | list[float] | None = None) -> None: ...
+
+        tool = Tool.from_function(fn)
+        wire = tool.get_schema("openai-chat")["function"]["parameters"]
+        wire["properties"]["val"]["anyOf"].append({"type": "string"})
+        assert len(tool.parameters["properties"]["val"]["anyOf"]) == 2
+
+    def test_apply_flattened_parameters_covers_google_interactions(self):
+        """google-interactions restores a collapsed schema, and skips no-ops."""
+
+        from toolregistry.tool import _apply_flattened_parameters
+
+        parameters = {
+            "type": "object",
+            "properties": {"val": {"anyOf": [{"type": "number"}, {"type": "array"}]}},
+        }
+        collapsed = {
+            "parameters": {
+                "type": "object",
+                "properties": {"val": {"type": "number"}},
+            }
+        }
+        _apply_flattened_parameters(collapsed, parameters, "google-interactions")
+        assert collapsed["parameters"] == parameters
+
+        # When rosetta already produced the same schema, it is left in place.
+        already = {"parameters": parameters}
+        _apply_flattened_parameters(already, parameters, "google-interactions")
+        assert already["parameters"] is parameters
+
+    def test_multi_branch_oneof_keeps_keyword(self):
+        """A genuine oneOf must not be rewritten as anyOf during flattening."""
+
+        raw_params = {
+            "type": "object",
+            "properties": {
+                "value": {
+                    "oneOf": [{"type": "string"}, {"type": "integer"}],
+                }
+            },
+        }
+        tool = Tool(
+            name="oneof_tool",
+            description="",
+            parameters=raw_params,
+            callable=lambda **kwargs: None,
+        )
+
+        prop = tool.parameters["properties"]["value"]
+        assert "oneOf" in prop
+        assert "anyOf" not in prop
+
+        wire = tool.get_schema("openai-chat")["function"]["parameters"]
+        prop = wire["properties"]["value"]
+        assert "oneOf" in prop
+        assert "anyOf" not in prop
 
     @pytest.mark.parametrize(
         "api_format", ["openai-chat", "anthropic", "gemini", "google-interactions"]

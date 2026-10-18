@@ -2,11 +2,20 @@
 
 import inspect
 from enum import Enum
-from typing import Annotated, Any, Literal, Optional, Union
+from typing import (
+    Annotated,
+    Any,
+    Literal,
+    Optional,
+    Union,
+    get_args,
+    get_origin,
+)
 from unittest.mock import Mock, patch
 
 import pytest
 
+from toolregistry import Tool
 from toolregistry._vendor.validate import (
     Doc,
     Ge,
@@ -19,6 +28,7 @@ from toolregistry.parameter_models import (
     _create_field,
     _generate_parameters_model,
     _get_typed_annotation,
+    _resolve_enum,
 )
 
 
@@ -469,6 +479,57 @@ class TestComplexTypeSchemaGeneration:
         key = "oneOf" if "oneOf" in prop else "anyOf"
         types = {branch.get("type") for branch in prop[key]}
         assert types == {"array", "number", "null"}
+
+    def test_python_union_is_inclusive_anyof(self):
+        """Python unions are inclusive; the wire schema must not use oneOf."""
+
+        def f(value: int | float = 1) -> None: ...
+
+        tool = Tool.from_function(f)
+        prop = tool.parameters["properties"]["value"]
+        assert "anyOf" in prop
+        assert "oneOf" not in prop
+        assert {branch.get("type") for branch in prop["anyOf"]} == {
+            "integer",
+            "number",
+        }
+
+    def test_pep604_union_resolves_enum(self):
+        """Enum branches inside a PEP 604 union must become literals."""
+
+        class Color(Enum):
+            RED = "red"
+            BLUE = "blue"
+
+        def f(color: Color | int) -> None: ...
+
+        prop = Tool.from_function(f).parameters["properties"]["color"]
+        assert "anyOf" in prop
+        branches = prop["anyOf"]
+        enum_branch = next(branch for branch in branches if "enum" in branch)
+        assert set(enum_branch["enum"]) == {"red", "blue"}
+        assert any(branch.get("type") == "integer" for branch in branches)
+
+    def test_resolve_enum_handles_pep604_union_directly(self):
+        """The helper itself must resolve Enum branches in X | Y unions."""
+
+        class Color(Enum):
+            RED = "red"
+            BLUE = "blue"
+
+        resolved = _resolve_enum(Color | int)
+        assert get_origin(resolved) is Union
+        assert any(get_origin(arg) is Literal for arg in get_args(resolved))
+
+    def test_nested_union_is_inclusive_anyof(self):
+        """Union normalization must recurse into nested schema keywords."""
+
+        def f(values: list[int | float]) -> None: ...
+
+        prop = Tool.from_function(f).parameters["properties"]["values"]
+        assert prop["type"] == "array"
+        assert "anyOf" in prop["items"]
+        assert "oneOf" not in prop["items"]
 
     # --- Nested generic types ---
 

@@ -1,3 +1,4 @@
+import copy
 import dataclasses
 import inspect
 import warnings
@@ -7,13 +8,51 @@ from typing import Any, ClassVar, Literal, TypeVar, get_type_hints
 from collections.abc import Callable
 
 from ._validation import HINT_METADATA_FIELDS, validate_metadata_field
-from .parameter_models import _generate_parameters_model, _simplify_nullable_schemas
+from .parameter_models import (
+    _generate_parameters_model,
+    _normalize_union_keywords,
+    _simplify_nullable_schemas,
+)
 from .llm.tool_calls import API_FORMATS
 from .tool_wrapper import BaseToolWrapper, _FunctionToolWrapper
 from .utils import compute_schema_hash, normalize_tool_name
 
 
 _ToolT = TypeVar("_ToolT", bound="Tool")
+
+
+def _apply_flattened_parameters(
+    result: dict[str, Any], parameters: dict[str, Any], api_format: str
+) -> None:
+    """Restore ToolRegistry's flattened schema into a provider definition.
+
+    llm-rosetta sanitizes parameter schemas again when converting an IR tool
+    definition.  Releases before 0.14 collapse multi-branch unions (such as
+    ``float | list[float] | None``) to their first branch, dropping valid
+    input shapes.  ToolRegistry already flattened and sanitized *parameters*
+    at construction time, so use that schema for providers whose dialect
+    accepts ``anyOf``/``oneOf`` (OpenAI Chat/Responses, Anthropic, Google
+    Interactions).  When rosetta already produced the same schema
+    (llm-rosetta#747 and later), nothing is replaced.
+
+    Gemini is intentionally excluded: whatever rosetta emits for Google
+    GenAI is kept.  Older rosetta releases collapse the union there; newer
+    releases may preserve it, in which case Gemini follows rosetta.
+    """
+    if api_format == "openai-chat":
+        target = result["function"]
+        key = "parameters"
+    elif api_format == "anthropic":
+        target = result
+        key = "input_schema"
+    elif api_format in ("openai-responses", "google-interactions"):
+        target = result
+        key = "parameters"
+    else:
+        return
+
+    if target.get(key) != parameters:
+        target[key] = copy.deepcopy(parameters)
 
 
 class ToolTag(str, Enum):
@@ -465,7 +504,6 @@ class Tool:
             )
         object.__setattr__(self, "name", name)
         object.__setattr__(self, "description", description)
-        parameters = _simplify_nullable_schemas(parameters)
         object.__setattr__(self, "parameters", self._normalize_parameters(parameters))
         object.__setattr__(self, "callable", callable)
         object.__setattr__(self, "parameters_model", parameters_model)
@@ -487,20 +525,14 @@ class Tool:
         keywords.  The result is a clean, wire-safe JSON Schema that
         faithfully represents the function signature.
         """
-        from ._vendor.jsonschema import merge_allof, resolve_refs, sanitize
+        from ._vendor.jsonschema import flatten_schema
 
         if parameters.get("type") != "object":
             parameters = {"type": "object", "properties": {}}
         elif not isinstance(parameters.get("properties"), dict):
             parameters = {**parameters, "properties": {}}
 
-        # Resolve references and allOf while preserving heterogeneous unions.
-        # Their alternatives are part of the callable's wire contract; the
-        # generic flatten_schema() pipeline intentionally simplifies them for
-        # providers that cannot consume unions, which is lossy here.
-        parameters = resolve_refs(parameters)
-        parameters = merge_allof(parameters)
-        return sanitize(parameters, strip_keys=cls._EXTRA_STRIP_KEYS)
+        return flatten_schema(parameters, strip_keys=cls._EXTRA_STRIP_KEYS)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to dict, excluding non-serializable fields."""
@@ -632,6 +664,7 @@ class Tool:
             schema = _json_schema(parameters_model)
             if getattr(parameters_model, "_has_var_keyword", False):
                 schema["additionalProperties"] = True
+            schema = _normalize_union_keywords(schema)
             parameters_schema = _simplify_nullable_schemas(schema)
         else:
             parameters_schema = {}
@@ -726,6 +759,7 @@ class Tool:
             # tool definition, consistent with other format outputs.
             return result["function_declarations"][0]
 
+        _apply_flattened_parameters(result, params, api_format)
         return result
 
     def get_json_schema(
