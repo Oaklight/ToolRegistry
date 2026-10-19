@@ -3,14 +3,25 @@
 This module tests the AdminServer, TokenAuth, and REST API endpoints.
 """
 
+import asyncio
 import json
+import shutil
+import ssl
+import subprocess
 import time
 import urllib.request
 import urllib.error
+from types import SimpleNamespace
 
 import pytest
 
-from toolregistry import AdminInfo, AdminServer, TokenAuth, ToolRegistry
+from toolregistry import (
+    AdminInfo,
+    AdminServer,
+    RequestMetrics,
+    TokenAuth,
+    ToolRegistry,
+)
 from toolregistry.permissions import PermissionPolicy, PermissionResult, PermissionRule
 from toolregistry.tool import ToolTag
 
@@ -1114,3 +1125,319 @@ class TestAdminSourcesAndConfig:
             assert status == 400
         finally:
             server.stop()
+
+
+class TestRequestMetrics:
+    """Unit tests for the RequestMetrics collector."""
+
+    @staticmethod
+    def _request_state(path: str = "/api/tools") -> SimpleNamespace:
+        return SimpleNamespace(state=SimpleNamespace(), path=path)
+
+    def test_counts_and_latency_summary(self) -> None:
+        metrics = RequestMetrics()
+        request = self._request_state()
+
+        metrics.before_request(request)
+        metrics.response_started(request, None)
+        metrics.response_completed(request, None)
+        metrics.client_disconnect(request)
+
+        snapshot = metrics.snapshot()
+        assert snapshot["requests_total"] == 1
+        assert snapshot["responses_started"] == 1
+        assert snapshot["responses_completed"] == 1
+        assert snapshot["client_disconnects"] == 1
+        assert snapshot["ttfb"]["count"] == 1
+        assert snapshot["duration"]["count"] == 1
+        assert snapshot["ttfb"]["p95_ms"] >= 0
+        assert snapshot["duration"]["max_ms"] >= 0
+        assert snapshot["uptime_seconds"] >= 0
+
+    def test_empty_summary_is_json_safe(self) -> None:
+        snapshot = RequestMetrics().snapshot()
+        assert snapshot["requests_total"] == 0
+        assert snapshot["ttfb"] == {
+            "count": 0,
+            "avg_ms": None,
+            "p50_ms": None,
+            "p95_ms": None,
+            "max_ms": None,
+        }
+        assert snapshot["duration"]["count"] == 0
+
+    def test_sample_buffer_is_bounded(self) -> None:
+        metrics = RequestMetrics(sample_size=2)
+        for _ in range(3):
+            request = self._request_state()
+            metrics.before_request(request)
+            metrics.response_completed(request, None)
+        assert metrics.snapshot()["duration"]["count"] == 2
+
+    def test_metrics_scrapes_are_counted_but_not_sampled(self) -> None:
+        metrics = RequestMetrics()
+
+        traffic = self._request_state("/api/tools")
+        metrics.before_request(traffic)
+        metrics.response_started(traffic, None)
+        metrics.response_completed(traffic, None)
+
+        scrape = self._request_state("/api/metrics")
+        metrics.before_request(scrape)
+        metrics.response_started(scrape, None)
+        metrics.response_completed(scrape, None)
+
+        snapshot = metrics.snapshot()
+        assert snapshot["requests_total"] == 2
+        assert snapshot["responses_started"] == 2
+        assert snapshot["responses_completed"] == 2
+        assert snapshot["ttfb"]["count"] == 1
+        assert snapshot["duration"]["count"] == 1
+
+    def test_metrics_handler_reports_unavailable(self) -> None:
+        """An AdminApp served without start() has no metrics collector."""
+        from toolregistry.admin.handlers import _get_metrics
+        from toolregistry.admin.server import AdminApp
+
+        app = AdminApp()
+        app.metrics = None
+        response = _get_metrics(SimpleNamespace(app=app))
+
+        assert response.status_code == 503
+        assert b"Metrics Unavailable" in response.body
+
+
+class TestAdminServerMetrics:
+    """Integration tests for the /api/metrics endpoint."""
+
+    @pytest.fixture
+    def metrics_server(self):
+        registry = ToolRegistry()
+        server = AdminServer(registry, port=18100)
+        info = server.start()
+        time.sleep(0.1)
+        yield server, info
+        server.stop()
+
+    @staticmethod
+    def _get(url: str) -> tuple[int, dict]:
+        with urllib.request.urlopen(url, timeout=5) as response:
+            return response.status, json.loads(response.read().decode())
+
+    def test_metrics_endpoint_reports_request_activity(self, metrics_server) -> None:
+        server, info = metrics_server
+
+        status, _ = self._get(f"{info.url}/api/tools")
+        assert status == 200
+
+        status, data = self._get(f"{info.url}/api/metrics")
+        assert status == 200
+        assert data["requests_total"] >= 2
+        assert data["responses_started"] >= 1
+        assert data["responses_completed"] >= 1
+        assert data["ttfb"]["count"] >= 1
+        assert data["duration"]["count"] >= 1
+        assert data["uptime_seconds"] >= 0
+
+    def test_metrics_endpoint_is_listed(self, metrics_server) -> None:
+        server, info = metrics_server
+        status, data = self._get(f"{info.url}/api/metrics")
+        assert status == 200
+        assert "requests_total" in data
+
+    @pytest.fixture
+    def auth_metrics_server(self):
+        registry = ToolRegistry()
+        server = AdminServer(registry, port=18103, auth_token="metrics-secret")
+        info = server.start()
+        time.sleep(0.1)
+        yield server, info
+        server.stop()
+
+    def test_rejected_requests_are_counted_and_timed(self, auth_metrics_server) -> None:
+        """The timing hook must run before auth rejects the request."""
+        server, info = auth_metrics_server
+
+        with pytest.raises(urllib.error.HTTPError) as exc_info:
+            urllib.request.urlopen(f"{info.url}/api/tools", timeout=5)
+        assert exc_info.value.code == 401
+
+        request = urllib.request.Request(
+            f"{info.url}/api/metrics",
+            headers={"Authorization": "Bearer metrics-secret"},
+        )
+        with urllib.request.urlopen(request, timeout=5) as response:
+            data = json.loads(response.read().decode())
+
+        assert data["requests_total"] == 2
+        assert data["responses_started"] == 1
+        assert data["responses_completed"] == 1
+        # A reordered hook would leave metrics_start unset for the 401.
+        assert data["ttfb"]["count"] == data["responses_started"]
+        assert data["duration"]["count"] == data["responses_completed"]
+
+    def test_ephemeral_port_is_reported(self) -> None:
+        """port=0 must report the actual bound port, not 0."""
+        server = AdminServer(ToolRegistry(), port=0)
+        try:
+            info = server.start()
+            assert info.port > 0
+            assert f":{info.port}" in info.url
+            status, data = self._get(f"{info.url}/api/tools")
+            assert status == 200
+            assert "tools" in data
+        finally:
+            server.stop()
+
+
+class TestAdminServerTLS:
+    """TLS configuration, handshake, and startup failure tests."""
+
+    @pytest.fixture
+    def server_tls_context(self, tmp_path):
+        openssl = shutil.which("openssl")
+        if openssl is None:
+            pytest.skip("openssl is required for the TLS integration test")
+
+        cert = tmp_path / "cert.pem"
+        key = tmp_path / "key.pem"
+        subprocess.run(
+            [
+                openssl,
+                "req",
+                "-x509",
+                "-newkey",
+                "rsa:2048",
+                "-nodes",
+                "-keyout",
+                str(key),
+                "-out",
+                str(cert),
+                "-days",
+                "1",
+                "-subj",
+                "/CN=localhost",
+            ],
+            check=True,
+            capture_output=True,
+        )
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(str(cert), str(key))
+        return context
+
+    def test_default_url_is_http(self) -> None:
+        server = AdminServer(ToolRegistry())
+        assert server.ssl_context is None
+        assert server._base_url().startswith("http://")
+
+    def test_ssl_context_switches_url_scheme(self) -> None:
+        context = ssl.create_default_context()
+        server = AdminServer(ToolRegistry(), ssl_context=context)
+        assert server.ssl_context is context
+        assert server._base_url().startswith("https://")
+
+    def test_running_info_reports_secure_flag(self) -> None:
+        server = AdminServer(ToolRegistry(), port=18101)
+        try:
+            info = server.start()
+            assert info.secure is False
+            assert info.url.startswith("http://")
+        finally:
+            server.stop()
+
+    @pytest.mark.asyncio
+    async def test_async_serve_passes_ssl_context(self, monkeypatch) -> None:
+        """The TLS context must reach asyncio.start_server."""
+        from toolregistry.admin.server import AdminApp
+
+        server = AdminServer(ToolRegistry(), ssl_context=ssl.create_default_context())
+        server._port = 18102
+
+        app = AdminApp()
+        app.registry = server.registry
+        app.auth = None
+        app.session = None
+        app.serve_ui = False
+        app.config = None
+        server._app = app
+
+        recorded: dict = {}
+
+        class FakeServer:
+            sockets: list = []
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *args):
+                return False
+
+        async def fake_start_server(*args, **kwargs):
+            recorded["kwargs"] = kwargs
+            assert app._shutdown_event is not None
+            app._shutdown_event.set()
+            return FakeServer()
+
+        monkeypatch.setattr(asyncio, "start_server", fake_start_server)
+        await server._async_serve()
+
+        assert recorded["kwargs"]["ssl"] is server.ssl_context
+
+    def test_https_serves_and_reports_secure(self, server_tls_context) -> None:
+        server = AdminServer(ToolRegistry(), port=18104, ssl_context=server_tls_context)
+        try:
+            info = server.start()
+            assert info.secure is True
+            assert info.url.startswith("https://")
+
+            client = ssl.create_default_context()
+            client.check_hostname = False
+            client.verify_mode = ssl.CERT_NONE
+            with urllib.request.urlopen(
+                f"{info.url}/api/tools", timeout=5, context=client
+            ) as response:
+                assert response.status == 200
+                assert "tools" in json.loads(response.read().decode())
+        finally:
+            server.stop()
+
+    def test_start_rejects_context_without_certificate(self) -> None:
+        """A context that cannot serve TLS must not report a healthy server."""
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        server = AdminServer(ToolRegistry(), port=18105, ssl_context=context)
+
+        with pytest.raises(RuntimeError, match="failed to start") as exc_info:
+            server.start()
+
+        assert "TLS handshake failed" in str(exc_info.value.__cause__)
+        assert not server.is_running()
+        assert server._thread is None
+        server.stop()
+
+    def test_start_timeout_keeps_late_listener_reachable(self, monkeypatch) -> None:
+        """A listener that binds after the timeout must still be stoppable."""
+        real_start_server = asyncio.start_server
+
+        async def slow_start_server(*args, **kwargs):
+            await asyncio.sleep(0.3)
+            return await real_start_server(*args, **kwargs)
+
+        monkeypatch.setattr(asyncio, "start_server", slow_start_server)
+        monkeypatch.setattr(AdminServer, "_START_TIMEOUT_SECONDS", 0.05)
+
+        server = AdminServer(ToolRegistry(), port=18106)
+        with pytest.raises(RuntimeError, match="did not start"):
+            server.start()
+
+        # The references are kept while the thread is alive, so stop() can
+        # still reach the listener that binds after start() gave up.
+        assert server._thread is not None
+        deadline = time.monotonic() + 2.0
+        while server._thread.is_alive() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert not server._thread.is_alive()
+
+        server.stop()
+        assert server._thread is None
+        assert server._app is None
+        assert not server.is_running()

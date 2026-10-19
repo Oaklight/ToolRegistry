@@ -7,12 +7,15 @@ as an async HTTP server in a background thread.
 import asyncio
 import logging
 import socket
+import ssl
 import threading
+import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from .._vendor.httpserver import App
 from .auth import SessionCookie, TokenAuth
+from .metrics import RequestMetrics
 
 if TYPE_CHECKING:
     from toolregistry import ToolRegistry
@@ -30,12 +33,14 @@ class AdminInfo:
         port: The port number the server is listening on.
         url: The full URL to access the admin panel.
         token: The authentication token (if auth is enabled).
+        secure: Whether the server is serving over TLS.
     """
 
     host: str
     port: int
     url: str
     token: str | None
+    secure: bool = False
 
 
 class AdminApp(App):
@@ -47,6 +52,7 @@ class AdminApp(App):
         session: Optional SessionCookie for browser cookie auth.
         serve_ui: Whether to serve the admin UI at root path.
         config: Optional ToolConfig for config-aware endpoints.
+        metrics: HTTP request metrics collected from lifecycle signals.
     """
 
     registry: "ToolRegistry"
@@ -54,6 +60,7 @@ class AdminApp(App):
     session: SessionCookie | None
     serve_ui: bool
     config: "ToolConfig | None"
+    metrics: RequestMetrics | None = None
 
 
 class AdminServer:
@@ -81,6 +88,9 @@ class AdminServer:
         >>> server.stop()
     """
 
+    #: Seconds to wait for the listener to signal readiness.
+    _START_TIMEOUT_SECONDS = 5.0
+
     def __init__(
         self,
         registry: "ToolRegistry",
@@ -91,6 +101,7 @@ class AdminServer:
         auth_token: str | None = None,
         session_secret: str | None = None,
         config: "ToolConfig | None" = None,
+        ssl_context: ssl.SSLContext | None = None,
     ) -> None:
         """Initialize admin server.
 
@@ -112,6 +123,10 @@ class AdminServer:
                 When provided, enables ``GET /api/config`` and
                 ``PUT /api/config`` endpoints for viewing and persisting
                 configuration changes.
+            ssl_context: Optional :class:`ssl.SSLContext` for TLS termination.
+                When provided, the admin server accepts HTTPS connections.
+                The caller is responsible for configuring the context
+                (certificate chain, verification mode, etc.).
         """
         self._registry = registry
         self._host = "0.0.0.0" if remote else host
@@ -119,6 +134,7 @@ class AdminServer:
         self._serve_ui = serve_ui
         self._remote = remote
         self._config = config
+        self._ssl_context = ssl_context
 
         # Set up authentication
         if auth_token is not None:
@@ -137,6 +153,8 @@ class AdminServer:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
         self._started = threading.Event()
+        self._start_failed = threading.Event()
+        self._start_error: BaseException | None = None
 
     @property
     def registry(self) -> "ToolRegistry":
@@ -163,6 +181,24 @@ class AdminServer:
         """Get the authentication handler."""
         return self._auth
 
+    @property
+    def ssl_context(self) -> ssl.SSLContext | None:
+        """Get the TLS context, if one was configured."""
+        return self._ssl_context
+
+    @property
+    def metrics(self) -> RequestMetrics | None:
+        """Get the running server's request metrics, if available."""
+        return self._app.metrics if self._app is not None else None
+
+    def _base_url(self) -> str:
+        """Build the externally visible base URL."""
+        display_host = (
+            "localhost" if self._host in ("0.0.0.0", "127.0.0.1") else self._host
+        )
+        scheme = "https" if self._ssl_context is not None else "http"
+        return f"{scheme}://{display_host}:{self._port}"
+
     def start(self) -> AdminInfo:
         """Start the server in a background thread.
 
@@ -177,6 +213,10 @@ class AdminServer:
         if self._app is not None:
             raise RuntimeError("Server is already running")
 
+        self._started.clear()
+        self._start_failed.clear()
+        self._start_error = None
+
         # Find available port
         actual_port = self.find_available_port(self._host, self._port)
         self._port = actual_port
@@ -189,29 +229,56 @@ class AdminServer:
         self._app.serve_ui = self._serve_ui
         self._app.config = self._config
 
+        # Collect HTTP metrics from the lifecycle signals.  Register the
+        # timing hook before setup_routes so it runs before CORS/auth and
+        # still sees short-circuited requests.
+        self._app.metrics = RequestMetrics()
+        self._app.before_request(self._app.metrics.before_request)
+
         # Register routes and middleware
         from .handlers import setup_routes
 
         setup_routes(self._app)
+        self._app.on_response_started(self._app.metrics.response_started)
+        self._app.on_response_completed(self._app.metrics.response_completed)
+        self._app.on_client_disconnect(self._app.metrics.client_disconnect)
 
         # Start server in background thread
         self._thread = threading.Thread(target=self._run_server, daemon=True)
         self._thread.start()
 
-        # Wait for server to start
-        self._started.wait(timeout=5.0)
+        # Wait for the listener to signal readiness, or for startup to fail.
+        deadline = time.monotonic() + self._START_TIMEOUT_SECONDS
+        while not self._started.is_set():
+            if self._start_failed.is_set():
+                self._app = None
+                self._thread = None
+                raise RuntimeError(
+                    "Admin server failed to start"
+                ) from self._start_error
+            if time.monotonic() >= deadline:
+                self._abort_start()
+                raise RuntimeError(
+                    "Admin server did not start within "
+                    f"{self._START_TIMEOUT_SECONDS:g} seconds"
+                ) from self._start_error
+            time.sleep(0.01)
+
+        # A port of 0 lets the OS pick an ephemeral port; record the actual
+        # bound port so AdminInfo.url points at the listener.
+        assert self._app is not None
+        assert self._app.port is not None
+        self._port = self._app.port
 
         # Build URL
-        display_host = (
-            "localhost" if self._host in ("0.0.0.0", "127.0.0.1") else self._host
-        )
-        url = f"http://{display_host}:{self._port}"
+        url = self._base_url()
 
         info = AdminInfo(
             host=self._host,
             port=self._port,
             url=url,
             token=self._auth.token if self._auth else None,
+            secure=self._ssl_context is not None,
         )
 
         logger.info(f"Admin server started at {url}")
@@ -230,9 +297,38 @@ class AdminServer:
         asyncio.set_event_loop(self._loop)
         try:
             self._loop.run_until_complete(self._async_serve())
+        except Exception as exc:
+            self._start_error = exc
+            self._start_failed.set()
+            logger.debug("Admin server startup failed", exc_info=True)
         finally:
             self._loop.close()
             self._loop = None
+
+    def _abort_start(self) -> None:
+        """Stop a server that never signalled readiness.
+
+        The shutdown event is set through the server loop, then the thread is
+        joined.  References are only cleared once the thread has exited, so a
+        listener that binds late can still be shut down by ``stop()``.
+        """
+        loop = self._loop
+        app = self._app
+        if loop is not None and app is not None:
+            event = app._shutdown_event
+            if event is not None:
+                try:
+                    loop.call_soon_threadsafe(event.set)
+                except RuntimeError:
+                    pass
+
+        thread = self._thread
+        if thread is not None:
+            thread.join(timeout=self._START_TIMEOUT_SECONDS)
+            if not thread.is_alive():
+                self._thread = None
+                self._app = None
+        self._started.clear()
 
     async def _async_serve(self) -> None:
         """Async server coroutine.
@@ -248,6 +344,7 @@ class AdminServer:
             app._handle_connection,
             self._host,
             self._port,
+            ssl=self._ssl_context,
         )
 
         app._server = server
@@ -259,11 +356,54 @@ class AdminServer:
         app.host = addrs[0]
         app.port = addrs[1]
 
+        if self._ssl_context is not None and server.sockets:
+            await self._verify_tls_handshake(server)
+
         # Signal that the server is ready
         self._started.set()
 
         async with server:
             await app._shutdown_event.wait()
+
+    async def _verify_tls_handshake(self, server: asyncio.Server) -> None:
+        """Complete a loopback handshake to validate the TLS context.
+
+        ``asyncio.start_server`` accepts a context that cannot serve TLS
+        (for example one with no certificate chain).  Such a listener binds
+        and looks healthy but fails every client handshake, so verify it
+        once on loopback before reporting the server as ready.
+        """
+        assert server.sockets
+        address = server.sockets[0].getsockname()
+        host = address[0]
+        if host in ("", "0.0.0.0"):
+            host = "127.0.0.1"
+        elif host == "::":
+            host = "::1"
+
+        client_context = ssl.create_default_context()
+        client_context.check_hostname = False
+        client_context.verify_mode = ssl.CERT_NONE
+
+        try:
+            _, writer = await asyncio.open_connection(
+                host,
+                address[1],
+                ssl=client_context,
+                server_hostname=None,
+            )
+        except Exception as exc:
+            server.close()
+            await server.wait_closed()
+            raise RuntimeError(
+                "TLS handshake failed with the configured ssl_context"
+            ) from exc
+
+        writer.close()
+        try:
+            await writer.wait_closed()
+        except Exception:
+            pass
 
     def stop(self) -> None:
         """Stop the server.
@@ -277,11 +417,19 @@ class AdminServer:
                 self._loop.call_soon_threadsafe(self._app._shutdown_event.set)
 
         if self._thread is not None:
-            self._thread.join(timeout=5.0)
+            self._thread.join(timeout=self._START_TIMEOUT_SECONDS)
+            if self._thread.is_alive():
+                logger.warning(
+                    "Admin server thread did not stop within %g seconds; "
+                    "call stop() again to retry",
+                    self._START_TIMEOUT_SECONDS,
+                )
+                return
             self._thread = None
 
         self._app = None
         self._started.clear()
+        self._start_failed.clear()
         logger.info("Admin server stopped")
 
     def is_running(self) -> bool:
@@ -301,16 +449,12 @@ class AdminServer:
         if not self.is_running():
             return None
 
-        display_host = (
-            "localhost" if self._host in ("0.0.0.0", "127.0.0.1") else self._host
-        )
-        url = f"http://{display_host}:{self._port}"
-
         return AdminInfo(
             host=self._host,
             port=self._port,
-            url=url,
+            url=self._base_url(),
             token=self._auth.token if self._auth else None,
+            secure=self._ssl_context is not None,
         )
 
     @staticmethod

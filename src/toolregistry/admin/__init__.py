@@ -11,6 +11,7 @@ from .execution_log import (
     ExecutionStatus,
     warning_collector,
 )
+from .metrics import RequestMetrics
 from .server import AdminInfo, AdminServer
 
 __all__ = [
@@ -19,6 +20,7 @@ __all__ = [
     "ExecutionLog",
     "ExecutionLogEntry",
     "ExecutionStatus",
+    "RequestMetrics",
     "SessionCookie",
     "TokenAuth",
     "warning_collector",
