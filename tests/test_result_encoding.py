@@ -528,3 +528,73 @@ class TestProcessModeUsesEncoder:
         assert isinstance(thread, ErrorResult)
         assert isinstance(process, ErrorResult)
         assert "Unencodable" in process.message
+
+    def test_process_unpicklable_result_explains_boundary(self):
+        """A result that cannot be pickled names the backend, not just pickle.
+
+        Regression for #288: the worker's pickling failure reached the
+        caller as a bare ``TypeError``/``AttributeError`` with no hint
+        that the process backend was the reason.
+        """
+        reg = ToolRegistry()
+
+        def gen():
+            """Return a generator, which cannot cross a process boundary."""
+            return (x for x in (1, 2))
+
+        reg.register(gen, namespace="ns")
+        tool_call = [
+            {
+                "id": "c1",
+                "type": "function",
+                "function": {"name": "ns-gen", "arguments": "{}"},
+            }
+        ]
+        try:
+            process = reg.invoke("ns-gen", {}, execution_mode="process")
+            thread = reg.invoke("ns-gen", {}, execution_mode="thread")
+            batch = reg.execute_tool_calls(tool_call)[0]
+        finally:
+            reg._process_backend.shutdown()
+
+        assert isinstance(process, ErrorResult)
+        assert "UnpicklableResultError" in process.message
+        assert "ns-gen" in process.message
+        assert "must pickle the tool result" in process.message
+        assert "thread backend" in process.message
+
+        # The thread path still reports the encoder's diagnosis.
+        assert isinstance(thread, ErrorResult)
+        assert "cannot be encoded to JSON" in thread.message
+
+        # The batch default (process) matches invoke(execution_mode="process").
+        assert isinstance(batch, ErrorResult)
+        assert "UnpicklableResultError" in batch.message
+        assert "must pickle the tool result" in batch.message
+
+    def test_process_unpicklable_native_class_method_explains_boundary(self):
+        """Native (class-based) tools use the process backend and get the hint."""
+
+        class Native:
+            def gen(self):
+                """Return a generator."""
+                return (x for x in (1, 2))
+
+        reg = ToolRegistry()
+        reg.register(Native, source="class", namespace="nat")
+        tool_call = [
+            {
+                "id": "c1",
+                "type": "function",
+                "function": {"name": "nat-gen", "arguments": "{}"},
+            }
+        ]
+        try:
+            batch = reg.execute_tool_calls(tool_call)[0]
+        finally:
+            reg._process_backend.shutdown()
+
+        assert isinstance(batch, ErrorResult)
+        assert "UnpicklableResultError" in batch.message
+        assert "nat-gen" in batch.message
+        assert "thread backend" in batch.message

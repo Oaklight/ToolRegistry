@@ -16,6 +16,53 @@ from ._protocol import ExecutionHandle
 from ._types import HandleStatus, ProgressReport
 
 
+class UnpicklableResultError(RuntimeError):
+    """A tool result (or its exception) could not cross the worker boundary.
+
+    The process backend returns values by pickling them in the worker and
+    unpickling them in the parent.  A value that cannot be pickled never
+    reaches the parent's result encoder, so this error explains the
+    process-boundary requirement instead of surfacing the bare pickling
+    failure (e.g. ``cannot pickle 'generator' object``).
+    """
+
+
+def _is_worker_pickle_failure(exc: BaseException) -> bool:
+    """Return whether *exc* is a worker's failed pickling of its result.
+
+    When a worker cannot serialize its return value,
+    ``concurrent.futures`` retries the send with the pickling exception
+    itself; the original traceback is attached to the exception it
+    delivers to the parent as a ``_RemoteTraceback`` cause.  A tool that
+    merely *raises* a similar ``TypeError``/``AttributeError`` has its own
+    call frames there instead, so the ``_sendback_result`` frame
+    distinguishes the two without matching on the exception type or
+    message.
+
+    Args:
+        exc: Exception raised by ``Future.result()`` in the parent.
+
+    Returns:
+        ``True`` when the exception came from serializing the result for
+        the return trip, ``False`` otherwise.
+    """
+    cause = exc.__cause__
+    if cause is None or type(cause).__name__ != "_RemoteTraceback":
+        return False
+    return "_sendback_result" in str(cause)
+
+
+def _translate_worker_error(exc: BaseException) -> BaseException:
+    """Replace a bare worker pickling failure with an actionable error."""
+    if not _is_worker_pickle_failure(exc):
+        return exc
+    return UnpicklableResultError(
+        "the process execution backend must pickle the tool result (or the "
+        "tool's exception) to return it from the worker process "
+        f"({exc}); return a picklable value or use the thread backend"
+    )
+
+
 def _process_worker(
     serialized_fn: bytes,
     kwargs: dict[str, Any],
@@ -33,7 +80,9 @@ def _process_worker(
         The raw function result.  Encoding is the caller's responsibility:
         the parent process runs the value through the tool result encoder
         exactly once, so nothing is stringified here.  The value must
-        therefore be picklable to cross the process boundary.
+        therefore be picklable to cross the process boundary; a failure to
+        do so is reported by the parent as
+        :class:`UnpicklableResultError`.
     """
     fn = pickle.loads(serialized_fn)
     return fn(**kwargs)
@@ -82,6 +131,11 @@ class ProcessExecutionHandle(ExecutionHandle):
             return self._future.result(timeout=effective_timeout)
         except FuturesTimeoutError as e:
             raise TimeoutError(str(e)) from e
+        except Exception as e:
+            translated = _translate_worker_error(e)
+            if translated is not e:
+                raise translated from e
+            raise
 
     async def result_async(self, timeout: float | None = None) -> Any:
         effective_timeout = timeout if timeout is not None else self._timeout
@@ -92,6 +146,11 @@ class ProcessExecutionHandle(ExecutionHandle):
             return await fut
         except (asyncio.TimeoutError, FuturesTimeoutError) as e:
             raise TimeoutError(str(e)) from e
+        except Exception as e:
+            translated = _translate_worker_error(e)
+            if translated is not e:
+                raise translated from e
+            raise
 
     def on_progress(self, callback: Callable[[ProgressReport], None]) -> None:
         # Process backend does not support progress reporting.

@@ -5,7 +5,7 @@ It operates exclusively on ``Callable + dict`` arguments.
 """
 
 from ._inline_backend import InlineBackend
-from ._process_backend import ProcessPoolBackend
+from ._process_backend import ProcessPoolBackend, UnpicklableResultError
 from ._protocol import ExecutionBackend, ExecutionHandle
 from ._thread_backend import ThreadBackend
 from ._types import (
@@ -21,6 +21,7 @@ __all__ = [
     "ExecutionContext",
     "HandleStatus",
     "ProgressReport",
+    "UnpicklableResultError",
     # Protocol + ABC
     "ExecutionBackend",
     "ExecutionHandle",
