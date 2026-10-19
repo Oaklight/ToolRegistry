@@ -29,6 +29,11 @@ def _raises_lookalike() -> None:
     raise TypeError("cannot pickle 'generator' object")
 
 
+def _raises_lookalike_naming_frame() -> None:
+    """Raise a lookalike whose message names the sendback frame."""
+    raise TypeError("failed near _sendback_result")
+
+
 class _UnpicklablePayloadError(Exception):
     """Exception whose own attribute makes it unpicklable."""
 
@@ -136,6 +141,19 @@ class TestProcessPoolBackend:
 
         # A tool that raises a similar message is not a boundary failure.
         assert not isinstance(excinfo.value, UnpicklableResultError)
+
+    def test_tool_message_naming_sendback_frame_is_not_translated(self):
+        """Tool-controlled text must not decide the classification."""
+        backend = ProcessPoolBackend(max_workers=2)
+        try:
+            handle = backend.submit(_raises_lookalike_naming_frame, {})
+            with pytest.raises(TypeError) as excinfo:
+                handle.result(timeout=10)
+        finally:
+            backend.shutdown()
+
+        assert not isinstance(excinfo.value, UnpicklableResultError)
+        assert "failed near _sendback_result" in str(excinfo.value)
 
     def test_unpicklable_exception_is_translated(self):
         """The tool's exception, not just its result, must cross the boundary."""

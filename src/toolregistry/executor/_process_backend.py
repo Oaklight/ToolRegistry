@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import pickle
+import re
 import uuid
 from concurrent.futures import Future, ProcessPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
@@ -27,6 +28,12 @@ class UnpicklableResultError(RuntimeError):
     """
 
 
+_SENDBACK_FRAME_RE = re.compile(
+    r'File "[^"]*concurrent[/\\]futures[/\\]process\.py", line \d+, '
+    r"in _sendback_result"
+)
+
+
 def _is_worker_pickle_failure(exc: BaseException) -> bool:
     """Return whether *exc* is a worker's failed pickling of its result.
 
@@ -35,9 +42,14 @@ def _is_worker_pickle_failure(exc: BaseException) -> bool:
     itself; the original traceback is attached to the exception it
     delivers to the parent as a ``_RemoteTraceback`` cause.  A tool that
     merely *raises* a similar ``TypeError``/``AttributeError`` has its own
-    call frames there instead, so the ``_sendback_result`` frame
-    distinguishes the two without matching on the exception type or
-    message.
+    call frames there instead, so the frame line for
+    ``concurrent.futures.process._sendback_result`` distinguishes the two
+    without matching on the exception type or message.
+
+    The match is anchored to that frame line rather than the bare
+    function name: the remote traceback also contains the tool's own
+    exception message, and a message that merely names the function must
+    not reclassify the tool's exception as a boundary failure.
 
     Args:
         exc: Exception raised by ``Future.result()`` in the parent.
@@ -49,7 +61,7 @@ def _is_worker_pickle_failure(exc: BaseException) -> bool:
     cause = exc.__cause__
     if cause is None or type(cause).__name__ != "_RemoteTraceback":
         return False
-    return "_sendback_result" in str(cause)
+    return _SENDBACK_FRAME_RE.search(str(cause)) is not None
 
 
 def _translate_worker_error(exc: BaseException) -> BaseException:
