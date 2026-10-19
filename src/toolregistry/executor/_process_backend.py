@@ -49,7 +49,11 @@ def _is_worker_pickle_failure(exc: BaseException) -> bool:
     The match is anchored to that frame line rather than the bare
     function name: the remote traceback also contains the tool's own
     exception message, and a message that merely names the function must
-    not reclassify the tool's exception as a boundary failure.
+    not reclassify the tool's exception as a boundary failure.  Only the
+    *first* frame decides: a genuine sendback failure starts at
+    ``_sendback_result``, while a tool-raised error starts at
+    ``_process_worker``, so even a message that embeds a whole frame line
+    stays a tool error.
 
     Args:
         exc: Exception raised by ``Future.result()`` in the parent.
@@ -61,7 +65,11 @@ def _is_worker_pickle_failure(exc: BaseException) -> bool:
     cause = exc.__cause__
     if cause is None or type(cause).__name__ != "_RemoteTraceback":
         return False
-    return _SENDBACK_FRAME_RE.search(str(cause)) is not None
+    for line in str(cause).splitlines():
+        stripped = line.strip()
+        if stripped.startswith('File "'):
+            return _SENDBACK_FRAME_RE.match(stripped) is not None
+    return False
 
 
 def _translate_worker_error(exc: BaseException) -> BaseException:
@@ -71,7 +79,9 @@ def _translate_worker_error(exc: BaseException) -> BaseException:
     return UnpicklableResultError(
         "the process execution backend must pickle the tool result (or the "
         "tool's exception) to return it from the worker process "
-        f"({exc}); return a picklable value or use the thread backend"
+        f"({exc}); return a picklable value, or use the thread backend "
+        "(it has no pickling step, but the result must still be "
+        "JSON-encodable)"
     )
 
 

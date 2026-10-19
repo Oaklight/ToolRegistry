@@ -34,6 +34,13 @@ def _raises_lookalike_naming_frame() -> None:
     raise TypeError("failed near _sendback_result")
 
 
+def _raises_lookalike_with_fake_frame() -> None:
+    """Raise a lookalike whose message embeds a whole fake frame line."""
+    raise TypeError(
+        'boom\n  File "/x/concurrent/futures/process.py", line 42, in _sendback_result'
+    )
+
+
 class _UnpicklablePayloadError(Exception):
     """Exception whose own attribute makes it unpicklable."""
 
@@ -155,6 +162,18 @@ class TestProcessPoolBackend:
         assert not isinstance(excinfo.value, UnpicklableResultError)
         assert "failed near _sendback_result" in str(excinfo.value)
 
+    def test_tool_message_with_fake_frame_is_not_translated(self):
+        """Even an embedded frame line must not spoof the boundary check."""
+        backend = ProcessPoolBackend(max_workers=2)
+        try:
+            handle = backend.submit(_raises_lookalike_with_fake_frame, {})
+            with pytest.raises(TypeError) as excinfo:
+                handle.result(timeout=10)
+        finally:
+            backend.shutdown()
+
+        assert not isinstance(excinfo.value, UnpicklableResultError)
+
     def test_unpicklable_exception_is_translated(self):
         """The tool's exception, not just its result, must cross the boundary."""
         backend = ProcessPoolBackend(max_workers=2)
@@ -167,9 +186,12 @@ class TestProcessPoolBackend:
 
         assert "tool's exception" in str(excinfo.value)
         # The serialization failure, not the tool's own exception class,
-        # is what could not cross the boundary.
-        assert isinstance(excinfo.value.__cause__, AttributeError)
+        # could not cross the boundary.  CPython raises AttributeError
+        # through 3.13 and PicklingError from 3.14, so assert on the
+        # meaning (the local object that could not be pickled), not the
+        # serializer's exception class.
         assert not isinstance(excinfo.value.__cause__, _UnpicklablePayloadError)
+        assert "Can't pickle local object" in str(excinfo.value.__cause__)
 
     def test_shutdown(self):
         backend = ProcessPoolBackend(max_workers=1)
