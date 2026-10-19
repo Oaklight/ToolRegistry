@@ -262,8 +262,8 @@ class OpenAPIIntegration:
         namespace: bool | str = False,
         persistent: bool = True,
         spec_url: str | None = None,
-        include: list[str] | None = None,
-        exclude: list[str] | None = None,
+        include: str | list[str] | None = None,
+        exclude: str | list[str] | None = None,
     ) -> None:
         """Asynchronously register all tools defined in an OpenAPI specification.
 
@@ -279,16 +279,20 @@ class OpenAPIIntegration:
                 connection pooling.
             spec_url: Optional URL where the spec was fetched from.  Stored for
                 later ETag-based refresh via :meth:`refresh_async`.
-            include: Optional names or glob patterns to keep.  Matched
-                against both the raw ``operationId`` and the post-namespace
-                name; see :class:`~toolregistry.utils.ToolNameFilter`.
-            exclude: Optional names or glob patterns to drop.  Mutually
-                exclusive with *include*.
+            include: A name, glob pattern, or list of them to keep.
+                Matched against the raw ``operationId``, the post-namespace
+                name, and the snake_case form of each; see
+                :class:`~toolregistry.utils.ToolNameFilter`.  A bare
+                string is treated as a single pattern.
+            exclude: A name, glob pattern, or list of them to drop.
+                Mutually exclusive with *include*.
 
         Raises:
             ValueError: If both *include* and *exclude* are given.
         """
         self._filter = ToolNameFilter(include, exclude)
+        candidates = 0
+        registered = 0
         try:
             self._client_configs.append(client_config)
             self._client_config = client_config
@@ -309,6 +313,7 @@ class OpenAPIIntegration:
                 for method, spec in methods.items():
                     if method.lower() not in ["get", "post", "put", "delete"]:
                         continue
+                    candidates += 1
 
                     open_api_tool = OpenAPITool.from_openapi_spec(
                         client_config=client_config,
@@ -323,8 +328,13 @@ class OpenAPIIntegration:
                         continue
                     self.registry.register(open_api_tool, namespace=resolved_ns)
                     self._registered_tool_names.add(open_api_tool.name)
+                    registered += 1
         except Exception as e:
             raise ValueError(f"Failed to register OpenAPI tools: {e}")
+
+        self._filter.warn_if_all_filtered_out(
+            total=candidates, accepted=registered, source="OpenAPI"
+        )
 
     def register_openapi_tools(
         self,
@@ -333,8 +343,8 @@ class OpenAPIIntegration:
         namespace: bool | str = False,
         persistent: bool = True,
         spec_url: str | None = None,
-        include: list[str] | None = None,
-        exclude: list[str] | None = None,
+        include: str | list[str] | None = None,
+        exclude: str | list[str] | None = None,
     ) -> None:
         """Synchronously register all tools defined in an OpenAPI specification.
 
@@ -346,8 +356,8 @@ class OpenAPIIntegration:
             persistent: If True (default), reuse a persistent HTTP client for
                 connection pooling.
             spec_url: Optional URL where the spec was fetched from.
-            include: Optional names or glob patterns to keep.
-            exclude: Optional names or glob patterns to drop.
+            include: A name, glob pattern, or list of them to keep.
+            exclude: A name, glob pattern, or list of them to drop.
         """
         from ..._async_runtime import AsyncRuntime
 

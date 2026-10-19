@@ -169,13 +169,16 @@ class RegistrationMixin:
                 ``traverse_mro``, ``constructor_kwargs``, ``openapi_spec``,
                 ``spec_url``, ``include``, ``exclude``).
                 ``include`` / ``exclude`` are accepted by the ``"mcp"``,
-                ``"openapi"``, and ``"langchain"`` sources.  Each is a list
-                of exact names or ``fnmatch`` glob patterns matched against
-                BOTH the raw remote tool name (the MCP tool name or the
-                OpenAPI ``operationId``) and the post-namespace registered
-                name (e.g. ``gh-list_issues``).  Only one of the two may be
-                given.  Filtered-out tools never reach the registry, so they
-                stay invisible to discovery and the admin panel.
+                ``"openapi"``, and ``"langchain"`` sources.  Each is a name,
+                an ``fnmatch`` glob pattern, or a list of them, matched
+                against the raw remote tool name (the MCP tool name or the
+                OpenAPI ``operationId``), the post-namespace registered name
+                (e.g. ``gh-list_issues``), and the snake_case form of each.
+                A bare string is treated as a single pattern.  Only one of
+                the two may be given.  Filtered-out tools never reach the
+                registry, so they stay invisible to discovery and the admin
+                panel.  If a filter rejects every tool a source offers, a
+                ``UserWarning`` is emitted.
 
         Raises:
             TypeError: If *target* is missing, or its type cannot be

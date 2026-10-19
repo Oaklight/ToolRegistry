@@ -332,25 +332,57 @@ def normalize_tool_name(name: str) -> str:
     return re.sub(r"_+", "_", name)
 
 
+def _as_pattern_list(value: str | list[str] | None) -> list[str] | None:
+    """Normalize an ``include`` / ``exclude`` argument to a pattern list.
+
+    A bare string is a single pattern, not an iterable of characters.
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return [value]
+    return list(value)
+
+
+def _name_spellings(raw_name: str, namespaced_name: str) -> tuple[str, ...]:
+    """Return the name spellings a filter pattern may match.
+
+    The source-advertised name and the registered name are matched as-is,
+    plus their snake_case normalizations.  Order is preserved and
+    duplicates are dropped.
+    """
+    spellings = (
+        raw_name,
+        namespaced_name,
+        normalize_tool_name(raw_name),
+        normalize_tool_name(namespaced_name),
+    )
+    return tuple(dict.fromkeys(spellings))
+
+
 class ToolNameFilter:
     """Include/exclude filter applied when registering remote tools.
 
-    Patterns are matched with :func:`fnmatch.fnmatchcase` against both the
-    raw remote tool name (the name the source advertises, e.g. the MCP tool
-    name or the OpenAPI ``operationId``) and the final post-namespace name
-    (e.g. ``gh-list_issues``).  A pattern therefore matches a tool when it
-    matches either name.
+    Patterns are matched with :func:`fnmatch.fnmatchcase` against four
+    spellings of each candidate name: the raw remote tool name (the name
+    the source advertises, e.g. the MCP tool name or the OpenAPI
+    ``operationId``), the final post-namespace name (e.g.
+    ``gh-list_issues``), and the :func:`normalize_tool_name` form of each.
+    A pattern therefore matches a tool when it matches any spelling, so
+    ``bash-execute``, ``bash_execute``, ``hub-bash_execute``, and
+    ``hub_bash_execute`` all select the same tool.
 
     ``include`` and ``exclude`` are mutually exclusive.  ``None`` means the
     corresponding side is not filtered; an empty list matches nothing, so
-    ``include=[]`` drops every tool.
+    ``include=[]`` drops every tool.  A bare string is treated as a
+    single-pattern list, so a one-item JSON/YAML ``include: name`` is not
+    mistaken for an iterable of characters.
 
     Args:
         include: Names or glob patterns to keep.  When given, a tool is
-            kept only if the raw or post-namespace name matches one of the
-            patterns.
+            kept only if one of its spellings matches a pattern.
         exclude: Names or glob patterns to drop.  When given, a tool is
-            dropped if the raw or post-namespace name matches any pattern.
+            dropped if one of its spellings matches a pattern.
 
     Raises:
         ValueError: If both ``include`` and ``exclude`` are given.
@@ -358,15 +390,15 @@ class ToolNameFilter:
 
     def __init__(
         self,
-        include: list[str] | None = None,
-        exclude: list[str] | None = None,
+        include: str | list[str] | None = None,
+        exclude: str | list[str] | None = None,
     ) -> None:
         if include is not None and exclude is not None:
             raise ValueError(
                 "include and exclude are mutually exclusive; pass only one."
             )
-        self.include = list(include) if include is not None else None
-        self.exclude = list(exclude) if exclude is not None else None
+        self.include = _as_pattern_list(include)
+        self.exclude = _as_pattern_list(exclude)
 
     def accepts(self, raw_name: str, namespaced_name: str) -> bool:
         """Return whether a tool passes the filter.
@@ -380,7 +412,7 @@ class ToolNameFilter:
             True if the tool should be registered, False if it must be
             dropped.
         """
-        candidates = (raw_name, namespaced_name)
+        candidates = _name_spellings(raw_name, namespaced_name)
         if self.include is not None:
             return any(
                 fnmatch.fnmatchcase(name, pattern)
@@ -394,6 +426,44 @@ class ToolNameFilter:
                 for name in candidates
             )
         return True
+
+    def warn_if_all_filtered_out(
+        self,
+        *,
+        total: int,
+        accepted: int,
+        source: str,
+    ) -> None:
+        """Warn when an active filter leaves none of *total* candidates.
+
+        A filter that leaves nothing registered is almost always a
+        configuration mistake: an empty list, a bare string, or a pattern
+        spelled differently from the names the source advertises.  Without
+        this warning registration succeeds and silently produces an empty
+        source.
+
+        Args:
+            total: Number of candidate tools the source offered.
+            accepted: Number of candidates that passed this filter.
+            source: Source label used in the message, e.g. ``"MCP"``.
+
+        Warns:
+            UserWarning: If a filter is active, *total* is non-zero, and
+                *accepted* is zero.
+        """
+        if self.include is None and self.exclude is None:
+            return
+        if total <= 0 or accepted > 0:
+            return
+        if self.include is not None:
+            detail = f"include={self.include!r} matched none of {total} tool(s)"
+        else:
+            detail = f"exclude={self.exclude!r} excluded all {total} tool(s)"
+        warnings.warn(
+            f"{source} registration filter {detail}; nothing was registered.",
+            UserWarning,
+            stacklevel=2,
+        )
 
 
 def compute_schema_hash(parameters: dict[str, Any]) -> str:

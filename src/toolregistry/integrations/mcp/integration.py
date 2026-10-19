@@ -312,8 +312,8 @@ class MCPIntegration:
         namespace: bool | str = False,
         persistent: bool = True,
         headers: dict[str, str] | None = None,
-        include: list[str] | None = None,
-        exclude: list[str] | None = None,
+        include: str | list[str] | None = None,
+        exclude: str | list[str] | None = None,
     ) -> None:
         """Async implementation to register all tools from an MCP server.
 
@@ -326,11 +326,13 @@ class MCPIntegration:
             persistent: If True (default), keep the connection open across
                 tool calls.
             headers: HTTP headers for SSE or streamable-http transports.
-            include: Optional names or glob patterns to keep.  Matched
-                against both the raw MCP tool name and the post-namespace
-                name; see :class:`~toolregistry.utils.ToolNameFilter`.
-            exclude: Optional names or glob patterns to drop.  Mutually
-                exclusive with *include*.
+            include: A name, glob pattern, or list of them to keep.
+                Matched against the raw MCP tool name, the post-namespace
+                name, and the snake_case form of each; see
+                :class:`~toolregistry.utils.ToolNameFilter`.  A bare
+                string is treated as a single pattern.
+            exclude: A name, glob pattern, or list of them to drop.
+                Mutually exclusive with *include*.
 
         Raises:
             RuntimeError: If connection to server fails.
@@ -361,6 +363,7 @@ class MCPIntegration:
 
             tools_response: list[ToolSpec] = await client.list_tools()
 
+            registered = 0
             for tool_spec in tools_response:
                 mcp_tool = MCPTool.from_tool_json(
                     tool_spec=tool_spec,
@@ -371,6 +374,11 @@ class MCPIntegration:
                     continue
                 self.registry.register(mcp_tool, namespace=resolved_ns)
                 self._registered_tool_names.add(mcp_tool.name)
+                registered += 1
+
+            self._filter.warn_if_all_filtered_out(
+                total=len(tools_response), accepted=registered, source="MCP"
+            )
 
     def register_mcp_tools(
         self,
@@ -378,8 +386,8 @@ class MCPIntegration:
         namespace: bool | str = False,
         persistent: bool = True,
         headers: dict[str, str] | None = None,
-        include: list[str] | None = None,
-        exclude: list[str] | None = None,
+        include: str | list[str] | None = None,
+        exclude: str | list[str] | None = None,
     ) -> None:
         """Register all tools from an MCP server (synchronous entry point).
 
@@ -390,8 +398,8 @@ class MCPIntegration:
             persistent: If True (default), keep the connection open across
                 tool calls.
             headers: HTTP headers for SSE or streamable-http transports.
-            include: Optional names or glob patterns to keep.
-            exclude: Optional names or glob patterns to drop.
+            include: A name, glob pattern, or list of them to keep.
+            exclude: A name, glob pattern, or list of them to drop.
         """
         from ..._async_runtime import AsyncRuntime
 
