@@ -61,6 +61,7 @@ Features:
 - Cloudpickle serialization for function transport
 - Automatic async-to-sync wrapping
 - Hard cancel via `future.cancel()` (no cooperative cancellation)
+- Results are pickled back from the worker; a result that cannot be pickled raises `UnpicklableResultError` (exported from `toolregistry.executor`) explaining the process boundary instead of a bare `pickle` error
 
 ## ExecutionContext
 

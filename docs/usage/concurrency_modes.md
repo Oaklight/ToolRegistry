@@ -126,6 +126,7 @@ Uses a process pool with **cloudpickle** serialization for true parallelism.
 - Higher overhead from inter-process communication
 - No cooperative cancellation
 - Functions and arguments must be picklable
+- Tool results must be picklable too — they are pickled back from the worker. A result that cannot be pickled (a generator, a lambda, a live connection) surfaces as `UnpicklableResultError`, naming the process backend and pointing at the thread backend; the parent's JSON encoder never sees the value.
 - MCP/OpenAPI tools **cannot** use this backend (live connections are non-picklable)
 
 ## Switching Modes
