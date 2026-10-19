@@ -29,6 +29,23 @@ def _raises_lookalike() -> None:
     raise TypeError("cannot pickle 'generator' object")
 
 
+class _UnpicklablePayloadError(Exception):
+    """Exception whose own attribute makes it unpicklable."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+
+        def payload(x: int) -> int:
+            return x
+
+        self.payload = payload
+
+
+def _raises_unpicklable_exception() -> None:
+    """Raise an exception that cannot be pickled back to the parent."""
+    raise _UnpicklablePayloadError("boom with an unpicklable payload")
+
+
 class TestProcessPoolBackend:
     def test_submit_sync_function(self):
         backend = ProcessPoolBackend(max_workers=2)
@@ -119,6 +136,22 @@ class TestProcessPoolBackend:
 
         # A tool that raises a similar message is not a boundary failure.
         assert not isinstance(excinfo.value, UnpicklableResultError)
+
+    def test_unpicklable_exception_is_translated(self):
+        """The tool's exception, not just its result, must cross the boundary."""
+        backend = ProcessPoolBackend(max_workers=2)
+        try:
+            handle = backend.submit(_raises_unpicklable_exception, {})
+            with pytest.raises(UnpicklableResultError) as excinfo:
+                handle.result(timeout=10)
+        finally:
+            backend.shutdown()
+
+        assert "tool's exception" in str(excinfo.value)
+        # The serialization failure, not the tool's own exception class,
+        # is what could not cross the boundary.
+        assert isinstance(excinfo.value.__cause__, AttributeError)
+        assert not isinstance(excinfo.value.__cause__, _UnpicklablePayloadError)
 
     def test_shutdown(self):
         backend = ProcessPoolBackend(max_workers=1)
