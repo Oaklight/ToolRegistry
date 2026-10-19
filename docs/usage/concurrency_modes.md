@@ -126,6 +126,7 @@ def long_task(data: list, _ctx: ExecutionContext) -> str:
 - 进程间通信开销更高
 - 不支持协作式取消
 - 函数和参数必须可 pickle
+- 工具结果同样必须可 pickle——结果需要从 worker pickle 回父进程。无法 pickle 的结果（生成器、lambda、活动连接）会以 `UnpicklableResultError` 呈现，明确指出进程后端并指向线程后端；父进程的 JSON 编码器不会看到该值。
 - MCP/OpenAPI 工具**不能**使用此后端（活连接不可 pickle）
 
 ## 切换模式

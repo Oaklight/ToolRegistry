@@ -33,6 +33,7 @@ hide:
 
 - **`discover_tools` 不再返回已禁用的工具** (#276)：BM25 索引只收录已启用的工具，与 `get_deferred_summaries()` 保持一致，精确匹配路径也会拒绝已禁用的工具。`ENABLE` / `DISABLE` / `METADATA_UPDATE` 改为把索引标记为陈旧，而不是逐事件重建，因此批量禁用或应用 profile 只需在下一次 `discover()` 时重建一次。这同时修复了每文档 `deferred` 标志陈旧的问题——此前在 `update_tool_metadata(defer=True)` 之后，`discover()` 会漏掉 `schema` 并报告 `deferred: false`，而 `get_deferred_summaries()` 却列出该工具。
 - **不可 JSON 序列化的工具结果现在会被正确编码** (#279)：数据类、Pydantic 模型、提供 `to_dict()` / `tolist()` 的对象、枚举、路径、Decimal、UUID、日期时间、bytes 与集合现在以合法 JSON 上线，而不是 Python 的 `repr()` 文本。顶层与嵌套的投影结果现已一致，集合编码也具备确定性。
+- **进程后端的 pickle 失败会说明后端原因** (#288)：无法从 worker 中 pickle 出来的结果（生成器、lambda、活动连接等）现在以 `UnpicklableResultError` 呈现，明确指出进程后端，并建议返回可 pickle 的值或改用线程后端，而不再是 `pickle` 抛出的裸 `TypeError` / `AttributeError`。native（基于类的）工具默认使用进程后端，同样会得到这条提示；MCP 与 OpenAPI 工具不受影响，因为它们的 `natural_backend="inline"` 会强制使用线程后端。
 - **`ToolMetadata.all_tags` 兼容字符串标签**：`update_tool_metadata(tags=["x"])` 不再因 `AttributeError` 中断索引重建。
 
 ## [0.18.1] - 2026-09-16

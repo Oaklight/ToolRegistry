@@ -61,6 +61,7 @@ backend.shutdown()
 - 使用 cloudpickle 序列化传输函数
 - 自动将异步函数包装为同步
 - 通过 `future.cancel()` 硬取消（不支持协作式取消）
+- 结果需要从 worker pickle 回父进程；无法 pickle 的结果会抛出 `UnpicklableResultError`（从 `toolregistry.executor` 导出），说明进程边界的约束，而不是裸露的 `pickle` 错误
 
 ## ExecutionContext
 
