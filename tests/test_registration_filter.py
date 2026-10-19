@@ -7,6 +7,7 @@ validation performed by the unified ``register()`` entry point.
 
 from __future__ import annotations
 
+import warnings
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -103,9 +104,55 @@ class TestToolNameFilter:
         f = ToolNameFilter(include=[])
         assert f.accepts("add", "add") is False
 
+    def test_bare_string_is_a_single_pattern(self):
+        f = ToolNameFilter(include="add")
+        assert f.accepts("add", "svc-add") is True
+        assert f.accepts("a", "svc-a") is False
+
+    def test_bare_string_glob_is_a_single_pattern(self):
+        f = ToolNameFilter(exclude="admin_*")
+        assert f.accepts("admin_delete", "admin_delete") is False
+        assert f.accepts("list_issues", "list_issues") is True
+
+    def test_normalized_unprefixed_name_matches(self):
+        f = ToolNameFilter(include=["bash_execute"])
+        assert f.accepts("bash-execute", "hub-bash_execute") is True
+
+    def test_normalized_namespaced_name_matches(self):
+        f = ToolNameFilter(include=["hub_bash_execute"])
+        assert f.accepts("bash-execute", "hub-bash_execute") is True
+
+    def test_exclude_matches_normalized_spelling(self):
+        f = ToolNameFilter(exclude=["bash_execute"])
+        assert f.accepts("bash-execute", "hub-bash_execute") is False
+
     def test_both_sides_raise(self):
         with pytest.raises(ValueError, match="mutually exclusive"):
             ToolNameFilter(include=["a"], exclude=["b"])
+
+    def test_warn_if_all_filtered_out_inactive_filter_is_silent(self):
+        f = ToolNameFilter()
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            f.warn_if_all_filtered_out(total=3, accepted=0, source="MCP")
+        assert not [w for w in caught if "nothing was registered" in str(w.message)]
+
+    def test_warn_if_all_filtered_out_is_silent_when_something_registered(self):
+        f = ToolNameFilter(include=["add"])
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            f.warn_if_all_filtered_out(total=3, accepted=1, source="MCP")
+        assert not [w for w in caught if "nothing was registered" in str(w.message)]
+
+    def test_warn_if_all_filtered_out_warns_for_empty_include(self):
+        f = ToolNameFilter(include=[])
+        with pytest.warns(UserWarning, match=r"include=\[\] matched none of 3"):
+            f.warn_if_all_filtered_out(total=3, accepted=0, source="MCP")
+
+    def test_warn_if_all_filtered_out_warns_for_exclude_all(self):
+        f = ToolNameFilter(exclude=["upper_*"])
+        with pytest.warns(UserWarning, match=r"excluded all 3 tool"):
+            f.warn_if_all_filtered_out(total=3, accepted=0, source="MCP")
 
 
 # ---------------------------------------------------------------------------
@@ -156,6 +203,90 @@ class TestMCPRegistrationFilter:
             )
         assert set(registry._tools) == {"gh-list_issues"}
 
+    @pytest.mark.asyncio
+    async def test_bare_string_include(self):
+        specs = [_MockToolSpec("add"), _MockToolSpec("multiply")]
+        registry = ToolRegistry()
+        integration = MCPIntegration(registry)
+        with _patch_mcp_client(specs):
+            await integration.register_mcp_tools_async(
+                "http://mock-mcp:8000", include="add"
+            )
+        assert set(registry._tools) == {"add"}
+
+    @pytest.mark.asyncio
+    async def test_normalized_spelling_include(self):
+        specs = [_MockToolSpec("bash-execute")]
+        registry = ToolRegistry()
+        integration = MCPIntegration(registry)
+        with _patch_mcp_client(specs):
+            await integration.register_mcp_tools_async(
+                "http://mock-mcp:8000", namespace="hub", include=["bash_execute"]
+            )
+        assert set(registry._tools) == {"hub-bash_execute"}
+
+    @pytest.mark.asyncio
+    async def test_filter_matching_nothing_warns(self):
+        specs = [_MockToolSpec("add"), _MockToolSpec("multiply")]
+        registry = ToolRegistry()
+        integration = MCPIntegration(registry)
+        with (
+            _patch_mcp_client(specs),
+            pytest.warns(UserWarning, match="matched none of 2"),
+        ):
+            await integration.register_mcp_tools_async(
+                "http://mock-mcp:8000", include=["no_such_tool"]
+            )
+        assert registry._tools == {}
+
+    @pytest.mark.asyncio
+    async def test_empty_include_warns(self):
+        specs = [_MockToolSpec("add")]
+        registry = ToolRegistry()
+        integration = MCPIntegration(registry)
+        with _patch_mcp_client(specs), pytest.warns(UserWarning, match=r"include=\[\]"):
+            await integration.register_mcp_tools_async(
+                "http://mock-mcp:8000", include=[]
+            )
+        assert registry._tools == {}
+
+    @pytest.mark.asyncio
+    async def test_exclude_all_warns(self):
+        specs = [_MockToolSpec("add"), _MockToolSpec("multiply")]
+        registry = ToolRegistry()
+        integration = MCPIntegration(registry)
+        with (
+            _patch_mcp_client(specs),
+            pytest.warns(UserWarning, match=r"excluded all 2 tool"),
+        ):
+            await integration.register_mcp_tools_async(
+                "http://mock-mcp:8000", exclude=["*"]
+            )
+        assert registry._tools == {}
+
+    @pytest.mark.asyncio
+    async def test_matching_filter_does_not_warn(self):
+        specs = [_MockToolSpec("add"), _MockToolSpec("multiply")]
+        registry = ToolRegistry()
+        integration = MCPIntegration(registry)
+        with _patch_mcp_client(specs):
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                await integration.register_mcp_tools_async(
+                    "http://mock-mcp:8000", include=["add"]
+                )
+        assert not [w for w in caught if "matched none" in str(w.message)]
+
+    @pytest.mark.asyncio
+    async def test_unfiltered_empty_server_does_not_warn(self):
+        registry = ToolRegistry()
+        integration = MCPIntegration(registry)
+        with _patch_mcp_client([]):
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                await integration.register_mcp_tools_async("http://mock-mcp:8000")
+        assert not [w for w in caught if "matched none" in str(w.message)]
+
     def test_refresh_does_not_resurrect_excluded(self):
         specs = [_MockToolSpec("add"), _MockToolSpec("multiply")]
         registry = ToolRegistry()
@@ -197,6 +328,22 @@ class TestOpenAPIRegistrationFilter:
         self._register(registry, include=["listItems"])
         assert set(registry._tools) == {"list_items"}
 
+    def test_bare_string_include(self):
+        registry = ToolRegistry()
+        self._register(registry, include="listItems")
+        assert set(registry._tools) == {"list_items"}
+
+    def test_normalized_spelling_include(self):
+        registry = ToolRegistry()
+        self._register(registry, namespace="api", include=["api_list_items"])
+        assert set(registry._tools) == {"api-list_items"}
+
+    def test_filter_matching_nothing_warns(self):
+        registry = ToolRegistry()
+        with pytest.warns(UserWarning, match="matched none of 2"):
+            self._register(registry, include=["no_such_tool"])
+        assert registry._tools == {}
+
     def test_refresh_does_not_resurrect_excluded(self):
         registry = ToolRegistry()
         self._register(registry, exclude=["admin_*"])
@@ -225,6 +372,22 @@ class TestLangChainRegistrationFilter:
         registry = ToolRegistry()
         registry.register(mock_upper(), source="langchain", exclude=["upper_*"])
         assert registry._tools == {}
+
+    def test_bare_string_include(self):
+        mock_add, _ = _lc_mocks()
+        registry = ToolRegistry()
+        registry.register(mock_add(), source="langchain", include="add_numbers")
+        assert set(registry._tools) == {"add_numbers"}
+
+    def test_single_tool_source_does_not_warn(self):
+        """One tool per call is not evidence of a misconfigured source."""
+        mock_add, _ = _lc_mocks()
+        registry = ToolRegistry()
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            registry.register(mock_add(), source="langchain", include=["no_such_tool"])
+        assert registry._tools == {}
+        assert not [w for w in caught if "nothing was registered" in str(w.message)]
 
     @pytest.mark.asyncio
     async def test_async_exclude(self):

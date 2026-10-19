@@ -143,8 +143,8 @@ class LangChainIntegration:
         self,
         tool: LCBaseTool,
         namespace: bool | str = False,
-        include: list[str] | None = None,
-        exclude: list[str] | None = None,
+        include: str | list[str] | None = None,
+        exclude: str | list[str] | None = None,
     ) -> None:
         """Async implementation to register LangChain tool using asyncio.
 
@@ -155,11 +155,12 @@ class LangChainIntegration:
                 - If ``True``, the namespace is derived from the tool's metadata if available.
                 - If a string is provided, it is used as the namespace.
                 Defaults to False.
-            include: Optional names or glob patterns to keep.  Matched
-                against both the raw LangChain tool name and the
-                post-namespace name.
-            exclude: Optional names or glob patterns to drop.  Mutually
-                exclusive with *include*.
+            include: A name, glob pattern, or list of them to keep.  Matched
+                against the raw LangChain tool name, the post-namespace
+                name, and the snake_case form of each.  A bare string is
+                treated as a single pattern.
+            exclude: A name, glob pattern, or list of them to drop.
+                Mutually exclusive with *include*.
 
         Raises:
             ValueError: If tools argument is invalid, or both *include* and
@@ -181,8 +182,8 @@ class LangChainIntegration:
         self,
         tool: LCBaseTool,
         namespace: bool | str = False,
-        include: list[str] | None = None,
-        exclude: list[str] | None = None,
+        include: str | list[str] | None = None,
+        exclude: str | list[str] | None = None,
     ) -> None:
         """Register LangChain tool (synchronous entry point).
 
@@ -193,8 +194,8 @@ class LangChainIntegration:
                 - If ``True``, the namespace is derived from the tool's metadata if available.
                 - If a string is provided, it is used as the namespace.
                 Defaults to False.
-            include: Optional names or glob patterns to keep.
-            exclude: Optional names or glob patterns to drop.
+            include: A name, glob pattern, or list of them to keep.
+            exclude: A name, glob pattern, or list of them to drop.
 
         Raises:
             ValueError: If both *include* and *exclude* are given.
