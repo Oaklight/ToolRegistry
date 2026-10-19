@@ -378,6 +378,15 @@ class ToolNameFilter:
     single-pattern list, so a one-item JSON/YAML ``include: name`` is not
     mistaken for an iterable of characters.
 
+    Matching is case-sensitive (:func:`fnmatch.fnmatchcase`), unlike
+    ``discover_tools`` / ``call_deferred``, which fold case.  Write
+    patterns in the case the source advertises.
+
+    The normalized spelling is not unique.  When a source advertises two
+    names that normalize to the same string (for example ``x-y`` and
+    ``x_y``), a pattern written in that spelling selects both tools.  Use
+    the raw or post-namespace spelling to narrow to one of them.
+
     Args:
         include: Names or glob patterns to keep.  When given, a tool is
             kept only if one of its spellings matches a pattern.

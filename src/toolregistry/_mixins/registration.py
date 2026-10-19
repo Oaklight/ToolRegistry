@@ -174,11 +174,14 @@ class RegistrationMixin:
                 against the raw remote tool name (the MCP tool name or the
                 OpenAPI ``operationId``), the post-namespace registered name
                 (e.g. ``gh-list_issues``), and the snake_case form of each.
-                A bare string is treated as a single pattern.  Only one of
-                the two may be given.  Filtered-out tools never reach the
-                registry, so they stay invisible to discovery and the admin
-                panel.  If a filter rejects every tool a source offers, a
-                ``UserWarning`` is emitted.
+                A bare string is treated as a single pattern.  Matching is
+                case-sensitive, and a normalized spelling can match more
+                than one tool when two advertised names collide after
+                normalization.  Only one of the two may be given.
+                Filtered-out tools never reach the registry, so they stay
+                invisible to discovery and the admin panel.  If a filter
+                rejects every tool a source offers, a ``UserWarning`` is
+                emitted.
 
         Raises:
             TypeError: If *target* is missing, or its type cannot be
