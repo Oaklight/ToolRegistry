@@ -302,6 +302,7 @@ class MCPIntegration:
         self._persistent: bool = True
         self._headers: dict[str, str] | None = None
         self._filter: ToolNameFilter = ToolNameFilter()
+        self._allow_replace: bool = False
         self._refresh_lock = threading.Lock()
         self._poll_timer: threading.Timer | None = None
         self._poll_interval: float | None = None
@@ -314,6 +315,7 @@ class MCPIntegration:
         headers: dict[str, str] | None = None,
         include: str | list[str] | None = None,
         exclude: str | list[str] | None = None,
+        allow_replace: bool = False,
     ) -> None:
         """Async implementation to register all tools from an MCP server.
 
@@ -333,6 +335,8 @@ class MCPIntegration:
                 string is treated as a single pattern.
             exclude: A name, glob pattern, or list of them to drop.
                 Mutually exclusive with *include*.
+            allow_replace: Acknowledge replacing an already-registered tool
+                under the same name without warning.  Defaults to ``False``.
 
         Raises:
             RuntimeError: If connection to server fails.
@@ -342,6 +346,7 @@ class MCPIntegration:
         self._persistent = persistent
         self._headers = headers
         self._filter = ToolNameFilter(include, exclude)
+        self._allow_replace = allow_replace
 
         connection = MCPConnectionManager(
             transport=transport,
@@ -372,7 +377,11 @@ class MCPIntegration:
                 )
                 if not self._filter.accepts(tool_spec.name, mcp_tool.name):
                     continue
-                self.registry.register(mcp_tool, namespace=resolved_ns)
+                self.registry.register(
+                    mcp_tool,
+                    namespace=resolved_ns,
+                    allow_replace=self._allow_replace,
+                )
                 self._registered_tool_names.add(mcp_tool.name)
                 registered += 1
 
@@ -388,6 +397,7 @@ class MCPIntegration:
         headers: dict[str, str] | None = None,
         include: str | list[str] | None = None,
         exclude: str | list[str] | None = None,
+        allow_replace: bool = False,
     ) -> None:
         """Register all tools from an MCP server (synchronous entry point).
 
@@ -400,6 +410,8 @@ class MCPIntegration:
             headers: HTTP headers for SSE or streamable-http transports.
             include: A name, glob pattern, or list of them to keep.
             exclude: A name, glob pattern, or list of them to drop.
+            allow_replace: Acknowledge replacing an already-registered tool
+                under the same name without warning.
         """
         from ..._async_runtime import AsyncRuntime
 
@@ -411,6 +423,7 @@ class MCPIntegration:
                 headers=headers,
                 include=include,
                 exclude=exclude,
+                allow_replace=allow_replace,
             )
         )
 
@@ -454,7 +467,11 @@ class MCPIntegration:
             removed.append(name)
 
         for name in new_tracked - old_tracked:
-            self.registry.register(new_tools[name], namespace=self._resolved_ns)
+            self.registry.register(
+                new_tools[name],
+                namespace=self._resolved_ns,
+                allow_replace=self._allow_replace,
+            )
             added.append(name)
 
         now = utc_iso_now()

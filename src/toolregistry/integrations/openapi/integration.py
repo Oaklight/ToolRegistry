@@ -249,6 +249,7 @@ class OpenAPIIntegration:
         self._resolved_ns: str | None = None
         self._persistent: bool = True
         self._filter: ToolNameFilter = ToolNameFilter()
+        self._allow_replace: bool = False
         self._openapi_spec: dict[str, Any] | None = None
         self._etag: str | None = None
         self._refresh_lock = threading.Lock()
@@ -264,6 +265,7 @@ class OpenAPIIntegration:
         spec_url: str | None = None,
         include: str | list[str] | None = None,
         exclude: str | list[str] | None = None,
+        allow_replace: bool = False,
     ) -> None:
         """Asynchronously register all tools defined in an OpenAPI specification.
 
@@ -286,6 +288,8 @@ class OpenAPIIntegration:
                 string is treated as a single pattern.
             exclude: A name, glob pattern, or list of them to drop.
                 Mutually exclusive with *include*.
+            allow_replace: Acknowledge replacing an already-registered tool
+                under the same name without warning.  Defaults to ``False``.
 
         Raises:
             ValueError: If both *include* and *exclude* are given.
@@ -293,6 +297,7 @@ class OpenAPIIntegration:
         self._filter = ToolNameFilter(include, exclude)
         candidates = 0
         registered = 0
+        self._allow_replace = allow_replace
         try:
             self._client_configs.append(client_config)
             self._client_config = client_config
@@ -326,7 +331,11 @@ class OpenAPIIntegration:
                     raw_name = _operation_id(spec, path, method)
                     if not self._filter.accepts(raw_name, open_api_tool.name):
                         continue
-                    self.registry.register(open_api_tool, namespace=resolved_ns)
+                    self.registry.register(
+                        open_api_tool,
+                        namespace=resolved_ns,
+                        allow_replace=self._allow_replace,
+                    )
                     self._registered_tool_names.add(open_api_tool.name)
                     registered += 1
         except Exception as e:
@@ -345,6 +354,7 @@ class OpenAPIIntegration:
         spec_url: str | None = None,
         include: str | list[str] | None = None,
         exclude: str | list[str] | None = None,
+        allow_replace: bool = False,
     ) -> None:
         """Synchronously register all tools defined in an OpenAPI specification.
 
@@ -358,6 +368,8 @@ class OpenAPIIntegration:
             spec_url: Optional URL where the spec was fetched from.
             include: A name, glob pattern, or list of them to keep.
             exclude: A name, glob pattern, or list of them to drop.
+            allow_replace: Acknowledge replacing an already-registered tool
+                under the same name without warning.
         """
         from ..._async_runtime import AsyncRuntime
 
@@ -370,6 +382,7 @@ class OpenAPIIntegration:
                 spec_url,
                 include=include,
                 exclude=exclude,
+                allow_replace=allow_replace,
             )
         )
 
@@ -479,7 +492,11 @@ class OpenAPIIntegration:
             removed.append(name)
 
         for name in new_tracked - old_tracked:
-            self.registry.register(new_tools[name], namespace=self._resolved_ns)
+            self.registry.register(
+                new_tools[name],
+                namespace=self._resolved_ns,
+                allow_replace=self._allow_replace,
+            )
             added.append(name)
 
         now = utc_iso_now()

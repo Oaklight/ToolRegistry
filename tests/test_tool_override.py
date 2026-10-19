@@ -394,7 +394,8 @@ class TestOverrideRegistrationInteraction:
         registry.register(add)
         registry.override("add", multiply)
 
-        registry.register(add_offset, name="add")
+        with pytest.warns(UserWarning, match="recorded override was also discarded"):
+            registry.register(add_offset, name="add")
 
         # The new registration is the current definition, so the override
         # record is dropped instead of going stale.

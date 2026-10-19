@@ -42,6 +42,7 @@ class ClassToolIntegration:
         cls_or_instance: type | object,
         namespace: bool | str = False,
         constructor_kwargs: dict | None = None,
+        allow_replace: bool = False,
     ) -> None:
         """Register all methods from a class or instance as tools.
 
@@ -62,25 +63,30 @@ class ClassToolIntegration:
                 constructor when *cls_or_instance* is a class that needs
                 to be instantiated.  Ignored when a pre-built instance is
                 passed.  Defaults to ``None`` (no extra arguments).
+            allow_replace: Acknowledge replacing an already-registered tool
+                under the same name without warning.  Defaults to ``False``.
         """
         resolved_ns = _determine_namespace(cls_or_instance, namespace)
 
         if isinstance(cls_or_instance, type):
             if _is_all_static_methods(cls_or_instance):
-                self._register_static_methods(cls_or_instance, resolved_ns)
+                self._register_static_methods(
+                    cls_or_instance, resolved_ns, allow_replace
+                )
             else:
                 instance = self._instantiate_class(
                     cls_or_instance, constructor_kwargs or {}
                 )
-                self._register_instance_methods(instance, resolved_ns)
+                self._register_instance_methods(instance, resolved_ns, allow_replace)
         else:
-            self._register_instance_methods(cls_or_instance, resolved_ns)
+            self._register_instance_methods(cls_or_instance, resolved_ns, allow_replace)
 
     async def register_class_methods_async(
         self,
         cls_or_instance: type | object,
         namespace: bool | str = False,
         constructor_kwargs: dict | None = None,
+        allow_replace: bool = False,
     ) -> None:
         """Async implementation to register tools from a class.
 
@@ -97,6 +103,8 @@ class ClassToolIntegration:
                 constructor when *cls_or_instance* is a class that needs
                 to be instantiated.  Ignored when a pre-built instance is
                 passed.  Defaults to ``None`` (no extra arguments).
+            allow_replace: Acknowledge replacing an already-registered tool
+                under the same name without warning.  Defaults to ``False``.
         """
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(
@@ -105,6 +113,7 @@ class ClassToolIntegration:
             cls_or_instance,
             namespace,
             constructor_kwargs,
+            allow_replace,
         )
 
     @staticmethod
@@ -227,7 +236,12 @@ class ClassToolIntegration:
                     collected[name] = member
         return collected
 
-    def _register_static_methods(self, cls: type, namespace: str | None) -> None:
+    def _register_static_methods(
+        self,
+        cls: type,
+        namespace: str | None,
+        allow_replace: bool = False,
+    ) -> None:
         """Register all static methods of a class into the provided registry.
 
         When ``self.traverse_mro`` is True (default), methods inherited from
@@ -239,6 +253,8 @@ class ClassToolIntegration:
             cls (Type): The class whose static methods will be registered.
             namespace (Optional[str]): The namespace under which the static
                 methods will be registered.
+            allow_replace: Acknowledge replacing an already-registered tool
+                under the same name without warning.
         """
         if self.traverse_mro:
             methods = self._collect_static_methods_from_mro(cls)
@@ -251,7 +267,10 @@ class ClassToolIntegration:
 
         for name, member in methods.items():
             self.registry.register(
-                member.__func__, namespace=namespace, method_name=name
+                member.__func__,
+                namespace=namespace,
+                method_name=name,
+                allow_replace=allow_replace,
             )
 
     def _collect_instance_methods_from_mro(self, instance: object) -> dict:
@@ -285,7 +304,10 @@ class ClassToolIntegration:
         return collected
 
     def _register_instance_methods(
-        self, instance: object, namespace: str | None
+        self,
+        instance: object,
+        namespace: str | None,
+        allow_replace: bool = False,
     ) -> None:
         """Register all instance methods (excluding private and classmethods) of an object.
 
@@ -300,11 +322,18 @@ class ClassToolIntegration:
                 registered.
             namespace (Optional[str]): The namespace under which the instance
                 methods will be registered.
+            allow_replace: Acknowledge replacing an already-registered tool
+                under the same name without warning.
         """
         if self.traverse_mro:
             methods = self._collect_instance_methods_from_mro(instance)
             for name, attr in methods.items():
-                self.registry.register(attr, namespace=namespace, method_name=name)
+                self.registry.register(
+                    attr,
+                    namespace=namespace,
+                    method_name=name,
+                    allow_replace=allow_replace,
+                )
         else:
             for name in dir(instance):
                 if name.startswith("_"):
@@ -315,4 +344,9 @@ class ClassToolIntegration:
                     continue
                 attr = getattr(instance, name)
                 if callable(attr):
-                    self.registry.register(attr, namespace=namespace, method_name=name)
+                    self.registry.register(
+                        attr,
+                        namespace=namespace,
+                        method_name=name,
+                        allow_replace=allow_replace,
+                    )

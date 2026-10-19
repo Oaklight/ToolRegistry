@@ -102,6 +102,21 @@ def _pop_filter_kwargs(kwargs: dict[str, Any]) -> dict[str, Any]:
     return filter_kwargs
 
 
+def _forward_allow_replace(allow_replace: bool) -> dict[str, bool]:
+    """Return the ``allow_replace`` kwarg only when it is set.
+
+    Keeping the default out of the forwarded call preserves the existing
+    integration signatures for callers that do not opt in.
+
+    Args:
+        allow_replace: Whether the caller acknowledged replacement.
+
+    Returns:
+        ``{"allow_replace": True}`` when set, otherwise an empty dict.
+    """
+    return {"allow_replace": True} if allow_replace else {}
+
+
 class RegistrationMixin:
     """Mixin providing tool registration methods."""
 
@@ -136,6 +151,7 @@ class RegistrationMixin:
         source: str | None = None,
         namespace: bool | str | None = None,
         method_name: str | None = None,
+        allow_replace: bool = False,
         **kwargs: Any,
     ):
         """Register a tool from any supported source.
@@ -164,6 +180,13 @@ class RegistrationMixin:
             description: Description override (native source only).
             name: Name override (native source only).
             method_name: Original method name (native source only).
+            allow_replace: When ``True``, replace a tool already registered
+                under the same name without warning.  When ``False``
+                (default), the existing tool is still replaced, but a
+                ``UserWarning`` is emitted and a
+                :attr:`~toolregistry.events.ChangeEventType.REPLACE`
+                change event is sent.  The previous definition is
+                discarded either way; the flag only acknowledges that.
             **kwargs: Additional keyword arguments forwarded to the
                 underlying integration (e.g. ``persistent``, ``headers``,
                 ``traverse_mro``, ``constructor_kwargs``, ``openapi_spec``,
@@ -204,6 +227,9 @@ class RegistrationMixin:
             target, source, namespace, "register", kwargs
         )
 
+        if allow_replace:
+            kwargs["allow_replace"] = True
+
         if resolved == "native":
             return self._register_native(
                 target,
@@ -211,6 +237,7 @@ class RegistrationMixin:
                 name=name,
                 namespace=ns,
                 method_name=method_name,
+                allow_replace=allow_replace,
             )
         elif resolved == "class":
             return self._register_class(target, namespace=ns, **kwargs)
@@ -235,6 +262,7 @@ class RegistrationMixin:
         source: str | None = None,
         namespace: bool | str | None = None,
         method_name: str | None = None,
+        allow_replace: bool = False,
         **kwargs: Any,
     ):
         """Async version of :meth:`register`.
@@ -245,6 +273,9 @@ class RegistrationMixin:
             target, source, namespace, "register_async", kwargs
         )
 
+        if allow_replace:
+            kwargs["allow_replace"] = True
+
         if resolved == "native":
             return self._register_native(
                 target,
@@ -252,6 +283,7 @@ class RegistrationMixin:
                 name=name,
                 namespace=ns,
                 method_name=method_name,
+                allow_replace=allow_replace,
             )
         elif resolved == "class":
             return await self._register_class_async(target, namespace=ns, **kwargs)
@@ -294,8 +326,20 @@ class RegistrationMixin:
         name: str | None = None,
         namespace: bool | str | None = None,
         method_name: str | None = None,
+        allow_replace: bool = False,
     ):
-        """Register a single function or ``Tool`` instance."""
+        """Register a single function or ``Tool`` instance.
+
+        Args:
+            tool_or_func: A ``Tool`` instance, callable, or class instance.
+            description: Description override for a new ``Tool``.
+            name: Name override for a new ``Tool``.
+            namespace: Optional namespace prefix.
+            method_name: Original method name, when registering a class
+                method.
+            allow_replace: Acknowledge replacing an existing tool under the
+                same name without warning.
+        """
         if namespace is True:
             raise ValueError(
                 "namespace=True is not supported for native function "
@@ -309,25 +353,37 @@ class RegistrationMixin:
 
         if isinstance(tool_or_func, Tool):
             tool_or_func = tool_or_func.update_namespace(ns_str, force=True, sep=sep)
-            self._tools[tool_or_func.name] = tool_or_func
-            registered_name = tool_or_func.name
             registered_tool = tool_or_func
         else:
-            tool = Tool.from_function(
+            registered_tool = Tool.from_function(
                 tool_or_func,
                 description=description,
                 name=name,
                 namespace=ns_str,
                 method_name=method_name,
             )
-            self._tools[tool.name] = tool
-            registered_name = tool.name
-            registered_tool = tool
+        registered_name = registered_tool.name
+
+        existing = self._tools.get(registered_name)
+        replaced = existing is not None and existing is not registered_tool
+        was_overridden = registered_name in self._overrides
+
+        self._tools[registered_name] = registered_tool
 
         # A plain registration onto an overridden name supersedes the
         # override: the newly registered tool is now the current definition,
         # so the displaced record (and its restore path) no longer applies.
         self._overrides.pop(registered_name, None)
+
+        if replaced and not allow_replace:
+            replacement_warning = (
+                f"Tool {registered_name!r} was already registered; the "
+                "previous definition was discarded. Pass allow_replace=True "
+                "to acknowledge replacement."
+            )
+            if was_overridden:
+                replacement_warning += " The recorded override was also discarded."
+            warnings.warn(replacement_warning, UserWarning, stacklevel=3)
 
         self._run_post_register_hooks(registered_name, registered_tool)
 
@@ -337,6 +393,15 @@ class RegistrationMixin:
                 tool_name=registered_name,
             )
         )
+
+        if replaced:
+            self._emit_change(
+                ChangeEvent(
+                    event_type=ChangeEventType.REPLACE,
+                    tool_name=registered_name,
+                    metadata={"replaced_tool": existing},
+                )
+            )
 
         return tool_or_func
 
@@ -544,35 +609,43 @@ class RegistrationMixin:
     def _register_class(self, cls_or_instance, *, namespace, **kwargs):
         traverse_mro = kwargs.pop("traverse_mro", True)
         constructor_kwargs = kwargs.pop("constructor_kwargs", None)
+        replace_kwargs = _forward_allow_replace(kwargs.pop("allow_replace", False))
         from ..integrations.native import ClassToolIntegration
 
         hub = ClassToolIntegration(
             cast("ToolRegistry", self), traverse_mro=traverse_mro
         )
         return hub.register_class_methods(
-            cls_or_instance, namespace, constructor_kwargs
+            cls_or_instance, namespace, constructor_kwargs, **replace_kwargs
         )
 
     async def _register_class_async(self, cls_or_instance, *, namespace, **kwargs):
         traverse_mro = kwargs.pop("traverse_mro", True)
         constructor_kwargs = kwargs.pop("constructor_kwargs", None)
+        replace_kwargs = _forward_allow_replace(kwargs.pop("allow_replace", False))
         from ..integrations.native import ClassToolIntegration
 
         hub = ClassToolIntegration(
             cast("ToolRegistry", self), traverse_mro=traverse_mro
         )
         return await hub.register_class_methods_async(
-            cls_or_instance, namespace, constructor_kwargs
+            cls_or_instance, namespace, constructor_kwargs, **replace_kwargs
         )
 
     def _register_mcp(self, transport, *, namespace, **kwargs):
         persistent = kwargs.pop("persistent", True)
         headers = kwargs.pop("headers", None)
         filter_kwargs = _pop_filter_kwargs(kwargs)
+        replace_kwargs = _forward_allow_replace(kwargs.pop("allow_replace", False))
         MCPIntegration = _import_mcp_integration()
         mcp = MCPIntegration(cast("ToolRegistry", self))
         mcp.register_mcp_tools(
-            transport, namespace, persistent, headers=headers, **filter_kwargs
+            transport,
+            namespace,
+            persistent,
+            headers=headers,
+            **filter_kwargs,
+            **replace_kwargs,
         )
         self._mcp_integrations.append(mcp)
 
@@ -580,10 +653,16 @@ class RegistrationMixin:
         persistent = kwargs.pop("persistent", True)
         headers = kwargs.pop("headers", None)
         filter_kwargs = _pop_filter_kwargs(kwargs)
+        replace_kwargs = _forward_allow_replace(kwargs.pop("allow_replace", False))
         MCPIntegration = _import_mcp_integration()
         mcp = MCPIntegration(cast("ToolRegistry", self))
         await mcp.register_mcp_tools_async(
-            transport, namespace, persistent, headers=headers, **filter_kwargs
+            transport,
+            namespace,
+            persistent,
+            headers=headers,
+            **filter_kwargs,
+            **replace_kwargs,
         )
         self._mcp_integrations.append(mcp)
 
@@ -596,6 +675,7 @@ class RegistrationMixin:
         persistent = kwargs.pop("persistent", True)
         spec_url = kwargs.pop("spec_url", None)
         filter_kwargs = _pop_filter_kwargs(kwargs)
+        replace_kwargs = _forward_allow_replace(kwargs.pop("allow_replace", False))
         OpenAPIIntegration = _import_openapi_integration()
         openapi = OpenAPIIntegration(cast("ToolRegistry", self))
         openapi.register_openapi_tools(
@@ -605,6 +685,7 @@ class RegistrationMixin:
             persistent,
             spec_url=spec_url,
             **filter_kwargs,
+            **replace_kwargs,
         )
         self._openapi_integrations.append(openapi)
 
@@ -617,6 +698,7 @@ class RegistrationMixin:
         persistent = kwargs.pop("persistent", True)
         spec_url = kwargs.pop("spec_url", None)
         filter_kwargs = _pop_filter_kwargs(kwargs)
+        replace_kwargs = _forward_allow_replace(kwargs.pop("allow_replace", False))
         OpenAPIIntegration = _import_openapi_integration()
         openapi = OpenAPIIntegration(cast("ToolRegistry", self))
         await openapi.register_openapi_tools_async(
@@ -626,23 +708,26 @@ class RegistrationMixin:
             persistent,
             spec_url=spec_url,
             **filter_kwargs,
+            **replace_kwargs,
         )
         self._openapi_integrations.append(openapi)
 
     def _register_langchain(self, langchain_tool, *, namespace, **kwargs):
         filter_kwargs = _pop_filter_kwargs(kwargs)
+        replace_kwargs = _forward_allow_replace(kwargs.pop("allow_replace", False))
         LangChainIntegration = _import_langchain_integration()
         langchain = LangChainIntegration(cast("ToolRegistry", self))
         return langchain.register_langchain_tools(
-            langchain_tool, namespace, **filter_kwargs
+            langchain_tool, namespace, **filter_kwargs, **replace_kwargs
         )
 
     async def _register_langchain_async(self, langchain_tool, *, namespace, **kwargs):
         filter_kwargs = _pop_filter_kwargs(kwargs)
+        replace_kwargs = _forward_allow_replace(kwargs.pop("allow_replace", False))
         LangChainIntegration = _import_langchain_integration()
         langchain = LangChainIntegration(cast("ToolRegistry", self))
         return await langchain.register_langchain_tools_async(
-            langchain_tool, namespace, **filter_kwargs
+            langchain_tool, namespace, **filter_kwargs, **replace_kwargs
         )
 
     # ------------------------------------------------------------------ #
