@@ -4,6 +4,7 @@ from .admin import (
     ExecutionLog,
     ExecutionLogEntry,
     ExecutionStatus,
+    RequestMetrics,
     TokenAuth,
 )
 from .events import (
@@ -58,6 +59,7 @@ __all__ = [
     "PermissionResult",
     "PermissionRule",
     "PostRegisterHook",
+    "RequestMetrics",
     "ProcessPoolBackend",
     "ProgressReport",
     "ThreadBackend",

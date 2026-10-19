@@ -263,6 +263,7 @@ def _handle_root(request: Request) -> Response:
                 "GET /api/logs",
                 "GET /api/logs/stats",
                 "DELETE /api/logs",
+                "GET /api/metrics",
                 "GET /api/state",
                 "POST /api/state",
                 "GET /api/permissions",
@@ -666,6 +667,16 @@ def _get_log_stats(request: Request) -> Response:
     return _json_response(stats)
 
 
+def _get_metrics(request: Request) -> Response:
+    """Get HTTP request metrics for the admin server."""
+    metrics = _app(request).metrics
+    if metrics is None:
+        return _error_response(
+            503, "Metrics Unavailable", "Request metrics are not initialized"
+        )
+    return _json_response(metrics.snapshot())
+
+
 def _clear_logs(request: Request) -> Response:
     """Clear execution logs."""
     registry = _app(request).registry
@@ -1055,6 +1066,7 @@ def setup_routes(app: "AdminApp") -> None:
     app.get("/api/sources")(_get_sources)
     app.get("/api/logs")(_get_logs)
     app.get("/api/logs/stats")(_get_log_stats)
+    app.get("/api/metrics")(_get_metrics)
     app.delete("/api/logs")(_clear_logs)
     app.get("/api/state")(_export_state)
     app.post("/api/state")(_import_state)
