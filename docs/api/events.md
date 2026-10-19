@@ -21,6 +21,8 @@ An enumeration of all possible change event types that can occur in ToolRegistry
 |-------|-------------|
 | `REGISTER` | A tool was registered |
 | `UNREGISTER` | A tool was unregistered (reserved for future use) |
+| `REPLACE` | A registration replaced a tool already registered under the same name; `metadata["replaced_tool"]` holds the discarded tool |
+| `OVERRIDE` | A registered tool was overridden, an override was restored, or `override(..., create=True)` registered a new tool |
 | `ENABLE` | A tool was enabled |
 | `DISABLE` | A tool was disabled |
 | `REFRESH` | A single tool was refreshed (reserved for future use) |
