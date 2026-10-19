@@ -218,6 +218,12 @@ class RegistrationMixin:
             as a single native tool.  To register all methods instead,
             pass ``source="class"`` explicitly.
 
+            Repeated registration is only a replacement when the resulting
+            ``Tool`` differs from the stored one.  Registering the same
+            ``Tool`` object again — including with the same namespace, where
+            namespace application makes a field-equal copy — emits neither a
+            warning nor a ``REPLACE`` event.
+
         Examples:
             >>> registry.register(my_func)
             >>> registry.register(MyClass, source="class", namespace="math")
@@ -365,7 +371,10 @@ class RegistrationMixin:
         registered_name = registered_tool.name
 
         existing = self._tools.get(registered_name)
-        replaced = existing is not None and existing is not registered_tool
+        # Field equality, not identity: applying a namespace returns a
+        # ``dataclasses.replace()`` copy, so re-registering the same ``Tool``
+        # with the same namespace would otherwise look like a replacement.
+        replaced = existing is not None and existing != registered_tool
         was_overridden = registered_name in self._overrides
 
         self._tools[registered_name] = registered_tool

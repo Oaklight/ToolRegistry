@@ -15,6 +15,7 @@ import pytest
 
 from toolregistry import ToolRegistry
 from toolregistry.events import ChangeEventType
+from toolregistry.tool import Tool
 from toolregistry.utils import HttpClientConfig
 
 try:
@@ -140,6 +141,17 @@ class TestNativeReplacement:
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             reg.register(tool)
+
+        assert not _replacement_warnings(caught)
+
+    def test_reregistering_same_tool_object_with_namespace_is_not_a_replacement(self):
+        reg = ToolRegistry()
+        tool = Tool.from_function(_add_one, name="dup")
+        reg.register(tool, namespace="ns")
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            reg.register(tool, namespace="ns")
 
         assert not _replacement_warnings(caught)
 
