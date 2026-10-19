@@ -21,6 +21,8 @@
 |-------|-------------|
 | `REGISTER` | 工具已注册 |
 | `UNREGISTER` | 工具已注销（预留，暂未使用） |
+| `REPLACE` | 注册时替换了同名已注册的工具；`metadata["replaced_tool"]` 携带被丢弃的工具 |
+| `OVERRIDE` | 已注册的工具被覆盖、覆盖被恢复，或 `override(..., create=True)` 注册了新工具 |
 | `ENABLE` | 工具已启用 |
 | `DISABLE` | 工具已禁用 |
 | `REFRESH` | 单个工具已刷新（预留，暂未使用） |

@@ -23,6 +23,7 @@ hide:
 - **执行提示元数据** (#280)：`ToolMetadata` 新增 `title`、`read_only_hint`、`destructive_hint`、`idempotent_hint` 和 `open_world_hint`。全部默认 `None`（未声明 / 未知），并与显式的 `False` 保持可区分。`ToolMetadata.execution_hints` 返回解析后的 `dict[str, bool]`：由 `ToolTag.READ_ONLY` 推导 `read_only_hint`，由 `ToolTag.DESTRUCTIVE` 推导 `destructive_hint`，并为只读工具补上 `destructive_hint=False`，使其不会与协议默认值互相矛盾。键与 MCP 的 `readOnlyHint` / `destructiveHint` / `idempotentHint` / `openWorldHint` 一一对应；由传输层发出这些字段属于后续工作。同时声明只读与破坏性提示会触发 `UserWarning`，配置加载器也会对 `tool_metadata.<tool>` 下无法识别的键告警。
 - **注册期 `include` / `exclude` 过滤** (#281)：`register()` 与 `register_async()` 现在为 `mcp`、`openapi`、`langchain` 三种来源接受 `include` 或 `exclude`，因此可以在注册时就缩小来源范围，而不必先全量注册再禁用不需要的工具。匹配使用 `fnmatch` 通配符，同时匹配来源的原始名称（MCP 工具名、OpenAPI `operationId`、LangChain 工具名）和加上命名空间之后的注册名。`include` 与 `exclude` 互斥，传给 `native` / `class` 来源会抛出 `ValueError`。被过滤掉的工具根本不会进入注册表，因此对 `discover_tools` 和管理面板都不可见；刷新时会重新应用过滤，被排除的工具既不会重新出现，也不会被报告为已移除。
 - **工具覆盖（override）** (#282)：`override(name, tool, create=False)` 替换已注册的工具并记录被替换的定义，`restore_override(name)` 将其恢复，`list_overrides()` 返回被替换的定义。两个方向都会发出新增的 `ChangeEventType.OVERRIDE` 事件；对未注册的名字使用 `override(..., create=True)` 时还会额外发出 `REGISTER`，因而以注册事件为触发条件的监听者仍能得知工具已经出现。刷新不会触碰被覆盖的名字，并会从远端重新记录被替换的定义，使 `restore_override()` 恢复为远端当前提供的版本；被抑制的名字通过新增的 `RefreshResult.overridden` 元组报告，而不再计入 `unchanged`。对已被覆盖的名字直接调用 `register()` 会丢弃覆盖记录（与注销时的清理对称），而命名空间改写操作（`merge`、`spinoff`、`reduce_namespace`）会让覆盖记录跟随重命名后的工具。
+- **直接注册到已有名称时的替换行为现在可见** (#290)：注册到已存在的名称仍会替换原有工具，但现在会发出 `UserWarning` 指出被丢弃的定义，并发出新增的 `ChangeEventType.REPLACE` 事件，其 `metadata["replaced_tool"]` 携带被替换的工具。给 `register()` / `register_async()` 或各 `register_*_tools` 集成方法传入 `allow_replace=True` 可确认替换并抑制警告；事件仍会发出，观察行为不依赖于该标志。重复注册字段完全相同的 `Tool`（包括同一对象、同一命名空间）不算替换；若被丢弃的工具持有覆盖记录，警告会说明该覆盖记录也一并丢弃。
 
 ### 变更
 
@@ -35,6 +36,7 @@ hide:
 - **不可 JSON 序列化的工具结果现在会被正确编码** (#279)：数据类、Pydantic 模型、提供 `to_dict()` / `tolist()` 的对象、枚举、路径、Decimal、UUID、日期时间、bytes 与集合现在以合法 JSON 上线，而不是 Python 的 `repr()` 文本。顶层与嵌套的投影结果现已一致，集合编码也具备确定性。
 - **进程后端的 pickle 失败会说明后端原因** (#288)：无法从 worker 中 pickle 出来的结果（生成器、lambda、活动连接等）现在以 `UnpicklableResultError` 呈现，明确指出进程后端，并要求返回可 pickle 的值——线程后端跳过了 pickle 步骤，但结果仍需可编码——而不再是 `pickle` 抛出的裸 `TypeError` / `AttributeError`。native（基于类的）工具默认使用进程后端，同样会得到这条提示；MCP 与 OpenAPI 工具不受影响，因为它们的 `natural_backend="inline"` 会强制使用线程后端。
 - **`ToolMetadata.all_tags` 兼容字符串标签**：`update_tool_metadata(tags=["x"])` 不再因 `AttributeError` 中断索引重建。
+- **注册过滤器支持归一化名称并显式报告空结果** (#291)：传给 `include` / `exclude` 的单个字符串现在视为单条模式，而不再按字符迭代，因此 JSON/YAML 中的单项 `include: name` 可以正常工作。模式会匹配四种拼写——来源原始名、加命名空间后的注册名，以及两者的 snake_case 形式——因此 `include=["bash_execute"]` 可以选中以 `bash-execute` 声明的工具。当启用的过滤器使来源注册为空时，MCP 与 OpenAPI 注册会发出 `UserWarning`，并区分 include 的「未匹配任何工具」与 exclude 的「排除了全部工具」；LangChain 每次只注册一个工具，因此保持静默。匹配仍然区分大小写，且归一化拼写会选中所有归一化后同名的工具。
 
 ## [0.18.1] - 2026-09-16
 
