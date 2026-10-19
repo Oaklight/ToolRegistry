@@ -126,6 +126,17 @@ class TestToolNameFilter:
         f = ToolNameFilter(exclude=["bash_execute"])
         assert f.accepts("bash-execute", "hub-bash_execute") is False
 
+    def test_normalized_pattern_selects_both_collisions(self):
+        # Documented ambiguity: the normalized spelling cannot distinguish
+        # two names that normalize to the same string.
+        f = ToolNameFilter(include=["x_y"])
+        assert f.accepts("x-y", "ns-x-y") is True
+        assert f.accepts("x_y", "ns-x_y") is True
+
+    def test_matching_is_case_sensitive(self):
+        f = ToolNameFilter(include=["BASH_EXECUTE"])
+        assert f.accepts("bash-execute", "hub-bash_execute") is False
+
     def test_both_sides_raise(self):
         with pytest.raises(ValueError, match="mutually exclusive"):
             ToolNameFilter(include=["a"], exclude=["b"])
