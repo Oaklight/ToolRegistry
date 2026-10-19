@@ -145,6 +145,7 @@ class LangChainIntegration:
         namespace: bool | str = False,
         include: str | list[str] | None = None,
         exclude: str | list[str] | None = None,
+        allow_replace: bool = False,
     ) -> None:
         """Async implementation to register LangChain tool using asyncio.
 
@@ -161,6 +162,8 @@ class LangChainIntegration:
                 treated as a single pattern.
             exclude: A name, glob pattern, or list of them to drop.
                 Mutually exclusive with *include*.
+            allow_replace: Acknowledge replacing an already-registered tool
+                under the same name without warning.  Defaults to ``False``.
 
         Raises:
             ValueError: If tools argument is invalid, or both *include* and
@@ -175,6 +178,7 @@ class LangChainIntegration:
                 namespace,
                 include=include,
                 exclude=exclude,
+                allow_replace=allow_replace,
             ),
         )
 
@@ -184,6 +188,7 @@ class LangChainIntegration:
         namespace: bool | str = False,
         include: str | list[str] | None = None,
         exclude: str | list[str] | None = None,
+        allow_replace: bool = False,
     ) -> None:
         """Register LangChain tool (synchronous entry point).
 
@@ -196,6 +201,8 @@ class LangChainIntegration:
                 Defaults to False.
             include: A name, glob pattern, or list of them to keep.
             exclude: A name, glob pattern, or list of them to drop.
+            allow_replace: Acknowledge replacing an already-registered tool
+                under the same name without warning.
 
         Raises:
             ValueError: If both *include* and *exclude* are given.
@@ -215,4 +222,8 @@ class LangChainIntegration:
         )
         if not name_filter.accepts(tool.name, langchain_tool.name):
             return
-        self.registry.register(langchain_tool, namespace=resolved_ns)
+        self.registry.register(
+            langchain_tool,
+            namespace=resolved_ns,
+            allow_replace=allow_replace,
+        )

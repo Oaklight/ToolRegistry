@@ -23,6 +23,10 @@ class ChangeEventType(str, Enum):
     Attributes:
         REGISTER: A tool was registered.
         UNREGISTER: A tool was unregistered.
+        REPLACE: A registration discarded a tool that was already
+            registered under the same name.  Emitted in addition to
+            ``REGISTER`` for the replacement.  ``metadata["replaced_tool"]``
+            holds the discarded ``Tool``.
         OVERRIDE: A registered tool was replaced by an override, an
             override was restored, or ``override(..., create=True)``
             registered a tool that did not exist before.
@@ -35,6 +39,7 @@ class ChangeEventType(str, Enum):
 
     REGISTER = "register"
     UNREGISTER = "unregister"
+    REPLACE = "replace"
     OVERRIDE = "override"
     ENABLE = "enable"
     DISABLE = "disable"
