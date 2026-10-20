@@ -18,6 +18,7 @@ hide:
 
 ### 新增
 
+- **声明式配置中的按源过滤器** (#297)：`MCPSource` 与 `OpenAPISource` 新增 `include` / `exclude`，配置条目可以在注册前缩小 MCP 服务器或 OpenAPI 规范的范围，而不是先全量注册。值可以是字符串或 `fnmatch` 通配模式列表，两侧互斥；省略过滤表示不过滤，空列表是显式的空过滤器，不匹配任何工具。源条目或 `auth` 下的未知键现在会抛出 `ConfigError`，并指出条目与违规键，而不再静默忽略。
 - **`call_deferred` 兼容客户端改写过的工具名** (#277)：解析 `_target_tool` 时把 `/` 和 `-` 折叠为 `_` 并忽略大小写，因此被 MCP 客户端改写过的名字（`weather_get_current`）也能命中注册名（`weather-get-current`）。精确的注册拼写优先于归一化匹配，所以归一化后相撞的两个名字仍各自派发到自己。未命中时错误信息会列出最接近的注册名（`Did you mean: datetime-now?`），让模型一次就能自我纠正。
 - **`discover_tools` 输入校验与中文检索** (#278)：`query` 现在带 `minLength: 1` 和非空白的 `pattern`，`top_k` 带 `minimum: 1`；运行时同样会抛出 `ValueError`。一个零依赖的切词器在 BM25 索引前为连续 CJK 文本补充字符二元组，使中文查询能命中中文工具描述，而不是静默返回空。`discover_tools` 的描述现在会说明查询匹配的是工具的哪些文本。
 - **执行提示元数据** (#280)：`ToolMetadata` 新增 `title`、`read_only_hint`、`destructive_hint`、`idempotent_hint` 和 `open_world_hint`。全部默认 `None`（未声明 / 未知），并与显式的 `False` 保持可区分。`ToolMetadata.execution_hints` 返回解析后的 `dict[str, bool]`：由 `ToolTag.READ_ONLY` 推导 `read_only_hint`，由 `ToolTag.DESTRUCTIVE` 推导 `destructive_hint`，并为只读工具补上 `destructive_hint=False`，使其不会与协议默认值互相矛盾。键与 MCP 的 `readOnlyHint` / `destructiveHint` / `idempotentHint` / `openWorldHint` 一一对应；由传输层发出这些字段属于后续工作。同时声明只读与破坏性提示会触发 `UserWarning`，配置加载器也会对 `tool_metadata.<tool>` 下无法识别的键告警。
@@ -27,11 +28,18 @@ hide:
 
 ### 变更
 
+- **注册/注销时延迟重建发现索引** (#289)：`REGISTER` / `UNREGISTER` 现在只把 BM25 索引标记为陈旧，而不是逐事件重建，与既有的 `ENABLE` / `DISABLE` / `METADATA_UPDATE` 路径一致。批量注册只需在下一次 `discover()` 时重建一次；延迟工具描述仍会立即刷新。
+- **配置加载器拒绝未知键** (#297)（**行为变更**）：工具源条目或 `auth` 下的拼写错误现在会抛出 `ConfigError`，并给出条目索引与合法键集合。依赖被静默忽略的键的配置将在加载时失败，而不是部分生效。
+- **`name_sep` 作用于所有注册来源** (#302)：原生函数与类方法现在也会遵循 `ToolRegistry(name_sep=".")`，与 MCP、OpenAPI、LangChain 一致。`Tool.from_function(..., sep=...)` 与新增的只读属性 `ToolRegistry.name_sep` 暴露同一规则。默认 `-` 行为不变。
 - **无 JSON 投影的工具结果现在会显式失败** (**破坏性变更**) (#279)：无法编码为 JSON 的结果不再被 `str()` 静默转换，而是抛出 `TypeError`，指出工具名与类型，并提示修复方式（`to_dict()`、`model_dump()`、`tolist()`，或返回 `str`）。`invoke()` 会把它呈现为 `ErrorResult`，因此公开的「不抛异常」契约不变。
 - **进程后端的结果改由父进程编码** (#279)：进程 worker 不再对其结果做字符串化，因此编码器（以及上述抛错行为）现在在默认执行模式下同样生效，而不再只作用于线程后端。跨进程边界返回的工具结果因此必须可 pickle。
 
 ### 修复
 
+- **替换警告不再跳过钩子或事件** (#301)：替换时的 `UserWarning` 现在在注册后钩子与 `REGISTER` / `REPLACE` 事件之后发出。当警告被配置为错误时，异常发生时注册表已处于一致状态，且所有监听者都已观察到变更。
+- **过滤警告报告调用者的文件与行号** (#300)：`ToolNameFilter.warn_if_all_filtered_out()` 与替换警告改用调用者归因助手。`AsyncRuntime.run_sync()` 会把同步调用者的位置带入协程，因此同步桥不再指向集成内部；执行器线程路径会回退到直接调用者。
+- **远端注册与刷新在命名空间名称上保持一致** (#295)：两条路径都使用注册表分隔符推导注册键。使用 `name_sep="."` 时，注册期匹配的 `include` 不会在刷新时失配，刷新也不会再产生 `gh.gh-list_issues` 这类双重前缀。
+- **远端过滤在构造工具之前执行** (#296)：MCP、OpenAPI 与 LangChain 在构造包装器之前，对原始名与限定名应用 `include` / `exclude`。被显式排除的畸形操作或 schema 提取失败不再中断整个来源。
 - **`discover_tools` 不再返回已禁用的工具** (#276)：BM25 索引只收录已启用的工具，与 `get_deferred_summaries()` 保持一致，精确匹配路径也会拒绝已禁用的工具。`ENABLE` / `DISABLE` / `METADATA_UPDATE` 改为把索引标记为陈旧，而不是逐事件重建，因此批量禁用或应用 profile 只需在下一次 `discover()` 时重建一次。这同时修复了每文档 `deferred` 标志陈旧的问题——此前在 `update_tool_metadata(defer=True)` 之后，`discover()` 会漏掉 `schema` 并报告 `deferred: false`，而 `get_deferred_summaries()` 却列出该工具。
 - **不可 JSON 序列化的工具结果现在会被正确编码** (#279)：数据类、Pydantic 模型、提供 `to_dict()` / `tolist()` 的对象、枚举、路径、Decimal、UUID、日期时间、bytes 与集合现在以合法 JSON 上线，而不是 Python 的 `repr()` 文本。顶层与嵌套的投影结果现已一致，集合编码也具备确定性。
 - **进程后端的 pickle 失败会说明后端原因** (#288)：无法从 worker 中 pickle 出来的结果（生成器、lambda、活动连接等）现在以 `UnpicklableResultError` 呈现，明确指出进程后端，并要求返回可 pickle 的值——线程后端跳过了 pickle 步骤，但结果仍需可编码——而不再是 `pickle` 抛出的裸 `TypeError` / `AttributeError`。native（基于类的）工具默认使用进程后端，同样会得到这条提示；MCP 与 OpenAPI 工具不受影响，因为它们的 `natural_backend="inline"` 会强制使用线程后端。

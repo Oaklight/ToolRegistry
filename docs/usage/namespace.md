@@ -39,6 +39,24 @@ print(tool.method_name)     # 'multiply'
 print(tool.qualified_name)  # 'math_ops-multiply'
 ```
 
+### 注册表级分隔符（`name_sep`）
+
+`ToolRegistry(name_sep=".")` 会让该分隔符作用于所有注册来源——原生函数、类方法、
+MCP、OpenAPI 与 LangChain。可通过 `registry.name_sep` 读取。
+`Tool.from_function(..., sep=".")` 在直接构造工具时应用同一规则。
+
+```python
+from toolregistry import ToolRegistry
+
+registry = ToolRegistry(name_sep=".")
+registry.register(multiply, namespace="math_ops")
+
+print(registry.get_available_tools())  # ['math_ops.multiply']
+```
+
+注册表键始终是 `tool.name`。`tool.qualified_name` 仍然是展示用的便捷属性，
+始终使用 `-` 连接。
+
 ### 关键特性
 
 - **标准化**：工具名称使用 `normalize_tool_name` 函数进行规范化，将它们转换为 snake_case 并删除特殊字符、重复字符串和空白。

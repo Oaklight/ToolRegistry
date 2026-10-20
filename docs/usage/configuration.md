@@ -150,6 +150,8 @@ tools:
 | `headers` | dict | 否 | 网络传输的 HTTP 头 |
 | `namespace` | string | 否 | 注册工具的命名空间 |
 | `persistent` | bool | 否 | 保持连接（默认：`true`） |
+| `include` | string 或 list | 否 | 保留的名称或通配模式；与 `exclude` 互斥 |
+| `exclude` | string 或 list | 否 | 排除的名称或通配模式；与 `include` 互斥 |
 | `enabled` | bool | 否 | 按源启用/禁用（默认：`true`） |
 
 !!! tip "`http` 别名"
@@ -164,6 +166,8 @@ tools:
 | `namespace` | string | 否 | 注册工具的命名空间 |
 | `auth` | object | 否 | 认证配置 |
 | `base_url` | string | 否 | 覆盖规范中的 `servers[0].url` |
+| `include` | string 或 list | 否 | 保留的名称或通配模式；与 `exclude` 互斥 |
+| `exclude` | string 或 list | 否 | 排除的名称或通配模式；与 `include` 互斥 |
 | `enabled` | bool | 否 | 按源启用/禁用（默认：`true`） |
 
 #### 认证配置
@@ -225,6 +229,32 @@ tools:
     enabled: false  # 等 API 密钥配置好再启用
 ```
 
+### 按源工具过滤
+
+`mcp` 与 `openapi` 源接受 `include` 或 `exclude`，会转发给注册期过滤器。两者互斥。
+
+```yaml
+tools:
+  - type: mcp
+    transport: sse
+    url: http://localhost:8080/sse
+    namespace: gh
+    include: ["gh.*"]          # 模式列表
+
+  - type: openapi
+    url: https://api.example.com/openapi.json
+    namespace: api
+    exclude: admin_*           # 单个字符串即单条模式
+```
+
+模式是 `fnmatch` 通配符，会匹配源的原始名称、加命名空间后的注册名，以及两者的
+snake_case 形式。省略或设为 `null` 表示不过滤；空列表（`include: []`）是显式的
+空过滤器，不会匹配任何工具，因此该源不会注册任何工具。过滤在构造工具包装器之前
+执行，因此被排除的畸形操作不会中断整个源；刷新时会重新应用过滤。
+
+源条目（或 `auth`）下的未知键会在加载时以 `ConfigError` 拒绝，并在错误中指明
+条目与违规键，而不是被静默忽略。
+
 ## 解析类型
 
 `load_config()` 返回 `ToolConfig` 冻结 dataclass：
@@ -244,5 +274,5 @@ class ToolConfig:
 ## 错误处理
 
 - **`FileNotFoundError`** — 配置文件不存在
-- **`ConfigError`** — 语义验证错误（无效的模式、缺少必填字段、未知类型、未设置的环境变量）
+- **`ConfigError`** — 语义验证错误（无效的模式、缺少必填字段、未知类型、无法识别的源或 `auth` 键、`include`/`exclude` 同时出现、未设置的环境变量）
 - 解析器原生错误（`JSONCDecodeError`、`YAMLError`）用于语法问题

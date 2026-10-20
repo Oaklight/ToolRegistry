@@ -125,7 +125,14 @@ print(tool.qualified_name)  # Output: "math_ops-multiply"
 tool2 = Tool.from_function(multiply, namespace="math_ops", method_name="mul")
 print(tool2.name)            # Output: "math_ops-mul"
 print(tool2.method_name)     # Output: "mul"
+
+# 直接构造时使用与注册表一致的分隔符
+tool3 = Tool.from_function(multiply, namespace="math_ops", sep=".")
+print(tool3.name)            # Output: "math_ops.multiply"
 ```
+
+当注册表使用 `ToolRegistry(name_sep=".")` 时，把同一个分隔符传给
+`Tool.from_function(..., sep=".")`，构造出的名称才会与注册表键一致。
 
 ### 更新命名空间
 
