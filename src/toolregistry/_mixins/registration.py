@@ -384,16 +384,6 @@ class RegistrationMixin:
         # so the displaced record (and its restore path) no longer applies.
         self._overrides.pop(registered_name, None)
 
-        if replaced and not allow_replace:
-            replacement_warning = (
-                f"Tool {registered_name!r} was already registered; the "
-                "previous definition was discarded. Pass allow_replace=True "
-                "to acknowledge replacement."
-            )
-            if was_overridden:
-                replacement_warning += " The recorded override was also discarded."
-            warnings.warn(replacement_warning, UserWarning, stacklevel=3)
-
         self._run_post_register_hooks(registered_name, registered_tool)
 
         self._emit_change(
@@ -411,6 +401,20 @@ class RegistrationMixin:
                     metadata={"replaced_tool": existing},
                 )
             )
+
+        # Emit the warning last.  When warnings are configured as errors
+        # (e.g. ``-W error``), the exception must not skip the post-register
+        # hook or the change events above: listeners would otherwise be left
+        # with the old tool in their caches and no event to correct it.
+        if replaced and not allow_replace:
+            replacement_warning = (
+                f"Tool {registered_name!r} was already registered; the "
+                "previous definition was discarded. Pass allow_replace=True "
+                "to acknowledge replacement."
+            )
+            if was_overridden:
+                replacement_warning += " The recorded override was also discarded."
+            warnings.warn(replacement_warning, UserWarning, stacklevel=3)
 
         return tool_or_func
 
