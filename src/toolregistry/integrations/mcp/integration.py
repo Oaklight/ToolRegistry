@@ -14,6 +14,7 @@ from mcp.types import (
 from mcp.types import Tool as ToolSpec
 
 from ..._vendor.structlog import get_logger
+from ..._names import NameSeparator, qualified_tool_name
 from ._compat import get_field
 from ...events import ChangeEvent, ChangeEventType, RefreshResult
 from ...schema_diff import SchemaChangeKind, classify_tool_change
@@ -229,6 +230,7 @@ class MCPTool(Tool):
         tool_spec: ToolSpec,
         connection: MCPConnectionManager,
         namespace: str | None = None,
+        sep: NameSeparator = "-",
     ) -> "MCPTool":
         """Create an MCPTool instance from a JSON representation.
 
@@ -236,7 +238,10 @@ class MCPTool(Tool):
             tool_spec (ToolSpec): The JSON representation of the tool.
             connection: Shared connection manager for the MCP server.
             namespace (Optional[str]): An optional namespace to prefix the tool name.
-                If provided, the tool name will be formatted as "{namespace}.{name}".
+                If provided, the tool name will be formatted as
+                ``{namespace}{sep}{name}``.
+            sep: Separator between namespace and tool name.  Pass the
+                registry's ``name_sep`` so the stored key matches.
 
         Returns:
             MCPTool: A new instance of MCPTool configured with the provided parameters.
@@ -281,7 +286,7 @@ class MCPTool(Tool):
         )
 
         if namespace:
-            tool = tool.update_namespace(namespace)
+            tool = tool.update_namespace(namespace, sep=sep)
 
         return tool
 
@@ -368,15 +373,22 @@ class MCPIntegration:
 
             tools_response: list[ToolSpec] = await client.list_tools()
 
+            sep = self.registry.name_sep
             registered = 0
             for tool_spec in tools_response:
+                raw_name = tool_spec.name
+                candidate_name = qualified_tool_name(raw_name, resolved_ns, sep)
+                # Filter on the final name before constructing the wrapper.
+                # An excluded tool must not pay construction cost or be able
+                # to abort the whole source.
+                if not self._filter.accepts(raw_name, candidate_name):
+                    continue
                 mcp_tool = MCPTool.from_tool_json(
                     tool_spec=tool_spec,
                     connection=connection,
                     namespace=resolved_ns,
+                    sep=sep,
                 )
-                if not self._filter.accepts(tool_spec.name, mcp_tool.name):
-                    continue
                 self.registry.register(
                     mcp_tool,
                     namespace=resolved_ns,
@@ -570,23 +582,24 @@ class MCPIntegration:
         async with MCPClient(self._transport, headers=self._headers) as client:
             tools_response: list[ToolSpec] = await client.list_tools()
 
-        sep = getattr(self.registry, "_name_sep", "-")
+        sep = self.registry.name_sep
 
         # Build candidate tools from the fresh response.  The stored
-        # registration filter is applied here so excluded tools stay out of
-        # the diff and are never reported as added or removed.
+        # registration filter is applied to the same final name registration
+        # used, before construction, so excluded tools stay out of the diff
+        # and are never reported as added or removed.
         new_tools: dict[str, MCPTool] = {}
         for tool_spec in tools_response:
+            raw_name = tool_spec.name
+            candidate_name = qualified_tool_name(raw_name, self._resolved_ns, sep)
+            if not self._filter.accepts(raw_name, candidate_name):
+                continue
             candidate = MCPTool.from_tool_json(
                 tool_spec=tool_spec,
                 connection=connection,
                 namespace=self._resolved_ns,
+                sep=sep,
             )
-            candidate = candidate.update_namespace(
-                self._resolved_ns, force=True, sep=sep
-            )
-            if not self._filter.accepts(tool_spec.name, candidate.name):
-                continue
             new_tools[candidate.name] = candidate
 
         (

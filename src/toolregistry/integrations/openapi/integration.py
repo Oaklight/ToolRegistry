@@ -5,6 +5,7 @@ from typing import Any
 from ...events import ChangeEvent, ChangeEventType, RefreshResult
 from ...schema_diff import SchemaChangeKind, classify_tool_change
 
+from ..._names import NameSeparator, qualified_tool_name
 from ...tool import Tool, ToolMetadata
 from ...tool_registry import ToolRegistry
 from ...tool_wrapper import BaseToolWrapper
@@ -150,6 +151,7 @@ class OpenAPITool(Tool):
         spec: dict[str, Any],
         namespace: str | None = None,
         persistent: bool = True,
+        sep: NameSeparator = "-",
     ) -> "OpenAPITool":
         """Create an OpenAPITool instance from an OpenAPI specification.
 
@@ -159,6 +161,9 @@ class OpenAPITool(Tool):
             method (str): HTTP method.
             spec (Dict[str, Any]): The OpenAPI operation specification.
             namespace (Optional[str]): Optional namespace to prefix tool names with.
+            persistent: Whether to reuse a persistent HTTP client.
+            sep: Separator between namespace and tool name.  Pass the
+                registry's ``name_sep`` so the stored key matches.
 
         Returns:
             OpenAPITool: An instance of OpenAPITool configured for the specified operation.
@@ -225,7 +230,7 @@ class OpenAPITool(Tool):
         )
 
         if namespace:
-            tool = tool.update_namespace(namespace)
+            tool = tool.update_namespace(namespace, sep=sep)
 
         return tool
 
@@ -298,6 +303,7 @@ class OpenAPIIntegration:
         candidates = 0
         registered = 0
         self._allow_replace = allow_replace
+        sep = self.registry.name_sep
         try:
             self._client_configs.append(client_config)
             self._client_config = client_config
@@ -320,6 +326,15 @@ class OpenAPIIntegration:
                         continue
                     candidates += 1
 
+                    # Filter on the final name before constructing the tool.
+                    # An excluded operation must not pay construction cost or
+                    # be able to abort the whole source (e.g. a malformed
+                    # parameter that would raise during schema extraction).
+                    raw_name = _operation_id(spec, path, method)
+                    candidate_name = qualified_tool_name(raw_name, resolved_ns, sep)
+                    if not self._filter.accepts(raw_name, candidate_name):
+                        continue
+
                     open_api_tool = OpenAPITool.from_openapi_spec(
                         client_config=client_config,
                         path=path,
@@ -327,10 +342,8 @@ class OpenAPIIntegration:
                         spec=spec,
                         namespace=resolved_ns,
                         persistent=persistent,
+                        sep=sep,
                     )
-                    raw_name = _operation_id(spec, path, method)
-                    if not self._filter.accepts(raw_name, open_api_tool.name):
-                        continue
                     self.registry.register(
                         open_api_tool,
                         namespace=resolved_ns,
@@ -431,11 +444,15 @@ class OpenAPIIntegration:
         stay out of the refresh diff and are never reported as added or
         removed.
         """
-        sep = getattr(self.registry, "_name_sep", "-")
+        sep = self.registry.name_sep
         tools: dict[str, OpenAPITool] = {}
         for path, methods in openapi_spec.get("paths", {}).items():
             for method, spec in methods.items():
                 if method.lower() not in ["get", "post", "put", "delete"]:
+                    continue
+                raw_name = _operation_id(spec, path, method)
+                candidate_name = qualified_tool_name(raw_name, self._resolved_ns, sep)
+                if not self._filter.accepts(raw_name, candidate_name):
                     continue
                 candidate = OpenAPITool.from_openapi_spec(
                     client_config=client_config,
@@ -444,13 +461,8 @@ class OpenAPIIntegration:
                     spec=spec,
                     namespace=self._resolved_ns,
                     persistent=self._persistent,
+                    sep=sep,
                 )
-                candidate = candidate.update_namespace(
-                    self._resolved_ns, force=True, sep=sep
-                )
-                raw_name = _operation_id(spec, path, method)
-                if not self._filter.accepts(raw_name, candidate.name):
-                    continue
                 tools[candidate.name] = candidate
         return tools
 

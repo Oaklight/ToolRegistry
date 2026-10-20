@@ -5,6 +5,7 @@ from typing import Any
 from langchain_core.tools import BaseTool as LCBaseTool
 
 from ..._vendor.structlog import get_logger
+from ..._names import NameSeparator, qualified_tool_name
 from ...tool import Tool, ToolMetadata
 from ...tool_registry import ToolRegistry
 from ...tool_wrapper import BaseToolWrapper
@@ -90,13 +91,17 @@ class LangChainTool(Tool):
         cls,
         tool: LCBaseTool,
         namespace: str | None = None,
+        sep: NameSeparator = "-",
     ) -> "LangChainTool":
         """Create a LangChainTool instance from a LangChain LCBaseTool.
 
         Args:
             tool (LCBaseTool): The LangChain tool instance.
             namespace (Optional[str]): An optional namespace to prefix the tool name.
-                If provided, the tool name will be formatted as "{namespace}.{name}".
+                If provided, the tool name will be formatted as
+                ``{namespace}{sep}{name}``.
+            sep: Separator between namespace and tool name.  Pass the
+                registry's ``name_sep`` so the stored key matches.
 
         Returns:
             LangChainTool: A new instance of LangChainTool.
@@ -124,7 +129,7 @@ class LangChainTool(Tool):
         )
 
         if namespace:
-            tool_instance = tool_instance.update_namespace(namespace)
+            tool_instance = tool_instance.update_namespace(namespace, sep=sep)
 
         return tool_instance
 
@@ -216,12 +221,19 @@ class LangChainIntegration:
         else:
             resolved_ns = None
 
+        # Filter on the final name before construction: schema extraction
+        # can raise, and an explicitly excluded tool must not abort the call.
+        sep = self.registry.name_sep
+        raw_name = tool.name
+        candidate_name = qualified_tool_name(raw_name, resolved_ns, sep)
+        if not name_filter.accepts(raw_name, candidate_name):
+            return
+
         langchain_tool = LangChainTool.from_langchain_tool(
             tool=tool,
             namespace=resolved_ns,
+            sep=sep,
         )
-        if not name_filter.accepts(tool.name, langchain_tool.name):
-            return
         self.registry.register(
             langchain_tool,
             namespace=resolved_ns,
