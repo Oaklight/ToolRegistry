@@ -30,6 +30,34 @@ _TRANSPORT_ALIASES: dict[str, str] = {
     "http": "streamable-http",
 }
 
+#: Keys accepted by every tool source entry.
+_COMMON_SOURCE_KEYS: frozenset[str] = frozenset(
+    {"type", "namespace", "enabled", "tags"}
+)
+
+#: Keys accepted per source type.  Anything outside these sets is rejected:
+#: a mistyped key used to be dropped silently, so a requested filter or
+#: transport option could be ignored without any signal.
+_SOURCE_KEYS: dict[str, frozenset[str]] = {
+    "python": _COMMON_SOURCE_KEYS | {"class", "module", "kwargs"},
+    "mcp": _COMMON_SOURCE_KEYS
+    | {
+        "transport",
+        "command",
+        "env",
+        "url",
+        "headers",
+        "persistent",
+        "include",
+        "exclude",
+    },
+    "openapi": _COMMON_SOURCE_KEYS | {"url", "auth", "base_url", "include", "exclude"},
+}
+
+_KNOWN_AUTH_KEYS: frozenset[str] = frozenset(
+    {"type", "token", "token_env", "header_name"}
+)
+
 
 def load_config(path: str | Path) -> ToolConfig:
     """Load and parse a tool configuration file.
@@ -317,8 +345,98 @@ def _optional_bool(entry: dict[str, Any], tool_name: str, key: str) -> bool | No
 # --- tool source dispatch ----------------------------------------------------
 
 
+def _validate_source_keys(entry: dict[str, Any], index: int, tool_type: str) -> None:
+    """Reject unrecognised keys on a tool source entry.
+
+    Args:
+        entry: Raw mapping for one tool entry.
+        index: Entry index, for the error message.
+        tool_type: Inferred source type.
+
+    Raises:
+        ConfigError: If the entry contains keys outside the type's schema.
+    """
+    known = _SOURCE_KEYS.get(tool_type)
+    if known is None:
+        # The dispatcher reports unknown types with its own message.
+        return
+    unknown = sorted(set(entry) - known)
+    if unknown:
+        rendered = ", ".join(repr(key) for key in unknown)
+        raise ConfigError(
+            f"Tool entry at index {index} (type={tool_type}): "
+            f"unrecognised key(s): {rendered}. "
+            f"Valid keys: {', '.join(sorted(known))}."
+        )
+
+
+def _parse_name_patterns(
+    entry: dict[str, Any],
+    index: int,
+    tool_type: str,
+) -> tuple[tuple[str, ...] | None, tuple[str, ...] | None]:
+    """Parse ``include`` / ``exclude`` on a source entry.
+
+    Args:
+        entry: Raw mapping for one tool entry.
+        index: Entry index, for error messages.
+        tool_type: Source type, for error messages.
+
+    Returns:
+        ``(include, exclude)``.  ``None`` means the side was not specified;
+        an empty tuple is an explicit empty list and matches nothing.
+
+    Raises:
+        ConfigError: If both sides are set, or a value is not a string or
+            list of strings.
+    """
+    include = (
+        _parse_pattern_list(entry["include"], "include", index, tool_type)
+        if "include" in entry
+        else None
+    )
+    exclude = (
+        _parse_pattern_list(entry["exclude"], "exclude", index, tool_type)
+        if "exclude" in entry
+        else None
+    )
+    if include is not None and exclude is not None:
+        raise ConfigError(
+            f"Tool entry at index {index} (type={tool_type}): "
+            "'include' and 'exclude' are mutually exclusive."
+        )
+    return include, exclude
+
+
+def _parse_pattern_list(
+    value: Any,
+    key: str,
+    index: int,
+    tool_type: str,
+) -> tuple[str, ...] | None:
+    """Normalise a filter value to a tuple of patterns."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return (value,)
+    if not isinstance(value, list):
+        raise ConfigError(
+            f"Tool entry at index {index} (type={tool_type}): "
+            f"'{key}' must be a string or a list of strings, "
+            f"got {type(value).__name__}."
+        )
+    for i, item in enumerate(value):
+        if not isinstance(item, str):
+            raise ConfigError(
+                f"Tool entry at index {index} (type={tool_type}): "
+                f"'{key}[{i}]' must be a string, got {type(item).__name__}."
+            )
+    return tuple(value)
+
+
 def _build_tool_source(entry: dict[str, Any], index: int) -> ToolSource:
     tool_type = _infer_type(entry, index)
+    _validate_source_keys(entry, index, tool_type)
     namespace = entry.get("namespace")
     enabled = entry.get("enabled", True)
 
@@ -425,6 +543,8 @@ def _build_mcp_source(
         )
     tags = tuple(str(t) for t in raw_tags)
 
+    include, exclude = _parse_name_patterns(entry, index, "mcp")
+
     if transport == "stdio":
         command = entry.get("command")
         if not command:
@@ -442,6 +562,8 @@ def _build_mcp_source(
             env=entry.get("env"),
             persistent=entry.get("persistent", True),
             tags=tags,
+            include=include,
+            exclude=exclude,
         )
 
     # sse or streamable-http
@@ -459,6 +581,8 @@ def _build_mcp_source(
         headers=entry.get("headers"),
         persistent=entry.get("persistent", True),
         tags=tags,
+        include=include,
+        exclude=exclude,
     )
 
 
@@ -494,6 +618,8 @@ def _build_openapi_source(
         )
     tags = tuple(str(t) for t in raw_tags)
 
+    include, exclude = _parse_name_patterns(entry, index, "openapi")
+
     return OpenAPISource(
         url=url,
         namespace=namespace,
@@ -501,6 +627,8 @@ def _build_openapi_source(
         auth=auth,
         base_url=entry.get("base_url"),
         tags=tags,
+        include=include,
+        exclude=exclude,
     )
 
 
@@ -508,6 +636,15 @@ def _build_openapi_source(
 
 
 def _build_auth(data: dict[str, Any], tool_index: int) -> AuthConfig:
+    unknown = sorted(set(data) - _KNOWN_AUTH_KEYS)
+    if unknown:
+        rendered = ", ".join(repr(key) for key in unknown)
+        raise ConfigError(
+            f"Tool entry at index {tool_index} (type=openapi): "
+            f"unrecognised key(s) under 'auth': {rendered}. "
+            f"Valid keys: {', '.join(sorted(_KNOWN_AUTH_KEYS))}."
+        )
+
     auth_type = data.get("type", "bearer")
     token: str | None = None
     token_env = data.get("token_env")
