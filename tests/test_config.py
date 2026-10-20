@@ -1276,10 +1276,28 @@ tools:
     include: []
 """,
         )
-        source = load_config(path).tools[0]
+        with pytest.warns(UserWarning, match="will register no tools"):
+            source = load_config(path).tools[0]
         assert isinstance(source, MCPSource)
         assert source.include == ()
         assert source.to_dict()["include"] == []
+
+    def test_mcp_stdio_filters_are_forwarded(self, tmp_path: Path) -> None:
+        path = _write(
+            tmp_path,
+            "filters.yaml",
+            """
+tools:
+  - type: mcp
+    transport: stdio
+    command: ["echo"]
+    exclude: ["x"]
+""",
+        )
+        source = load_config(path).tools[0]
+        assert isinstance(source, MCPSource)
+        assert source.exclude == ("x",)
+        assert source.include is None
 
     def test_openapi_exclude(self, tmp_path: Path) -> None:
         path = _write(
