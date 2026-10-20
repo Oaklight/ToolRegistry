@@ -428,6 +428,47 @@ class TestToolDiscoveryIntegration:
         assert len(results) > 0
         assert results[0]["name"] == "second"
 
+    def test_register_unregister_defer_index_rebuild(self, monkeypatch):
+        """REGISTER/UNREGISTER mark the index dirty instead of rebuilding."""
+        registry = ToolRegistry()
+        registry.enable_tool_discovery()
+        discoverer = registry._tool_discovery
+        assert discoverer is not None
+
+        rebuilds: list[int] = []
+        original = discoverer.rebuild_index
+
+        def counting_rebuild() -> None:
+            rebuilds.append(1)
+            original()
+
+        monkeypatch.setattr(discoverer, "rebuild_index", counting_rebuild)
+
+        def make_tool(index: int):
+            def tool(x: int) -> int:
+                """A searchable tool."""
+                return x
+
+            tool.__name__ = f"bulk_tool_{index}"
+            return tool
+
+        for i in range(50):
+            registry.register(make_tool(i))
+
+        assert rebuilds == []
+        assert discoverer._index_dirty is True
+
+        discoverer.discover("bulk_tool_7")
+        assert len(rebuilds) == 1
+        assert discoverer._index_dirty is False
+
+        registry._unregister("bulk_tool_7")
+        assert len(rebuilds) == 1
+        assert discoverer._index_dirty is True
+
+        discoverer.discover("bulk_tool_8")
+        assert len(rebuilds) == 2
+
     def test_tool_discovery_init_param(self):
         """ToolRegistry(tool_discovery=True) should enable discovery."""
         registry = ToolRegistry(tool_discovery=True)
