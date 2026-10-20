@@ -124,6 +124,30 @@ class TestNativeReplacement:
         assert replaced.tool_name == "dup"
         assert replaced.metadata["replaced_tool"] is not None
 
+    def test_warning_as_error_still_runs_hooks_and_emits_events(self):
+        """A warning configured as an error must not skip observable work."""
+        reg = ToolRegistry()
+        reg.register(_add_one, name="dup")
+        events = []
+        hooks: list[str] = []
+        reg.on_change(events.append)
+        reg.add_post_register_hook(lambda name, tool, registry: hooks.append(name))
+        events.clear()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            with pytest.raises(UserWarning, match="already registered"):
+                reg.register(_add_two, name="dup")
+
+        # The swap happened before the warning, so listeners and hooks must
+        # have observed it even though the warning aborted the call.
+        assert reg.invoke("dup", {}).result == "2"
+        assert [event.event_type for event in events] == [
+            ChangeEventType.REGISTER,
+            ChangeEventType.REPLACE,
+        ]
+        assert hooks == ["dup"]
+
     def test_no_replace_event_without_replacement(self):
         reg = ToolRegistry()
         events = []
