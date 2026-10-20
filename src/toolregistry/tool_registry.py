@@ -317,20 +317,15 @@ class ToolRegistry(
                 ChangeEventType.REGISTER,
                 ChangeEventType.UNREGISTER,
                 ChangeEventType.OVERRIDE,
-            }:
-                discoverer.rebuild_index()
-            elif event.event_type in {
                 ChangeEventType.ENABLE,
                 ChangeEventType.DISABLE,
                 ChangeEventType.METADATA_UPDATE,
             }:
-                # Enable/disable flips the set of searchable tools (including
-                # namespace-level disables, since is_enabled() checks the
-                # tool's namespace); metadata updates change indexed fields
-                # (search_hint, tags) and the per-document deferred flag.
-                # Mark the index stale instead of rebuilding per event, so a
-                # bulk change (disable_by_tags, profile application) pays one
-                # rebuild at the next discover() rather than one per event.
+                # Every event that changes the searchable set or an indexed
+                # field marks the index stale instead of rebuilding per
+                # event.  A bulk change (registering a remote source,
+                # disable_by_tags, profile application) then pays one rebuild
+                # at the next discover() rather than one per event.
                 # Deferred descriptions are refreshed eagerly because the
                 # discover_tools description is read before any call.
                 discoverer._mark_dirty()
