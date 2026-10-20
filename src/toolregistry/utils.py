@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Literal, overload
 
 from ._vendor.httpclient import AsyncClient, Client
+from ._warnings import warn_at_user_frame
 
 
 def generate_invocation_id(prefix: Literal["bat", "ptc", "sig"] = "sig") -> str:
@@ -468,10 +469,11 @@ class ToolNameFilter:
             detail = f"include={self.include!r} matched none of {total} tool(s)"
         else:
             detail = f"exclude={self.exclude!r} excluded all {total} tool(s)"
-        warnings.warn(
+        # Attribute the warning to the caller rather than the integration
+        # internals; a fixed stacklevel cannot follow the async bridge.
+        warn_at_user_frame(
             f"{source} registration filter {detail}; nothing was registered.",
             UserWarning,
-            stacklevel=2,
         )
 
 

@@ -450,3 +450,65 @@ class TestFilterValidation:
         registry = ToolRegistry()
         with pytest.raises(ValueError, match="not supported for source='native'"):
             await registry.register_async(lambda x: x, exclude=["a"])
+
+
+# ---------------------------------------------------------------------------
+# Warning attribution (#300)
+# ---------------------------------------------------------------------------
+
+
+def _filter_warnings(caught):
+    return [w for w in caught if "nothing was registered" in str(w.message)]
+
+
+@requires_mcp
+class TestWarningAttribution:
+    """Filter warnings should point at the caller, not at library internals."""
+
+    def test_direct_helper_call_points_at_test_file(self):
+        f = ToolNameFilter(include=["nope"])
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            f.warn_if_all_filtered_out(total=1, accepted=0, source="MCP")
+
+        matches = _filter_warnings(caught)
+        assert len(matches) == 1
+        assert matches[0].filename == __file__
+
+    def test_mcp_sync_entry_point_points_at_test_file(self):
+        integration = MCPIntegration(ToolRegistry())
+        with _patch_mcp_client([_MockToolSpec("add")]):
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                integration.register_mcp_tools("http://mock-mcp:8000", include=["nope"])
+
+        matches = _filter_warnings(caught)
+        assert len(matches) == 1
+        assert matches[0].filename == __file__
+
+    def test_registry_async_bridge_points_at_test_file(self):
+        registry = ToolRegistry()
+        with _patch_mcp_client([_MockToolSpec("add")]):
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                registry.register(
+                    "http://mock-mcp:8000", source="mcp", include=["nope"]
+                )
+
+        matches = _filter_warnings(caught)
+        assert len(matches) == 1
+        assert matches[0].filename == __file__
+
+    @pytest.mark.asyncio
+    async def test_async_entry_point_points_at_test_file(self):
+        registry = ToolRegistry()
+        with _patch_mcp_client([_MockToolSpec("add")]):
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                await registry.register_async(
+                    "http://mock-mcp:8000", source="mcp", include=["nope"]
+                )
+
+        matches = _filter_warnings(caught)
+        assert len(matches) == 1
+        assert matches[0].filename == __file__

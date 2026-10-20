@@ -11,6 +11,7 @@ from collections.abc import Callable
 from ..events import ChangeEvent, ChangeEventType, RefreshResult
 from ..tool import Tool
 from ..utils import HttpClientConfig, normalize_tool_name
+from .._warnings import warn_at_user_frame
 
 if TYPE_CHECKING:
     from ..tool_registry import ToolRegistry
@@ -414,7 +415,7 @@ class RegistrationMixin:
             )
             if was_overridden:
                 replacement_warning += " The recorded override was also discarded."
-            warnings.warn(replacement_warning, UserWarning, stacklevel=3)
+            warn_at_user_frame(replacement_warning, UserWarning)
 
         return tool_or_func
 
