@@ -40,6 +40,18 @@ def _add_two() -> int:
     return 2
 
 
+class _TwoMethodTool:
+    """Class source with two methods, for replacement attribution."""
+
+    def alpha(self) -> int:
+        """Return alpha."""
+        return 1
+
+    def beta(self) -> int:
+        """Return beta."""
+        return 2
+
+
 def _replacement_warnings(caught):
     return [w for w in caught if "already registered" in str(w.message)]
 
@@ -251,6 +263,20 @@ class TestClassReplacement:
 
         assert not _replacement_warnings(caught)
         assert reg.invoke("greet", {}).result == "second"
+
+    def test_class_replacement_warnings_point_at_caller(self):
+        """Class-path warnings must attribute to the caller, not the hub."""
+        reg = ToolRegistry()
+        reg.register(_TwoMethodTool, source="class")
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            line = inspect.currentframe().f_lineno + 1
+            reg.register(_TwoMethodTool, source="class")
+
+        matches = _replacement_warnings(caught)
+        assert len(matches) == 2
+        assert {(w.filename, w.lineno) for w in matches} == {(__file__, line)}
 
 
 # ---------------------------------------------------------------------------
