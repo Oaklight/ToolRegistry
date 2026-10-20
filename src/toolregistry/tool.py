@@ -7,6 +7,7 @@ from enum import Enum
 from typing import Any, ClassVar, Literal, TypeVar, get_type_hints
 from collections.abc import Callable
 
+from ._names import NameSeparator, qualify_name
 from ._validation import HINT_METADATA_FIELDS, validate_metadata_field
 from .parameter_models import (
     _generate_parameters_model,
@@ -603,6 +604,7 @@ class Tool:
         namespace: str | None = None,
         method_name: str | None = None,
         metadata: ToolMetadata | None = None,
+        sep: NameSeparator = "-",
     ) -> "Tool":
         """Factory method to create Tool from callable.
 
@@ -619,6 +621,9 @@ class Tool:
             method_name: Original method name of the tool.
             metadata: Optional ToolMetadata; ``is_async`` is always
                 auto-detected and will override the value in *metadata*.
+            sep: Separator between *namespace* and the tool name.  Pass the
+                registry's ``name_sep`` so the resulting name matches the
+                registry key.
 
         Returns:
             Tool: Configured Tool instance.
@@ -686,7 +691,7 @@ class Tool:
         )
 
         if namespace:
-            tool = tool.update_namespace(namespace)
+            tool = tool.update_namespace(namespace, sep=sep)
 
         return tool
 
@@ -905,7 +910,7 @@ class Tool:
         self: _ToolT,
         namespace: str | None,
         force: bool = False,
-        sep: Literal["-", "."] = "-",
+        sep: NameSeparator = "-",
     ) -> _ToolT:
         """Return a copy of the tool with an updated namespace.
 
@@ -952,28 +957,18 @@ class Tool:
         if not namespace:
             return self
 
-        namespace = normalize_tool_name(namespace)
-
-        # Derive method_name if not already set.
-        new_method_name = self.method_name
-        if not new_method_name:
-            if sep in self.name:
-                new_method_name = self.name.split(sep, 1)[1]
-            else:
-                new_method_name = self.name
-
-        if sep in self.name:
-            if force:
-                new_name = f"{namespace}{sep}{self.name.split(sep, 1)[1]}"
-            else:
-                new_name = self.name
-        else:
-            new_name = f"{namespace}{sep}{self.name}"
+        new_name, new_method_name = qualify_name(
+            self.name,
+            namespace,
+            sep,
+            force=force,
+            method_name=self.method_name,
+        )
 
         return dataclasses.replace(
             self,
             name=new_name,
-            namespace=namespace,
+            namespace=normalize_tool_name(namespace),
             method_name=new_method_name,
         )
 

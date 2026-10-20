@@ -368,6 +368,7 @@ class RegistrationMixin:
                 name=name,
                 namespace=ns_str,
                 method_name=method_name,
+                sep=sep,
             )
         registered_name = registered_tool.name
 
