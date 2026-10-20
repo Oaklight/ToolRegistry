@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from toolregistry import ToolRegistry
 from toolregistry._names import qualified_tool_name
 from toolregistry.tool import Tool
@@ -74,3 +76,30 @@ class TestNativeRegistrationSeparator:
     def test_registry_exposes_separator(self):
         assert ToolRegistry().name_sep == "-"
         assert ToolRegistry(name_sep=".").name_sep == "."
+
+
+class TestSeparatorSetter:
+    def test_accepts_supported_values(self):
+        registry = ToolRegistry()
+        registry.name_sep = "."
+        assert registry.name_sep == "."
+
+    def test_rejects_other_values(self):
+        registry = ToolRegistry()
+        with pytest.raises(ValueError, match=r"'-' or '\.'"):
+            registry.name_sep = "_"
+
+
+class TestRegistryKeyContract:
+    """qualified_tool_name must predict the key registration stores."""
+
+    @pytest.mark.parametrize("sep", ["-", "."])
+    @pytest.mark.parametrize("namespace", [None, "math_ops", "Math Ops"])
+    @pytest.mark.parametrize(
+        "raw_name", ["hello", "getUserID", "get user info", "list.issues"]
+    )
+    def test_predicted_name_is_the_registered_key(self, sep, namespace, raw_name):
+        registry = ToolRegistry(name_sep=sep)
+        registry.register(hello, name=raw_name, namespace=namespace)
+
+        assert set(registry._tools) == {qualified_tool_name(raw_name, namespace, sep)}

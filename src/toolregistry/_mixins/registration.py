@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, cast
 from collections.abc import Callable
 
 from ..events import ChangeEvent, ChangeEventType, RefreshResult
+from .._names import NameSeparator
 from ..tool import Tool
 from ..utils import HttpClientConfig, normalize_tool_name
 from .._warnings import warn_at_user_frame
@@ -126,6 +127,7 @@ class RegistrationMixin:
     _sub_registries: set[str]
     _disabled: dict[str, str]  # Owned by EnableDisableMixin
     _overrides: dict[str, Tool]  # name -> displaced original tool
+    name_sep: NameSeparator  # Provided by ToolRegistry
 
     if TYPE_CHECKING:
 
@@ -356,7 +358,7 @@ class RegistrationMixin:
         if ns_str:
             self._sub_registries.add(normalize_tool_name(ns_str))
 
-        sep = getattr(self, "_name_sep", "-")
+        sep = self.name_sep
 
         if isinstance(tool_or_func, Tool):
             tool_or_func = tool_or_func.update_namespace(ns_str, force=True, sep=sep)
