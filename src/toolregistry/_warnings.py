@@ -37,6 +37,19 @@ _sync_caller: contextvars.ContextVar[_WarningLocation | None] = contextvars.Cont
 )
 
 
+def _frame_is_under(frame: FrameType, root: Path) -> bool:
+    try:
+        path = Path(frame.f_code.co_filename).resolve()
+    except (OSError, ValueError):
+        return False
+    return path.is_relative_to(root)
+
+
+def _is_package_frame(frame: FrameType) -> bool:
+    """Return whether *frame* belongs to :mod:`toolregistry`."""
+    return _frame_is_under(frame, _PACKAGE_ROOT)
+
+
 def _is_library_frame(frame: FrameType) -> bool:
     """Return whether *frame* belongs to this package or the stdlib.
 
@@ -44,11 +57,7 @@ def _is_library_frame(frame: FrameType) -> bool:
     example ``concurrent.futures.thread._worker``) is not reported as the
     warning's source when the real caller is not on the stack.
     """
-    try:
-        path = Path(frame.f_code.co_filename).resolve()
-    except (OSError, ValueError):
-        return False
-    return path.is_relative_to(_PACKAGE_ROOT) or path.is_relative_to(_STDLIB_ROOT)
+    return _frame_is_under(frame, _PACKAGE_ROOT) or _frame_is_under(frame, _STDLIB_ROOT)
 
 
 def _location(frame: FrameType) -> _WarningLocation:
@@ -111,8 +120,10 @@ def warn_at_user_frame(
     the event-loop thread, where the user's frames are not reachable.
 
     When every reachable frame is internal (a warning emitted from a worker
-    thread whose caller is not on the stack), attribution falls back to
-    *fallback_stacklevel* rather than pointing at interpreter internals.
+    thread whose caller is not on the stack), attribution falls back to the
+    outermost :mod:`toolregistry` frame, so it does not report an interpreter
+    frame such as ``threading.Thread.run``.  If even that is unavailable,
+    *fallback_stacklevel* is used.
 
     Args:
         message: Warning message.  Callers should make it self-contained,
@@ -148,11 +159,16 @@ def warn_at_user_frame(
         return
 
     frame = inspect.currentframe()
+    package_fallback: _WarningLocation | None = None
     try:
         current: FrameType | None = frame.f_back if frame is not None else None
         # stacklevel=1 is this helper's frame; 2 is its caller.
         stacklevel = 2
         while current is not None and _is_library_frame(current):
+            if _is_package_frame(current):
+                # Keep the outermost package frame: it is the closest thing
+                # to a caller that still belongs to this library.
+                package_fallback = _location(current)
             stacklevel += 1
             current = current.f_back
         if current is None:
@@ -161,5 +177,21 @@ def warn_at_user_frame(
         # Drop the reference before emitting so the frame is not kept
         # alive by a traceback if the warning is turned into an error.
         del frame
+
+    if current is None and package_fallback is not None:
+        registry = (
+            package_fallback.module_globals.get("__warningregistry__")
+            if package_fallback.module_globals is not None
+            else None
+        )
+        warnings.warn_explicit(
+            message,
+            category,
+            package_fallback.filename,
+            package_fallback.lineno,
+            module=package_fallback.module,
+            registry=registry,
+        )
+        return
 
     warnings.warn(message, category, stacklevel=stacklevel)

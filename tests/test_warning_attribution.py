@@ -11,6 +11,7 @@ import os
 import subprocess
 import sys
 import textwrap
+import threading
 import warnings
 from pathlib import Path
 
@@ -40,11 +41,34 @@ def test_sync_bridge_passes_registry_not_module_globals(monkeypatch) -> None:
 
     monkeypatch.setattr(warnings, "warn_explicit", spy)
     with warnings.catch_warnings():
-        warnings.simplefilter("always")
+        # The spy records the call; keep the real warning out of the report.
+        warnings.simplefilter("ignore")
         AsyncRuntime.run_sync(_emit_filter_warning())
 
     assert "registry" in captured
     assert "module_globals" not in captured
+
+
+def test_bare_thread_falls_back_to_package_frame(monkeypatch) -> None:
+    """With no user frame, report our outermost frame, not threading.py."""
+    captured: dict[str, tuple[str, int]] = {}
+
+    def spy(message, category, filename, lineno, **kwargs):
+        captured["location"] = (filename, lineno)
+
+    monkeypatch.setattr(warnings, "warn_explicit", spy)
+
+    name_filter = ToolNameFilter(include=["nope"])
+    thread = threading.Thread(
+        target=name_filter.warn_if_all_filtered_out,
+        kwargs={"total": 1, "accepted": 0, "source": "MCP"},
+    )
+    thread.start()
+    thread.join()
+
+    filename, _ = captured["location"]
+    assert filename.endswith("utils.py"), filename
+    assert "threading.py" not in filename
 
 
 SCRIPT = textwrap.dedent(
