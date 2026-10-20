@@ -126,13 +126,24 @@ def warn_at_user_frame(
     """
     captured = _sync_caller.get()
     if captured is not None:
+        # Pass the caller's warning registry rather than its module globals:
+        # warn_explicit() with module_globals reaches
+        # importlib._bootstrap_external._bless_my_loader, which emits a
+        # DeprecationWarning when the caller is a __main__ script without a
+        # __spec__.loader.  That doubles the warning and, under -W error,
+        # raises DeprecationWarning instead of the intended category.
+        registry = (
+            captured.module_globals.get("__warningregistry__")
+            if captured.module_globals is not None
+            else None
+        )
         warnings.warn_explicit(
             message,
             category,
             captured.filename,
             captured.lineno,
             module=captured.module,
-            module_globals=captured.module_globals,
+            registry=registry,
         )
         return
 
