@@ -1223,3 +1223,192 @@ class TestToolMetadataOverrides:
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             load_config(path)
+
+
+# ---------------------------------------------------------------------------
+# Source filters and unknown-key validation (#297)
+# ---------------------------------------------------------------------------
+
+
+class TestSourceFilters:
+    def test_mcp_include_list(self, tmp_path: Path) -> None:
+        path = _write(
+            tmp_path,
+            "filters.yaml",
+            """
+tools:
+  - type: mcp
+    transport: sse
+    url: http://localhost:8000/sse
+    include: [list_issues, "get_*"]
+""",
+        )
+        source = load_config(path).tools[0]
+        assert isinstance(source, MCPSource)
+        assert source.include == ("list_issues", "get_*")
+        assert source.exclude is None
+
+    def test_mcp_bare_string_include(self, tmp_path: Path) -> None:
+        path = _write(
+            tmp_path,
+            "filters.yaml",
+            """
+tools:
+  - type: mcp
+    transport: sse
+    url: http://localhost:8000/sse
+    include: list_issues
+""",
+        )
+        source = load_config(path).tools[0]
+        assert isinstance(source, MCPSource)
+        assert source.include == ("list_issues",)
+
+    def test_mcp_empty_include_is_preserved(self, tmp_path: Path) -> None:
+        path = _write(
+            tmp_path,
+            "filters.yaml",
+            """
+tools:
+  - type: mcp
+    transport: sse
+    url: http://localhost:8000/sse
+    include: []
+""",
+        )
+        source = load_config(path).tools[0]
+        assert isinstance(source, MCPSource)
+        assert source.include == ()
+        assert source.to_dict()["include"] == []
+
+    def test_openapi_exclude(self, tmp_path: Path) -> None:
+        path = _write(
+            tmp_path,
+            "filters.yaml",
+            """
+tools:
+  - type: openapi
+    url: http://localhost:8000/openapi.json
+    exclude: ["admin_*"]
+""",
+        )
+        source = load_config(path).tools[0]
+        assert isinstance(source, OpenAPISource)
+        assert source.exclude == ("admin_*",)
+        assert source.include is None
+
+    def test_both_filters_rejected(self, tmp_path: Path) -> None:
+        path = _write(
+            tmp_path,
+            "filters.yaml",
+            """
+tools:
+  - type: mcp
+    transport: sse
+    url: http://localhost:8000/sse
+    include: [a]
+    exclude: [b]
+""",
+        )
+        with pytest.raises(ConfigError, match="mutually exclusive"):
+            load_config(path)
+
+    def test_invalid_filter_type_rejected(self, tmp_path: Path) -> None:
+        path = _write(
+            tmp_path,
+            "filters.yaml",
+            """
+tools:
+  - type: mcp
+    transport: sse
+    url: http://localhost:8000/sse
+    include: 3
+""",
+        )
+        with pytest.raises(ConfigError, match="must be a string or a list"):
+            load_config(path)
+
+    def test_invalid_filter_item_rejected(self, tmp_path: Path) -> None:
+        path = _write(
+            tmp_path,
+            "filters.yaml",
+            """
+tools:
+  - type: mcp
+    transport: sse
+    url: http://localhost:8000/sse
+    include: [1]
+""",
+        )
+        with pytest.raises(ConfigError, match=r"'include\[0\]' must be a string"):
+            load_config(path)
+
+    def test_unknown_source_key_rejected(self, tmp_path: Path) -> None:
+        path = _write(
+            tmp_path,
+            "filters.yaml",
+            """
+tools:
+  - type: mcp
+    transport: sse
+    url: http://localhost:8000/sse
+    inclde: [list_issues]
+""",
+        )
+        with pytest.raises(ConfigError, match=r"unrecognised key.*'inclde'"):
+            load_config(path)
+
+    def test_unknown_python_key_rejected(self, tmp_path: Path) -> None:
+        path = _write(
+            tmp_path,
+            "filters.yaml",
+            """
+tools:
+  - type: python
+    class: pkg.Cls
+    transport: sse
+""",
+        )
+        with pytest.raises(ConfigError, match=r"unrecognised key.*'transport'"):
+            load_config(path)
+
+    def test_unknown_auth_key_rejected(self, tmp_path: Path) -> None:
+        path = _write(
+            tmp_path,
+            "filters.yaml",
+            """
+tools:
+  - type: openapi
+    url: http://localhost:8000/openapi.json
+    auth:
+      type: bearer
+      token: abc
+      token_evn: MY_TOKEN
+""",
+        )
+        with pytest.raises(ConfigError, match=r"under 'auth'.*'token_evn'"):
+            load_config(path)
+
+    def test_filters_round_trip(self, tmp_path: Path) -> None:
+        cfg = ToolConfig(
+            tools=(
+                MCPSource(
+                    transport="sse",
+                    url="http://localhost:8000/sse",
+                    include=("a", "b_*"),
+                ),
+                OpenAPISource(
+                    url="http://localhost:8000/openapi.json",
+                    exclude=("admin_*",),
+                ),
+            )
+        )
+        dest = tmp_path / "roundtrip.jsonc"
+        save_config(cfg, dest)
+
+        reloaded = load_config(dest)
+        mcp, openapi = reloaded.tools
+        assert isinstance(mcp, MCPSource)
+        assert isinstance(openapi, OpenAPISource)
+        assert mcp.include == ("a", "b_*")
+        assert openapi.exclude == ("admin_*",)

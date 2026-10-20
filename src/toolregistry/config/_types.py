@@ -181,6 +181,11 @@ class MCPSource:
         url: Server URL for *sse* or *streamable-http* transport.
         headers: Extra HTTP headers for network transports.
         persistent: Whether to keep the MCP connection alive.
+        include: Names or glob patterns to keep.  ``None`` means no
+            include filter; an empty tuple is an explicit empty list and
+            matches nothing.  Mutually exclusive with *exclude*.
+        exclude: Names or glob patterns to drop.  Mutually exclusive with
+            *include*.
     """
 
     transport: Literal["stdio", "sse", "streamable-http"]
@@ -192,6 +197,8 @@ class MCPSource:
     headers: dict[str, str] | None = None
     persistent: bool = True
     tags: tuple[str, ...] = ()
+    include: tuple[str, ...] | None = None
+    exclude: tuple[str, ...] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a config-file-compatible dict.
@@ -215,6 +222,10 @@ class MCPSource:
             d["persistent"] = False
         if self.tags:
             d["tags"] = list(self.tags)
+        if self.include is not None:
+            d["include"] = list(self.include)
+        if self.exclude is not None:
+            d["exclude"] = list(self.exclude)
         return d
 
 
@@ -229,6 +240,11 @@ class OpenAPISource:
         enabled: Per-source enabled flag.
         auth: Optional authentication configuration.
         base_url: Override the ``servers[0].url`` from the spec.
+        include: Names or glob patterns to keep.  ``None`` means no
+            include filter; an empty tuple is an explicit empty list and
+            matches nothing.  Mutually exclusive with *exclude*.
+        exclude: Names or glob patterns to drop.  Mutually exclusive with
+            *include*.
     """
 
     url: str
@@ -237,6 +253,8 @@ class OpenAPISource:
     auth: AuthConfig | None = None
     base_url: str | None = None
     tags: tuple[str, ...] = ()
+    include: tuple[str, ...] | None = None
+    exclude: tuple[str, ...] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a config-file-compatible dict.
@@ -254,6 +272,10 @@ class OpenAPISource:
             d["base_url"] = self.base_url
         if self.tags:
             d["tags"] = list(self.tags)
+        if self.include is not None:
+            d["include"] = list(self.include)
+        if self.exclude is not None:
+            d["exclude"] = list(self.exclude)
         return d
 
 
