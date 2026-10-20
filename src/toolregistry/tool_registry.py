@@ -167,6 +167,15 @@ class ToolRegistry(
         if tool_discovery:
             self.enable_tool_discovery()
 
+    @property
+    def name_sep(self) -> Literal["-", "."]:
+        """Separator used between a namespace and a tool name.
+
+        Registration paths use this to derive the key a tool will be
+        stored under, without reaching into the private attribute.
+        """
+        return self._name_sep
+
     def __contains__(self, name: str) -> bool:
         """Check if a tool with the given name is registered.
 
