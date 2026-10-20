@@ -68,6 +68,17 @@ OPENAPI_SPEC = {
     },
 }
 
+OPENAPI_SPEC_ADDED = {
+    "openapi": "3.0.0",
+    "info": {"title": "TestAPI", "version": "1.0.0"},
+    "paths": {
+        "/items": {
+            "get": {"operationId": "listItems", "summary": "List items"},
+            "post": {"operationId": "createItem", "summary": "Create an item"},
+        },
+    },
+}
+
 
 # ---------------------------------------------------------------------------
 # MCP
@@ -95,6 +106,65 @@ class TestMCPNaming:
         assert result.added == ()
         assert result.removed == ()
         assert result.unchanged == 1
+        assert set(registry._tools) == {"gh.list_issues"}
+
+    @pytest.mark.asyncio
+    async def test_raw_dot_and_hyphen_names_normalize_before_qualification(self):
+        registry = ToolRegistry(name_sep=".")
+        integration = MCPIntegration(registry)
+        specs = [_MockToolSpec("list.issues"), _MockToolSpec("get-issue")]
+
+        with _patch_mcp_client(specs):
+            await integration.register_mcp_tools_async(
+                "http://mock-mcp:8000", namespace="gh", include=["gh.*"]
+            )
+
+        assert set(registry._tools) == {"gh.list_issues", "gh.get_issue"}
+
+        with _patch_mcp_client(specs):
+            result = await integration.refresh_async()
+
+        assert result.added == ()
+        assert result.removed == ()
+        assert set(registry._tools) == {"gh.list_issues", "gh.get_issue"}
+
+    @pytest.mark.asyncio
+    async def test_dotted_refresh_reports_changed_set_with_prefix(self):
+        registry = ToolRegistry(name_sep=".")
+        integration = MCPIntegration(registry)
+        initial = [_MockToolSpec("list_issues"), _MockToolSpec("get_issue")]
+
+        with _patch_mcp_client(initial):
+            await integration.register_mcp_tools_async(
+                "http://mock-mcp:8000", namespace="gh", include=["gh.*"]
+            )
+
+        assert set(registry._tools) == {"gh.list_issues", "gh.get_issue"}
+
+        refreshed = [_MockToolSpec("list_issues"), _MockToolSpec("create_issue")]
+        with _patch_mcp_client(refreshed):
+            result = await integration.refresh_async()
+
+        assert result.added == ("gh.create_issue",)
+        assert result.removed == ("gh.get_issue",)
+        assert set(registry._tools) == {"gh.list_issues", "gh.create_issue"}
+
+    @pytest.mark.asyncio
+    async def test_dotted_refresh_reports_updated_tool(self):
+        registry = ToolRegistry(name_sep=".")
+        integration = MCPIntegration(registry)
+
+        with _patch_mcp_client([_MockToolSpec("list_issues")]):
+            await integration.register_mcp_tools_async(
+                "http://mock-mcp:8000", namespace="gh", include=["gh.*"]
+            )
+
+        with _patch_mcp_client(
+            [_MockToolSpec("list_issues", description="Updated description")]
+        ):
+            result = await integration.refresh_async()
+
+        assert result.updated == ("gh.list_issues",)
         assert set(registry._tools) == {"gh.list_issues"}
 
     def test_excluded_tool_is_not_constructed(self):
@@ -141,6 +211,17 @@ class TestOpenAPINaming:
         assert result.added == ()
         assert result.removed == ()
         assert set(registry._tools) == {"gh.list_items"}
+
+    def test_dotted_refresh_reports_added_tool_with_prefix(self):
+        registry = ToolRegistry(name_sep=".")
+        self._register(registry, namespace="gh", include=["gh.*"])
+
+        result = registry._openapi_integrations[0].refresh(
+            openapi_spec=OPENAPI_SPEC_ADDED
+        )
+
+        assert result.added == ("gh.create_item",)
+        assert set(registry._tools) == {"gh.list_items", "gh.create_item"}
 
     def test_excluded_malformed_operation_does_not_abort(self):
         spec = {
