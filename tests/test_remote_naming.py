@@ -167,6 +167,30 @@ class TestMCPNaming:
         assert result.updated == ("gh.list_issues",)
         assert set(registry._tools) == {"gh.list_issues"}
 
+    @pytest.mark.asyncio
+    async def test_excluded_tool_appearing_only_after_refresh_stays_out(self):
+        registry = ToolRegistry(name_sep=".")
+        integration = MCPIntegration(registry)
+
+        with _patch_mcp_client([_MockToolSpec("list_issues")]):
+            await integration.register_mcp_tools_async(
+                "http://mock-mcp:8000", namespace="gh", exclude=["gh.drop_me"]
+            )
+
+        assert set(registry._tools) == {"gh.list_issues"}
+
+        refreshed = [
+            _MockToolSpec("list_issues"),
+            _MockToolSpec("drop_me"),
+            _MockToolSpec("brand_new"),
+        ]
+        with _patch_mcp_client(refreshed):
+            result = await integration.refresh_async()
+
+        assert result.added == ("gh.brand_new",)
+        assert "gh.drop_me" not in registry._tools
+        assert "gh.drop_me" not in result.added
+
     def test_excluded_tool_is_not_constructed(self):
         registry = ToolRegistry()
         integration = MCPIntegration(registry)
