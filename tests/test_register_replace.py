@@ -8,6 +8,7 @@ the warning.  Last-write-wins replacement semantics are unchanged.
 
 from __future__ import annotations
 
+import inspect
 import warnings
 from unittest.mock import AsyncMock, patch
 
@@ -159,11 +160,12 @@ class TestNativeReplacement:
 
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
+            line = inspect.currentframe().f_lineno + 1
             reg.register(_add_two, name="dup")
 
         matches = _replacement_warnings(caught)
         assert len(matches) == 1
-        assert matches[0].filename == __file__
+        assert (matches[0].filename, matches[0].lineno) == (__file__, line)
 
     def test_no_replace_event_without_replacement(self):
         reg = ToolRegistry()
