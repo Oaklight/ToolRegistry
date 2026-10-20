@@ -148,6 +148,18 @@ class TestNativeReplacement:
         ]
         assert hooks == ["dup"]
 
+    def test_replacement_warning_points_at_caller_frame(self):
+        reg = ToolRegistry()
+        reg.register(_add_one, name="dup")
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            reg.register(_add_two, name="dup")
+
+        matches = _replacement_warnings(caught)
+        assert len(matches) == 1
+        assert matches[0].filename == __file__
+
     def test_no_replace_event_without_replacement(self):
         reg = ToolRegistry()
         events = []

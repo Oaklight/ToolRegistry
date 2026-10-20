@@ -84,7 +84,12 @@ class AsyncRuntime:
             Any exception raised by the coroutine.
         """
         loop = cls.get_loop()
-        return asyncio.run_coroutine_threadsafe(coro, loop).result()
+        # Carry the synchronous caller's location into the coroutine so
+        # warnings emitted on the loop thread still point at the user.
+        from ._warnings import capture_sync_caller
+
+        with capture_sync_caller():
+            return asyncio.run_coroutine_threadsafe(coro, loop).result()
 
     @classmethod
     def shutdown(cls) -> None:
