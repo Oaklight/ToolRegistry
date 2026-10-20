@@ -462,11 +462,16 @@ class TestToolDiscoveryIntegration:
         assert len(rebuilds) == 1
         assert discoverer._index_dirty is False
 
+        # A second discover() on a clean index must not rebuild; without
+        # this, a discover() that rebuilds unconditionally would still pass.
+        discoverer.discover("bulk_tool_8")
+        assert len(rebuilds) == 1
+
         registry._unregister("bulk_tool_7")
         assert len(rebuilds) == 1
         assert discoverer._index_dirty is True
 
-        discoverer.discover("bulk_tool_8")
+        discoverer.discover("bulk_tool_9")
         assert len(rebuilds) == 2
 
     def test_tool_discovery_init_param(self):
