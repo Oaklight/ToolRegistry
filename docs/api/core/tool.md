@@ -125,7 +125,15 @@ print(tool.qualified_name)  # Output: "math_ops-multiply"
 tool2 = Tool.from_function(multiply, namespace="math_ops", method_name="mul")
 print(tool2.name)            # Output: "math_ops-mul"
 print(tool2.method_name)     # Output: "mul"
+
+# Use the registry's separator when constructing directly
+tool3 = Tool.from_function(multiply, namespace="math_ops", sep=".")
+print(tool3.name)            # Output: "math_ops.multiply"
 ```
+
+When the registry uses `ToolRegistry(name_sep=".")`, pass the same separator
+to `Tool.from_function(..., sep=".")` so the constructed name matches the
+registry key.
 
 ### Updating Namespace
 

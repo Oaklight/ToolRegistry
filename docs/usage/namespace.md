@@ -39,6 +39,25 @@ print(tool.method_name)     # 'multiply'
 print(tool.qualified_name)  # 'math_ops-multiply'
 ```
 
+### Registry-Level Separator (`name_sep`)
+
+`ToolRegistry(name_sep=".")` applies that separator to every registration
+source — native functions, class methods, MCP, OpenAPI, and LangChain. Read
+it with `registry.name_sep`. `Tool.from_function(..., sep=".")` applies the
+same rule when constructing a tool directly.
+
+```python
+from toolregistry import ToolRegistry
+
+registry = ToolRegistry(name_sep=".")
+registry.register(multiply, namespace="math_ops")
+
+print(registry.get_available_tools())  # ['math_ops.multiply']
+```
+
+The registry key is always `tool.name`. `tool.qualified_name` remains a
+display convenience and always joins with `-`.
+
 ### Key Features
 
 - **Standardization**: Tool names are normalized using the `normalize_tool_name` function, converting them to snake_case and removing special characters, repeating strings and whitespace.

@@ -150,6 +150,8 @@ Environment variable interpolation (e.g. `"${VAR}"`) is supported in `kwargs` va
 | `headers` | dict | No | HTTP headers for network transports |
 | `namespace` | string | No | Namespace for registered tools |
 | `persistent` | bool | No | Keep connection alive (default: `true`) |
+| `include` | string or list | No | Names or glob patterns to keep; mutually exclusive with `exclude` |
+| `exclude` | string or list | No | Names or glob patterns to drop; mutually exclusive with `include` |
 | `enabled` | bool | No | Per-source enable/disable (default: `true`) |
 
 !!! tip "`http` Alias"
@@ -164,6 +166,8 @@ Environment variable interpolation (e.g. `"${VAR}"`) is supported in `kwargs` va
 | `namespace` | string | No | Namespace for registered tools |
 | `auth` | object | No | Authentication configuration |
 | `base_url` | string | No | Override `servers[0].url` from spec |
+| `include` | string or list | No | Names or glob patterns to keep; mutually exclusive with `exclude` |
+| `exclude` | string or list | No | Names or glob patterns to drop; mutually exclusive with `include` |
 | `enabled` | bool | No | Per-source enable/disable (default: `true`) |
 
 #### Auth Configuration
@@ -225,6 +229,37 @@ tools:
     enabled: false  # skip until API key is configured
 ```
 
+### Per-Source Tool Filters
+
+`mcp` and `openapi` sources accept `include` or `exclude`, forwarded to the
+registration-time filter. They are mutually exclusive.
+
+```yaml
+tools:
+  - type: mcp
+    transport: sse
+    url: http://localhost:8080/sse
+    namespace: gh
+    include: ["gh.*"]          # list of patterns
+
+  - type: openapi
+    url: https://api.example.com/openapi.json
+    namespace: api
+    exclude: admin_*           # a bare string is a single pattern
+```
+
+Patterns are `fnmatch` globs matched against the raw source name, the
+post-namespace registered name, and the snake_case form of each. An
+omitted or `null` filter means no filtering; an empty list (`include: []`)
+is an explicit empty filter and matches nothing, so the source registers
+no tools. Filters are applied before a tool wrapper is constructed, so an
+excluded malformed operation cannot abort the whole source, and they are
+re-applied on refresh.
+
+Unknown keys on a source entry (or under `auth`) are rejected at load time
+with a `ConfigError` naming the entry and the offending keys, instead of
+being silently ignored.
+
 ## Parsed Types
 
 `load_config()` returns a `ToolConfig` frozen dataclass:
@@ -244,5 +279,5 @@ All config objects are immutable after parsing.
 ## Error Handling
 
 - **`FileNotFoundError`** — config file does not exist
-- **`ConfigError`** — semantic validation errors (invalid mode, missing required fields, unknown type, unset env var)
+- **`ConfigError`** — semantic validation errors (invalid mode, missing required fields, unknown type, unrecognised source or `auth` keys, mutually exclusive `include`/`exclude`, unset env var)
 - Parser-native errors (`JSONCDecodeError`, `YAMLError`) propagate for syntax issues
