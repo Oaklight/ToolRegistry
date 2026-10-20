@@ -852,12 +852,13 @@ def _update_config(request: Request) -> Response:
         return _error_response(400, "Bad Request", "Body must be a JSON object")
 
     # name_sep — applies to the registry directly (not to the config file)
-    # Allow this even when no config file is loaded.
+    # Allow this even when no config file is loaded.  The setter owns the
+    # validation, so the accepted values are defined in one place.
     if "name_sep" in data:
-        sep = data["name_sep"]
-        if sep not in ("-", "."):
-            return _error_response(400, "Bad Request", "name_sep must be '-' or '.'")
-        app.registry._name_sep = sep
+        try:
+            app.registry.name_sep = data["name_sep"]
+        except (TypeError, ValueError) as exc:
+            return _error_response(400, "Bad Request", str(exc))
 
     updates: dict[str, Any] = {}
     for field in ("mode", "disabled", "enabled"):

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 from collections.abc import Callable
 
+from .._names import NameSeparator
 from ..tool import Tool
 
 
@@ -13,6 +14,7 @@ class NamespaceMixin:
 
     name: str
     _overrides: dict[str, Tool]  # Owned by RegistrationMixin
+    name_sep: NameSeparator  # Property exposed by ToolRegistry
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
@@ -86,7 +88,7 @@ class NamespaceMixin:
         Raises:
             None
         """
-        sep = getattr(self, "_name_sep", "-")
+        sep = self.name_sep
         new_tools: dict[str, Tool] = {}
         rename: dict[str, str] = {}
         for old_name, tool in self._tools.items():

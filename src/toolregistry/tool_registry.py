@@ -176,6 +176,21 @@ class ToolRegistry(
         """
         return self._name_sep
 
+    @name_sep.setter
+    def name_sep(self, value: Literal["-", "."]) -> None:
+        """Set the namespace separator.
+
+        Args:
+            value: ``"-"`` or ``"."``.
+
+        Raises:
+            ValueError: If *value* is anything else.  Validation lives here
+                so the admin API does not need its own copy of the check.
+        """
+        if value not in ("-", "."):
+            raise ValueError("name_sep must be '-' or '.'")
+        self._name_sep = value
+
     def __contains__(self, name: str) -> bool:
         """Check if a tool with the given name is registered.
 

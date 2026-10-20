@@ -1126,6 +1126,38 @@ class TestAdminSourcesAndConfig:
         finally:
             server.stop()
 
+    def test_update_config_name_sep_uses_validating_setter(self, tmp_path) -> None:
+        """PUT /api/config validates name_sep through the registry setter."""
+        from toolregistry.config import ToolConfig
+
+        config = ToolConfig(source=str(tmp_path / "tools.json"))
+        (tmp_path / "tools.json").write_text('{"mode": "denylist"}')
+
+        registry = ToolRegistry()
+        server = AdminServer(registry, port=18097, config=config)
+        info = server.start()
+        time.sleep(0.1)
+
+        try:
+            status, _ = self._request(
+                f"{info.url}/api/config",
+                method="PUT",
+                data={"name_sep": "."},
+            )
+            assert status == 200
+            assert registry.name_sep == "."
+
+            status, data = self._request(
+                f"{info.url}/api/config",
+                method="PUT",
+                data={"name_sep": "_"},
+            )
+            assert status == 400
+            assert data["message"] == "name_sep must be '-' or '.'"
+            assert registry.name_sep == "."
+        finally:
+            server.stop()
+
 
 class TestRequestMetrics:
     """Unit tests for the RequestMetrics collector."""
