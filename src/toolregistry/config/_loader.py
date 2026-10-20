@@ -405,6 +405,16 @@ def _parse_name_patterns(
             f"Tool entry at index {index} (type={tool_type}): "
             "'include' and 'exclude' are mutually exclusive."
         )
+    if include == ():
+        # An explicit empty list is valid but almost always a mistake (an
+        # emptied list or a template that rendered empty); it silently
+        # registers nothing.  Warn at load time so it is visible at startup.
+        warnings.warn(
+            f"Tool entry at index {index} (type={tool_type}): "
+            "'include' is an empty list; this source will register no tools.",
+            UserWarning,
+            stacklevel=2,
+        )
     return include, exclude
 
 
