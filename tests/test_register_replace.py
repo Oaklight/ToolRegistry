@@ -136,8 +136,13 @@ class TestNativeReplacement:
 
         with warnings.catch_warnings():
             warnings.simplefilter("error")
-            with pytest.raises(UserWarning, match="already registered"):
+            with pytest.raises(UserWarning) as excinfo:
                 reg.register(_add_two, name="dup")
+
+        assert str(excinfo.value) == (
+            "Tool 'dup' was already registered; the previous definition was "
+            "discarded. Pass allow_replace=True to acknowledge replacement."
+        )
 
         # The swap happened before the warning, so listeners and hooks must
         # have observed it even though the warning aborted the call.
