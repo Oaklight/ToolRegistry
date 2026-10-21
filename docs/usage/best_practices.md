@@ -166,6 +166,8 @@ finally:
     registry.close()
 ```
 
+`close()` 默认是非阻塞的：仍在执行或排队的任务会被放弃。在关闭 worker 或批处理任务时，请调用 `registry.close(wait=True)`（或 `await registry.close_async(wait=True)`），让正在执行的工具调用在进程退出前完成。
+
 ---
 
 ## 安全性
