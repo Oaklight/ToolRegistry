@@ -9,14 +9,16 @@ work without installing LangChain.
 Schema sources are tried in this order:
 
 1. ``input_schema`` — a pydantic model (or an object with
-   ``model_json_schema()``) or a JSON-schema dict.
+   ``model_json_schema()`` / pydantic-v1 ``schema()``) or a JSON-schema dict.
 2. ``args_schema`` — same forms.
 3. ``parameters`` — a JSON-schema dict.
 4. ``args`` — a ``{name: property_schema}`` dict, wrapped in an object schema.
 
 Runners are tried in this order: sync ``_run`` / ``run`` / ``func``; async
 ``_arun`` / ``arun`` / ``coroutine``.  A sync-only tool still serves ``arun``
-through a worker thread.
+through a worker thread.  The reverse is not symmetric: a duck-typed object
+that exposes only an async runner is registered with ``is_async=False`` and
+must be called through ``ainvoke()``; ``invoke()`` raises a clear error.
 """
 
 import asyncio
@@ -59,6 +61,11 @@ def _extract_input_schema(tool: Any) -> dict[str, Any]:
         model_json_schema = getattr(schema, "model_json_schema", None)
         if callable(model_json_schema):
             return dict(model_json_schema())
+        # pydantic v1 models expose ``schema()`` instead; skipping it would
+        # silently drop ``required`` and fall through to ``tool.args``.
+        legacy_schema = getattr(schema, "schema", None)
+        if callable(legacy_schema):
+            return dict(legacy_schema())
         if isinstance(schema, dict):
             return dict(schema)
 
@@ -116,6 +123,9 @@ class LangChainToolWrapper(BaseToolWrapper):
             params=_extract_params(tool, schema),
         )
         self.tool = tool
+        # Kept so callers can reuse the extracted schema instead of walking
+        # the source attributes a second time.
+        self.input_schema = schema
 
     def call_sync(self, *args: Any, **kwargs: Any) -> Any:
         """Run the tool synchronously.
@@ -207,9 +217,10 @@ class LangChainTool(Tool):
             TypeError: If the tool exposes no name or no usable schema.
         """
         wrapper = LangChainToolWrapper(tool)
-        input_schema = _extract_input_schema(tool)
-        # Drop the auto-generated top-level description for consistency; it may
-        # be absent (langchain-core 1.x no longer emits it).
+        # Reuse the schema the wrapper already extracted.
+        input_schema = dict(wrapper.input_schema)
+        # Drop the auto-generated top-level description for consistency.  It is
+        # absent when the args model has no docstring, on any core version.
         input_schema.pop("description", None)
 
         # Use the fully-qualified class name as source_detail.
@@ -254,8 +265,9 @@ class LangChainIntegration:
     ) -> None:
         """Register a LangChain-style tool from an async caller.
 
-        Construction is fast and CPU-bound, so it runs inline rather than on the
-        event loop's default executor (which pytest-asyncio does not shut down).
+        Construction is fast and CPU-bound, so it runs inline rather than
+        borrowing the event loop's default executor.  (Other integrations still
+        use ``run_in_executor(None, ...)``; see #311 for that class of leak.)
 
         Args:
             tool: Object exposing ``name``, ``description`` and a schema source.
