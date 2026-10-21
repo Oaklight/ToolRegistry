@@ -290,7 +290,11 @@ class ToolDiscoveryTool:
 
     def discover(
         self,
-        query: Annotated[str, MinLen(1), Match(r"\S")],
+        # ``Match`` uses ``re.fullmatch``, so the pattern must describe the
+        # whole query.  ``\S`` alone only accepts a single character (#326);
+        # require at least one non-whitespace character and allow spaces
+        # inside and around the query.
+        query: Annotated[str, MinLen(1), Match(r".*\S.*")],
         top_k: Annotated[int, Ge(1)] = 10,
         api_format: API_FORMATS = "openai-chat",
     ) -> list[dict[str, Any]]:
@@ -303,7 +307,7 @@ class ToolDiscoveryTool:
 
         Args:
             query: Tool name (exact match) or natural language query.
-                Must be non-empty.
+                Must contain at least one non-whitespace character.
             top_k: Maximum number of results for fuzzy search. Must be
                 at least 1.
             api_format: Target API format for schema generation.
