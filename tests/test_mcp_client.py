@@ -90,6 +90,12 @@ class TestToStdioParams:
         params = _to_stdio_params("/some/server.py")
         assert params.command == sys.executable
 
+    def test_python_script_falls_back_without_executable(self, monkeypatch):
+        """Embedded interpreters report an empty sys.executable."""
+        monkeypatch.setattr(sys, "executable", "")
+        params = _to_stdio_params("/some/server.py")
+        assert params.command == "python"
+
     def test_js_script_path(self):
         params = _to_stdio_params(Path("/some/server.js"))
         assert params.command == "node"

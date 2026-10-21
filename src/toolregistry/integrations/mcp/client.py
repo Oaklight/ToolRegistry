@@ -203,7 +203,11 @@ def _to_stdio_params(src: str | dict | Path) -> StdioServerParameters:
         )
     path = Path(src) if not isinstance(src, Path) else src
     if path.suffix == ".py":
-        return StdioServerParameters(command=sys.executable, args=[str(path)])
+        # sys.executable is empty in embedded interpreters and some frozen
+        # launchers; fall back to the historical PATH lookup there.
+        return StdioServerParameters(
+            command=sys.executable or "python", args=[str(path)]
+        )
     if path.suffix == ".js":
         return StdioServerParameters(command="node", args=[str(path)])
     return StdioServerParameters(command=str(path), args=[])
