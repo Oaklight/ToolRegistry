@@ -938,3 +938,52 @@ class TestLifecycle:
         result = registry.invoke("add", {"a": 2, "b": 3}, execution_mode="thread")
         assert result.result == "5"
         registry.close()  # idempotent
+
+    def test_close_wait_drains_in_flight_thread_work(self):
+        """``close(wait=True)`` waits for work already submitted."""
+        import threading
+        import time
+
+        registry = ToolRegistry()
+        started = threading.Event()
+
+        def slow(value: int) -> int:
+            """Block until the close under test has started."""
+            started.set()
+            time.sleep(0.4)
+            return value
+
+        handle = registry._thread_backend.submit(slow, {"value": 7})
+        assert started.wait(timeout=5)
+
+        started_at = time.perf_counter()
+        registry.close(wait=True)
+        elapsed = time.perf_counter() - started_at
+
+        assert elapsed >= 0.2
+        assert handle.result() == 7
+
+    def test_close_default_returns_without_draining(self):
+        """The default ``close()`` abandons in-flight work."""
+        import threading
+        import time
+
+        registry = ToolRegistry()
+        started = threading.Event()
+
+        def slow(value: int) -> int:
+            """Block long enough for the non-blocking close to return."""
+            started.set()
+            time.sleep(0.6)
+            return value
+
+        handle = registry._thread_backend.submit(slow, {"value": 8})
+        assert started.wait(timeout=5)
+
+        started_at = time.perf_counter()
+        registry.close()
+        elapsed = time.perf_counter() - started_at
+
+        assert elapsed < 0.4
+        # The handle still resolves; close() only stops owning the pool.
+        assert handle.result(timeout=5) == 8

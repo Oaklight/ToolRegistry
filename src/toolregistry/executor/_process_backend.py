@@ -12,6 +12,7 @@ import sys
 import threading
 import uuid
 import warnings
+import weakref
 from concurrent.futures import Future, ProcessPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from typing import Any
@@ -40,6 +41,46 @@ _SENDBACK_FRAME_RE = re.compile(
 )
 
 
+_BACKENDS: weakref.WeakSet[ProcessPoolBackend] = weakref.WeakSet()
+
+
+def _pool_thread_idents() -> set[int]:
+    """Return the idents of threads owned by any process-pool backend."""
+    idents: set[int] = set()
+    for backend in list(_BACKENDS):
+        pool = backend._pool
+        if pool is None:
+            continue
+        for attr in (
+            "_executor_manager_thread",
+            "_queue_management_thread",
+            "_shutdown_thread",
+        ):
+            thread = getattr(pool, attr, None)
+            ident = getattr(thread, "ident", None)
+            if ident is not None:
+                idents.add(ident)
+    return idents
+
+
+def _external_thread_count() -> int:
+    """Count threads that are neither the main thread nor pool infrastructure.
+
+    ProcessPoolExecutor keeps a manager thread and queue feeder threads in the
+    parent.  They must not make a single-threaded process look threaded, or
+    every second pool would switch away from ``fork`` and unguarded scripts
+    would break.
+    """
+    own = _pool_thread_idents()
+    return sum(
+        1
+        for thread in threading.enumerate()
+        if thread is not threading.main_thread()
+        and thread.ident not in own
+        and not thread.name.startswith("QueueFeederThread")
+    )
+
+
 def _pool_context() -> multiprocessing.context.BaseContext:
     """Return a process start context that is safe for the current process.
 
@@ -52,20 +93,20 @@ def _pool_context() -> multiprocessing.context.BaseContext:
 
     Pick the method that keeps both properties:
 
-    - single-threaded parent: ``fork``.  Nothing else is running, so it is
-      safe, and it preserves script/REPL/``stdin`` usage without requiring an
+    - no external threads: ``fork``.  Nothing else is running, so it is safe,
+      and it preserves script/REPL/``stdin`` usage without requiring an
       ``if __name__ == "__main__":`` guard.
-    - threaded parent: ``forkserver`` (``spawn`` where unavailable).  Workers
+    - external threads: ``forkserver`` (``spawn`` where unavailable).  Workers
       start from a clean server process.  Non-fork contexts import
       ``__main__`` in the child, so a file-based entry point needs the
       standard ``if __name__ == "__main__":`` guard.
-    - threaded parent with no importable ``__main__`` (piped script, missing
+    - external threads with no importable ``__main__`` (piped script, missing
       file): fall back to ``fork`` with a warning, because the alternative is
       failing outright.  ``python -c`` is unaffected (``__main__`` has no
       ``__file__``).
     """
     methods = multiprocessing.get_all_start_methods()
-    if threading.active_count() == 1 and "fork" in methods:
+    if _external_thread_count() == 0 and "fork" in methods:
         return multiprocessing.get_context("fork")
 
     main = sys.modules.get("__main__")
@@ -252,14 +293,57 @@ class ProcessPoolBackend:
         # starts a manager thread at construction, which an idle registry
         # should not hold.
         self._pool: ProcessPoolExecutor | None = None
+        self._pool_start_method: str | None = None
+        self._external_threads_at_creation = 0
+        self._outstanding = 0
+        self._thread_growth_warned = False
+        _BACKENDS.add(self)
 
     def _get_pool(self) -> ProcessPoolExecutor:
         """Return the lazily created process pool."""
         if self._pool is None:
+            self._external_threads_at_creation = _external_thread_count()
+            ctx = _pool_context()
             self._pool = ProcessPoolExecutor(
-                max_workers=self._max_workers, mp_context=_pool_context()
+                max_workers=self._max_workers, mp_context=ctx
             )
+            self._pool_start_method = ctx.get_start_method()
         return self._pool
+
+    def _release_slot(self, _future: Future) -> None:
+        """Track completion so a pool can be migrated only when idle."""
+        self._outstanding -= 1
+
+    def _migrate_if_threaded(self) -> None:
+        """Replace a ``fork`` pool once the parent has grown threads.
+
+        The start method is chosen when the pool is created.  A pool created
+        while single-threaded stays on ``fork``, so workers spawned later
+        would be forked from a threaded parent — the hazard this backend
+        exists to avoid.  Recreate the pool when it is idle; if work is in
+        flight, warn once rather than discarding it.
+        """
+        if self._pool is None or self._pool_start_method != "fork":
+            return
+        if _external_thread_count() <= self._external_threads_at_creation:
+            return
+        if self._outstanding:
+            if not self._thread_growth_warned:
+                self._thread_growth_warned = True
+                warnings.warn(
+                    "The process backend's pool was created with fork and the "
+                    "process has since grown threads; workers spawned from "
+                    "here may deadlock. Call close() to reset the pool, or "
+                    "create the registry after the other threads start.",
+                    RuntimeWarning,
+                    stacklevel=3,
+                )
+            return
+        self._pool.shutdown(wait=False, cancel_futures=True)
+        self._pool = None
+        self._pool_start_method = None
+        self._external_threads_at_creation = 0
+        self._thread_growth_warned = False
 
     def submit(
         self,
@@ -270,6 +354,11 @@ class ProcessPoolBackend:
         timeout: float | None = None,
     ) -> ExecutionHandle:
         exec_id = execution_id or uuid.uuid4().hex
+
+        # A pool created while single-threaded uses fork.  If the process has
+        # since grown threads, migrate before adding work so new workers are
+        # not forked from a threaded parent.
+        self._migrate_if_threaded()
 
         # Wrap bare async functions so they can run in the worker process.
         # Tool wrappers (BaseToolWrapper) handle sync/async internally,
@@ -287,10 +376,19 @@ class ProcessPoolBackend:
         serialized_fn = cloudpickle.dumps(fn)
 
         future = self._get_pool().submit(_process_worker, serialized_fn, kwargs)
+        self._outstanding += 1
+        future.add_done_callback(self._release_slot)
         return ProcessExecutionHandle(future, exec_id, timeout)
 
     def shutdown(self, wait: bool = True) -> None:
+        """Shut down the pool.
+
+        ``wait=False`` abandons queued work and returns immediately;
+        ``wait=True`` drains in-flight and queued work.
+        """
         if self._pool is None:
             return
-        self._pool.shutdown(wait=wait, cancel_futures=True)
+        self._pool.shutdown(wait=wait, cancel_futures=not wait)
         self._pool = None
+        self._pool_start_method = None
+        self._external_threads_at_creation = 0
