@@ -1,3 +1,9 @@
+"""Examples of merge() / spinoff() / reduce_namespace().
+
+Runnable with ``python examples/test_merge_spinoff.py``.  The default separator
+is ``-``; one test sets ``name_sep="."`` to show cross-separator merging.
+"""
+
 import unittest
 
 from toolregistry.tool_registry import ToolRegistry
@@ -5,7 +11,7 @@ from toolregistry.utils import normalize_tool_name
 
 
 def create_sample_tool(registry, name, namespace=None):
-    """Helper function to create a simple tool in a registry."""
+    """Register a trivial tool in *registry*."""
 
     def tool_func():
         return f"result_from_{normalize_tool_name(name)}"
@@ -16,118 +22,96 @@ def create_sample_tool(registry, name, namespace=None):
 
 class TestMergeAndSpinoff(unittest.TestCase):
     def setUp(self):
-        """Create sample registries for testing."""
-        self.registry_a = ToolRegistry("A")
-        self.registry_b = ToolRegistry("B")
-        self.registry_c = ToolRegistry("C")
+        """Create three registries with two unqualified tools each."""
+        self.registry_a = ToolRegistry("a")
+        self.registry_b = ToolRegistry("b")
 
-        # Populate with sample tools
-        create_sample_tool(self.registry_a, "tool1")
-        create_sample_tool(self.registry_a, "tool2")
-        create_sample_tool(self.registry_b, "tool3")
-        create_sample_tool(self.registry_b, "tool4")
-        create_sample_tool(self.registry_c, "tool5")
-        create_sample_tool(self.registry_c, "tool6")
+        for name in ("tool1", "tool2"):
+            create_sample_tool(self.registry_a, name)
+        for name in ("tool3", "tool4"):
+            create_sample_tool(self.registry_b, name)
 
     def test_merge_with_force_namespace(self):
-        """Test merge functionality with force_namespace=True."""
+        """Every tool is prefixed with the receiving registry's name."""
         self.registry_a.merge(self.registry_b, force_namespace=True)
-        available = self.registry_a.list_tools()
-        self.assertEqual(len(available), 4)
-        self.assertIn("a.tool1", available)
-        self.assertIn("a.tool3", available)
+
+        self.assertEqual(
+            set(self.registry_a.list_tools()),
+            {"a-tool1", "a-tool2", "a-tool3", "a-tool4"},
+        )
+        self.assertEqual(
+            {tool.namespace for tool in self.registry_a._tools.values()}, {"a"}
+        )
 
     def test_merge_without_force_namespace(self):
-        """Test merge functionality with force_namespace=False."""
+        """Each side keeps its own registry-name prefix."""
         self.registry_a.merge(self.registry_b, force_namespace=False)
-        available = self.registry_a.list_tools()
-        self.assertEqual(len(available), 4)
-        self.assertIn("a.tool1", available)
-        self.assertIn("b.tool3", available)
+
+        self.assertEqual(
+            set(self.registry_a.list_tools()),
+            {"a-tool1", "a-tool2", "b-tool3", "b-tool4"},
+        )
+
+    def test_merge_across_separators(self):
+        """Incoming names are converted to the receiving separator."""
+        self.registry_a.name_sep = "."
+        self.registry_a.merge(self.registry_b, force_namespace=False)
+
+        names = set(self.registry_a.list_tools())
+        self.assertEqual(names, {"a.tool1", "a.tool2", "b.tool3", "b.tool4"})
+        self.assertTrue(
+            all(key == tool.name for key, tool in self.registry_a._tools.items())
+        )
 
     def test_spinoff(self):
-        """Test spinoff functionality."""
+        """The prefix is removed from the extracted tools by default."""
         create_sample_tool(self.registry_a, "tool1", namespace="sub")
         create_sample_tool(self.registry_a, "tool2", namespace="sub")
 
         sub_registry = self.registry_a.spinoff("sub")
-        self.assertEqual(len(sub_registry.list_tools()), 2)
-        self.assertIn("tool1", sub_registry.list_tools())
-        self.assertIn("tool2", sub_registry.list_tools())
 
-        remaining_tools = self.registry_a.list_tools()
-        self.assertEqual(len(remaining_tools), 2)
-        self.assertIn("tool1", remaining_tools)
-        self.assertIn("tool2", remaining_tools)
+        self.assertEqual(set(sub_registry.list_tools()), {"tool1", "tool2"})
+        self.assertEqual(sub_registry.name_sep, "-")
+        # The source keeps its unqualified tools and loses the namespaced ones.
+        self.assertEqual(set(self.registry_a.list_tools()), {"tool1", "tool2"})
+        self.assertEqual(self.registry_a.get_tool("tool1").namespace, None)
+
+    def test_spinoff_with_retain_namespace(self):
+        """``retain_namespace=True`` keeps the qualified names."""
+        create_sample_tool(self.registry_a, "tool1", namespace="retain")
+        create_sample_tool(self.registry_a, "tool2", namespace="retain")
+
+        sub_registry = self.registry_a.spinoff("retain", retain_namespace=True)
+
+        self.assertEqual(
+            set(sub_registry.list_tools()), {"retain-tool1", "retain-tool2"}
+        )
+        self.assertEqual(sub_registry.get_tool("retain-tool1").namespace, "retain")
+
+    def test_spinoff_unknown_namespace(self):
+        with self.assertRaises(ValueError):
+            self.registry_a.spinoff("nonexistent")
 
     def test_merge_after_spinoff(self):
-        """Test merging spinoff registries."""
+        """Both spun-off registries are named after the namespace."""
         create_sample_tool(self.registry_a, "tool1", namespace="sub")
         create_sample_tool(self.registry_b, "tool2", namespace="sub")
 
         sub_a = self.registry_a.spinoff("sub")
         sub_b = self.registry_b.spinoff("sub")
-
         sub_a.merge(sub_b, force_namespace=False)
-        self.assertEqual(len(sub_a.list_tools()), 2)
-        self.assertIn("sub.tool1", sub_a.list_tools())
-        self.assertIn("sub.tool2", sub_a.list_tools())
 
-    def test_merge_with_conflicting_and_empty_registry(self):
-        """Test merge functionality with conflicting namespaces and empty registry."""
-        # Conflicting namespaces
-        create_sample_tool(self.registry_a, "tool1", namespace="conflict")
-        create_sample_tool(self.registry_b, "tool1", namespace="conflict")
+        self.assertEqual(set(sub_a.list_tools()), {"sub-tool1", "sub-tool2"})
 
-        self.registry_a.merge(self.registry_b, force_namespace=False)
-        available = self.registry_a.list_tools()
-        self.assertIn("conflict.tool1", available)
-        self.assertEqual(len(available), 5)
+    def test_reduce_namespace_leaves_unqualified_tools_alone(self):
+        """A single remaining namespace is flattened; unqualified tools stay."""
+        registry = ToolRegistry("calc")
+        create_sample_tool(registry, "add", namespace="math")
+        create_sample_tool(registry, "helper")
 
-        # Empty registry
-        empty_registry = ToolRegistry("Empty")
-        self.registry_a.merge(empty_registry, force_namespace=False)
-        available = self.registry_a.list_tools()
-        self.assertEqual(len(available), 5)
-        self.assertIn("conflict.tool1", available)
+        registry.reduce_namespace()
 
-    def test_spinoff_with_empty_namespace(self):
-        """Test spinoff functionality with an empty namespace."""
-        with self.assertRaises(ValueError):
-            self.registry_a.spinoff("nonexistent")
-
-    def test_spinoff_with_retain_namespace(self):
-        """Test spinoff functionality with retain_namespace parameter."""
-        create_sample_tool(self.registry_a, "tool1", namespace="retain")
-        create_sample_tool(self.registry_a, "tool2", namespace="retain")
-
-        # Case 1: retain_namespace=True
-        sub_registry_retain = self.registry_a.spinoff("retain", retain_namespace=True)
-        self.assertEqual(len(sub_registry_retain.list_tools()), 2)
-        self.assertIn("retain.tool1", sub_registry_retain.list_tools())
-        self.assertIn("retain.tool2", sub_registry_retain.list_tools())
-
-        # Case 2: retain_namespace=False
-        create_sample_tool(self.registry_a, "tool3", namespace="remove")
-        create_sample_tool(self.registry_a, "tool4", namespace="remove")
-        sub_registry_remove = self.registry_a.spinoff("remove", retain_namespace=False)
-        self.assertEqual(len(sub_registry_remove.list_tools()), 2)
-        self.assertIn("tool3", sub_registry_remove.list_tools())
-        self.assertIn("tool4", sub_registry_remove.list_tools())
-
-        """Test complex spinoff and merge scenarios."""
-        create_sample_tool(self.registry_a, "tool1", namespace="complex")
-        create_sample_tool(self.registry_a, "tool2", namespace="complex")
-        create_sample_tool(self.registry_b, "tool3", namespace="complex")
-        create_sample_tool(self.registry_b, "tool4", namespace="complex")
-
-        sub_a = self.registry_a.spinoff("complex")
-        sub_b = self.registry_b.spinoff("complex")
-
-        sub_a.merge(sub_b, force_namespace=True)
-        self.assertEqual(len(sub_a.list_tools()), 4)
-        self.assertIn("complex.tool1", sub_a.list_tools())
-        self.assertIn("complex.tool3", sub_a.list_tools())
+        self.assertEqual(set(registry.list_tools()), {"add", "helper"})
 
 
 if __name__ == "__main__":

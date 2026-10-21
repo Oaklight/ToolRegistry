@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from collections.abc import Callable
 
 from .._names import (
@@ -14,12 +14,23 @@ from ..tool import Tool
 from ..utils import normalize_tool_name
 
 
+def _rekey_tool(tool: Tool, sep: NameSeparator) -> Tool:
+    """Return *tool* re-keyed with *sep*, preserving its namespace."""
+    return tool.requalify(tool.namespace, sep) if tool.namespace else tool
+
+
 class NamespaceMixin:
     """Mixin providing namespace management, tool lookup, merge, and spinoff."""
 
     name: str
     _overrides: dict[str, Tool]  # Owned by RegistrationMixin
+    _disabled: dict[str, str]  # Owned by EnableDisableMixin
+    _execution_mode: str  # Owned by ToolRegistry
     name_sep: NameSeparator  # Property exposed by ToolRegistry
+
+    if TYPE_CHECKING:
+
+        def get_disable_reason(self, tool_name: str) -> str | None: ...
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
@@ -68,6 +79,24 @@ class NamespaceMixin:
                 rebuilt[new_name] = new_tool
         self._overrides = rebuilt
 
+    def _rekey_disabled(self, remap: dict[str, str]) -> None:
+        """Move disabled records to the tools' new names.
+
+        ``_disabled`` (owned by :class:`EnableDisableMixin`) is keyed by name.
+        Method-level entries follow their tool through *remap*; namespace-level
+        entries are left alone because namespaces do not carry the registry
+        separator.
+
+        Args:
+            remap: Maps old tool names to their new names.
+        """
+        disabled = getattr(self, "_disabled", None)
+        if not disabled:
+            return
+        self._disabled = {
+            remap.get(name, name): reason for name, reason in disabled.items()
+        }
+
     def _prefix_tools_namespace(self, force: bool = False) -> None:
         """Add the registry name as a prefix to the names of tools in the registry.
 
@@ -96,6 +125,9 @@ class NamespaceMixin:
             None
         """
         sep = self.name_sep
+        # Snapshot each tool's effective disabled state (method-level over
+        # namespace-level) before renaming, so it can follow the tool.
+        disabled_reasons = {name: self.get_disable_reason(name) for name in self._tools}
         new_tools: dict[str, Tool] = {}
         rename: dict[str, str] = {}
         for old_name, tool in self._tools.items():
@@ -109,6 +141,79 @@ class NamespaceMixin:
                 displaced.update_namespace(self.name, force=force, sep=sep),
             )
         )
+        if getattr(self, "_disabled", None) is not None:
+            for old_name in disabled_reasons:
+                self._disabled.pop(old_name, None)
+            for old_name, new_name in rename.items():
+                reason = disabled_reasons.get(old_name)
+                if reason is not None:
+                    self._disabled[new_name] = reason
+
+    def _convert_incoming(
+        self, other: NamespaceMixin, sep: NameSeparator
+    ) -> tuple[dict[str, Tool], dict[str, str]]:
+        """Re-key *other*'s tools with *sep*; return tools and the name remap."""
+        incoming: dict[str, Tool] = {}
+        remap: dict[str, str] = {}
+        for name, tool in other._tools.items():
+            converted = _rekey_tool(tool, sep)
+            if converted.name in incoming:
+                raise ValueError(
+                    f"Merge would collapse {name!r} and another tool into "
+                    f"{converted.name!r}; rename one of them first."
+                )
+            incoming[converted.name] = converted
+            remap[name] = converted.name
+        return incoming, remap
+
+    def _apply_incoming(
+        self, incoming: dict[str, Tool], keep_existing: bool
+    ) -> set[str]:
+        """Merge *incoming* into ``_tools`` and return the names that came over."""
+        if keep_existing:
+            merged: set[str] = set()
+            for name, tool in incoming.items():
+                if name not in self._tools:
+                    self._tools[name] = tool
+                    merged.add(name)
+            return merged
+
+        self._tools.update(incoming)
+        # Incoming tools supersede any override holding the same name, so the
+        # displaced record no longer describes the current tool.
+        for name in incoming:
+            self._overrides.pop(name, None)
+        return set(incoming)
+
+    def _carry_overrides(
+        self,
+        other: NamespaceMixin,
+        remap: dict[str, str],
+        merged_keys: set[str],
+        sep: NameSeparator,
+    ) -> None:
+        """Move override records for tools that actually came over."""
+        for old_name, displaced in other._overrides.items():
+            new_name = remap.get(old_name)
+            if new_name is None or new_name not in merged_keys:
+                continue
+            self._overrides[new_name] = _rekey_tool(displaced, sep)
+
+    def _carry_disabled(
+        self,
+        other: NamespaceMixin,
+        remap: dict[str, str],
+        merged_keys: set[str],
+    ) -> None:
+        """Move disabled state for tools that actually came over."""
+        if getattr(self, "_disabled", None) is None:
+            return
+        for old_name, new_name in remap.items():
+            if new_name not in merged_keys:
+                continue
+            reason = other.get_disable_reason(old_name)
+            if reason is not None:
+                self._disabled[new_name] = reason
 
     def merge(
         self,
@@ -142,48 +247,10 @@ class NamespaceMixin:
         self._prefix_tools_namespace()
         other._prefix_tools_namespace()
 
-        def convert(tool: Tool) -> Tool:
-            """Re-key a tool with this registry's separator."""
-            if not tool.namespace:
-                return tool
-            return tool.requalify(tool.namespace, sep)
-
-        # Convert incoming keys to this registry's separator.  Namespace and
-        # method_name are authoritative, so the conversion is lossless even when
-        # the registries use different separators.
-        incoming: dict[str, Tool] = {}
-        remap: dict[str, str] = {}
-        for name, tool in other._tools.items():
-            converted = convert(tool)
-            if converted.name in incoming:
-                raise ValueError(
-                    f"Merge would collapse {name!r} and another tool into "
-                    f"{converted.name!r}; rename one of them first."
-                )
-            incoming[converted.name] = converted
-            remap[name] = converted.name
-
-        # Merge tools based on the `keep_existing` flag
-        merged_keys: set[str] = set()
-        if keep_existing:
-            for name, tool in incoming.items():
-                if name not in self._tools:
-                    self._tools[name] = tool
-                    merged_keys.add(name)
-        else:
-            self._tools.update(incoming)
-            merged_keys = set(incoming)
-            # Incoming tools supersede any override holding the same name, so
-            # the displaced record no longer describes the current tool.
-            for name in incoming:
-                self._overrides.pop(name, None)
-
-        # Override records follow the tools that actually came over.
-        for old_name, displaced in other._overrides.items():
-            new_name = remap.get(old_name)
-            if new_name is None or new_name not in merged_keys:
-                continue
-            self._overrides[new_name] = convert(displaced)
+        incoming, remap = self._convert_incoming(other, sep)
+        merged_keys = self._apply_incoming(incoming, keep_existing)
+        self._carry_overrides(other, remap, merged_keys, sep)
+        self._carry_disabled(other, remap, merged_keys)
 
         if force_namespace:
             # update namespace if required after merge done
@@ -229,6 +296,8 @@ class NamespaceMixin:
             return flat.name, flat
 
         reduced: dict[str, Tool] = {}
+        remap: dict[str, str] = {}
+        disabled_reasons: dict[str, str] = {}
         for name, tool in self._tools.items():
             new_name, new_tool = flatten(name, tool)
             if new_name in reduced:
@@ -238,10 +307,56 @@ class NamespaceMixin:
                     f"{new_name!r}."
                 )
             reduced[new_name] = new_tool
+            remap[name] = new_name
+            reason = self.get_disable_reason(name)
+            if reason is not None:
+                disabled_reasons[new_name] = reason
 
         self._tools = reduced
         self._sync_overrides(flatten)
+        if getattr(self, "_disabled", None) is not None:
+            for old_name in remap:
+                self._disabled.pop(old_name, None)
+            self._disabled.pop(remaining_prefix, None)
+            self._disabled.update(disabled_reasons)
         self._sub_registries.clear()
+
+    def _select_namespace_tools(
+        self, prefix: str, sep: NameSeparator
+    ) -> tuple[dict[str, Tool], set[str], dict[str, str]]:
+        """Select tools in *prefix*.
+
+        Returns the selected tools keyed by their (possibly requalified) name,
+        the source keys, and a source-key → child-key map.
+        """
+        tools: dict[str, Tool] = {}
+        selected_keys: set[str] = set()
+        source_to_child: dict[str, str] = {}
+        for name, tool in self._tools.items():
+            if tool.namespace:
+                matches = tool.namespace == prefix
+            else:
+                matches = is_in_namespace(name, prefix, sep)
+            if not matches:
+                continue
+
+            # Give legacy (namespace-less) tools their group marker before
+            # moving them, so later operations never have to parse their names.
+            if not tool.namespace:
+                tool = tool.requalify(prefix, sep)
+            tools[tool.name] = tool
+            selected_keys.add(name)
+            source_to_child[name] = tool.name
+        return tools, selected_keys, source_to_child
+
+    def _drop_moved_disabled(self, selected_keys: set[str], prefix: str) -> None:
+        """Drop disabled records for tools that left this registry."""
+        if getattr(self, "_disabled", None) is None:
+            return
+        for name in selected_keys:
+            self._disabled.pop(name, None)
+        if not any(tool.namespace == prefix for tool in self._tools.values()):
+            self._disabled.pop(prefix, None)
 
     def spinoff(self, prefix: str, retain_namespace: bool = False) -> NamespaceMixin:
         """Spin off tools with the specified namespace into a new registry.
@@ -275,30 +390,29 @@ class NamespaceMixin:
         normalized_prefix = normalize_tool_name(prefix)
         sep = self.name_sep
 
-        spun_off_tools: dict[str, Tool] = {}
-        selected_keys: set[str] = set()
-        for name, tool in self._tools.items():
-            if tool.namespace:
-                matches = tool.namespace == normalized_prefix
-            else:
-                matches = is_in_namespace(name, normalized_prefix, sep)
-            if not matches:
-                continue
-
-            # Give legacy (namespace-less) tools their group marker before moving
-            # them, so later operations never have to parse their names.
-            if not tool.namespace:
-                tool = tool.requalify(normalized_prefix, sep)
-            spun_off_tools[tool.name] = tool
-            selected_keys.add(name)
+        spun_off_tools, selected_keys, source_to_child = self._select_namespace_tools(
+            normalized_prefix, sep
+        )
 
         if not spun_off_tools:
             raise ValueError(f"No tools with prefix '{prefix}' found in the registry.")
 
-        # Create a new registry for the spun-off tools, inheriting the separator.
+        # Capture effective disabled state before the move so it can follow the
+        # tools into the child registry.
+        disabled_reasons = {
+            source_to_child[name]: self.get_disable_reason(name)
+            for name in selected_keys
+        }
+
+        # Create a new registry for the spun-off tools, inheriting the separator
+        # and execution mode.
         new_registry = ToolRegistry(name=normalized_prefix, name_sep=sep)
+        new_registry._execution_mode = self._execution_mode
         new_registry._sub_registries.add(normalized_prefix)
         new_registry._tools = spun_off_tools
+        for new_name, reason in disabled_reasons.items():
+            if reason is not None:
+                new_registry._disabled[new_name] = reason
 
         moved_overrides = {
             name: displaced
@@ -323,6 +437,11 @@ class NamespaceMixin:
 
         # Remove the prefix from sub-registries if it exists
         self._sub_registries.discard(normalized_prefix)
+
+        # The moved tools no longer belong to this registry; drop their
+        # method-level disabled records, and the namespace-level record once no
+        # tool in that namespace remains.
+        self._drop_moved_disabled(selected_keys, normalized_prefix)
 
         # Optionally discard namespace if retain_namespace is False
         if not retain_namespace:

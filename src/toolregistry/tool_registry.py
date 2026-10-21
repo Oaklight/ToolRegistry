@@ -181,16 +181,21 @@ class ToolRegistry(
         """Set the namespace separator, re-keying registered tools.
 
         Every registered tool that carries a namespace is renamed with the new
-        separator, and override records are re-keyed alongside it, so the
-        registry never mixes separators.  Unqualified tools are untouched.
+        separator.  Override and disabled records are re-keyed alongside it, so
+        the registry never mixes separators and a disabled tool stays disabled.
+        Unqualified tools are untouched.  The tool-discovery index is marked
+        stale because every indexed document id changed.
 
         Args:
             value: ``"-"`` or ``"."``.
 
         Raises:
             ValueError: If *value* is anything else, or if re-keying would make
-                two tools collide.  Validation lives here so the admin API does
-                not need its own copy of the check.
+                two tools collide.  The collision guard is reachable only for
+                hand-built ``Tool`` instances: registration normalizes names, so
+                two registered keys cannot collapse across separators.
+                Validation lives here so the admin API does not need its own
+                copy of the check.
         """
         if value not in ("-", "."):
             raise ValueError("name_sep must be '-' or '.'")
@@ -218,6 +223,9 @@ class ToolRegistry(
                 else displaced,
             )
         )
+        self._rekey_disabled(remap)
+        if self._tool_discovery is not None:
+            self._tool_discovery._mark_dirty()
         self._name_sep = value
 
     def __contains__(self, name: str) -> bool:
