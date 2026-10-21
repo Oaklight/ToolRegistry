@@ -616,12 +616,30 @@ class RegistrationMixin:
             self._overrides[name] = tool
 
     def _coerce_override_tool(self, name: str, tool: Tool | Callable) -> Tool:
-        """Normalise an override target into a ``Tool`` keyed by *name*."""
+        """Normalise an override target into a ``Tool`` keyed by *name*.
+
+        The registry key is authoritative: the replacement's ``name`` is set to
+        *name* exactly (``Tool.from_function`` would normalize the separator
+        away and break the key/name invariant).  Namespace and method name are
+        derived from the key so later namespace operations can rebuild it.
+        """
         if isinstance(tool, Tool):
-            if tool.name == name:
-                return tool
-            return dataclasses.replace(tool, name=name)
-        return Tool.from_function(tool, name=name)
+            base = tool
+        else:
+            base = Tool.from_function(tool, name=name)
+
+        sep = self.name_sep
+        if sep in name:
+            namespace, method_name = name.split(sep, 1)
+        else:
+            namespace, method_name = None, name
+
+        return dataclasses.replace(
+            base,
+            name=name,
+            namespace=namespace,
+            method_name=method_name,
+        )
 
     def _register_class(self, cls_or_instance, *, namespace, **kwargs):
         traverse_mro = kwargs.pop("traverse_mro", True)

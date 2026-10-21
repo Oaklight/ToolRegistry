@@ -585,14 +585,14 @@ class Tool:
     def qualified_name(self) -> str:
         """Return the fully-qualified tool name.
 
-        If a ``namespace`` is set, returns ``{namespace}-{method_name}``.
-        Otherwise falls back to the ``name`` field.
+        ``name`` is authoritative: registration and every namespace operation
+        rebuild it from ``namespace``, ``method_name`` and the registry
+        separator (see :meth:`requalify`).  The property therefore simply
+        exposes ``name``.
 
         Returns:
             str: The qualified name of the tool.
         """
-        if self.namespace and self.method_name:
-            return f"{self.namespace}-{self.method_name}"
         return self.name
 
     @classmethod
@@ -906,6 +906,63 @@ class Tool:
             metadata=dataclasses.replace(self.metadata, last_refreshed_at=timestamp),
         )
 
+    def requalify(
+        self: _ToolT,
+        namespace: str | None,
+        sep: NameSeparator = "-",
+    ) -> _ToolT:
+        """Return a copy whose name is rebuilt from *namespace* and *method_name*.
+
+        ``name`` is derived, never parsed: the unqualified name comes from
+        :attr:`method_name` (falling back to the current name for tools built
+        before that field existed), then it is recombined with *namespace* using
+        *sep*.  Passing ``namespace=None`` drops the namespace and keeps only the
+        method name.
+
+        This is the primitive behind ``spinoff``, ``reduce_namespace`` and
+        separator conversion during ``merge``.
+
+        Args:
+            namespace: Namespace to apply, or ``None`` to flatten.
+            sep: Separator between namespace and method name.
+
+        Returns:
+            A copy with consistent ``name``, ``namespace`` and ``method_name``.
+        """
+        method_name = self.method_name or self._method_name_from_name(sep)
+        if namespace:
+            new_namespace: str | None = normalize_tool_name(namespace)
+            new_name = f"{new_namespace}{sep}{method_name}"
+        else:
+            new_namespace = None
+            new_name = method_name
+
+        return dataclasses.replace(
+            self,
+            name=new_name,
+            namespace=new_namespace,
+            method_name=method_name,
+        )
+
+    def _method_name_from_name(self, sep: NameSeparator) -> str:
+        """Recover the unqualified method name from ``name``.
+
+        Prefers the namespace boundary, then either supported separator.  Only
+        used for tools that were built without ``method_name``.
+        """
+        if self.namespace:
+            for boundary in (
+                f"{self.namespace}{sep}",
+                f"{self.namespace}-",
+                f"{self.namespace}.",
+            ):
+                if self.name.startswith(boundary):
+                    return self.name[len(boundary) :]
+        for boundary_sep in ("-", "."):
+            if boundary_sep in self.name:
+                return self.name.split(boundary_sep, 1)[1]
+        return self.name
+
     def update_namespace(
         self: _ToolT,
         namespace: str | None,
@@ -914,20 +971,16 @@ class Tool:
     ) -> _ToolT:
         """Return a copy of the tool with an updated namespace.
 
-        Checks if the tool's name already contains a namespace (indicated
-        by the presence of a separator character).  OpenAI requires that
-        function names match ``^[a-zA-Z0-9_-]+$``; some other providers
-        allow dot (``.``) as separator.
+        Names are always derived from ``namespace``, ``method_name`` and *sep*;
+        the tool is never renamed by parsing its current name.  OpenAI requires
+        function names to match ``^[a-zA-Z0-9_-]+$``; some other providers allow
+        dot (``.``) as separator.
 
         If a namespace prefix already exists and *force* is ``True``, the
-        existing namespace is replaced.  If *force* is ``False``, the
-        original name is preserved.  If no namespace prefix exists, the
-        new *namespace* is prepended.
-
-        Note:
-            When ``force=False`` and the name already contains a
-            namespace prefix, the ``namespace`` field is updated to
-            the new value but ``name`` is preserved unchanged.
+        existing namespace is replaced.  If *force* is ``False``, a tool that is
+        already qualified is returned unchanged (both ``name`` and
+        ``namespace`` are preserved).  If no namespace exists, the new
+        *namespace* is applied.
 
         Args:
             namespace: The new namespace to apply to the tool's name.
@@ -937,7 +990,8 @@ class Tool:
 
         Returns:
             A new ``Tool`` instance with the updated namespace.  Returns
-            ``self`` unchanged when *namespace* is falsy.
+            ``self`` unchanged when *namespace* is falsy or when *force* is
+            ``False`` and the tool is already qualified.
 
         Example:
             ```python
@@ -955,6 +1009,8 @@ class Tool:
             ```
         """
         if not namespace:
+            return self
+        if not force and (self.namespace or any(s in self.name for s in ("-", "."))):
             return self
 
         new_name, new_method_name = qualify_name(

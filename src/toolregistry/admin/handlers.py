@@ -914,7 +914,7 @@ def _get_info(request: Request) -> Response:
     registry = _app(request).registry
     info: dict[str, Any] = {
         "toolregistry": toolregistry.__version__,
-        "name_sep": getattr(registry, "_name_sep", "-"),
+        "name_sep": registry.name_sep,
         "discover_enabled": "discover_tools" in registry._tools
         and registry.is_enabled("discover_tools"),
     }

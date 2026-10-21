@@ -13,7 +13,14 @@ from typing import Literal
 
 from .utils import normalize_tool_name
 
-__all__ = ["NameSeparator", "qualify_name", "qualified_tool_name"]
+__all__ = [
+    "NameSeparator",
+    "is_in_namespace",
+    "namespace_prefix",
+    "qualify_name",
+    "qualified_tool_name",
+    "strip_namespace",
+]
 
 NameSeparator = Literal["-", "."]
 
@@ -80,3 +87,59 @@ def qualified_tool_name(
         return normalized
     qualified, _ = qualify_name(normalized, namespace, sep, force=True)
     return qualified
+
+
+def namespace_prefix(name: str, sep: NameSeparator = "-") -> str | None:
+    """Return the namespace part of a qualified *name*, or ``None``.
+
+    Names created by ToolRegistry are normalized, so a separator in a key is
+    always the namespace boundary.  The caller supplies the registry separator.
+
+    Args:
+        name: Tool name, possibly namespace-qualified.
+        sep: Registry separator.
+
+    Returns:
+        The prefix before the first *sep*, or ``None`` when *name* is
+        unqualified.
+    """
+    if sep not in name:
+        return None
+    return name.split(sep, 1)[0]
+
+
+def is_in_namespace(name: str, namespace: str, sep: NameSeparator = "-") -> bool:
+    """Whether *name* belongs to *namespace* under *sep*.
+
+    The prefix must end on a separator boundary, so ``math`` matches
+    ``math-add`` but not ``math_ops-add``.  *namespace* must already be
+    normalized.
+
+    Args:
+        name: Tool name to test.
+        namespace: Normalized namespace to match.
+        sep: Registry separator.
+
+    Returns:
+        ``True`` when *name* carries ``namespace + sep``.
+    """
+    return bool(namespace) and name.startswith(f"{namespace}{sep}")
+
+
+def strip_namespace(name: str, namespace: str, sep: NameSeparator = "-") -> str:
+    """Remove a leading ``namespace + sep`` from *name*.
+
+    Returns *name* unchanged when it does not belong to *namespace*, so callers
+    never blind-slice a name that is merely shorter or in another namespace.
+
+    Args:
+        name: Tool name, possibly namespace-qualified.
+        namespace: Normalized namespace to remove.
+        sep: Registry separator.
+
+    Returns:
+        The unqualified name, or *name* unchanged.
+    """
+    if not is_in_namespace(name, namespace, sep):
+        return name
+    return name[len(namespace) + len(sep) :]
