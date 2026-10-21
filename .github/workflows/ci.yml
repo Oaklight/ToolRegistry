@@ -70,4 +70,5 @@ jobs:
             tests/test_langchain_integration.py \
             tests/test_register_replace.py \
             tests/test_registration_filter.py \
-            tests/test_remote_naming.py -v
+            tests/test_remote_naming.py \
+            tests/test_tool_source.py -v
