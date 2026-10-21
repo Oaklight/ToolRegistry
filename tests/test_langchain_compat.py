@@ -38,6 +38,21 @@ class RealAddTool(BaseTool):
         return a + b
 
 
+class AddInputNoDoc(BaseModel):
+    # No docstring: pydantic then omits the top-level ``description`` key, the
+    # shape that crashed the old unconditional ``del input_schema["description"]``
+    # on both langchain-core 0.3 and 1.x.
+    a: int = Field(description="First number")
+    b: int = Field(description="Second number")
+
+
+class RealAddToolNoDoc(RealAddTool):
+    """A real BaseTool whose args model has no docstring."""
+
+    name: str = "add_numbers_no_doc"
+    args_schema: type[BaseModel] = AddInputNoDoc
+
+
 class RealNoSchemaTool(BaseTool):
     """A real BaseTool whose schema is inferred from ``_run``."""
 
@@ -81,6 +96,18 @@ class TestRealBaseTool:
         tool = registry.get_tool("add_numbers")
         assert tool is not None
         assert set(tool.parameters["properties"]) == {"a", "b"}
+
+    def test_args_model_without_docstring_registers(self):
+        """A docstring-less args model has no top-level ``description``.
+
+        This is the shape that triggered ``KeyError: 'description'`` in the old
+        unconditional ``del``; it is reachable on both core majors.
+        """
+        registry = _register(RealAddToolNoDoc())
+        tool = registry.get_tool("add_numbers_no_doc")
+        assert tool is not None
+        assert set(tool.parameters["properties"]) == {"a", "b"}
+        assert registry.invoke("add_numbers_no_doc", {"a": 2, "b": 3}).result == "5"
 
     def test_async_registration_and_invoke(self):
         registry = ToolRegistry(name="lc")

@@ -291,6 +291,30 @@ class TestLangChainTool:
         props = built.parameters.get("properties", {})
         assert set(props) == {"a", "b"}
 
+    def test_pydantic_v1_args_schema_keeps_required(self):
+        """A pydantic-v1 model supplies ``required`` through ``schema()``."""
+        pydantic = pytest.importorskip("pydantic")
+        v1 = getattr(pydantic, "v1", None)
+        if v1 is None:
+            pytest.skip("pydantic v1 compatibility namespace unavailable")
+
+        class V1Input(v1.BaseModel):
+            a: int
+            b: int
+
+        class V1Tool:
+            name = "v1_tool"
+            description = "Uses a pydantic-v1 args_schema"
+            args_schema = V1Input
+
+            def _run(self, a: int, b: int) -> int:
+                return a + b
+
+        built = LangChainTool.from_langchain_tool(V1Tool())
+
+        assert set(built.parameters.get("properties", {})) == {"a", "b"}
+        assert built.parameters.get("required") == ["a", "b"]
+
     def test_no_schema_raises(self):
         with pytest.raises(TypeError, match="no parameter schema"):
             LangChainTool.from_langchain_tool(MockNoSchemaTool())

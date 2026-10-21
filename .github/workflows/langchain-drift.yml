@@ -12,17 +12,19 @@ permissions:
 jobs:
   compat:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         langchain-core: ["0.3.*", "1.*"]
+        python-version: ["3.10", "3.13"]
     steps:
       - uses: actions/checkout@v6
 
-      - name: Set up Python 3.10
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v6
         with:
-          python-version: "3.10"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: |
@@ -42,9 +44,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          title="LangChain drift detected for langchain-core ${{ matrix.langchain-core }}"
-          body="Scheduled compatibility run failed for \`langchain-core==${{ matrix.langchain-core }}\` on Python 3.10. See ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          existing=$(gh issue list --state open --search "$title in:title" --json number --jq '.[0].number // empty')
+          title="LangChain drift detected for langchain-core ${{ matrix.langchain-core }} on Python ${{ matrix.python-version }}"
+          body="Scheduled compatibility run failed for \`langchain-core==${{ matrix.langchain-core }}\` on Python ${{ matrix.python-version }}. See ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          # Exact title comparison: passing the title to `gh --search` routes
+          # it through GitHub's tokenizer, where `0.3.*` may not match the
+          # issue it was filed as.
+          existing=$(gh issue list --state open --limit 200 --json number,title \
+            | jq -r --arg title "$title" '.[] | select(.title == $title) | .number' \
+            | head -n 1)
           if [ -n "$existing" ]; then
             gh issue comment "$existing" --body "$body"
           else
