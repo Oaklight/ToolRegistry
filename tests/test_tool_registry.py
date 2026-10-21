@@ -905,3 +905,36 @@ class TestStructuredErrorHandling:
             e for e in events_received if e.event_type == ChangeEventType.TOOL_ERROR
         ]
         assert len(error_events) == 0
+
+
+class TestLifecycle:
+    """Execution resources are lazy and released by close()."""
+
+    @staticmethod
+    def _add(a: int, b: int) -> int:
+        """Add two integers."""
+        return a + b
+
+    def test_backends_are_lazy(self):
+        registry = ToolRegistry()
+
+        assert registry._thread_backend._pool is None
+        assert registry._process_backend._pool is None
+
+    def test_close_shuts_down_and_rebuilds_backends(self):
+        registry = ToolRegistry()
+        registry.register(self._add, name="add")
+
+        thread_pool = registry._thread_backend._get_pool()
+        process_pool = registry._process_backend._get_pool()
+
+        registry.close()
+
+        assert thread_pool._shutdown is True
+        assert getattr(process_pool, "_shutdown_thread", None) is not None
+        assert registry._thread_backend._pool is None
+        assert registry._process_backend._pool is None
+        # The registry remains usable after close.
+        result = registry.invoke("add", {"a": 2, "b": 3}, execution_mode="thread")
+        assert result.result == "5"
+        registry.close()  # idempotent

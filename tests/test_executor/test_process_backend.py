@@ -196,3 +196,9 @@ class TestProcessPoolBackend:
     def test_shutdown(self):
         backend = ProcessPoolBackend(max_workers=1)
         backend.shutdown()  # should not raise
+
+    def test_pool_avoids_fork_start_method(self):
+        """Workers must not be forked from a potentially threaded parent."""
+        from toolregistry.executor._process_backend import _pool_context
+
+        assert _pool_context().get_start_method() in {"forkserver", "spawn"}
