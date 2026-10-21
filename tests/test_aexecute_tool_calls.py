@@ -66,16 +66,31 @@ class TestAexecuteToolCalls:
 
     @pytest.mark.asyncio
     async def test_async_tools_overlap(self, registry):
-        """Two 0.2s async tools should overlap under gather (~0.2s not 0.4s)."""
+        """Two 0.2s async tools run concurrently, not back to back."""
+        # Warm both pool workers so worker startup is not part of either
+        # measurement (forkserver workers start lazily and are slower to
+        # come up than fork children).
+        await registry.aexecute_tool_calls(
+            [_tc("w1", "aslow", '{"n": 0}'), _tc("w2", "aslow", '{"n": 0}')]
+        )
+
+        start = time.perf_counter()
+        await registry.aexecute_tool_calls([_tc("s", "aslow", '{"n": 0}')])
+        single = time.perf_counter() - start
+
         tcs = [
             _tc("c1", "aslow", '{"n": 1}'),
             _tc("c2", "aslow", '{"n": 2}'),
         ]
         start = time.perf_counter()
         r = await registry.aexecute_tool_calls(tcs)
-        elapsed = time.perf_counter() - start
+        pair = time.perf_counter() - start
+
         assert {x.result for x in r} == {"1", "2"}
-        assert elapsed < 0.35
+        # Concurrent execution costs roughly one call; sequential execution
+        # costs two.  Comparing against the measured single call keeps the
+        # assertion independent of the runner's absolute speed.
+        assert pair < single * 1.6
 
     @pytest.mark.asyncio
     async def test_tool_error_is_error_result(self, registry):
