@@ -46,9 +46,10 @@ def _pool_context() -> multiprocessing.context.BaseContext:
     transports, the shared async runtime, integrations), and it also leaks
     stuck children if the parent is interrupted.
 
-    ``forkserver`` starts workers from a clean server process and keeps the
-    low per-call cost; ``spawn`` is the fallback on platforms without it.
-    Neither re-imports ``__main__`` for forkserver, so REPL usage still works.
+    ``forkserver`` starts workers from a clean server process; ``spawn`` is the
+    fallback on platforms without it.  Both require the standard
+    ``if __name__ == "__main__":`` guard when the process pool is used from a
+    script, as with any non-fork multiprocessing context.
     """
     methods = multiprocessing.get_all_start_methods()
     return multiprocessing.get_context(
