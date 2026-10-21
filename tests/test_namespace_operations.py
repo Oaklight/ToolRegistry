@@ -457,6 +457,19 @@ class TestDisabledStateFollowsTools:
         assert not left.is_enabled("right-multiply")
         assert left.get_disable_reason("right-multiply") == "maintenance"
 
+    def test_force_namespace_drops_stale_disabled_key(self):
+        left = ToolRegistry(name="reg")
+        right = ToolRegistry(name="other")
+        left.register(add, namespace="m")
+        right.register(multiply)
+        left.disable("m-add", reason="maintenance")
+
+        left.merge(right, force_namespace=True)
+
+        assert "reg-add" in left._tools
+        assert left.get_disable_reason("reg-add") == "maintenance"
+        assert "m-add" not in left._disabled
+
     def test_merge_keep_existing_does_not_import_disabled(self):
         left = ToolRegistry(name="reg")
         right = ToolRegistry(name="reg")
@@ -493,6 +506,24 @@ class TestNameSepChangeInvalidatesDiscovery:
 
         found = registry._tool_discovery.discover("math.add")
         assert [item["name"] for item in found] == ["math.add"]
+
+    def test_discover_after_flip_drops_old_key(self):
+        """A populated index must not survive the rename with stale ids."""
+        registry = ToolRegistry(tool_discovery=True)
+        registry.register(add, namespace="math")
+        # Populate the index under the old separator first; a cold index
+        # rebuilds from the current state and would hide the bug.
+        assert [
+            item["name"] for item in registry._tool_discovery.discover("math-add")
+        ] == ["math-add"]
+
+        registry.name_sep = "."
+
+        found = [item["name"] for item in registry._tool_discovery.discover("math-add")]
+        assert "math-add" not in found
+        assert [
+            item["name"] for item in registry._tool_discovery.discover("math.add")
+        ] == ["math.add"]
 
     def test_call_deferred_uses_rekeyed_name(self):
         registry = ToolRegistry(tool_discovery=True)
