@@ -9,32 +9,56 @@ LangChain 集成模块使 ToolRegistry 能够支持基于 LangChain 的工具。
 
 ## 使用指南
 
-要集成 LangChain，请确保已安装 [langchain] 依赖扩展（`pip install toolregistry[langchain]`）。按照以下步骤注册和使用工具：
+无需安装额外依赖。该集成是结构化的：任何暴露 `name`、`description`、参数模式以及同步和/或异步执行方法的对象，都可以通过 `source="langchain"` 注册。来自任意供应商或伙伴包的 `langchain_core.tools.BaseTool` 天然满足这些条件。
 
-1. **设置 LangChain 工具实例**
+???+ warning "`langchain-community` 已停止维护"
+    上游 `langchain-community` 已只读，最后一个版本是 2026 年 5 月的 0.4.2。ToolRegistry 不再依赖它。如果仍需要社区工具，请自行安装 `langchain-community`，或把底层可调用对象当作普通 Python 函数用 `registry.register(...)` 注册。
 
-    任何兼容 `langchain_core.tools.BaseTool` 类型的工具都可以直接注册。
+参数模式按以下顺序提取：`input_schema`、`args_schema`、`parameters` JSON Schema 字典、`args` 字典。执行方法按 `_run` / `run` / `func`（同步）与 `_arun` / `arun` / `coroutine`（异步）查找；仅同步的工具会通过工作线程提供异步调用。
 
-    可以使用第三方库（例如 [langchain_community.tools](https://github.com/langchain-ai/langchain) 中的工具）来创建工具实例，也可以利用你现有的代码来构建 LangChain 工具。
+1. **设置工具实例**
+
+    使用任意 `BaseTool` 实现（例如 `langchain-openai` 等伙伴包，或自定义类），也可以使用具有相同结构的普通对象。无需社区工具包。
 
 2. **注册工具**
 
-    使用注册器的 `register()` 接口将 LangChain 工具注册到注册器中。LangChain 工具会被自动检测，无需指定 `source=`。以下是注册两个工具（`ArxivQueryRun` 和 `PubmedQueryRun`）的列表示例。
+    使用 `register()` 配合 `source="langchain"`，或 `register_async()` 配合 `source="langchain"` 注册工具。下面是一个自定义工具的示例：
 
     ```python
-    from langchain_community.tools import ArxivQueryRun, PubmedQueryRun
+    from langchain_core.tools import BaseTool
+    from pydantic import BaseModel, Field
     from toolregistry import ToolRegistry
 
-    registry = ToolRegistry()
+    class SearchInput(BaseModel):
+        query: str = Field(description="Search query")
 
-    registry.register([ArxivQueryRun(), PubmedQueryRun()])
+    class SearchTool(BaseTool):
+        name: str = "search"
+        description: str = "Search a local index"
+        args_schema: type[BaseModel] = SearchInput
+
+        def _run(self, query: str) -> str:
+            return f"results for {query}"
+
+    registry = ToolRegistry()
+    registry.register(SearchTool(), source="langchain")
     ```
 
-    当然，你也可以传入单个工具实例。
+    普通对象同样可用——无需安装 LangChain：
 
     ```python
-    registry.register(ArxivQueryRun())
+    class LocalSearch:
+        name = "search"
+        description = "Search a local index"
+        args = {"query": {"type": "string", "description": "Search query"}}
+
+        def _run(self, query: str) -> str:
+            return f"results for {query}"
+
+    registry.register(LocalSearch(), source="langchain")
     ```
+
+    当然，也可以传入单个工具实例或工具列表。
 
 3. **调用工具**
 
@@ -90,12 +114,22 @@ def handle_tool_calls(response, messages):
     return response
 
 if __name__ == "__main__":
-    from langchain_community.tools import ArxivQueryRun, PubmedQueryRun
+    # 任何 langchain_core BaseTool 均可；无需 langchain-community。
+    from langchain_core.tools import BaseTool
+    from pydantic import BaseModel, Field
 
-    # Register LangChain tools
-    arxiv_tool = ArxivQueryRun()
-    pubmed_tool = PubmedQueryRun()
-    registry.register([arxiv_tool, pubmed_tool])
+    class ArxivSearchInput(BaseModel):
+        query: str = Field(description="Search query")
+
+    class ArxivSearchTool(BaseTool):
+        name: str = "arxiv_search"
+        description: str = "Search arXiv for papers"
+        args_schema: type[BaseModel] = ArxivSearchInput
+
+        def _run(self, query: str) -> str:
+            return f"arXiv results for {query!r} (demo tool)"
+
+    registry.register(ArxivSearchTool(), source="langchain")
     print(registry.get_available_tools())
 
     user_input = input("Please enter your research interests: ")
@@ -125,7 +159,8 @@ if __name__ == "__main__":
 
 ## 注意事项
 
-- 请确保已安装相应的扩展依赖（例如 langchain）。
+- 该集成无需额外依赖。只有在使用 `BaseTool` 类构建工具时才需要安装 `langchain-core`（或对应伙伴包）；带有 `name`、`description`、`args` 和 `_run` 的普通对象可直接使用。
+- `langchain-community` 上游已停止维护，不再是 ToolRegistry 的依赖。
 - `namespace` 参数允许在注册工具时灵活配置命名空间，以避免来自不同来源的命名冲突。
 
 LangChain 集成模块增强了 ToolRegistry 对各种工具来源的支持灵活性，使开发者能够通过统一的接口更轻松地调用不同类型的工具。

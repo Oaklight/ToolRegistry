@@ -37,10 +37,10 @@ pip install toolregistry[openapi]
 
 ### LangChain 支持
 
-用于 LangChain 工具集成：
+LangChain 工具通过结构化方式支持，无需额外扩展。只有在使用 `BaseTool` 类构建工具时才需要安装 `langchain-core`（已停止维护的 `langchain-community` 不再是必需依赖）：
 
 ```bash
-pip install toolregistry[langchain]
+pip install langchain-core
 ```
 
 ### 所有功能

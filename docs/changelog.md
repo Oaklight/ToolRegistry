@@ -28,6 +28,7 @@ hide:
 
 ### 变更
 
+- **LangChain 集成改为结构化** (#313)（**破坏性变更**）：`source="langchain"` 现在接受任何具有 `name`、`description`、参数模式（`input_schema`、`args_schema`、`parameters` 或 `args`）以及同步/异步执行方法的对象。`toolregistry[langchain]` 不再安装 `langchain-core` 与 `langchain-community`（该扩展现在为空），运行时也不再导入它们。这修复了 `langchain-core` 1.x 下因缺少顶层 `description` 而抛出的 `KeyError`，并移除了已停止维护的 `langchain-community` 依赖。真实的 `BaseTool` 兼容性由新增的定时 `langchain-drift` 工作流针对 `langchain-core` 0.3.x 与 1.x 进行检测。
 - **`update_namespace(force=False)` 保留既有命名空间** (#310)（**行为变更**）：已经带命名空间的工具会原样返回。此前会改写 `namespace` 字段为新值、却保留旧的 `name` 前缀，导致两个字段不一致。需要替换时请传 `force=True`。
 - **注册/注销时延迟重建发现索引** (#289)：`REGISTER` / `UNREGISTER` 现在只把 BM25 索引标记为陈旧，而不是逐事件重建，与既有的 `ENABLE` / `DISABLE` / `METADATA_UPDATE` 路径一致。批量注册只需在下一次 `discover()` 时重建一次；延迟工具描述仍会立即刷新。
 - **配置加载器拒绝未知键** (#297)（**行为变更**）：工具源条目或 `auth` 下的拼写错误现在会抛出 `ConfigError`，并给出条目索引与合法键集合。依赖被静默忽略的键的配置将在加载时失败，而不是部分生效。
