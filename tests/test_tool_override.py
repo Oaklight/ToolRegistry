@@ -442,32 +442,45 @@ class TestOverrideRegistrationInteraction:
 
         assert registry.list_overrides() == {}
 
-    def test_reduce_namespace_rekeys_override_records(self):
-        registry = ToolRegistry()
-        registry.register(Tool.from_function(add, name="math_add"))
-        registry._sub_registries = {"math"}
-        registry.override("math_add", multiply)
+    @pytest.mark.parametrize("sep", ["-", "."])
+    def test_reduce_namespace_rekeys_override_records(self, sep):
+        registry = ToolRegistry(name_sep=sep)
+        registry.register(add, namespace="math")
+        registry.override(f"math{sep}add", multiply)
 
         registry.reduce_namespace()
 
         assert list(registry._tools) == ["add"]
         assert list(registry.list_overrides()) == ["add"]
-        assert registry.restore_override("add") is not None
+        restored = registry.restore_override("add")
+        assert restored.name == "add"
+        assert restored.namespace is None
 
-    def test_spinoff_moves_override_records(self):
-        # ``spinoff`` keys on dotted names; registration normalises dots away,
-        # so build the registry state it expects directly.
-        registry = ToolRegistry()
-        original = Tool.from_function(add, name="math.add")
-        registry._tools["math.add"] = original
-        registry._sub_registries.add("math")
-        registry.override("math.add", multiply)
+    @pytest.mark.parametrize("sep", ["-", "."])
+    def test_spinoff_moves_override_records(self, sep):
+        registry = ToolRegistry(name_sep=sep)
+        registry.register(add, namespace="math")
+        registry.override(f"math{sep}add", multiply)
 
         spun = registry.spinoff("math")
 
         assert registry.list_overrides() == {}
         assert list(spun.list_overrides()) == ["add"]
-        assert spun.restore_override("add") is original
+        restored = spun.restore_override("add")
+        assert restored.name == "add"
+        assert restored.namespace is None
+
+    @pytest.mark.parametrize("sep", ["-", "."])
+    def test_spinoff_retain_keeps_override_key(self, sep):
+        registry = ToolRegistry(name_sep=sep)
+        registry.register(add, namespace="math")
+        key = f"math{sep}add"
+        registry.override(key, multiply)
+
+        spun = registry.spinoff("math", retain_namespace=True)
+
+        assert list(spun.list_overrides()) == [key]
+        assert spun.restore_override(key).name == key
 
     def test_sync_overrides_drops_stranded_records(self):
         registry = ToolRegistry()

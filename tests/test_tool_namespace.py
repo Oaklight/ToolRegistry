@@ -1,5 +1,7 @@
 """Tests for Tool namespace and method_name fields (Issue #51)."""
 
+import pytest
+
 from toolregistry.tool import Tool
 from toolregistry.tool_registry import ToolRegistry
 
@@ -116,8 +118,8 @@ class TestUpdateNamespace:
     def test_update_no_force_keeps_existing(self):
         tool = Tool.from_function(dummy_add, namespace="old")
         tool = tool.update_namespace("new", force=False)
-        # namespace field is updated, but name is NOT changed
-        assert tool.namespace == "new"
+        # An already-qualified tool keeps both its name and its namespace.
+        assert tool.namespace == "old"
         assert tool.name == "old-dummy_add"
 
     def test_update_derives_method_name_from_prefixed_name(self):
@@ -183,19 +185,36 @@ class TestUpdateSubRegistries:
         registry._update_sub_registries()
         assert "math" in registry._sub_registries
 
-    def test_fallback_to_dot_prefix(self):
-        """Tools without namespace field fall back to dot-prefix parsing."""
-        registry = ToolRegistry(name="test")
-        # Manually insert a tool with dot-separated name but no namespace
+    @pytest.mark.parametrize("sep", ["-", "."])
+    def test_fallback_uses_registry_separator(self, sep):
+        """Tools without a namespace field are parsed with ``name_sep``."""
+        registry = ToolRegistry(name="test", name_sep=sep)
         tool = Tool(
-            name="legacy.some_func",
+            name=f"legacy{sep}some_func",
             description="test",
             parameters={},
             callable=dummy_add,
         )
-        registry._tools["legacy.some_func"] = tool
+        registry._tools[tool.name] = tool
         registry._update_sub_registries()
-        assert "legacy" in registry._sub_registries
+        assert registry._sub_registries == {"legacy"}
+
+    @pytest.mark.parametrize(
+        ("registry_sep", "other_sep"),
+        [("-", "."), (".", "-")],
+    )
+    def test_fallback_ignores_other_separator(self, registry_sep, other_sep):
+        """A name qualified with the other separator is not a sub-registry."""
+        registry = ToolRegistry(name="test", name_sep=registry_sep)
+        tool = Tool(
+            name=f"legacy{other_sep}some_func",
+            description="test",
+            parameters={},
+            callable=dummy_add,
+        )
+        registry._tools[tool.name] = tool
+        registry._update_sub_registries()
+        assert registry._sub_registries == set()
 
     def test_namespace_field_preferred_over_dot(self):
         """When namespace field is set, it takes priority."""

@@ -178,17 +178,46 @@ class ToolRegistry(
 
     @name_sep.setter
     def name_sep(self, value: Literal["-", "."]) -> None:
-        """Set the namespace separator.
+        """Set the namespace separator, re-keying registered tools.
+
+        Every registered tool that carries a namespace is renamed with the new
+        separator, and override records are re-keyed alongside it, so the
+        registry never mixes separators.  Unqualified tools are untouched.
 
         Args:
             value: ``"-"`` or ``"."``.
 
         Raises:
-            ValueError: If *value* is anything else.  Validation lives here
-                so the admin API does not need its own copy of the check.
+            ValueError: If *value* is anything else, or if re-keying would make
+                two tools collide.  Validation lives here so the admin API does
+                not need its own copy of the check.
         """
         if value not in ("-", "."):
             raise ValueError("name_sep must be '-' or '.'")
+        if value == self._name_sep:
+            return
+
+        rekeyed: dict[str, Tool] = {}
+        remap: dict[str, str] = {}
+        for name, tool in self._tools.items():
+            new_tool = tool.requalify(tool.namespace, value) if tool.namespace else tool
+            if new_tool.name in rekeyed:
+                raise ValueError(
+                    f"Cannot change name_sep: {name!r} would collide with an "
+                    f"existing tool at {new_tool.name!r}."
+                )
+            rekeyed[new_tool.name] = new_tool
+            remap[name] = new_tool.name
+
+        self._tools = rekeyed
+        self._sync_overrides(
+            lambda name, displaced: (
+                remap.get(name, name),
+                displaced.requalify(displaced.namespace, value)
+                if displaced.namespace
+                else displaced,
+            )
+        )
         self._name_sep = value
 
     def __contains__(self, name: str) -> bool:
