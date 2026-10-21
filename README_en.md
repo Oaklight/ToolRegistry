@@ -66,7 +66,7 @@ Requires **Python >= 3.10**.
 ```bash
 pip install toolregistry                   # core
 pip install toolregistry[mcp]              # + MCP support
-pip install toolregistry[langchain]        # + LangChain support
+pip install langchain-core                 # optional: langchain BaseTool classes
 pip install toolregistry-hub               # ready-to-use tools (separate package)
 ```
 

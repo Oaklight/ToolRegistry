@@ -66,7 +66,7 @@ result = registry["add"](1, 2)  # 3.0
 ```bash
 pip install toolregistry                   # 核心
 pip install toolregistry[mcp]              # + MCP 支持
-pip install toolregistry[langchain]        # + LangChain 支持
+pip install langchain-core                 # 可选：langchain BaseTool 类
 pip install toolregistry-hub               # 即用工具集（独立包）
 ```
 

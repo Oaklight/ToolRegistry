@@ -1,8 +1,26 @@
-import asyncio
-import functools
-from typing import Any
+"""Structural integration for LangChain-style tools.
 
-from langchain_core.tools import BaseTool as LCBaseTool
+The integration is deliberately dependency-free: it accepts any object that
+looks like a ``langchain_core.tools.BaseTool`` (``name``, ``description``, a
+schema source, and a sync/async runner).  ``langchain-core`` is not imported, so
+tools from partner packages, community packages, or plain Python objects all
+work without installing LangChain.
+
+Schema sources are tried in this order:
+
+1. ``input_schema`` — a pydantic model (or an object with
+   ``model_json_schema()``) or a JSON-schema dict.
+2. ``args_schema`` — same forms.
+3. ``parameters`` — a JSON-schema dict.
+4. ``args`` — a ``{name: property_schema}`` dict, wrapped in an object schema.
+
+Runners are tried in this order: sync ``_run`` / ``run`` / ``func``; async
+``_arun`` / ``arun`` / ``coroutine``.  A sync-only tool still serves ``arun``
+through a worker thread.
+"""
+
+import asyncio
+from typing import Any
 
 from ..._vendor.structlog import get_logger
 from ..._names import NameSeparator, qualified_tool_name
@@ -14,43 +32,113 @@ from ...utils import ToolNameFilter, normalize_tool_name
 logger = get_logger()
 
 
+def _tool_name(tool: Any) -> str:
+    """Return the tool's advertised name, raising a clear error otherwise."""
+    name = getattr(tool, "name", None)
+    if not isinstance(name, str) or not name:
+        raise TypeError(
+            "LangChain-style tool must expose a non-empty string 'name' "
+            f"attribute; got {type(tool).__name__}."
+        )
+    return name
+
+
+def _extract_input_schema(tool: Any) -> dict[str, Any]:
+    """Return a JSON-schema dict for *tool*'s parameters.
+
+    See the module docstring for the source order.  The returned dict is a
+    fresh copy when the source is a dict, so callers may mutate it.
+
+    Raises:
+        TypeError: If the tool exposes no usable schema source.
+    """
+    for attr in ("input_schema", "args_schema"):
+        schema = getattr(tool, attr, None)
+        if schema is None:
+            continue
+        model_json_schema = getattr(schema, "model_json_schema", None)
+        if callable(model_json_schema):
+            return dict(model_json_schema())
+        if isinstance(schema, dict):
+            return dict(schema)
+
+    parameters = getattr(tool, "parameters", None)
+    if isinstance(parameters, dict):
+        return dict(parameters)
+
+    args = getattr(tool, "args", None)
+    if isinstance(args, dict):
+        return {"type": "object", "properties": dict(args)}
+
+    raise TypeError(
+        f"LangChain-style tool {_tool_name(tool)!r} exposes no parameter schema: "
+        "expected input_schema/args_schema (pydantic model or dict), a "
+        "'parameters' dict, or an 'args' dict."
+    )
+
+
+def _extract_params(tool: Any, schema: dict[str, Any]) -> list[str]:
+    """Return parameter names, preferring ``tool.args`` when present."""
+    args = getattr(tool, "args", None)
+    if isinstance(args, dict) and args:
+        return [str(key) for key in args]
+    properties = schema.get("properties")
+    return [str(key) for key in properties] if isinstance(properties, dict) else []
+
+
+def _resolve_runner(tool: Any, attributes: tuple[str, ...]) -> Any:
+    """Return the first callable runner among *attributes*, else ``None``."""
+    for attr in attributes:
+        runner = getattr(tool, attr, None)
+        if callable(runner):
+            return runner
+    return None
+
+
 class LangChainToolWrapper(BaseToolWrapper):
-    """Wrapper class providing both async and sync versions of LangChain tool calls.
+    """Wrapper providing sync and async entry points for a LangChain-style tool.
 
     Attributes:
-        tool (LCBaseTool): The LangChain tool instance.
-        name (str): Name of the tool.
-        description (str): Description of the tool.
-        params (List[str]): List of parameter names.
+        tool (Any): The wrapped object.
+        name (str): Normalized tool name.
+        params (list[str]): Parameter names.
     """
 
-    def __init__(self, tool: LCBaseTool) -> None:
-        """Initialize LangChain tool wrapper.
+    def __init__(self, tool: Any) -> None:
+        """Initialize the wrapper.
 
         Args:
-            tool (LCBaseTool): The LangChain tool instance.
+            tool: Object exposing ``name``, ``description`` and a schema source.
         """
+        schema = _extract_input_schema(tool)
         super().__init__(
-            name=normalize_tool_name(tool.name),
-            params=list(tool.args.keys()),
+            name=normalize_tool_name(_tool_name(tool)),
+            params=_extract_params(tool, schema),
         )
         self.tool = tool
 
     def call_sync(self, *args: Any, **kwargs: Any) -> Any:
-        """Synchronous implementation of LangChain tool call.
+        """Run the tool synchronously.
 
         Args:
-            args (Any): Positional arguments to pass to the tool.
-            kwargs (Any): Keyword arguments to pass to the tool.
+            args: Positional arguments.
+            kwargs: Keyword arguments.
 
         Returns:
-            Any: Result from tool execution.
+            The tool's return value.
 
         Raises:
-            ToolException: If tool execution fails.
+            TypeError: If the tool exposes no sync runner.
+            Exception: Whatever the tool raises.
         """
+        runner = _resolve_runner(self.tool, ("_run", "run", "func"))
+        if runner is None:
+            raise TypeError(
+                f"LangChain-style tool {self.name!r} exposes no sync runner "
+                "('_run', 'run', or 'func')."
+            )
         try:
-            return self.tool._run(*args, **kwargs)
+            return runner(*args, **kwargs)
         except Exception:
             import traceback
 
@@ -60,20 +148,31 @@ class LangChainToolWrapper(BaseToolWrapper):
             raise  # throw to keep the original behavior
 
     async def call_async(self, *args: Any, **kwargs: Any) -> Any:
-        """Async implementation of LangChain tool call.
+        """Run the tool asynchronously.
+
+        Uses the tool's async runner when available; otherwise the sync runner
+        runs in a worker thread so the event loop is not blocked.
 
         Args:
-            args (Any): Positional arguments to pass to the tool.
-            kwargs (Any): Keyword arguments to pass to the tool.
+            args: Positional arguments.
+            kwargs: Keyword arguments.
 
         Returns:
-            Any: Result from tool execution.
+            The tool's return value.
 
         Raises:
-            ToolException: If tool execution fails.
+            Exception: Whatever the tool raises.
         """
+        runner = _resolve_runner(self.tool, ("_arun", "arun", "coroutine"))
         try:
-            return await self.tool._arun(*args, **kwargs)
+            if runner is not None:
+                try:
+                    return await runner(*args, **kwargs)
+                except NotImplementedError:
+                    # BaseTool's default ``_arun`` raises this for sync-only
+                    # tools; fall through to the thread path.
+                    pass
+            return await asyncio.to_thread(self.call_sync, *args, **kwargs)
         except Exception:
             import traceback
 
@@ -84,33 +183,34 @@ class LangChainToolWrapper(BaseToolWrapper):
 
 
 class LangChainTool(Tool):
-    """Wrapper class for LangChain tools that preserves original function metadata."""
+    """Wrapper class for LangChain-style tools that preserves tool metadata."""
 
     @classmethod
     def from_langchain_tool(
         cls,
-        tool: LCBaseTool,
+        tool: Any,
         namespace: str | None = None,
         sep: NameSeparator = "-",
     ) -> "LangChainTool":
-        """Create a LangChainTool instance from a LangChain LCBaseTool.
+        """Create a LangChainTool from a LangChain-style object.
 
         Args:
-            tool (LCBaseTool): The LangChain tool instance.
-            namespace (Optional[str]): An optional namespace to prefix the tool name.
-                If provided, the tool name will be formatted as
-                ``{namespace}{sep}{name}``.
+            tool: Object exposing ``name``, ``description`` and a schema source.
+            namespace: Optional namespace to prefix the tool name.
             sep: Separator between namespace and tool name.  Pass the
                 registry's ``name_sep`` so the stored key matches.
 
         Returns:
-            LangChainTool: A new instance of LangChainTool.
+            LangChainTool: A new instance.
+
+        Raises:
+            TypeError: If the tool exposes no name or no usable schema.
         """
         wrapper = LangChainToolWrapper(tool)
-
-        # We need to do a bit surgery here. Some tool's input docstring is not properly set.
-        input_schema = tool.input_schema.model_json_schema()
-        del input_schema["description"]  # del it for the sake of consistency
+        input_schema = _extract_input_schema(tool)
+        # Drop the auto-generated top-level description for consistency; it may
+        # be absent (langchain-core 1.x no longer emits it).
+        input_schema.pop("description", None)
 
         # Use the fully-qualified class name as source_detail.
         tool_cls = type(tool)
@@ -118,7 +218,7 @@ class LangChainTool(Tool):
 
         tool_instance = cls(
             name=wrapper.name,
-            description=wrapper.tool.description,
+            description=getattr(tool, "description", "") or "",
             parameters=input_schema,
             callable=wrapper,
             metadata=ToolMetadata(
@@ -135,7 +235,7 @@ class LangChainTool(Tool):
 
 
 class LangChainIntegration:
-    """Handles integration with LangChain tools for registration.
+    """Handles registration of LangChain-style tools.
 
     Attributes:
         registry (ToolRegistry): Tool registry instance.
@@ -146,64 +246,57 @@ class LangChainIntegration:
 
     async def register_langchain_tools_async(
         self,
-        tool: LCBaseTool,
+        tool: Any,
         namespace: bool | str = False,
         include: str | list[str] | None = None,
         exclude: str | list[str] | None = None,
         allow_replace: bool = False,
     ) -> None:
-        """Async implementation to register LangChain tool using asyncio.
+        """Register a LangChain-style tool from an async caller.
+
+        Construction is fast and CPU-bound, so it runs inline rather than on the
+        event loop's default executor (which pytest-asyncio does not shut down).
 
         Args:
-            tool (LCBaseTool): Single LangChain tool.
-            namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
-                - If ``False``, no namespace is used.
-                - If ``True``, the namespace is derived from the tool's metadata if available.
-                - If a string is provided, it is used as the namespace.
-                Defaults to False.
+            tool: Object exposing ``name``, ``description`` and a schema source.
+            namespace (Union[bool, str]): Whether to prefix tool names with a
+                namespace.  ``True`` uses the default ``"langchain tool"``
+                namespace; a string is used verbatim.
             include: A name, glob pattern, or list of them to keep.  Matched
-                against the raw LangChain tool name, the post-namespace
-                name, and the snake_case form of each.  A bare string is
-                treated as a single pattern.
+                against the raw tool name, the post-namespace name, and the
+                snake_case form of each.
             exclude: A name, glob pattern, or list of them to drop.
                 Mutually exclusive with *include*.
             allow_replace: Acknowledge replacing an already-registered tool
-                under the same name without warning.  Defaults to ``False``.
+                under the same name without warning.
 
         Raises:
-            ValueError: If tools argument is invalid, or both *include* and
-                *exclude* are given.
+            ValueError: If both *include* and *exclude* are given.
+            TypeError: If the tool exposes no name or no usable schema.
         """
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(
-            None,
-            functools.partial(
-                self.register_langchain_tools,
-                tool,
-                namespace,
-                include=include,
-                exclude=exclude,
-                allow_replace=allow_replace,
-            ),
+        self.register_langchain_tools(
+            tool,
+            namespace,
+            include=include,
+            exclude=exclude,
+            allow_replace=allow_replace,
         )
 
     def register_langchain_tools(
         self,
-        tool: LCBaseTool,
+        tool: Any,
         namespace: bool | str = False,
         include: str | list[str] | None = None,
         exclude: str | list[str] | None = None,
         allow_replace: bool = False,
     ) -> None:
-        """Register LangChain tool (synchronous entry point).
+        """Register a LangChain-style tool (synchronous entry point).
 
         Args:
-            tool (LCBaseTool): Single LangChain tool
-            namespace (Union[bool, str]): Whether to prefix tool names with a namespace.
-                - If ``False``, no namespace is used.
-                - If ``True``, the namespace is derived from the tool's metadata if available.
-                - If a string is provided, it is used as the namespace.
-                Defaults to False.
+            tool: Object exposing ``name``, ``description`` and a schema source.
+            namespace (Union[bool, str]): Whether to prefix tool names with a
+                namespace.  ``True`` uses the default ``"langchain tool"``
+                namespace; a string is used verbatim.
             include: A name, glob pattern, or list of them to keep.
             exclude: A name, glob pattern, or list of them to drop.
             allow_replace: Acknowledge replacing an already-registered tool
@@ -211,6 +304,7 @@ class LangChainIntegration:
 
         Raises:
             ValueError: If both *include* and *exclude* are given.
+            TypeError: If the tool exposes no name or no usable schema.
         """
         name_filter = ToolNameFilter(include, exclude)
 
@@ -224,7 +318,7 @@ class LangChainIntegration:
         # Filter on the final name before construction: schema extraction
         # can raise, and an explicitly excluded tool must not abort the call.
         sep = self.registry.name_sep
-        raw_name = tool.name
+        raw_name = _tool_name(tool)
         candidate_name = qualified_tool_name(raw_name, resolved_ns, sep)
         if not name_filter.accepts(raw_name, candidate_name):
             return

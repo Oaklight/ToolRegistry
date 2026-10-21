@@ -1,16 +1,16 @@
-"""Tests for LangChain integration module."""
+"""Tests for the structural LangChain integration.
+
+These tests need no LangChain install: the integration accepts any object with
+``name``, ``description``, a schema source, and a runner.  Real
+``langchain_core.tools.BaseTool`` coverage lives in ``test_langchain_compat.py``.
+"""
 
 from typing import Any
 
 import pytest
 
-langchain_core = pytest.importorskip("langchain_core")
-
-from langchain_core.tools import BaseTool as LCBaseTool  # noqa: E402
-from pydantic import BaseModel, Field  # noqa: E402
-
-from toolregistry import ToolRegistry  # noqa: E402
-from toolregistry.integrations.langchain.integration import (  # noqa: E402
+from toolregistry import ToolRegistry
+from toolregistry.integrations.langchain.integration import (
     LangChainIntegration,
     LangChainTool,
     LangChainToolWrapper,
@@ -18,23 +18,39 @@ from toolregistry.integrations.langchain.integration import (  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
-# Mock LangChain tools
+# Mock LangChain-style tools
 # ---------------------------------------------------------------------------
 
 
-class AddInput(BaseModel):
-    """Input for adding two numbers."""
+class _Schema:
+    """Minimal pydantic-model stand-in."""
 
-    a: int = Field(description="First number")
-    b: int = Field(description="Second number")
+    def __init__(self, schema: dict[str, Any]) -> None:
+        self._schema = schema
+
+    def model_json_schema(self) -> dict[str, Any]:
+        return dict(self._schema)
 
 
-class MockAddTool(LCBaseTool):
-    """A mock tool that adds two numbers."""
+_ADD_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "a": {"type": "integer", "description": "First number"},
+        "b": {"type": "integer", "description": "Second number"},
+    },
+    "required": ["a", "b"],
+}
 
-    name: str = "add_numbers"
-    description: str = "Add two numbers together"
-    args_schema: type[BaseModel] = AddInput
+
+class MockAddTool:
+    """A mock tool that adds two numbers (args-dict schema source)."""
+
+    name = "add_numbers"
+    description = "Add two numbers together"
+    args = {
+        "a": {"type": "integer", "description": "First number"},
+        "b": {"type": "integer", "description": "Second number"},
+    }
 
     def _run(self, a: int, b: int) -> int:
         return a + b
@@ -43,11 +59,12 @@ class MockAddTool(LCBaseTool):
         return a + b
 
 
-class MockUpperTool(LCBaseTool):
+class MockUpperTool:
     """A mock tool that uppercases a string."""
 
-    name: str = "upper_case"
-    description: str = "Convert text to uppercase"
+    name = "upper_case"
+    description = "Convert text to uppercase"
+    args = {"text": {"type": "string"}}
 
     def _run(self, text: str) -> str:
         return text.upper()
@@ -56,11 +73,12 @@ class MockUpperTool(LCBaseTool):
         return text.upper()
 
 
-class MockFailTool(LCBaseTool):
+class MockFailTool:
     """A mock tool that always fails."""
 
-    name: str = "fail_tool"
-    description: str = "Always fails"
+    name = "fail_tool"
+    description = "Always fails"
+    args: dict[str, Any] = {}
 
     def _run(self, **kwargs: Any) -> str:
         raise RuntimeError("Intentional failure")
@@ -69,17 +87,83 @@ class MockFailTool(LCBaseTool):
         raise RuntimeError("Intentional async failure")
 
 
-class MockNoArgsTool(LCBaseTool):
+class MockNoArgsTool:
     """A mock tool with no arguments."""
 
-    name: str = "no_args_tool"
-    description: str = "A tool that takes no arguments"
+    name = "no_args_tool"
+    description = "A tool that takes no arguments"
+    args: dict[str, Any] = {}
 
     def _run(self) -> str:
         return "done"
 
     async def _arun(self) -> str:
         return "done"
+
+
+class MockSyncOnlyTool:
+    """A mock tool with no async runner."""
+
+    name = "sync_only"
+    description = "Sync only"
+    args = {"x": {"type": "integer"}}
+
+    def _run(self, x: int) -> int:
+        return x + 1
+
+
+class MockInputSchemaTool:
+    """A mock tool whose ``input_schema`` is a pydantic-model stand-in."""
+
+    name = "input_schema_tool"
+    description = "Uses input_schema"
+    input_schema = _Schema(_ADD_SCHEMA)
+
+    def _run(self, a: int, b: int) -> int:
+        return a + b
+
+
+class MockArgsSchemaTool:
+    """A mock tool whose ``args_schema`` is a pydantic-model stand-in."""
+
+    name = "args_schema_tool"
+    description = "Uses args_schema"
+    args_schema = _Schema(_ADD_SCHEMA)
+
+    def _run(self, a: int, b: int) -> int:
+        return a + b
+
+
+class MockParametersTool:
+    """A mock tool that already exposes a JSON-schema ``parameters`` dict."""
+
+    name = "parameters_tool"
+    description = "Uses parameters"
+    parameters = dict(_ADD_SCHEMA)
+
+    def _run(self, a: int, b: int) -> int:
+        return a + b
+
+
+class MockNoSchemaTool:
+    """A mock tool with no usable schema source."""
+
+    name = "no_schema"
+    description = "No schema"
+
+    def _run(self) -> str:
+        return "done"
+
+
+class MockRunMethodTool:
+    """A mock tool using the public ``run`` method instead of ``_run``."""
+
+    name = "run_method"
+    description = "Uses run()"
+    args = {"x": {"type": "integer"}}
+
+    def run(self, x: int) -> int:
+        return x * 2
 
 
 # ===========================================================================
@@ -104,6 +188,12 @@ class TestLangChainToolWrapper:
         wrapper = LangChainToolWrapper(lc_tool)
         result = await wrapper.call_async(a=10, b=20)
         assert result == 30
+
+    @pytest.mark.asyncio
+    async def test_call_async_falls_back_to_thread(self):
+        """A sync-only tool still serves call_async()."""
+        wrapper = LangChainToolWrapper(MockSyncOnlyTool())
+        assert await wrapper.call_async(x=4) == 5
 
     def test_name_normalization(self):
         """Tool name is normalized."""
@@ -147,6 +237,22 @@ class TestLangChainToolWrapper:
         result = await wrapper.call_async(text="world")
         assert result == "WORLD"
 
+    def test_run_method_is_accepted(self):
+        """A plain ``run`` method is used when ``_run`` is absent."""
+        wrapper = LangChainToolWrapper(MockRunMethodTool())
+        assert wrapper.call_sync(x=21) == 42
+
+    def test_missing_name_raises(self):
+        class Unnamed:
+            description = "no name"
+            args: dict[str, Any] = {}
+
+            def _run(self) -> str:
+                return "x"
+
+        with pytest.raises(TypeError, match="non-empty string 'name'"):
+            LangChainToolWrapper(Unnamed())
+
 
 # ===========================================================================
 # TestLangChainTool
@@ -157,7 +263,7 @@ class TestLangChainTool:
     """Tests for LangChainTool.from_langchain_tool()."""
 
     def test_basic_creation(self):
-        """Creates a LangChainTool from a LangChain tool."""
+        """Creates a LangChainTool from a LangChain-style tool."""
         lc_tool = MockAddTool()
         tool = LangChainTool.from_langchain_tool(lc_tool)
         assert tool.name == "add_numbers"
@@ -170,6 +276,24 @@ class TestLangChainTool:
         props = tool.parameters.get("properties", {})
         assert "a" in props
         assert "b" in props
+
+    @pytest.mark.parametrize(
+        "tool",
+        [
+            MockInputSchemaTool(),
+            MockArgsSchemaTool(),
+            MockParametersTool(),
+        ],
+    )
+    def test_schema_source_fallbacks(self, tool):
+        """input_schema, args_schema, and parameters are all accepted."""
+        built = LangChainTool.from_langchain_tool(tool)
+        props = built.parameters.get("properties", {})
+        assert set(props) == {"a", "b"}
+
+    def test_no_schema_raises(self):
+        with pytest.raises(TypeError, match="no parameter schema"):
+            LangChainTool.from_langchain_tool(MockNoSchemaTool())
 
     def test_with_namespace(self):
         """Namespace is applied to tool name."""
@@ -184,7 +308,7 @@ class TestLangChainTool:
         assert tool.name == "add_numbers"
 
     def test_description_preserved(self):
-        """Description from LangChain tool is preserved."""
+        """Description from the tool is preserved."""
         lc_tool = MockUpperTool()
         tool = LangChainTool.from_langchain_tool(lc_tool)
         assert tool.description == "Convert text to uppercase"
@@ -213,7 +337,7 @@ class TestLangChainIntegration:
     """Tests for LangChainIntegration."""
 
     def test_register_single_tool(self):
-        """Register a single LangChain tool."""
+        """Register a single LangChain-style tool."""
         registry = ToolRegistry(name="test")
         integration = LangChainIntegration(registry)
         integration.register_langchain_tools(MockAddTool())
@@ -266,7 +390,7 @@ class TestLangChainIntegration:
 
 
 class TestLangChainEndToEnd:
-    """End-to-end: register LangChain tools, call through registry."""
+    """End-to-end: register LangChain-style tools, call through registry."""
 
     def test_sync_end_to_end(self):
         """Register and call synchronously through the registry."""
