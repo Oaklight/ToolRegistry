@@ -39,7 +39,8 @@ hide:
 
 ### 修复
 
-- **`spinoff()` 与 `reduce_namespace()` 遵循注册表分隔符** (#310)：命名空间操作改用 `Tool.namespace` / `Tool.method_name`，不再用 `"."` 解析键。`spinoff()` 在默认 `-` 下可用，匹配 `name_sep`，不会误匹配更长的命名空间（`math` 与 `math_ops`），返回的注册表继承源分隔符与执行模式。`reduce_namespace()` 只展平唯一剩余命名空间中的工具，未带命名空间的工具不再被截断（`helper` 不会再变成 `r`），发生冲突时抛错而不是覆盖。名称由字段重建而非直接切片，`merge()` 会把传入名称转换为接收注册表的分隔符并携带传入的覆盖记录，运行时修改 `name_sep` 会重新为已注册工具建立键。**禁用状态会随工具移动**：`spinoff`、`merge`、`reduce_namespace` 与分隔符变更后，被禁用的危险工具不会重新上线；修改 `name_sep` 会把发现索引标记为陈旧，使 `discover()` / `call_deferred()` 使用新键。`Tool.qualified_name` 返回注册的 `name`。
+- **`close()` 会释放执行资源** (#311)：`ToolRegistry.close()` 与 `close_async()` 现在除了关闭远端集成，还会关闭线程与进程执行后端，然后安装全新的后端，使注册表在关闭后仍可继续使用；重复调用是安全的。执行池在首次提交时才惰性创建，因此从未执行过任何工具的注册表不会持有工作线程或 IPC 管道。进程后端通过 `forkserver` 启动工作进程（不可用时回退到 `spawn`），不再从多线程父进程直接 fork——这正是可能在与 MCP 传输、共享异步运行时的组合下造成死锁或遗留卡死 worker 的隐患。测试也会在 pytest 模块结束时关闭遗留的注册表、在模块之间停止共享异步运行时，CI 任务带有显式超时。原先独立的 LangChain CI 任务已合并回主测试任务。
+- **`spinoff()` 与 `reduce_namespace()` 遵循注册表分隔符** (#310)：命名空间操作改用 `Tool.namespace` / `Tool.method_name`，不再用 `"."` 解析键。`spinoff()` 在默认 `-` 下可用，匹配 `name_sep`，不会误匹配更长的命名空间（`math` 与 `math_ops`），返回的注册表继承源分隔符与执行模式。`reduce_namespace()` 只展平唯一剩余命名空间中的工具，未带命名空间的工具不再被截断（`helper` 不会再变成 `r`），发生冲突时抛错而不是覆盖。名称由字段重建而非直接切片，`merge()` 会把传入名称转换为接收注册表的分隔符并携带传入的覆盖记录，运行时修改 `name_sep` 会重新为已注册工具建立键。**禁用状态会随工具移动**：`spinoff`、`merge`、`reduce_namespace` 与分隔符变更后，被禁用的危险工具不会重新上线；每个重命名工具的操作都会把发现索引标记为陈旧，使 `discover()` / `call_deferred()` 使用新键。`Tool.qualified_name` 返回注册的 `name`。
 - **替换警告不再跳过钩子或事件** (#301)：替换时的 `UserWarning` 现在在注册后钩子与 `REGISTER` / `REPLACE` 事件之后发出。当警告被配置为错误时，异常发生时注册表已处于一致状态，且所有监听者都已观察到变更。
 - **过滤警告报告调用者的文件与行号** (#300)：`ToolNameFilter.warn_if_all_filtered_out()` 与替换警告改用调用者归因助手。`AsyncRuntime.run_sync()` 会把同步调用者的位置带入协程，因此同步桥不再指向集成内部；执行器线程路径会回退到直接调用者。
 - **远端注册与刷新在命名空间名称上保持一致** (#295)：两条路径都使用注册表分隔符推导注册键。使用 `name_sep="."` 时，注册期匹配的 `include` 不会在刷新时失配，刷新也不会再产生 `gh.gh-list_issues` 这类双重前缀。
