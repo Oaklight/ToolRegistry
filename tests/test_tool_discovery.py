@@ -994,7 +994,9 @@ class TestDiscoveryInputValidation:
         assert tool is not None
         props = tool.parameters["properties"]
         assert props["query"]["minLength"] == 1
-        assert props["query"]["pattern"] == r"\S"
+        # ``Match`` fullmatches, so the pattern must span the whole query;
+        # ``\S`` alone only accepted one character (#326).
+        assert props["query"]["pattern"] == r".*\S.*"
         assert props["top_k"]["minimum"] == 1
 
 
@@ -1311,3 +1313,43 @@ class TestDiscoveryGuidanceAndDeps:
         )
         assert proc.returncode == 0, proc.stderr
         assert "OK" in proc.stdout
+
+
+class TestDiscoverQueryValidation:
+    """``discover_tools`` must accept real, multi-word queries (#326).
+
+    ``Match`` validates with ``re.fullmatch``, so the old ``\S`` pattern
+    accepted exactly one character. The registered tool is exercised
+    through parameter validation, which is where a host call enters.
+    """
+
+    @pytest.fixture
+    def registry(self, discovery_registry):
+        discovery_registry.enable_tool_discovery()
+        return discovery_registry
+
+    def test_multi_word_query_is_accepted(self, registry):
+        tool = registry.get_tool("discover_tools")
+        assert tool.validate_parameters({"query": "read file"})["query"] == (
+            "read file"
+        )
+
+    def test_surrounding_whitespace_is_tolerated(self, registry):
+        tool = registry.get_tool("discover_tools")
+        validated = tool.validate_parameters({"query": "  read file  "})
+        assert validated["query"] == "  read file  "
+
+    def test_whitespace_only_query_is_rejected(self, registry):
+        from toolregistry._vendor.validate import ValidationError
+
+        tool = registry.get_tool("discover_tools")
+        with pytest.raises(ValidationError):
+            tool.validate_parameters({"query": "   "})
+
+    def test_multi_word_query_returns_matches(self, registry):
+        import json
+
+        result = registry.invoke("discover_tools", {"query": "read file"})
+        assert not hasattr(result, "message"), result
+        names = {item["name"] for item in json.loads(result.result)}
+        assert "read_file" in names
