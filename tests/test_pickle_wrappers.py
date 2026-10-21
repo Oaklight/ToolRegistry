@@ -5,7 +5,19 @@ import pickle
 import cloudpickle
 import pytest
 
+from toolregistry.tool import Tool
 from toolregistry.utils import HttpClientConfig
+
+
+def test_tool_round_trips_with_generated_parameters():
+    def increment(value: int = 1) -> int:
+        return value + 1
+
+    tool = Tool.from_function(increment)
+    restored = cloudpickle.loads(cloudpickle.dumps(tool))
+    assert restored.parameters == tool.parameters
+    assert restored.validate_parameters({"value": "2"}) == {"value": 2}
+    assert restored.callable(value=2) == 3
 
 
 class TestHttpClientConfigPickle:
