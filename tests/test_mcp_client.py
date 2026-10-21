@@ -73,8 +73,22 @@ class TestToStdioParams:
 
     def test_python_script_path(self):
         params = _to_stdio_params("/some/server.py")
-        assert params.command == "python"
+        # The interpreter running ToolRegistry, not whichever ``python``
+        # happens to be first on PATH (#323).
+        assert params.command == sys.executable
         assert params.args == ["/some/server.py"]
+
+    def test_python_script_ignores_path_interpreter(self, monkeypatch, tmp_path):
+        """A shadowing ``python`` on PATH must not be used for .py sources."""
+        fake_bin = tmp_path / "bin"
+        fake_bin.mkdir()
+        shadow = fake_bin / "python"
+        shadow.write_text("#!/bin/sh\nexit 1\n")
+        shadow.chmod(0o755)
+        monkeypatch.setenv("PATH", f"{fake_bin}")
+
+        params = _to_stdio_params("/some/server.py")
+        assert params.command == sys.executable
 
     def test_js_script_path(self):
         params = _to_stdio_params(Path("/some/server.js"))

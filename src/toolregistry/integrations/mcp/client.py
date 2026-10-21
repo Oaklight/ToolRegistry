@@ -7,6 +7,7 @@ client-side operations.
 
 from contextlib import asynccontextmanager
 from pathlib import Path
+import sys
 from typing import Any
 from urllib.parse import urlparse
 
@@ -187,6 +188,12 @@ def _to_stdio_params(src: str | dict | Path) -> StdioServerParameters:
 
     Returns:
         StdioServerParameters configured for the given source.
+
+    A ``.py`` script runs under :data:`sys.executable`, the interpreter that
+    imported ToolRegistry.  Using the ``python`` found on ``PATH`` can start
+    the server in a different environment that does not have the server's
+    dependencies, which surfaces only as ``Connection closed``.  Callers
+    that need a specific interpreter can pass the dict form explicitly.
     """
     if isinstance(src, dict):
         return StdioServerParameters(
@@ -196,7 +203,7 @@ def _to_stdio_params(src: str | dict | Path) -> StdioServerParameters:
         )
     path = Path(src) if not isinstance(src, Path) else src
     if path.suffix == ".py":
-        return StdioServerParameters(command="python", args=[str(path)])
+        return StdioServerParameters(command=sys.executable, args=[str(path)])
     if path.suffix == ".js":
         return StdioServerParameters(command="node", args=[str(path)])
     return StdioServerParameters(command=str(path), args=[])
