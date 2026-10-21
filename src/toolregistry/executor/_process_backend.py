@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import pickle
 import re
 import uuid
@@ -204,7 +205,7 @@ class ProcessPoolBackend:
         # Tool wrappers (BaseToolWrapper) handle sync/async internally,
         # so only wrap bare async callables passed directly.
         raw_fn = getattr(fn, "fn", fn)
-        if asyncio.iscoroutinefunction(raw_fn) and not hasattr(fn, "call_sync"):
+        if inspect.iscoroutinefunction(raw_fn) and not hasattr(fn, "call_sync"):
             async_fn = fn
 
             def _sync_wrapper(**kw):  # type: ignore[no-untyped-def]

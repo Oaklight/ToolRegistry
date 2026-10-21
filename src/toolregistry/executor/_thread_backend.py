@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import uuid
 from concurrent.futures import Future, ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
@@ -110,7 +111,7 @@ class ThreadBackend:
         # For tool wrappers, unwrap to the inner function for the check;
         # for bare async callables passed directly, wrap them in-place.
         raw_fn = getattr(fn, "fn", fn)
-        if asyncio.iscoroutinefunction(raw_fn) and not hasattr(fn, "call_sync"):
+        if inspect.iscoroutinefunction(raw_fn) and not hasattr(fn, "call_sync"):
             async_fn = fn
 
             def _sync_wrapper(**kw):  # type: ignore[no-untyped-def]
