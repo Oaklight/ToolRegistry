@@ -682,7 +682,8 @@ class RegistrationMixin:
             **filter_kwargs,
             **replace_kwargs,
         )
-        self._mcp_integrations.append(mcp)
+        if mcp not in self._mcp_integrations:
+            self._mcp_integrations.append(mcp)
 
     async def _register_mcp_async(self, transport, *, namespace, **kwargs):
         persistent = kwargs.pop("persistent", True)
@@ -699,7 +700,8 @@ class RegistrationMixin:
             **filter_kwargs,
             **replace_kwargs,
         )
-        self._mcp_integrations.append(mcp)
+        if mcp not in self._mcp_integrations:
+            self._mcp_integrations.append(mcp)
 
     def _register_openapi(self, client, *, namespace, **kwargs):
         openapi_spec = kwargs.pop("openapi_spec", None)
@@ -722,7 +724,8 @@ class RegistrationMixin:
             **filter_kwargs,
             **replace_kwargs,
         )
-        self._openapi_integrations.append(openapi)
+        if openapi not in self._openapi_integrations:
+            self._openapi_integrations.append(openapi)
 
     async def _register_openapi_async(self, client, *, namespace, **kwargs):
         openapi_spec = kwargs.pop("openapi_spec", None)
@@ -745,7 +748,8 @@ class RegistrationMixin:
             **filter_kwargs,
             **replace_kwargs,
         )
-        self._openapi_integrations.append(openapi)
+        if openapi not in self._openapi_integrations:
+            self._openapi_integrations.append(openapi)
 
     def _register_langchain(self, langchain_tool, *, namespace, **kwargs):
         filter_kwargs = _pop_filter_kwargs(kwargs)

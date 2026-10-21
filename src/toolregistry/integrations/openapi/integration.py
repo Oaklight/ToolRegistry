@@ -261,6 +261,19 @@ class OpenAPIIntegration:
         self._poll_timer: threading.Timer | None = None
         self._poll_interval: float | None = None
 
+    def _track_with_registry(self) -> None:
+        """Register this integration with its registry.
+
+        ``registry.register(..., source="openapi")`` tracks the instance
+        itself, but constructing an integration directly and calling
+        ``register_openapi_tools*`` bypasses that.  Tracking here keeps
+        registry-wide bookkeeping (``name_sep`` re-keying, ``close()``)
+        working for both paths.  Idempotent.
+        """
+        tracked = self.registry._openapi_integrations
+        if self not in tracked:
+            tracked.append(self)
+
     async def register_openapi_tools_async(
         self,
         client_config: HttpClientConfig,
@@ -357,6 +370,7 @@ class OpenAPIIntegration:
         self._filter.warn_if_all_filtered_out(
             total=candidates, accepted=registered, source="OpenAPI"
         )
+        self._track_with_registry()
 
     def register_openapi_tools(
         self,
