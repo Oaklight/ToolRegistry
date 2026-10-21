@@ -21,9 +21,11 @@ provider or partner package satisfies this out of the box.
     underlying callable as a plain Python function with `registry.register(...)`.
 
 Schema sources are tried in this order: `input_schema`, `args_schema`, a
-`parameters` JSON-schema dict, then an `args` dict. Runners are tried as
-`_run` / `run` / `func` for sync and `_arun` / `arun` / `coroutine` for async; a
-sync-only tool is served asynchronously through a worker thread.
+`parameters` JSON-schema dict, then an `args` dict; pydantic-v1 models are read
+through their `schema()` method, so `required` is preserved. Runners are tried
+as `_run` / `run` / `func` for sync and `_arun` / `arun` / `coroutine` for
+async; a sync-only tool is served asynchronously through a worker thread, and
+an async-only plain object must be called through `ainvoke()`.
 
 1. **Setup Tool Instances**
 
