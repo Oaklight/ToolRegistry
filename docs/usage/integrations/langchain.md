@@ -14,7 +14,7 @@ LangChain 集成模块使 ToolRegistry 能够支持基于 LangChain 的工具。
 ???+ warning "`langchain-community` 已停止维护"
     上游 `langchain-community` 已只读，最后一个版本是 2026 年 5 月的 0.4.2。ToolRegistry 不再依赖它。如果仍需要社区工具，请自行安装 `langchain-community`，或把底层可调用对象当作普通 Python 函数用 `registry.register(...)` 注册。
 
-参数模式按以下顺序提取：`input_schema`、`args_schema`、`parameters` JSON Schema 字典、`args` 字典。执行方法按 `_run` / `run` / `func`（同步）与 `_arun` / `arun` / `coroutine`（异步）查找；仅同步的工具会通过工作线程提供异步调用。
+参数模式按以下顺序提取：`input_schema`、`args_schema`、`parameters` JSON Schema 字典、`args` 字典；pydantic v1 模型会通过其 `schema()` 方法读取，因此 `required` 字段得以保留。执行方法按 `_run` / `run` / `func`（同步）与 `_arun` / `arun` / `coroutine`（异步）查找；仅同步的工具会通过工作线程提供异步调用；仅异步的普通对象需要通过 `ainvoke()` 调用。
 
 1. **设置工具实例**
 
