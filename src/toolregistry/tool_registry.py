@@ -183,8 +183,10 @@ class ToolRegistry(
         Every registered tool that carries a namespace is renamed with the new
         separator.  Override and disabled records are re-keyed alongside it, so
         the registry never mixes separators and a disabled tool stays disabled.
-        Unqualified tools are untouched.  The tool-discovery index is marked
-        stale because every indexed document id changed.
+        Remote integration bookkeeping follows too, so a later ``refresh()``
+        sees unchanged names instead of a remove/add cycle.  Unqualified tools
+        are untouched.  The tool-discovery index is marked stale because every
+        indexed document id changed.
 
         Args:
             value: ``"-"`` or ``"."``.
@@ -224,6 +226,7 @@ class ToolRegistry(
             )
         )
         self._rekey_disabled(remap)
+        self._rekey_integration_names(remap)
         if self._tool_discovery is not None:
             self._tool_discovery._mark_dirty()
         self._name_sep = value

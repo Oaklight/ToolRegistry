@@ -109,6 +109,29 @@ class NamespaceMixin:
             remap.get(name, name): reason for name, reason in disabled.items()
         }
 
+    def _rekey_integration_names(self, remap: dict[str, str]) -> None:
+        """Move remote-integration bookkeeping to the tools' new names.
+
+        MCP and OpenAPI integrations cache the qualified names they registered
+        so ``refresh()`` can diff against the server.  That cache is keyed by
+        name, so a separator change must move it in the same pass as
+        ``_tools``; otherwise the next refresh sees every tool as removed and
+        re-added even though neither side changed.
+
+        Args:
+            remap: Maps old tool names to their new names.
+        """
+        integrations = [
+            *getattr(self, "_mcp_integrations", []),
+            *getattr(self, "_openapi_integrations", []),
+        ]
+        for integration in integrations:
+            tracked = getattr(integration, "_registered_tool_names", None)
+            if tracked:
+                integration._registered_tool_names = {
+                    remap.get(name, name) for name in tracked
+                }
+
     def _prefix_tools_namespace(self, force: bool = False) -> None:
         """Add the registry name as a prefix to the names of tools in the registry.
 
