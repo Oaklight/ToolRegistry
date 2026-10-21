@@ -45,7 +45,20 @@ _BACKENDS: weakref.WeakSet[ProcessPoolBackend] = weakref.WeakSet()
 
 
 def _pool_thread_idents() -> set[int]:
-    """Return the idents of threads owned by any process-pool backend."""
+    """Return the idents of threads owned by any process-pool backend.
+
+    .. note::
+        ``_executor_manager_thread``, ``_queue_management_thread`` and
+        ``_shutdown_thread`` are CPython implementation details of
+        ``concurrent.futures.ProcessPoolExecutor`` (3.10 through 3.14; the
+        third is a ``bool`` in 3.10 and a thread from 3.11 on, hence the
+        ``getattr`` guards).  If a future CPython renames them, this set
+        silently becomes empty and each pool's manager thread starts
+        counting as an *external* thread — the next pool would then switch
+        to ``forkserver`` and unguarded scripts would break.
+        ``test_pool_infrastructure_threads_are_not_external`` fails if that
+        happens, so the rename cannot go unnoticed.
+    """
     idents: set[int] = set()
     for backend in list(_BACKENDS):
         pool = backend._pool

@@ -312,6 +312,41 @@ class TestProcessPoolBackend:
         finally:
             backend.shutdown()
 
+    def test_thread_growth_with_work_in_flight_warns_once(self):
+        """Migration waits for an idle pool and warns only once."""
+        import threading
+        import warnings
+
+        backend = ProcessPoolBackend(max_workers=1)
+        try:
+            assert backend.submit(_add, {"x": 1, "y": 2}).result() == 3
+            if backend._pool_start_method != "fork":
+                pytest.skip("platform does not use fork for idle pools")
+
+            # Simulate work in flight so the pool cannot be migrated yet.
+            backend._outstanding = 1
+            release = threading.Event()
+            worker = threading.Thread(target=release.wait)
+            worker.start()
+            try:
+                with pytest.warns(RuntimeWarning, match="grown threads"):
+                    assert backend.submit(_add, {"x": 3, "y": 4}).result() == 7
+                # The pool is kept: discarding it would abandon running work.
+                assert backend._pool_start_method == "fork"
+
+                backend._outstanding = 0
+                with warnings.catch_warnings(record=True) as caught:
+                    warnings.simplefilter("always")
+                    assert backend.submit(_add, {"x": 5, "y": 6}).result() == 11
+                assert not [w for w in caught if w.category is RuntimeWarning]
+                # Once idle, the next submit rebuilds the pool safely.
+                assert backend._pool_start_method in {"forkserver", "spawn"}
+            finally:
+                release.set()
+                worker.join()
+        finally:
+            backend.shutdown()
+
     def test_shutdown_without_wait_abandons_in_flight_work(self):
         """``wait=False`` returns without draining work already submitted.
 
