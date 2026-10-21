@@ -1,5 +1,6 @@
 """Pytest configuration and fixtures for toolregistry tests."""
 
+import functools
 import gc
 import weakref
 
@@ -23,6 +24,7 @@ _registries: "weakref.WeakSet[ToolRegistry]" = weakref.WeakSet()
 _original_init = ToolRegistry.__init__
 
 
+@functools.wraps(_original_init)
 def _tracking_init(self, *args, **kwargs):
     _original_init(self, *args, **kwargs)
     _registries.add(self)
@@ -33,7 +35,13 @@ ToolRegistry.__init__ = _tracking_init
 
 @pytest.fixture(scope="module", autouse=True)
 def _close_leaked_registries():
-    """Close registries a test module did not close itself."""
+    """Close registries a test module did not close itself.
+
+    This deliberately closes every tracked instance at module teardown so
+    executor state cannot leak into the next module.  A test that needs to
+    observe a registry's live resources must do so inside its own module;
+    after teardown the fixture has released them.
+    """
     yield
     for registry in list(_registries):
         try:

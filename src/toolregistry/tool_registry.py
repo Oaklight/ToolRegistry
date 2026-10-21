@@ -275,8 +275,10 @@ class ToolRegistry(
 
         Closes MCP and OpenAPI integrations that hold persistent
         connections or HTTP clients, then shuts down the thread and process
-        execution backends.  Fresh backends are installed afterwards, so the
-        registry remains usable; calling this repeatedly is safe.
+        execution backends.  Shutdown is non-blocking: work already running
+        or queued is abandoned, not drained.  Fresh backends are installed
+        afterwards, so the registry remains usable; calling this repeatedly is
+        safe.
         """
         for integration in self._mcp_integrations:
             await integration.close()
@@ -290,8 +292,10 @@ class ToolRegistry(
         """Close all persistent connections and execution resources (sync).
 
         Closes MCP and OpenAPI integrations, then shuts down the thread and
-        process execution backends.  Fresh backends are installed afterwards,
-        so the registry remains usable; calling this repeatedly is safe.
+        process execution backends.  Shutdown is non-blocking: work already
+        running or queued is abandoned, not drained.  Fresh backends are
+        installed afterwards, so the registry remains usable; calling this
+        repeatedly is safe.
         """
         for integration in self._mcp_integrations:
             integration.close_sync()

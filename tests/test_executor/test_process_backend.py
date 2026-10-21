@@ -1,5 +1,8 @@
 """Tests for ProcessPoolBackend."""
 
+import subprocess
+import sys
+
 import pytest
 
 from toolregistry.executor import (
@@ -197,8 +200,79 @@ class TestProcessPoolBackend:
         backend = ProcessPoolBackend(max_workers=1)
         backend.shutdown()  # should not raise
 
-    def test_pool_avoids_fork_start_method(self):
-        """Workers must not be forked from a potentially threaded parent."""
+    def test_pool_avoids_fork_when_threaded(self):
+        """A threaded parent must not fork its workers."""
+        import threading
+
         from toolregistry.executor._process_backend import _pool_context
 
-        assert _pool_context().get_start_method() in {"forkserver", "spawn"}
+        release = threading.Event()
+        worker = threading.Thread(target=release.wait)
+        worker.start()
+        try:
+            assert _pool_context().get_start_method() in {"forkserver", "spawn"}
+        finally:
+            release.set()
+            worker.join()
+
+    def test_stdin_script_still_runs(self):
+        """A single-threaded stdin entry point keeps working via fork."""
+        script = (
+            "from toolregistry.executor import ProcessPoolBackend\n"
+            "b = ProcessPoolBackend()\n"
+            "def neg(x):\n"
+            "    return -x\n"
+            "print(b.submit(neg, {'x': 5}).result())\n"
+        )
+        proc = subprocess.run(
+            [sys.executable, "-"],
+            input=script,
+            text=True,
+            capture_output=True,
+            timeout=60,
+        )
+
+        assert proc.returncode == 0, proc.stderr
+        assert proc.stdout.strip() == "-5"
+
+    def test_unguarded_script_still_runs(self, tmp_path):
+        """A single-threaded script without a main guard keeps working."""
+        script = tmp_path / "unguarded.py"
+        script.write_text(
+            "from toolregistry.executor import ProcessPoolBackend\n"
+            "b = ProcessPoolBackend()\n"
+            "def neg(x):\n"
+            "    return -x\n"
+            "print(b.submit(neg, {'x': 5}).result())\n"
+        )
+        proc = subprocess.run(
+            [sys.executable, str(script)],
+            text=True,
+            capture_output=True,
+            timeout=60,
+            cwd=tmp_path,
+        )
+
+        assert proc.returncode == 0, proc.stderr
+        assert proc.stdout.strip() == "-5"
+
+    def test_dash_c_main_works(self):
+        """``python -c`` has no ``__main__.__file__`` and keeps working."""
+        script = (
+            "from toolregistry.executor import ProcessPoolBackend\n"
+            "b = ProcessPoolBackend()\n"
+            "def neg(x):\n"
+            "    return -x\n"
+            "h = b.submit(neg, {'x': 5})\n"
+            "print(h.result())\n"
+            "b.shutdown()\n"
+        )
+        proc = subprocess.run(
+            [sys.executable, "-c", script],
+            text=True,
+            capture_output=True,
+            timeout=60,
+        )
+
+        assert proc.returncode == 0, proc.stderr
+        assert proc.stdout.strip() == "-5"
