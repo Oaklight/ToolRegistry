@@ -40,10 +40,12 @@ pip install toolregistry[openapi]
 
 ### LangChain Support
 
-For LangChain tool integration:
+LangChain tools are supported structurally, so no extra is required. Install
+`langchain-core` only if you build tools as `BaseTool` classes (the sunset
+`langchain-community` package is not needed):
 
 ```bash
-pip install toolregistry[langchain]
+pip install langchain-core
 ```
 
 ### All Features
