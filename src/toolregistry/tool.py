@@ -982,8 +982,10 @@ class Tool:
         If a namespace prefix already exists and *force* is ``True``, the
         existing namespace is replaced.  If *force* is ``False``, a tool that is
         already qualified is returned unchanged (both ``name`` and
-        ``namespace`` are preserved).  If no namespace exists, the new
-        *namespace* is applied.
+        ``namespace`` are preserved).  A name containing either ``-`` or ``.``
+        counts as already qualified; registration normalizes separators away, so
+        this heuristic only affects hand-built ``Tool`` instances.  If no
+        namespace exists, the new *namespace* is applied.
 
         Args:
             namespace: The new namespace to apply to the tool's name.
