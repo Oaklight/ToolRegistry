@@ -39,6 +39,7 @@ hide:
 
 ### 修复
 
+- **原生工具可在 Python 3.11+ 上通过 cloudpickle 往返** (#319)：`Tool` 不再把动态生成的参数 TypedDict 放入 pickle 状态。cloudpickle 能序列化该类型，却无法再次加载（`TypeError: cannot inherit from both a TypedDict type and a non-TypedDict base class`），导致原生工具无法跨进程边界使用。加载时会根据被包装的函数重新生成校验模型；若重新生成失败，工具会在没有参数校验的情况下加载，并发出 `UserWarning`，而不是让整个反序列化失败。
 - **执行器生命周期后续修复** (#321)：若进程池在父进程为单线程时以 `fork` 创建、之后进程新增了线程，后端会在空闲时把池迁移到 `forkserver`/`spawn`（若仍有任务在执行则警告一次），因此新 worker 不会再从多线程父进程 fork。`ToolRegistry.close(wait=True)` / `close_async(wait=True)` 会等待执行中与排队的任务完成；默认行为仍是非阻塞的。
 - **执行器后端的 Python 3.14 弃用项** (#314)：线程与进程后端改用 `inspect.iscoroutinefunction`，不再使用已弃用的 `asyncio.iscoroutinefunction`，因此使用 `python -W error` 的用户在 Python 3.14 及更高版本上也能正常执行工具。
 - **`close()` 会释放执行资源** (#311)：`ToolRegistry.close()` 与 `close_async()` 现在除了关闭远端集成，还会关闭线程与进程执行后端；后端会惰性重建执行池，因此注册表在关闭后仍可继续使用，重复调用也是安全的。执行池在首次提交时才惰性创建，因此从未执行过任何工具的注册表不会持有工作线程或 IPC 管道。进程后端在父进程为单线程时使用 fork，一旦其他线程运行则改由 `forkserver`（或 `spawn`）启动 worker，因此脚本、REPL 与管道输入都能继续工作，而多线程宿主不再 fork。多线程的基于文件的入口需要标准的 `if __name__ == "__main__":` 保护；若父进程有多线程且 `__main__` 无法导入，则会发出警告并回退到 `fork`。`close()` 默认会放弃尚未完成的工作；传入 `wait=True` 可等待其完成（见 #321）。测试也会在 pytest 模块结束时关闭遗留的注册表、在模块之间停止共享异步运行时，CI 任务带有显式超时；独立的 LangChain 任务保留，以保证始终有一次不安装 langchain 的测试运行。
