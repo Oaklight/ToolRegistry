@@ -30,7 +30,7 @@ The Tool class follows a data-transfer-object pattern with the following key com
 
 ### Computed Properties
 
-- **qualified_name**: Returns the fully-qualified tool name. If both `namespace` and `method_name` are set, returns `{namespace}-{method_name}`; otherwise falls back to the `name` field.
+- **qualified_name**: Returns the registered `name`. The name is authoritative and is rebuilt from `namespace`, `method_name`, and the registry's separator by namespace operations.
 
 ### Design Philosophy
 

@@ -20,7 +20,10 @@ Each `Tool` instance carries structured namespace information through two fields
 - **`namespace`**: Stores the original namespace string (after normalization). Used to determine group membership without parsing the `name` field.
 - **`method_name`**: Stores the original method/function name before namespace prefixing. Preserved so that the base name can be recovered unambiguously.
 
-The **`qualified_name`** property returns the fully-qualified tool name: if both `namespace` and `method_name` are set, it returns `{namespace}-{method_name}`; otherwise it falls back to the `name` field.
+The **`qualified_name`** property returns the registered `name`. The name is
+authoritative and is rebuilt from `namespace`, `method_name`, and the registry's
+separator whenever a namespace operation runs; it is never parsed back out of
+the string.
 
 ```python
 from toolregistry import ToolRegistry
@@ -55,16 +58,17 @@ registry.register(multiply, namespace="math_ops")
 print(registry.get_available_tools())  # ['math_ops.multiply']
 ```
 
-The registry key is always `tool.name`. `tool.qualified_name` remains a
-display convenience and always joins with `-`.
+The registry key is always `tool.name`, and `tool.qualified_name` is the same
+string. Changing `registry.name_sep` at runtime re-keys every namespaced tool
+(and its override records) so a registry never mixes separators.
 
 ### Key Features
 
 - **Standardization**: Tool names are normalized using the `normalize_tool_name` function, converting them to snake_case and removing special characters, repeating strings and whitespace.
-- **Merge Behavior**: By default, the original registry name is prefixed to all tools during merging. When `force_namespace` is enabled, it forces all namespaces to be replaced with the initiating registry's name.
+- **Merge Behavior**: By default, the original registry name is prefixed to all tools during merging. When `force_namespace` is enabled, it forces all namespaces to be replaced with the initiating registry's name. Incoming tools are re-keyed with the receiving registry's `name_sep`, so merging registries that use different separators is lossless. Override records move with their tools.
 !!! note
     Even if only one namespace exists, it will still be retained.
-- **Spinoff Behavior**: Tools with specific prefixes can be extracted into new registries. By default, the prefix is removed from the extracted tools unless `retain_namespace` is set to `True`. The `reduce_namespace` method is used to remove prefixes when applicable.
+- **Spinoff Behavior**: Tools are selected by their `namespace` field (with a key-prefix fallback for legacy tools), using the registry's `name_sep`. The returned registry inherits that separator. By default, the prefix is removed from the extracted tools unless `retain_namespace` is set to `True`. `reduce_namespace` only flattens tools in the single remaining namespace and leaves unqualified tools untouched.
 
 ### Normalization Example
 
@@ -97,8 +101,8 @@ We recommend organizing tools by similar functionality to form a registry. The `
 
 ```python
 # Example of MCP/OpenAPI mixed registry
-openapi_registry = ToolRegistry("openapi_math")
-mcp_registry = ToolRegistry("mcp_math")
+openapi_registry = ToolRegistry("openapi_math", name_sep=".")
+mcp_registry = ToolRegistry("mcp_math", name_sep=".")
 
 # Merge MCP registry into OpenAPI registry
 mixed_registry = openapi_registry
@@ -122,8 +126,8 @@ print(mixed_registry.get_available_tools())  # Tools from both registries
 
 ```python
 # Example of MCP/OpenAPI mixed registry with forced namespace
-openapi_registry = ToolRegistry("openapi_math")
-mcp_registry = ToolRegistry("mcp_math")
+openapi_registry = ToolRegistry("openapi_math", name_sep=".")
+mcp_registry = ToolRegistry("mcp_math", name_sep=".")
 
 # Merge MCP registry into OpenAPI registry with forced namespace
 mixed_registry_2 = openapi_registry
@@ -145,11 +149,11 @@ print(mixed_registry_2.get_available_tools())  # Tools from both registries with
 
 ## Spinoff Registries
 
-Spinoff registries allow you to extract tools with specific prefixes from an existing registry, typically after a merge operation. During the spinoff process, the prefix is removed from the extracted tools, unless `retain_namespace` is set to `True`. If the remaining tools in the registry share only one prefix, they will also be downgraded by removing the prefix using the `reduce_namespace` method, unless `retain_namespace` is set to `True`.
+Spinoff registries allow you to extract tools from one namespace into a new registry, typically after a merge operation. Matching uses the registry's `name_sep` and the tool's `namespace` field. During the spinoff process, the prefix is removed from the extracted tools, unless `retain_namespace` is set to `True`. If the remaining tools in the source registry share only one namespace, they will also be downgraded by removing the prefix using the `reduce_namespace` method, unless `retain_namespace` is set to `True`.
 
 ### Parameters
 
-- `retain_namespace`: If `True`, retains the namespace of tools in both the current registry and the new registry. If `False`, removes the namespace from tools in the new registry using the `reduce_namespace` method.
+- `retain_namespace`: If `True`, keeps the qualified names in the spun-off registry and skips namespace reduction in both registries. If `False`, removes the namespace from the extracted tools using the `reduce_namespace` method. Tools always move: the spun-off tools are removed from the source registry either way.
 
 ### Error Handling
 

@@ -174,7 +174,7 @@ Tools registered from external sources (MCP servers, OpenAPI specs, classes) are
 
 - Prevent name collisions between tools from different sources
 - Enable selective `merge()` / `spinoff()` operations between registries
-- Prefix tool names as `{namespace}-{method_name}`
+- Prefix tool names as `{namespace}{name_sep}{method_name}`
 
 ### PermissionPolicy
 
