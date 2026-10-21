@@ -530,7 +530,15 @@ class Tool:
         return state
 
     def __setstate__(self, state: dict[str, Any]) -> None:
-        """Restore native parameter validation after deserialization."""
+        """Restore native parameter validation after deserialization.
+
+        Regeneration can fail for annotations that no longer resolve in the
+        loading process (local classes, optional dependencies).  The tool is
+        then restored without parameter validation and a ``UserWarning``
+        says so, matching ``Tool.from_function``.  With warnings escalated
+        to errors (``python -W error``) that warning raises and the tool
+        still fails to load.
+        """
         rebuild = state.pop("_rebuild_parameters_model", False)
         for key, value in state.items():
             object.__setattr__(self, key, value)
