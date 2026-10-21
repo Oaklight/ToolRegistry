@@ -292,9 +292,11 @@ class ToolDiscoveryTool:
         self,
         # ``Match`` uses ``re.fullmatch``, so the pattern must describe the
         # whole query.  ``\S`` alone only accepts a single character (#326);
-        # require at least one non-whitespace character and allow spaces
-        # inside and around the query.
-        query: Annotated[str, MinLen(1), Match(r".*\S.*")],
+        # require at least one non-whitespace character and allow whitespace
+        # anywhere else.  ``[\s\S]`` rather than ``.`` so embedded newlines
+        # (models sometimes emit them) are accepted, and no inline ``(?s)``
+        # flag, which JSON Schema ``pattern`` dialects do not all support.
+        query: Annotated[str, MinLen(1), Match(r"[\s\S]*\S[\s\S]*")],
         top_k: Annotated[int, Ge(1)] = 10,
         api_format: API_FORMATS = "openai-chat",
     ) -> list[dict[str, Any]]:
