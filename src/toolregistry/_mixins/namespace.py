@@ -26,6 +26,7 @@ class NamespaceMixin:
     _overrides: dict[str, Tool]  # Owned by RegistrationMixin
     _disabled: dict[str, str]  # Owned by EnableDisableMixin
     _execution_mode: str  # Owned by ToolRegistry
+    _tool_discovery: Any  # Owned by ToolRegistry; None unless discovery is enabled
     name_sep: NameSeparator  # Property exposed by ToolRegistry
 
     if TYPE_CHECKING:
@@ -56,6 +57,17 @@ class NamespaceMixin:
             if prefix:
                 prefixes.add(prefix)
         self._sub_registries = prefixes
+
+    def _invalidate_discovery(self) -> None:
+        """Drop the discovery index after tool names changed.
+
+        The index stores document ids keyed by tool name.  Operations that
+        rename or remove tools outside the registration path must mark it dirty,
+        or ``discover()`` keeps returning names that no longer exist.
+        """
+        discovery = getattr(self, "_tool_discovery", None)
+        if discovery is not None:
+            discovery._mark_dirty()
 
     def _sync_overrides(self, remap: Callable[[str, Tool], tuple[str, Tool]]) -> None:
         """Rebuild ``_overrides`` after the ``_tools`` keys change.
@@ -233,6 +245,10 @@ class NamespaceMixin:
 
         Raises:
             TypeError: If other is not a ToolRegistry instance.
+
+        Notes:
+            Both registries are renamed in place, so their discovery indexes
+            (when enabled) are invalidated.
         """
         from ..tool_registry import ToolRegistry
 
@@ -258,6 +274,8 @@ class NamespaceMixin:
 
         # Update sub-registries based on merged tools
         self._update_sub_registries()
+        self._invalidate_discovery()
+        other._invalidate_discovery()
 
     def reduce_namespace(self) -> None:
         """Remove the namespace from tools in the registry if there is only one sub-registry.
@@ -274,12 +292,17 @@ class NamespaceMixin:
             - Updates the `_tools` dictionary and each flattened ``Tool.name``.
             - Re-keys `_overrides` alongside the tools.
             - Clears the `_sub_registries` set if namespace flattening occurs.
+            - Invalidates the discovery index when tools were renamed.
 
         Example:
             If the registry contains tools with names like ``calculator-add`` and
             ``calculator-subtract``, and ``calculator`` is the only sub-registry,
             this method renames them to ``add`` and ``subtract``.
         """
+        # Derive the set from the tool fields first: registration of a pre-built
+        # ``Tool`` that already carries a namespace does not update the cache,
+        # and removed tools leave stale prefixes behind.
+        self._update_sub_registries()
         if len(self._sub_registries) != 1:
             return
 
@@ -320,6 +343,7 @@ class NamespaceMixin:
             self._disabled.pop(remaining_prefix, None)
             self._disabled.update(disabled_reasons)
         self._sub_registries.clear()
+        self._invalidate_discovery()
 
     def _select_namespace_tools(
         self, prefix: str, sep: NameSeparator
@@ -384,6 +408,8 @@ class NamespaceMixin:
         Notes:
             When `retain_namespace` is False, the `reduce_namespace` method is
             called to remove the namespace from tools in the current registry.
+            The source registry's discovery index is invalidated either way
+            because its tool set changed.
         """
         from ..tool_registry import ToolRegistry
 
@@ -434,6 +460,7 @@ class NamespaceMixin:
             for name, tool in self._tools.items()
             if name not in selected_keys
         }
+        self._invalidate_discovery()
 
         # Remove the prefix from sub-registries if it exists
         self._sub_registries.discard(normalized_prefix)

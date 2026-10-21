@@ -225,6 +225,21 @@ class TestReduceNamespace:
 
         assert registry._tools == before
 
+    def test_reduces_prebuilt_namespaced_tool(self):
+        """A ``Tool`` registered with its namespace already set is reduced.
+
+        Registration does not populate ``_sub_registries`` for this path, so
+        the operation must derive the set from the tool fields.
+        """
+        registry = ToolRegistry()
+        registry.register(Tool.from_function(add, namespace="calc"))
+        assert registry._sub_registries == set()
+
+        registry.reduce_namespace()
+
+        assert list(registry._tools) == ["add"]
+        assert registry.get_tool("add").namespace is None
+
 
 # ---------------------------------------------------------------------------
 # merge and merge -> spinoff -> merge
@@ -490,3 +505,51 @@ class TestNameSepChangeInvalidatesDiscovery:
 
         result = registry._tool_discovery.call_deferred("math.add", a=1, b=2)
         assert result == 3
+
+
+class TestNamespaceOpsInvalidateDiscovery:
+    """Renaming operations must not leave phantom document ids in the index."""
+
+    @staticmethod
+    def _names(registry, query):
+        return [item["name"] for item in registry._tool_discovery.discover(query)]
+
+    def test_reduce_namespace_drops_old_names(self):
+        registry = ToolRegistry(tool_discovery=True)
+        registry.register(add, namespace="calc")
+        registry.register(multiply, namespace="calc")
+        # Build the index under the qualified names.
+        assert self._names(registry, "calc-add") == ["calc-add"]
+
+        registry.reduce_namespace()
+
+        assert self._names(registry, "add") == ["add"]
+        assert "calc-add" not in self._names(registry, "calc-add")
+
+    @pytest.mark.parametrize("retain", [True, False])
+    def test_spinoff_drops_moved_names_from_source(self, retain):
+        registry = ToolRegistry(tool_discovery=True)
+        registry.register(add, namespace="math")
+        registry.register(upper, namespace="text")
+        assert self._names(registry, "math-add") == ["math-add"]
+
+        registry.spinoff("math", retain_namespace=retain)
+
+        assert "math-add" not in self._names(registry, "math-add")
+        expected = "text-upper" if retain else "upper"
+        assert self._names(registry, expected) == [expected]
+
+    def test_merge_drops_old_names_on_both_sides(self):
+        left = ToolRegistry(name="left", tool_discovery=True)
+        right = ToolRegistry(name="right", tool_discovery=True)
+        left.register(add)
+        right.register(multiply)
+        assert self._names(left, "add") == ["add"]
+        assert self._names(right, "multiply") == ["multiply"]
+
+        left.merge(right)
+
+        assert self._names(left, "left-add") == ["left-add"]
+        assert "add" not in self._names(left, "add")
+        assert self._names(right, "right-multiply") == ["right-multiply"]
+        assert "multiply" not in self._names(right, "multiply")
