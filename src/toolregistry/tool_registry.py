@@ -270,15 +270,19 @@ class ToolRegistry(
         return self.get_callable(key)
 
     # ============== Lifecycle ==============
-    async def close_async(self) -> None:
+    async def close_async(self, wait: bool = False) -> None:
         """Close all persistent connections and execution resources (async).
 
         Closes MCP and OpenAPI integrations that hold persistent
         connections or HTTP clients, then shuts down the thread and process
-        execution backends.  Shutdown is non-blocking: work already running
-        or queued is abandoned, not drained.  The backends recreate their
-        pools lazily, so the registry remains usable; calling this repeatedly
-        is safe.
+        execution backends.  With ``wait=False`` (the default) shutdown is
+        non-blocking and work already running or queued is abandoned; with
+        ``wait=True`` it drains that work before returning.  The backends
+        recreate their pools lazily, so the registry remains usable; calling
+        this repeatedly is safe.
+
+        Args:
+            wait: Drain in-flight and queued execution before returning.
         """
         for integration in self._mcp_integrations:
             await integration.close()
@@ -286,16 +290,20 @@ class ToolRegistry(
             await integration.close_async()
         self._mcp_integrations.clear()
         self._openapi_integrations.clear()
-        self._shutdown_execution_backends()
+        self._shutdown_execution_backends(wait=wait)
 
-    def close(self) -> None:
+    def close(self, wait: bool = False) -> None:
         """Close all persistent connections and execution resources (sync).
 
         Closes MCP and OpenAPI integrations, then shuts down the thread and
-        process execution backends.  Shutdown is non-blocking: work already
-        running or queued is abandoned, not drained.  The backends recreate
-        their pools lazily, so the registry remains usable; calling this
-        repeatedly is safe.
+        process execution backends.  With ``wait=False`` (the default)
+        shutdown is non-blocking and work already running or queued is
+        abandoned; with ``wait=True`` it drains that work before returning.
+        The backends recreate their pools lazily, so the registry remains
+        usable; calling this repeatedly is safe.
+
+        Args:
+            wait: Drain in-flight and queued execution before returning.
         """
         for integration in self._mcp_integrations:
             integration.close_sync()
@@ -303,19 +311,19 @@ class ToolRegistry(
         for integration in self._openapi_integrations:
             integration.close()
         self._openapi_integrations.clear()
-        self._shutdown_execution_backends()
+        self._shutdown_execution_backends(wait=wait)
 
-    def _shutdown_execution_backends(self) -> None:
+    def _shutdown_execution_backends(self, wait: bool = False) -> None:
         """Shut down the thread and process pools.
 
-        Non-blocking shutdown keeps ``close()`` fast even with in-flight
-        work; completed results are discarded.  The backend objects stay in
-        place: both clear their pool on shutdown and create a new one on the
-        next submit, so the registry remains usable without losing any custom
+        ``wait=False`` keeps ``close()`` fast and discards in-flight work;
+        ``wait=True`` drains it.  The backend objects stay in place: both
+        clear their pool on shutdown and create a new one on the next submit,
+        so the registry remains usable without losing any custom
         configuration on the backend.
         """
-        self._thread_backend.shutdown(wait=False)
-        self._process_backend.shutdown(wait=False)
+        self._thread_backend.shutdown(wait=wait)
+        self._process_backend.shutdown(wait=wait)
 
     async def __aenter__(self) -> "ToolRegistry":
         return self

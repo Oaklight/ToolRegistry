@@ -138,7 +138,12 @@ class ThreadBackend:
         return ThreadExecutionHandle(future, exec_id, ctx, timeout)
 
     def shutdown(self, wait: bool = True) -> None:
+        """Shut down the pool.
+
+        ``wait=False`` abandons queued work and returns immediately;
+        ``wait=True`` drains in-flight and queued work.
+        """
         if self._pool is None:
             return
-        self._pool.shutdown(wait=wait, cancel_futures=True)
+        self._pool.shutdown(wait=wait, cancel_futures=not wait)
         self._pool = None

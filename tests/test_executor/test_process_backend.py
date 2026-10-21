@@ -17,6 +17,14 @@ def _add(x: int, y: int) -> int:
     return x + y
 
 
+def _slow_add(x: int, y: int) -> int:
+    """Module-level slow function (picklable)."""
+    import time
+
+    time.sleep(0.5)
+    return x + y
+
+
 def _fail() -> None:
     """Module-level function that raises."""
     raise ValueError("process boom")
@@ -276,3 +284,79 @@ class TestProcessPoolBackend:
 
         assert proc.returncode == 0, proc.stderr
         assert proc.stdout.strip() == "-5"
+
+    def test_pool_migrates_when_parent_grows_threads(self):
+        """A fork pool is recreated once the parent owns other threads."""
+        import threading
+        import time
+
+        backend = ProcessPoolBackend(max_workers=2)
+        try:
+            assert backend.submit(_add, {"x": 1, "y": 2}).result() == 3
+            if backend._pool_start_method != "fork":
+                pytest.skip("platform does not use fork for idle pools")
+
+            release = threading.Event()
+            worker = threading.Thread(target=release.wait)
+            worker.start()
+            try:
+                for _ in range(200):
+                    if backend._outstanding == 0:
+                        break
+                    time.sleep(0.01)
+                assert backend.submit(_add, {"x": 2, "y": 3}).result() == 5
+                assert backend._pool_start_method in {"forkserver", "spawn"}
+            finally:
+                release.set()
+                worker.join()
+        finally:
+            backend.shutdown()
+
+    def test_shutdown_without_wait_abandons_in_flight_work(self):
+        """``wait=False`` returns without draining work already submitted.
+
+        CPython marks a work item running as soon as it leaves the manager
+        thread, so queued-but-unstarted work is generally not cancellable;
+        what the backend can promise is that shutdown does not wait for it.
+        """
+        import time
+
+        backend = ProcessPoolBackend(max_workers=1)
+        try:
+            handle = backend.submit(_slow_add, {"x": 1, "y": 2})
+            started = time.perf_counter()
+            backend.shutdown(wait=False)
+            elapsed = time.perf_counter() - started
+
+            assert elapsed < 0.3
+            assert handle.status() in {HandleStatus.PENDING, HandleStatus.RUNNING}
+            # The abandoned task still finishes; only ownership is dropped.
+            assert handle.result(timeout=10) == 3
+            assert backend._pool is None
+        finally:
+            backend.shutdown()
+
+    def test_shutdown_wait_drains_in_flight_work(self):
+        """``wait=True`` returns only once submitted work has finished."""
+        backend = ProcessPoolBackend(max_workers=1)
+        try:
+            handle = backend.submit(_slow_add, {"x": 2, "y": 3})
+            backend.shutdown(wait=True)
+            assert handle.status() == HandleStatus.COMPLETED
+            assert handle.result(timeout=5) == 5
+        finally:
+            backend.shutdown()
+
+    def test_pool_infrastructure_threads_are_not_external(self):
+        """A second pool still sees a single-threaded parent."""
+        first = ProcessPoolBackend(max_workers=1)
+        second = ProcessPoolBackend(max_workers=1)
+        try:
+            assert first.submit(_add, {"x": 1, "y": 1}).result() == 2
+            if first._pool_start_method != "fork":
+                pytest.skip("platform does not use fork for idle pools")
+            assert second.submit(_add, {"x": 2, "y": 2}).result() == 4
+            assert second._pool_start_method == "fork"
+        finally:
+            first.shutdown()
+            second.shutdown()
