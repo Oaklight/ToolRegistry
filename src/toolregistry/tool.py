@@ -535,9 +535,18 @@ class Tool:
         for key, value in state.items():
             object.__setattr__(self, key, value)
         if rebuild and isinstance(self.callable, _FunctionToolWrapper):
-            object.__setattr__(
-                self, "parameters_model", _generate_parameters_model(self.callable.fn)
-            )
+            try:
+                model = _generate_parameters_model(self.callable.fn)
+            except Exception as e:  # pragma: no cover - exotic annotations
+                warnings.warn(
+                    f"Failed to regenerate parameter model for "
+                    f"'{self.name}' after unpickling: {e}. "
+                    "The tool will be usable without parameter validation.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                model = None
+            object.__setattr__(self, "parameters_model", model)
 
     @classmethod
     def _normalize_parameters(cls, parameters: dict[str, Any]) -> dict[str, Any]:

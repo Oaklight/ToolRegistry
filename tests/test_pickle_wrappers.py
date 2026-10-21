@@ -20,6 +20,30 @@ def test_tool_round_trips_with_generated_parameters():
     assert restored.callable(value=2) == 3
 
 
+def test_unpickle_falls_back_when_model_regeneration_fails(monkeypatch):
+    """An exotic annotation must not make the whole unpickle fail."""
+
+    def increment(value: int = 1) -> int:
+        return value + 1
+
+    tool = Tool.from_function(increment)
+    blob = cloudpickle.dumps(tool)
+
+    import toolregistry.tool as tool_module
+
+    def _boom(_fn):
+        raise TypeError("cannot rebuild model")
+
+    monkeypatch.setattr(tool_module, "_generate_parameters_model", _boom)
+
+    with pytest.warns(UserWarning, match="Failed to regenerate parameter model"):
+        restored = cloudpickle.loads(blob)
+
+    assert restored.parameters_model is None
+    assert restored.parameters == tool.parameters
+    assert restored.callable(value=2) == 3
+
+
 class TestHttpClientConfigPickle:
     def test_pickle_fresh(self):
         """Config with no active clients pickles cleanly."""
