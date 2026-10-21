@@ -312,6 +312,19 @@ class MCPIntegration:
         self._poll_timer: threading.Timer | None = None
         self._poll_interval: float | None = None
 
+    def _track_with_registry(self) -> None:
+        """Register this integration with its registry.
+
+        ``registry.register(..., source="mcp")`` tracks the instance itself,
+        but constructing an integration directly and calling
+        ``register_mcp_tools*`` bypasses that.  Tracking here keeps
+        registry-wide bookkeeping (``name_sep`` re-keying, ``close()``)
+        working for both paths.  Idempotent.
+        """
+        tracked = self.registry._mcp_integrations
+        if self not in tracked:
+            tracked.append(self)
+
     async def register_mcp_tools_async(
         self,
         transport: str | dict[str, Any] | Path,
@@ -400,6 +413,7 @@ class MCPIntegration:
             self._filter.warn_if_all_filtered_out(
                 total=len(tools_response), accepted=registered, source="MCP"
             )
+            self._track_with_registry()
 
     def register_mcp_tools(
         self,

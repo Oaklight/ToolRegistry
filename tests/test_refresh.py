@@ -288,6 +288,32 @@ class TestOpenAPIRefresh:
         assert not result.added
         assert not result.removed
 
+    def test_direct_integration_tracks_itself(self):
+        """The documented constructor path participates in separator re-keying."""
+        registry = ToolRegistry()
+        integration = OpenAPIIntegration(registry)
+        integration.register_openapi_tools(
+            _make_client_config(), SPEC_V1, namespace="api"
+        )
+
+        assert registry._openapi_integrations == [integration]
+        assert integration._registered_tool_names == {
+            "api-list_items",
+            "api-get_item",
+        }
+
+        registry.name_sep = "."
+
+        assert integration._registered_tool_names == {
+            "api.list_items",
+            "api.get_item",
+        }
+        result = integration.refresh()
+        assert result.changed is False
+        assert result.unchanged == 2
+        assert not result.added
+        assert not result.removed
+
 
 # ---------------------------------------------------------------------------
 # OpenAPI ETag conditional fetch
@@ -478,6 +504,30 @@ class TestMCPRefresh:
         specs = [_MockToolSpec("add"), _MockToolSpec("multiply")]
         registry = ToolRegistry()
         integration = self._make_integration(registry, specs, namespace="hub")
+        assert integration._registered_tool_names == {"hub-add", "hub-multiply"}
+
+        registry.name_sep = "."
+
+        assert integration._registered_tool_names == {"hub.add", "hub.multiply"}
+        with self._patch_mcp_client(specs):
+            result = integration.refresh()
+
+        assert result.changed is False
+        assert result.unchanged == 2
+        assert not result.added
+        assert not result.removed
+
+    def test_direct_integration_tracks_itself(self):
+        """The documented constructor path participates in separator re-keying."""
+        from toolregistry.integrations.mcp.integration import MCPIntegration
+
+        specs = [_MockToolSpec("add"), _MockToolSpec("multiply")]
+        registry = ToolRegistry()
+        integration = MCPIntegration(registry)
+        with self._patch_mcp_client(specs):
+            integration.register_mcp_tools("http://mock-mcp:8000", namespace="hub")
+
+        assert registry._mcp_integrations == [integration]
         assert integration._registered_tool_names == {"hub-add", "hub-multiply"}
 
         registry.name_sep = "."
