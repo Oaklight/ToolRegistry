@@ -30,7 +30,7 @@ Tool 类遵循数据传输对象模式，包含以下关键组件：
 
 ### 计算属性
 
-- **qualified_name**：返回完全限定的工具名称。如果同时设置了 `namespace` 和 `method_name`，则返回 `{namespace}-{method_name}`；否则回退到 `name` 字段。
+- **qualified_name**：返回注册表中实际存储的 `name`。名称是权威值，命名空间操作会用 `namespace`、`method_name` 与注册表分隔符重新构建它。
 
 ### 设计理念
 

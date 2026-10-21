@@ -20,7 +20,7 @@
 - **`namespace`**：存储原始命名空间字符串（规范化后）。用于确定分组归属，无需解析 `name` 字段。
 - **`method_name`**：存储命名空间前缀添加之前的原始方法/函数名称。保留此字段以便在不产生歧义的情况下恢复基础名称。
 
-**`qualified_name`** 属性返回完全限定的工具名称：如果同时设置了 `namespace` 和 `method_name`，则返回 `{namespace}-{method_name}`；否则回退到 `name` 字段。
+**`qualified_name`** 属性返回注册表中实际存储的 `name`。名称是权威值：每次命名空间操作都会用 `namespace`、`method_name` 与注册表分隔符重新构建它，而不会反向解析字符串。
 
 ```python
 from toolregistry import ToolRegistry
@@ -54,16 +54,17 @@ registry.register(multiply, namespace="math_ops")
 print(registry.get_available_tools())  # ['math_ops.multiply']
 ```
 
-注册表键始终是 `tool.name`。`tool.qualified_name` 仍然是展示用的便捷属性，
-始终使用 `-` 连接。
+注册表键始终是 `tool.name`，`tool.qualified_name` 返回同一字符串。运行时修改
+`registry.name_sep` 会重新为所有带命名空间的工具（以及覆盖记录）建立键，
+因此注册表不会混用不同分隔符。
 
 ### 关键特性
 
 - **标准化**：工具名称使用 `normalize_tool_name` 函数进行规范化，将它们转换为 snake_case 并删除特殊字符、重复字符串和空白。
-- **合并行为**：默认情况下，在合并期间，原始注册表名称作为前缀添加到所有工具。当启用 `force_namespace` 时，它强制所有命名空间被替换为发起注册表的名称。
+- **合并行为**：默认情况下，在合并期间，原始注册表名称作为前缀添加到所有工具。当启用 `force_namespace` 时，它强制所有命名空间被替换为发起注册表的名称。传入的工具会用接收注册表的 `name_sep` 重新建立键，因此合并使用不同分隔符的注册表不会丢失信息。覆盖记录会随对应工具一起移动。
 !!! note
     即使只存在一个命名空间，它仍然会被保留。
-- **分离行为**：具有特定前缀的工具可以提取到新的注册表中。默认情况下，除非将 `retain_namespace` 设置为 `True`，否则从提取的工具中删除前缀。当适用时，使用 `reduce_namespace` 方法删除前缀。
+- **分离行为**：工具按其 `namespace` 字段选择（旧式工具回退为按键前缀匹配），并使用注册表的 `name_sep`。返回的注册表继承该分隔符。默认情况下，除非将 `retain_namespace` 设置为 `True`，否则从提取的工具中删除前缀。`reduce_namespace` 只会展平唯一剩余命名空间中的工具，未带命名空间的工具保持不变。
 
 ### 规范化示例
 
@@ -96,8 +97,8 @@ print(normalize_tool_name("encode@url"))  # 'encode_url'
 
 ```python
 # MCP/OpenAPI 混合注册表示例
-openapi_registry = ToolRegistry("openapi_math")
-mcp_registry = ToolRegistry("mcp_math")
+openapi_registry = ToolRegistry("openapi_math", name_sep=".")
+mcp_registry = ToolRegistry("mcp_math", name_sep=".")
 
 # 将 MCP 注册表合并到 OpenAPI 注册表
 mixed_registry = openapi_registry
@@ -121,8 +122,8 @@ print(mixed_registry.get_available_tools())  # 来自两个注册表的工具
 
 ```python
 # 带强制命名空间的 MCP/OpenAPI 混合注册表示例
-openapi_registry = ToolRegistry("openapi_math")
-mcp_registry = ToolRegistry("mcp_math")
+openapi_registry = ToolRegistry("openapi_math", name_sep=".")
+mcp_registry = ToolRegistry("mcp_math", name_sep=".")
 
 # 使用强制命名空间将 MCP 注册表合并到 OpenAPI 注册表
 mixed_registry_2 = openapi_registry
@@ -144,11 +145,11 @@ print(mixed_registry_2.get_available_tools())  # 来自两个注册表的工具�
 
 ## 分离注册表
 
-分离注册表允许您从现有注册表中提取具有特定前缀的工具，通常在合并操作之后。在分离过程中，除非将 `retain_namespace` 设置为 `True`，否则从提取的工具中删除前缀。如果注册表中的剩余工具只共享一个前缀，除非将 `retain_namespace` 设置为 `True`，否则它们也将通过使用 `reduce_namespace` 方法删除前缀来降级。
+分离注册表允许您将某个命名空间中的工具提取到新注册表，通常在合并操作之后。匹配使用注册表的 `name_sep` 和工具的 `namespace` 字段。在分离过程中，除非将 `retain_namespace` 设置为 `True`，否则从提取的工具中删除前缀。如果源注册表中的剩余工具只共享一个命名空间，除非将 `retain_namespace` 设置为 `True`，否则它们也将通过使用 `reduce_namespace` 方法删除前缀来降级。
 
 ### 参数
 
-- `retain_namespace`：如果为 `True`，在当前注册表和新注册表中保留工具的命名空间。如果为 `False`，使用 `reduce_namespace` 方法从新注册表中的工具中删除命名空间。
+- `retain_namespace`：如果为 `True`，在分离出的注册表中保留限定名称，并跳过两个注册表的命名空间缩减。如果为 `False`，使用 `reduce_namespace` 方法从提取的工具中删除命名空间。无论哪种情况，工具都会移动：分离出的工具会从源注册表中移除。
 
 ### 错误处理
 

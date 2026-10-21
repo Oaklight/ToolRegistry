@@ -174,7 +174,7 @@ toolregistry/
 
 - 防止不同来源的工具名称冲突
 - 支持注册表间的选择性 `merge()` / `spinoff()` 操作
-- 工具名称格式为 `{namespace}-{method_name}`
+- 工具名称格式为 `{namespace}{name_sep}{method_name}`
 
 ### PermissionPolicy
 

@@ -28,6 +28,7 @@ hide:
 
 ### 变更
 
+- **`update_namespace(force=False)` 保留既有命名空间** (#310)（**行为变更**）：已经带命名空间的工具会原样返回。此前会改写 `namespace` 字段为新值、却保留旧的 `name` 前缀，导致两个字段不一致。需要替换时请传 `force=True`。
 - **注册/注销时延迟重建发现索引** (#289)：`REGISTER` / `UNREGISTER` 现在只把 BM25 索引标记为陈旧，而不是逐事件重建，与既有的 `ENABLE` / `DISABLE` / `METADATA_UPDATE` 路径一致。批量注册只需在下一次 `discover()` 时重建一次；延迟工具描述仍会立即刷新。
 - **配置加载器拒绝未知键** (#297)（**行为变更**）：工具源条目或 `auth` 下的拼写错误现在会抛出 `ConfigError`，并给出条目索引与合法键集合。依赖被静默忽略的键的配置将在加载时失败，而不是部分生效。
 - **`name_sep` 作用于所有注册来源** (#302)：原生函数与类方法现在也会遵循 `ToolRegistry(name_sep=".")`，与 MCP、OpenAPI、LangChain 一致。`Tool.from_function(..., sep=...)` 与新增的只读属性 `ToolRegistry.name_sep` 暴露同一规则。默认 `-` 行为不变。
@@ -36,6 +37,7 @@ hide:
 
 ### 修复
 
+- **`spinoff()` 与 `reduce_namespace()` 遵循注册表分隔符** (#310)：命名空间操作改用 `Tool.namespace` / `Tool.method_name`，不再用 `"."` 解析键。`spinoff()` 在默认 `-` 下可用，匹配 `name_sep`，不会误匹配更长的命名空间（`math` 与 `math_ops`），返回的注册表继承源分隔符。`reduce_namespace()` 只展平唯一剩余命名空间中的工具，未带命名空间的工具不再被截断（`helper` 不会再变成 `r`），发生冲突时抛错而不是覆盖。名称由字段重建而非直接切片，`merge()` 会把传入名称转换为接收注册表的分隔符并携带传入的覆盖记录，运行时修改 `name_sep` 会重新为已注册工具和覆盖记录建立键。`Tool.qualified_name` 返回注册的 `name`。
 - **替换警告不再跳过钩子或事件** (#301)：替换时的 `UserWarning` 现在在注册后钩子与 `REGISTER` / `REPLACE` 事件之后发出。当警告被配置为错误时，异常发生时注册表已处于一致状态，且所有监听者都已观察到变更。
 - **过滤警告报告调用者的文件与行号** (#300)：`ToolNameFilter.warn_if_all_filtered_out()` 与替换警告改用调用者归因助手。`AsyncRuntime.run_sync()` 会把同步调用者的位置带入协程，因此同步桥不再指向集成内部；执行器线程路径会回退到直接调用者。
 - **远端注册与刷新在命名空间名称上保持一致** (#295)：两条路径都使用注册表分隔符推导注册键。使用 `name_sep="."` 时，注册期匹配的 `include` 不会在刷新时失配，刷新也不会再产生 `gh.gh-list_issues` 这类双重前缀。
