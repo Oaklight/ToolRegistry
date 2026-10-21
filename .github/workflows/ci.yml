@@ -51,6 +51,29 @@ jobs:
       - name: Run tests
         run: python -m pytest tests/ -v
 
+  # The default test job runs on 3.10. This one pins 3.11, where the
+  # TypedDict/cloudpickle failure in #319 only appears: a fix that depends on
+  # runtime TypedDict behaviour must be exercised on the version that broke.
+  test-py311:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,test,mcp,ptc]"
+          pip install websockets
+
+      - name: Run tests
+        run: python -m pytest tests/ -v
+
   test-langchain:
     runs-on: ubuntu-latest
     timeout-minutes: 20
