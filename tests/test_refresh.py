@@ -266,6 +266,28 @@ class TestOpenAPIRefresh:
         result = integration.refresh()
         assert result.unchanged == 2
 
+    def test_refresh_after_name_sep_change_is_noop(self):
+        """Tracked names follow the separator, so refresh sees no change."""
+        registry = ToolRegistry()
+        self._register(registry, namespace="api")
+        integration = registry._openapi_integrations[0]
+        assert integration._registered_tool_names == {
+            "api-list_items",
+            "api-get_item",
+        }
+
+        registry.name_sep = "."
+
+        assert integration._registered_tool_names == {
+            "api.list_items",
+            "api.get_item",
+        }
+        result = registry.refresh_from_openapi(openapi_spec=SPEC_V1)
+        assert result.changed is False
+        assert result.unchanged == 2
+        assert not result.added
+        assert not result.removed
+
 
 # ---------------------------------------------------------------------------
 # OpenAPI ETag conditional fetch
@@ -402,7 +424,7 @@ class _MockToolSpec:
 class TestMCPRefresh:
     """Tests for MCPIntegration.refresh() using mocked MCP clients."""
 
-    def _make_integration(self, registry, tool_specs):
+    def _make_integration(self, registry, tool_specs, namespace=None):
         """Register mocked MCP tools and return the integration."""
         from toolregistry.integrations.mcp.integration import (
             MCPIntegration,
@@ -411,17 +433,18 @@ class TestMCPRefresh:
         from toolregistry.integrations.mcp.connection import MCPConnectionManager
 
         integration = MCPIntegration(registry)
+        registry._mcp_integrations.append(integration)
         connection = MagicMock(spec=MCPConnectionManager)
         connection.transport = "http://mock-mcp:8000"
         integration._connections.append(connection)
         integration._transport = "http://mock-mcp:8000"
-        integration._resolved_ns = None
+        integration._resolved_ns = namespace
         integration._persistent = True
         integration._headers = None
 
         sep = getattr(registry, "_name_sep", "-")
         for ts in tool_specs:
-            tool = MCPTool.from_tool_json(ts, connection, namespace=None)
+            tool = MCPTool.from_tool_json(ts, connection, namespace=namespace, sep=sep)
             tool = tool.update_namespace(None, force=True, sep=sep)
             registry.register(tool)
             integration._registered_tool_names.add(tool.name)
@@ -449,6 +472,24 @@ class TestMCPRefresh:
 
         assert result.changed is False
         assert result.unchanged == 2
+
+    def test_mcp_refresh_after_name_sep_change_is_noop(self):
+        """Tracked names follow the separator, so refresh sees no change."""
+        specs = [_MockToolSpec("add"), _MockToolSpec("multiply")]
+        registry = ToolRegistry()
+        integration = self._make_integration(registry, specs, namespace="hub")
+        assert integration._registered_tool_names == {"hub-add", "hub-multiply"}
+
+        registry.name_sep = "."
+
+        assert integration._registered_tool_names == {"hub.add", "hub.multiply"}
+        with self._patch_mcp_client(specs):
+            result = integration.refresh()
+
+        assert result.changed is False
+        assert result.unchanged == 2
+        assert not result.added
+        assert not result.removed
 
     def test_mcp_refresh_add_tool(self):
         initial = [_MockToolSpec("add")]
