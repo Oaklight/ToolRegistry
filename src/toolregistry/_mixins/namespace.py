@@ -36,6 +36,7 @@ class NamespaceMixin:
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self._tools: dict[str, Tool] = {}
+        # Cache refreshed by _update_sub_registries(); not authoritative.
         self._sub_registries: set[str] = set()
 
     def _update_sub_registries(self) -> None:
@@ -44,6 +45,11 @@ class NamespaceMixin:
         This method identifies sub-registry prefixes by examining the ``namespace``
         field of each tool first.  If a tool does not have a ``namespace`` set, it
         falls back to parsing the tool name with the registry's ``name_sep``.
+
+        ``_sub_registries`` is a cache, not an authoritative view:
+        ``register()`` of a pre-built ``Tool`` that already carries a namespace
+        does not update it.  Consumers must call this method before reading the
+        set, or derive the prefixes from ``_tools`` directly.
 
         Side Effects:
             Modifies the `_sub_registries` attribute with the latest prefixes.
