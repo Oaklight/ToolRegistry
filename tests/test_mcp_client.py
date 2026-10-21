@@ -185,6 +185,29 @@ class TestStdioTransport:
             tools = await client.list_tools()
             assert len(tools) == 4
 
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="uses a POSIX shell shim for python"
+    )
+    @pytest.mark.asyncio
+    async def test_script_path_source_with_poisoned_path(self, tmp_path, monkeypatch):
+        """The server still starts when the PATH python cannot run (#323).
+
+        ``python`` on PATH is replaced by a script that exits immediately.
+        The server only starts if the client launches it with
+        ``sys.executable``; with a PATH lookup it dies at import and the
+        client would see ``Connection closed``.
+        """
+        fake_bin = tmp_path / "bin"
+        fake_bin.mkdir()
+        shadow = fake_bin / "python"
+        shadow.write_text("#!/bin/sh\nexit 1\n")
+        shadow.chmod(0o755)
+        monkeypatch.setenv("PATH", str(fake_bin))
+
+        async with MCPClient(_SERVER_SCRIPT) as client:
+            tools = await client.list_tools()
+            assert len(tools) == 4
+
 
 # ---------------------------------------------------------------------------
 # Integration tests – Streamable HTTP transport
