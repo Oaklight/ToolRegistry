@@ -39,6 +39,7 @@ hide:
 
 ### 修复
 
+- **MCP stdio 脚本使用 ToolRegistry 所在的解释器运行** (#323)：`.py` 源现在使用 `sys.executable` 启动，而不再使用 `PATH` 中的 `python`。当虚拟环境或 conda 环境不在 `PATH` 首位时，服务器会以另一个解释器启动并在导入阶段失败，而客户端只能看到 `Connection closed`。需要指定其他解释器的调用方仍可传入 `{"command": ..., "args": [...]}` 形式。
 - **原生工具可在 Python 3.11+ 上通过 cloudpickle 往返** (#319)：`Tool` 不再把动态生成的参数 TypedDict 放入 pickle 状态。cloudpickle 能序列化该类型，却无法再次加载（`TypeError: cannot inherit from both a TypedDict type and a non-TypedDict base class`），导致原生工具无法跨进程边界使用。加载时会根据被包装的函数重新生成校验模型；若重新生成失败，工具会在没有参数校验的情况下加载，并发出 `UserWarning`，而不是让整个反序列化失败。
 - **执行器生命周期后续修复** (#321)：若进程池在父进程为单线程时以 `fork` 创建、之后进程新增了线程，后端会在空闲时把池迁移到 `forkserver`/`spawn`（若仍有任务在执行则警告一次），因此新 worker 不会再从多线程父进程 fork。`ToolRegistry.close(wait=True)` / `close_async(wait=True)` 会等待执行中与排队的任务完成；默认行为仍是非阻塞的。
 - **执行器后端的 Python 3.14 弃用项** (#314)：线程与进程后端改用 `inspect.iscoroutinefunction`，不再使用已弃用的 `asyncio.iscoroutinefunction`，因此使用 `python -W error` 的用户在 Python 3.14 及更高版本上也能正常执行工具。

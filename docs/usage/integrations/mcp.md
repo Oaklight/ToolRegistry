@@ -61,7 +61,7 @@ print(registry)  # Outputs registered tools
 ```
 
 !!! tip "提示"
-    `ToolRegistry.register()` 搭配 `source="mcp"` 支持 URL 字符串、脚本路径和字典配置，可以满足大多数使用场景。
+    `ToolRegistry.register()` 搭配 `source="mcp"` 支持 URL 字符串、脚本路径和字典配置，可以满足大多数使用场景。`.py` 脚本路径会使用运行 ToolRegistry 的解释器（`sys.executable`）启动；若需要指定其他解释器，请使用字典形式（`{"command": ..., "args": [...]}`）。
 
 !!! tip "提示"
     新兴的 MCP Hub 服务（无论是商业的还是自托管的）简化了 MCP 服务器的发现和集中管理。它们非常适合避免使用 stdio 服务器、减少环境负担，或实现 MCP 主机共享。
