@@ -166,6 +166,8 @@ finally:
     registry.close()
 ```
 
+`close()` is non-blocking by default: work that is still executing or queued is abandoned. When shutting down a worker or a batch job, call `registry.close(wait=True)` (or `await registry.close_async(wait=True)`) so in-flight tool calls finish before the process exits.
+
 ---
 
 ## Security
