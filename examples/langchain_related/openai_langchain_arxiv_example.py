@@ -49,13 +49,23 @@ def handle_tool_calls(response, messages):
 
 
 if __name__ == "__main__":
-    from langchain_community.tools import ArxivQueryRun, PubmedQueryRun
+    # Any langchain_core BaseTool works, including tools from partner packages.
+    # The sunset langchain-community package is not required.
+    from langchain_core.tools import BaseTool
+    from pydantic import BaseModel, Field
 
-    # Example usage of PubmedQueryRun
-    arxiv_tool = ArxivQueryRun()
-    pubmed_tool = PubmedQueryRun()
-    registry.register(arxiv_tool)
-    registry.register(pubmed_tool)
+    class ArxivSearchInput(BaseModel):
+        query: str = Field(description="Search query")
+
+    class ArxivSearchTool(BaseTool):
+        name: str = "arxiv_search"
+        description: str = "Search arXiv for papers"
+        args_schema: type[BaseModel] = ArxivSearchInput
+
+        def _run(self, query: str) -> str:
+            return f"arXiv results for {query!r} (demo tool)"
+
+    registry.register(ArxivSearchTool(), source="langchain")
 
     print(registry.list_tools())
 
