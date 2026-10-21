@@ -371,6 +371,19 @@ class TestProcessPoolBackend:
         finally:
             backend.shutdown()
 
+    def test_shutdown_wait_drains_queued_work(self):
+        """``wait=True`` completes work that is still queued, not just running."""
+        backend = ProcessPoolBackend(max_workers=1)
+        try:
+            handles = [backend.submit(_slow_add, {"x": i, "y": 1}) for i in range(3)]
+            backend.shutdown(wait=True)
+
+            # Three tasks, one worker: two of them were queued at shutdown.
+            assert [h.status() for h in handles] == [HandleStatus.COMPLETED] * 3
+            assert [h.result(timeout=1) for h in handles] == [1, 2, 3]
+        finally:
+            backend.shutdown()
+
     def test_shutdown_wait_drains_in_flight_work(self):
         """``wait=True`` returns only once submitted work has finished."""
         backend = ProcessPoolBackend(max_workers=1)

@@ -151,6 +151,28 @@ class TestThreadBackend:
         finally:
             backend.shutdown()
 
+    def test_shutdown_wait_drains_queued_work(self):
+        """``wait=True`` completes work still waiting for a worker."""
+        backend = ThreadBackend(max_workers=1)
+        try:
+
+            def slow(value: int) -> int:
+                time.sleep(0.2)
+                return value
+
+            running = backend.submit(slow, {"value": 1})
+            queued = backend.submit(slow, {"value": 2})
+            backend.shutdown(wait=True)
+
+            # Both ran: wait=True must not cancel the queued item even
+            # though only one worker was available.
+            assert running.status() == HandleStatus.COMPLETED
+            assert queued.status() == HandleStatus.COMPLETED
+            assert running.result(timeout=1) == 1
+            assert queued.result(timeout=1) == 2
+        finally:
+            backend.shutdown()
+
     def test_shutdown(self):
         backend = ThreadBackend(max_workers=1)
         backend.shutdown()  # should not raise
