@@ -5,9 +5,13 @@ from __future__ import annotations
 import asyncio
 import inspect
 import multiprocessing
+import os
 import pickle
 import re
+import sys
+import threading
 import uuid
+import warnings
 from concurrent.futures import Future, ProcessPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from typing import Any
@@ -37,7 +41,7 @@ _SENDBACK_FRAME_RE = re.compile(
 
 
 def _pool_context() -> multiprocessing.context.BaseContext:
-    """Return a process start context that is safe in a threaded host.
+    """Return a process start context that is safe for the current process.
 
     The default ``fork`` start method duplicates only the calling thread into
     the child while the parent's other threads keep running, potentially
@@ -46,12 +50,44 @@ def _pool_context() -> multiprocessing.context.BaseContext:
     transports, the shared async runtime, integrations), and it also leaks
     stuck children if the parent is interrupted.
 
-    ``forkserver`` starts workers from a clean server process; ``spawn`` is the
-    fallback on platforms without it.  Both require the standard
-    ``if __name__ == "__main__":`` guard when the process pool is used from a
-    script, as with any non-fork multiprocessing context.
+    Pick the method that keeps both properties:
+
+    - single-threaded parent: ``fork``.  Nothing else is running, so it is
+      safe, and it preserves script/REPL/``stdin`` usage without requiring an
+      ``if __name__ == "__main__":`` guard.
+    - threaded parent: ``forkserver`` (``spawn`` where unavailable).  Workers
+      start from a clean server process.  Non-fork contexts import
+      ``__main__`` in the child, so a file-based entry point needs the
+      standard ``if __name__ == "__main__":`` guard.
+    - threaded parent with no importable ``__main__`` (piped script, missing
+      file): fall back to ``fork`` with a warning, because the alternative is
+      failing outright.  ``python -c`` is unaffected (``__main__`` has no
+      ``__file__``).
     """
     methods = multiprocessing.get_all_start_methods()
+    if threading.active_count() == 1 and "fork" in methods:
+        return multiprocessing.get_context("fork")
+
+    main = sys.modules.get("__main__")
+    main_file = getattr(main, "__file__", None)
+    if main_file is not None and not os.path.exists(main_file):
+        warnings.warn(
+            "The process execution backend cannot import __main__ while "
+            "other threads are running; falling back to fork, which may "
+            "deadlock if those threads hold locks. Use a file-based entry "
+            "point with `if __name__ == '__main__':`, or "
+            "execution_mode='thread'.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        if "fork" in methods:
+            return multiprocessing.get_context("fork")
+        raise RuntimeError(
+            "The process execution backend needs an importable __main__ "
+            "module on this platform; use a file-based entry point with "
+            "`if __name__ == '__main__':`, or execution_mode='thread'."
+        )
+
     return multiprocessing.get_context(
         "forkserver" if "forkserver" in methods else "spawn"
     )
