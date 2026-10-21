@@ -996,7 +996,7 @@ class TestDiscoveryInputValidation:
         assert props["query"]["minLength"] == 1
         # ``Match`` fullmatches, so the pattern must span the whole query;
         # ``\S`` alone only accepted one character (#326).
-        assert props["query"]["pattern"] == r".*\S.*"
+        assert props["query"]["pattern"] == r"[\s\S]*\S[\s\S]*"
         assert props["top_k"]["minimum"] == 1
 
 
@@ -1339,12 +1339,23 @@ class TestDiscoverQueryValidation:
         validated = tool.validate_parameters({"query": "  read file  "})
         assert validated["query"] == "  read file  "
 
+    def test_newlines_are_tolerated(self, registry):
+        """Models sometimes emit a trailing or embedded newline (#326)."""
+        tool = registry.get_tool("discover_tools")
+        assert tool.validate_parameters({"query": "search\n"})["query"] == "search\n"
+        assert (
+            tool.validate_parameters({"query": "search\nfile"})["query"]
+            == "search\nfile"
+        )
+
     def test_whitespace_only_query_is_rejected(self, registry):
         from toolregistry._vendor.validate import ValidationError
 
         tool = registry.get_tool("discover_tools")
         with pytest.raises(ValidationError):
             tool.validate_parameters({"query": "   "})
+        with pytest.raises(ValidationError):
+            tool.validate_parameters({"query": " \n\t "})
 
     def test_multi_word_query_returns_matches(self, registry):
         import json
