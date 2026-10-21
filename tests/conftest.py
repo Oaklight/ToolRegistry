@@ -1,8 +1,53 @@
 """Pytest configuration and fixtures for toolregistry tests."""
 
+import gc
+import weakref
+
 import pytest
 
 from toolregistry import Tool, ToolRegistry
+from toolregistry._async_runtime import AsyncRuntime
+
+
+# ---------------------------------------------------------------------------
+# Execution-resource hygiene (#311)
+#
+# ToolRegistry owns a thread pool and a process pool.  Pools are created
+# lazily, but a test that executes through one leaves its workers alive until
+# the registry is closed or garbage-collected.  Leaked workers keep pytest's
+# capture file descriptors open, which is what made the suite stall.  Track
+# every instance and close the survivors at module teardown.
+# ---------------------------------------------------------------------------
+
+_registries: "weakref.WeakSet[ToolRegistry]" = weakref.WeakSet()
+_original_init = ToolRegistry.__init__
+
+
+def _tracking_init(self, *args, **kwargs):
+    _original_init(self, *args, **kwargs)
+    _registries.add(self)
+
+
+ToolRegistry.__init__ = _tracking_init
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _close_leaked_registries():
+    """Close registries a test module did not close itself."""
+    yield
+    for registry in list(_registries):
+        try:
+            registry.close()
+        except Exception:
+            # Teardown must not mask a real test failure.
+            pass
+    _registries.clear()
+    # Stop the shared loop as well: a leaked task (for example an MCP
+    # transport reconnecting after its server exited) can otherwise keep
+    # spinning for the rest of the session and hold capture fds.  The next
+    # module recreates the loop lazily.
+    AsyncRuntime.shutdown()
+    gc.collect()
 
 
 @pytest.fixture

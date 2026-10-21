@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import multiprocessing
 import pickle
 import re
 import uuid
@@ -33,6 +34,26 @@ _SENDBACK_FRAME_RE = re.compile(
     r'File "[^"]*concurrent[/\\]futures[/\\]process\.py", line \d+, '
     r"in _sendback_result"
 )
+
+
+def _pool_context() -> multiprocessing.context.BaseContext:
+    """Return a process start context that is safe in a threaded host.
+
+    The default ``fork`` start method duplicates only the calling thread into
+    the child while the parent's other threads keep running, potentially
+    holding C-level locks the child inherits.  That is a documented deadlock
+    hazard whenever workers are spawned from a threaded process (MCP
+    transports, the shared async runtime, integrations), and it also leaks
+    stuck children if the parent is interrupted.
+
+    ``forkserver`` starts workers from a clean server process and keeps the
+    low per-call cost; ``spawn`` is the fallback on platforms without it.
+    Neither re-imports ``__main__`` for forkserver, so REPL usage still works.
+    """
+    methods = multiprocessing.get_all_start_methods()
+    return multiprocessing.get_context(
+        "forkserver" if "forkserver" in methods else "spawn"
+    )
 
 
 def _is_worker_pickle_failure(exc: BaseException) -> bool:
@@ -189,7 +210,19 @@ class ProcessPoolBackend:
     """
 
     def __init__(self, max_workers: int | None = None) -> None:
-        self._pool = ProcessPoolExecutor(max_workers=max_workers)
+        self._max_workers = max_workers
+        # Created on first submit: ProcessPoolExecutor allocates IPC pipes and
+        # starts a manager thread at construction, which an idle registry
+        # should not hold.
+        self._pool: ProcessPoolExecutor | None = None
+
+    def _get_pool(self) -> ProcessPoolExecutor:
+        """Return the lazily created process pool."""
+        if self._pool is None:
+            self._pool = ProcessPoolExecutor(
+                max_workers=self._max_workers, mp_context=_pool_context()
+            )
+        return self._pool
 
     def submit(
         self,
@@ -216,8 +249,11 @@ class ProcessPoolBackend:
         # Serialize the callable with cloudpickle
         serialized_fn = cloudpickle.dumps(fn)
 
-        future = self._pool.submit(_process_worker, serialized_fn, kwargs)
+        future = self._get_pool().submit(_process_worker, serialized_fn, kwargs)
         return ProcessExecutionHandle(future, exec_id, timeout)
 
     def shutdown(self, wait: bool = True) -> None:
-        self._pool.shutdown(wait=wait)
+        if self._pool is None:
+            return
+        self._pool.shutdown(wait=wait, cancel_futures=True)
+        self._pool = None

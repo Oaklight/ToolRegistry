@@ -271,10 +271,12 @@ class ToolRegistry(
 
     # ============== Lifecycle ==============
     async def close_async(self) -> None:
-        """Close all persistent connections (async).
+        """Close all persistent connections and execution resources (async).
 
         Closes MCP and OpenAPI integrations that hold persistent
-        connections or HTTP clients.
+        connections or HTTP clients, then shuts down the thread and process
+        execution backends.  Fresh backends are installed afterwards, so the
+        registry remains usable; calling this repeatedly is safe.
         """
         for integration in self._mcp_integrations:
             await integration.close()
@@ -282,15 +284,34 @@ class ToolRegistry(
             await integration.close_async()
         self._mcp_integrations.clear()
         self._openapi_integrations.clear()
+        self._shutdown_execution_backends()
 
     def close(self) -> None:
-        """Close all persistent connections (sync)."""
+        """Close all persistent connections and execution resources (sync).
+
+        Closes MCP and OpenAPI integrations, then shuts down the thread and
+        process execution backends.  Fresh backends are installed afterwards,
+        so the registry remains usable; calling this repeatedly is safe.
+        """
         for integration in self._mcp_integrations:
             integration.close_sync()
         self._mcp_integrations.clear()
         for integration in self._openapi_integrations:
             integration.close()
         self._openapi_integrations.clear()
+        self._shutdown_execution_backends()
+
+    def _shutdown_execution_backends(self) -> None:
+        """Shut down and rebuild the thread and process pools.
+
+        Non-blocking shutdown keeps ``close()`` fast even with in-flight
+        work; completed results are discarded.  Rebuilding leaves the registry
+        usable, which existing callers rely on.
+        """
+        self._thread_backend.shutdown(wait=False)
+        self._process_backend.shutdown(wait=False)
+        self._thread_backend = ThreadBackend()
+        self._process_backend = ProcessPoolBackend()
 
     async def __aenter__(self) -> "ToolRegistry":
         return self

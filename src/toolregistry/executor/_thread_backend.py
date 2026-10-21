@@ -95,7 +95,16 @@ class ThreadBackend:
     """
 
     def __init__(self, max_workers: int | None = None) -> None:
-        self._pool = ThreadPoolExecutor(max_workers=max_workers)
+        self._max_workers = max_workers
+        # Created on first submit: a registry that never executes anything
+        # should not own an executor (and its threads).
+        self._pool: ThreadPoolExecutor | None = None
+
+    def _get_pool(self) -> ThreadPoolExecutor:
+        """Return the lazily created thread pool."""
+        if self._pool is None:
+            self._pool = ThreadPoolExecutor(max_workers=self._max_workers)
+        return self._pool
 
     def submit(
         self,
@@ -125,8 +134,11 @@ class ThreadBackend:
             ctx = ExecutionContext()
             kwargs = {**kwargs, "_ctx": ctx}
 
-        future = self._pool.submit(fn, **kwargs)
+        future = self._get_pool().submit(fn, **kwargs)
         return ThreadExecutionHandle(future, exec_id, ctx, timeout)
 
     def shutdown(self, wait: bool = True) -> None:
-        self._pool.shutdown(wait=wait)
+        if self._pool is None:
+            return
+        self._pool.shutdown(wait=wait, cancel_futures=True)
+        self._pool = None
