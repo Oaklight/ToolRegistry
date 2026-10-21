@@ -16,7 +16,7 @@ from toolregistry._names import (
     namespace_prefix,
     strip_namespace,
 )
-from toolregistry.tool import Tool
+from toolregistry.tool import Tool, ToolMetadata
 
 
 def add(a: int, b: int) -> int:
@@ -350,3 +350,143 @@ class TestNameSepSetter:
         registry.name_sep = "-"
 
         assert set(registry._tools) == {"math-add"}
+
+
+# ---------------------------------------------------------------------------
+# Disabled state follows the tool
+# ---------------------------------------------------------------------------
+
+
+class TestDisabledStateFollowsTools:
+    @pytest.mark.parametrize(("old", "new"), [("-", "."), (".", "-")])
+    def test_name_sep_change_keeps_disabled(self, old, new):
+        registry = ToolRegistry(name_sep=old)
+        registry.register(add, namespace="math")
+        registry.register(multiply, namespace="math")
+        registry.disable(f"math{old}multiply", reason="maintenance")
+
+        registry.name_sep = new
+
+        assert not registry.is_enabled(f"math{new}multiply")
+        assert registry.is_enabled(f"math{new}add")
+        assert f"math{new}multiply" in registry._disabled
+
+    def test_name_sep_change_keeps_namespace_level_disable(self):
+        registry = ToolRegistry()
+        registry.register(add, namespace="math")
+        registry.disable("math", reason="maintenance")
+
+        registry.name_sep = "."
+
+        assert not registry.is_enabled("math.add")
+
+    @pytest.mark.parametrize("sep", ["-", "."])
+    def test_reduce_keeps_method_level_disable(self, sep):
+        registry = ToolRegistry(name_sep=sep)
+        registry.register(add, namespace="calc")
+        registry.disable(f"calc{sep}add", reason="maintenance")
+
+        registry.reduce_namespace()
+
+        assert list(registry._tools) == ["add"]
+        assert not registry.is_enabled("add")
+        assert registry.get_disable_reason("add") == "maintenance"
+
+    @pytest.mark.parametrize("sep", ["-", "."])
+    def test_reduce_keeps_namespace_level_disable(self, sep):
+        registry = ToolRegistry(name_sep=sep)
+        registry.register(add, namespace="calc")
+        registry.register(multiply, namespace="calc")
+        registry.disable("calc", reason="maintenance")
+
+        registry.reduce_namespace()
+
+        assert not registry.is_enabled("add")
+        assert not registry.is_enabled("multiply")
+        assert registry._disabled == {
+            "add": "maintenance",
+            "multiply": "maintenance",
+        }
+
+    @pytest.mark.parametrize("sep", ["-", "."])
+    def test_spinoff_moves_method_level_disable(self, sep):
+        registry = ToolRegistry(name_sep=sep)
+        registry.register(add, namespace="math")
+        registry.disable(f"math{sep}add", reason="maintenance")
+
+        spun = registry.spinoff("math")
+
+        assert not spun.is_enabled("add")
+        assert spun.get_disable_reason("add") == "maintenance"
+        assert f"math{sep}add" not in registry._disabled
+
+    @pytest.mark.parametrize("sep", ["-", "."])
+    def test_spinoff_retain_moves_disable_with_qualified_name(self, sep):
+        registry = ToolRegistry(name_sep=sep)
+        registry.register(add, namespace="math")
+        registry.disable(f"math{sep}add", reason="maintenance")
+
+        spun = registry.spinoff("math", retain_namespace=True)
+
+        assert not spun.is_enabled(f"math{sep}add")
+        assert spun.get_disable_reason(f"math{sep}add") == "maintenance"
+
+    def test_merge_carries_disabled(self):
+        left = ToolRegistry(name="left")
+        right = ToolRegistry(name="right")
+        right.register(multiply)
+        right.disable("multiply", reason="maintenance")
+
+        left.merge(right)
+
+        assert not left.is_enabled("right-multiply")
+        assert left.get_disable_reason("right-multiply") == "maintenance"
+
+    def test_merge_keep_existing_does_not_import_disabled(self):
+        left = ToolRegistry(name="reg")
+        right = ToolRegistry(name="reg")
+        left.register(multiply, name="dup")
+        right.register(multiply, name="dup")
+        right.disable("dup", reason="maintenance")
+
+        left.merge(right, keep_existing=True)
+
+        assert "reg-dup" in left._tools
+        assert left.is_enabled("reg-dup")
+
+    def test_spinoff_inherits_execution_mode(self):
+        registry = ToolRegistry()
+        registry._execution_mode = "thread"
+        registry.register(add, namespace="math")
+
+        spun = registry.spinoff("math")
+
+        assert spun._execution_mode == "thread"
+
+
+# ---------------------------------------------------------------------------
+# Discovery index invalidation
+# ---------------------------------------------------------------------------
+
+
+class TestNameSepChangeInvalidatesDiscovery:
+    def test_discover_returns_rekeyed_name(self):
+        registry = ToolRegistry(tool_discovery=True)
+        registry.register(add, namespace="math")
+
+        registry.name_sep = "."
+
+        found = registry._tool_discovery.discover("math.add")
+        assert [item["name"] for item in found] == ["math.add"]
+
+    def test_call_deferred_uses_rekeyed_name(self):
+        registry = ToolRegistry(tool_discovery=True)
+        registry.register(
+            Tool.from_function(add, metadata=ToolMetadata(defer=True)),
+            namespace="math",
+        )
+
+        registry.name_sep = "."
+
+        result = registry._tool_discovery.call_deferred("math.add", a=1, b=2)
+        assert result == 3

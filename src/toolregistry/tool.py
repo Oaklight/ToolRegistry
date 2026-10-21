@@ -948,7 +948,10 @@ class Tool:
         """Recover the unqualified method name from ``name``.
 
         Prefers the namespace boundary, then either supported separator.  Only
-        used for tools that were built without ``method_name``.
+        used for tools built without ``method_name``.  Names created through
+        registration are normalized, so any separator in them is a namespace
+        boundary; a hand-built tool whose literal name contains ``-`` or ``.``
+        has no way to distinguish the two and will be split at the first one.
         """
         if self.namespace:
             for boundary in (
