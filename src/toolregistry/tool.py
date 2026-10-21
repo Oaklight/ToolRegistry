@@ -516,6 +516,29 @@ class Tool:
             )
         object.__setattr__(self, "metadata", metadata)
 
+    def __getstate__(self) -> dict[str, Any]:
+        """Avoid pickling the dynamically created TypedDict on Python 3.11+."""
+        state = self.__dict__.copy()
+        model = self.parameters_model
+        if (
+            isinstance(self.callable, _FunctionToolWrapper)
+            and isinstance(model, type)
+            and model.__module__ == "toolregistry._vendor.validate"
+        ):
+            state["parameters_model"] = None
+            state["_rebuild_parameters_model"] = True
+        return state
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        """Restore native parameter validation after deserialization."""
+        rebuild = state.pop("_rebuild_parameters_model", False)
+        for key, value in state.items():
+            object.__setattr__(self, key, value)
+        if rebuild and isinstance(self.callable, _FunctionToolWrapper):
+            object.__setattr__(
+                self, "parameters_model", _generate_parameters_model(self.callable.fn)
+            )
+
     @classmethod
     def _normalize_parameters(cls, parameters: dict[str, Any]) -> dict[str, Any]:
         """Normalize and flatten a parameter schema at construction time.
