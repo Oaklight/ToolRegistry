@@ -1364,3 +1364,23 @@ class TestDiscoverQueryValidation:
         assert not hasattr(result, "message"), result
         names = {item["name"] for item in json.loads(result.result)}
         assert "read_file" in names
+
+
+class TestDiscoveryToolAnnotations:
+    """The discovery proxies declare what a host needs to gate them (#280)."""
+
+    def test_discover_tools_is_read_only(self):
+        registry = ToolRegistry()
+        registry.enable_tool_discovery()
+        hints = registry.get_tool("discover_tools").execution_hints
+        assert hints["read_only_hint"] is True
+        assert hints["destructive_hint"] is False
+        assert hints["idempotent_hint"] is True
+        assert hints["open_world_hint"] is False
+
+    def test_call_deferred_makes_no_read_only_claim(self):
+        """Its effect is whatever the target tool does, so it cannot claim."""
+        registry = ToolRegistry()
+        registry.enable_tool_discovery()
+        hints = registry.get_tool("call_deferred").execution_hints
+        assert "read_only_hint" not in hints

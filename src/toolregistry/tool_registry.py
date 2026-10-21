@@ -391,7 +391,15 @@ class ToolRegistry(
             discoverer.discover,
             name=TOOL_DISCOVERY_NAME,
             description=_BASE_DISCOVERY_DESCRIPTION,
-            metadata=ToolMetadata(defer=False),
+            metadata=ToolMetadata(
+                defer=False,
+                # A lookup over the local index: no side effects outside
+                # the process, so hosts may auto-approve it (#280).
+                read_only_hint=True,
+                destructive_hint=False,
+                idempotent_hint=True,
+                open_world_hint=False,
+            ),
         )
         self.register(discovery_tool)
 
