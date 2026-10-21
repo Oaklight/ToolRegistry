@@ -61,7 +61,7 @@ print(registry)  # Outputs registered tools
 ```
 
 !!! tip
-    `ToolRegistry.register()` with `source="mcp"` supports URL strings, script paths, and dict configurations, which are sufficient for most scenarios.
+    `ToolRegistry.register()` with `source="mcp"` supports URL strings, script paths, and dict configurations, which are sufficient for most scenarios. A `.py` script path is launched with the interpreter running ToolRegistry (`sys.executable`); use the dict form (`{"command": ..., "args": [...]}`) to choose a different interpreter.
 
 !!! tip
     Emerging MCP hub services, commercial or self-hosted, simplify discovering and centralizing MCP servers. They're ideal for avoiding stdio servers, reducing environment clutter, or enabling MCP host sharing.
