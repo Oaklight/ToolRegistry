@@ -1082,12 +1082,9 @@ def _import_mcp_integration():
 
 
 def _import_langchain_integration():
-    try:
-        from ..integrations.langchain import LangChainIntegration
+    # The integration is structural and has no optional dependency, so this
+    # import cannot fail on a missing extra.  Kept as a function so tests can
+    # patch it.
+    from ..integrations.langchain import LangChainIntegration
 
-        return LangChainIntegration
-    except ImportError:
-        raise ImportError(
-            "LangChain integration requires the [langchain] extra. "
-            "Install with: pip install toolregistry[langchain]"
-        )
+    return LangChainIntegration
