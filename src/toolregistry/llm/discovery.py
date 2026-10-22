@@ -53,6 +53,20 @@ _CJK_RE = re.compile("[぀-ヿ㐀-䶿一-鿿豈-﫿가-힯]+")
 #: tools that merely share a token (Oaklight/ToolRegistry#330).
 DEFAULT_MIN_SCORE_RATIO = 0.3
 
+#: Fraction of the corpus a query token may appear in before it stops
+#: carrying signal.  Tokens present in at least this fraction are dropped
+#: from the query, so a prose word such as "for" — present in most tool
+#: descriptions, and therefore scoring every tool that contains it — cannot
+#: produce filler hits (#332).
+#: ``0`` disables the filter.  This is corpus-adaptive, so no English
+#: stopword list is needed and the same rule applies to any language.
+DEFAULT_MAX_DF_RATIO = 0.5
+
+#: Below this many indexed documents, document frequency is not a meaningful
+#: signal (one tool mentioning a word means every query token is ubiquitous),
+#: so the filter is skipped.
+_MIN_DOCS_FOR_DF_FILTER = 4
+
 TOOL_DISCOVERY_NAME = "discover_tools"
 TOOL_CALL_DEFERRED_NAME = "call_deferred"
 
@@ -187,9 +201,13 @@ class ToolDiscoveryTool:
             best hit (default :data:`DEFAULT_MIN_SCORE_RATIO`).  ``0``
             disables the floor and returns the raw ``top_k`` list.  The
             exact-name match is unaffected.
+        max_df_ratio: Drop query tokens that appear in more than this
+            fraction of the indexed tools (default
+            :data:`DEFAULT_MAX_DF_RATIO`).  ``0`` disables the filter.
 
     Raises:
-        ValueError: If *min_score_ratio* is outside ``[0.0, 1.0]``.
+        ValueError: If either ratio is outside ``[0.0, 1.0]`` or is a
+            ``bool``.
     """
 
     def __init__(
@@ -197,13 +215,16 @@ class ToolDiscoveryTool:
         registry: ToolRegistry,
         field_weights: dict[str, float] | None = None,
         min_score_ratio: float = DEFAULT_MIN_SCORE_RATIO,
+        max_df_ratio: float = DEFAULT_MAX_DF_RATIO,
     ) -> None:
-        if not 0.0 <= min_score_ratio <= 1.0:
-            raise ValueError(
-                f"min_score_ratio must be between 0.0 and 1.0, got {min_score_ratio}"
-            )
+        self._validate_ratio("min_score_ratio", min_score_ratio)
+        self._validate_ratio("max_df_ratio", max_df_ratio)
         self._registry = registry
         self._min_score_ratio = min_score_ratio
+        self._max_df_ratio = max_df_ratio
+        # Document frequency over the indexed tools, rebuilt with the index.
+        self._doc_freq: dict[str, int] = {}
+        self._doc_count = 0
         self._field_weights = field_weights or dict(_DEFAULT_FIELD_WEIGHTS)
         self._index = SparseIndex(
             field_weights=self._field_weights,
@@ -214,6 +235,20 @@ class ToolDiscoveryTool:
         # one rebuild, not one per event.
         self._index_dirty = False
         self.rebuild_index()
+
+    @staticmethod
+    def _validate_ratio(name: str, value: float) -> None:
+        """Reject ratios outside ``[0, 1]``, including ``bool``.
+
+        ``True`` passes a naive range check and silently means ``1.0``;
+        a caller almost certainly passed the wrong keyword.
+        """
+        if isinstance(value, bool) or not isinstance(value, int | float):
+            raise ValueError(
+                f"{name} must be a number between 0.0 and 1.0, got {value!r}"
+            )
+        if not 0.0 <= value <= 1.0:
+            raise ValueError(f"{name} must be between 0.0 and 1.0, got {value}")
 
     def rebuild_index(self) -> None:
         """Rebuild the search index from current registry state.
@@ -232,6 +267,8 @@ class ToolDiscoveryTool:
             tokenize=_tokenize_for_search,
         )
 
+        self._doc_freq = {}
+        self._doc_count = 0
         for name, tool in self._registry._tools.items():
             if name in INFRASTRUCTURE_TOOLS:
                 continue
@@ -243,6 +280,16 @@ class ToolDiscoveryTool:
                 "deferred": tool.metadata.defer if tool.metadata else False,
             }
             self._index.add(name, fields, metadata=metadata)
+
+            # Union of the fields' tokens: a term the tool mentions in any
+            # field counts once for this document, matching the index's own
+            # document frequency.
+            tokens: set[str] = set()
+            for value in fields.values():
+                tokens.update(_tokenize_for_search(value))
+            for token in tokens:
+                self._doc_freq[token] = self._doc_freq.get(token, 0) + 1
+            self._doc_count += 1
 
         self._index_dirty = False
         self._sync_description()
@@ -368,7 +415,16 @@ class ToolDiscoveryTool:
         if exact is not None:
             return [exact]
 
-        out = self._fuzzy_match(query, top_k, api_format)
+        tokens = self._filter_query_tokens(query)
+        if not tokens:
+            logger.warning(
+                "discover(%r): every query token appears in most registered "
+                "tools, so none carries signal; pass a more specific query",
+                query,
+            )
+            return []
+
+        out = self._fuzzy_match(" ".join(tokens), top_k, api_format)
         if not out:
             logger.warning(
                 "discover(%r) matched no registered tool metadata "
@@ -416,6 +472,41 @@ class ToolDiscoveryTool:
             "deferred": is_deferred,
             "schema": tool.get_schema(api_format),
         }
+
+    def _filter_query_tokens(self, query: str) -> list[str]:
+        """Drop query tokens that appear in too many indexed tools.
+
+        A word the corpus uses almost everywhere ("for" in tool
+        descriptions) carries little discriminative signal, yet BM25 still
+        scores every document containing it — enough, in a small corpus, to
+        fill the result list with near-tied filler (#332).  Filtering by
+        document frequency is corpus-adaptive, unlike a language-specific
+        stopword list.
+
+        Args:
+            query: The raw query string.
+
+        Returns:
+            The surviving tokens, or an empty list when no token is
+            discriminative enough to justify a search.
+        """
+        tokens = _tokenize_for_search(query)
+        if self._max_df_ratio <= 0 or self._doc_count < _MIN_DOCS_FOR_DF_FILTER:
+            return tokens
+
+        kept = [
+            token
+            for token in tokens
+            if self._doc_freq.get(token, 0) / self._doc_count < self._max_df_ratio
+        ]
+        if len(kept) != len(tokens):
+            logger.debug(
+                "discover(%r): dropped %d common token(s) %s",
+                query,
+                len(tokens) - len(kept),
+                sorted(set(tokens) - set(kept)),
+            )
+        return kept
 
     def _fuzzy_match(
         self, query: str, top_k: int, api_format: API_FORMATS

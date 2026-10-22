@@ -247,20 +247,28 @@ class TestToolDiscoveryScoreFloor:
         assert names == ["add_numbers", "multiply_numbers"]
 
     def test_floor_can_be_disabled(self, discovery_registry):
-        """min_score_ratio=0 returns the raw top_k list."""
-        discoverer = ToolDiscoveryTool(discovery_registry, min_score_ratio=0.0)
+        """min_score_ratio=0 returns the raw top_k list.
+
+        ``max_df_ratio=0`` isolates the score floor: the token filter would
+        otherwise remove "a" and shrink this list for a different reason.
+        """
+        discoverer = ToolDiscoveryTool(
+            discovery_registry, min_score_ratio=0.0, max_df_ratio=0.0
+        )
         results = discoverer.discover("read a file")
         assert len(results) > 1
         assert results[0]["name"] == "read_file"
 
-    def test_weak_matches_stay_proportional(self, discoverer):
+    def test_weak_matches_stay_proportional(self, discovery_registry):
         """The floor is relative: when every hit is equally weak, all survive.
 
         BM25 scores are not comparable across queries (they depend on corpus
         size, IDF and query length), so no absolute cutoff is applied.  A
         query that matches nothing well keeps its near-tied hits rather than
-        being silently emptied.
+        being silently emptied.  Document-frequency filtering is disabled
+        here so this exercises the score floor alone.
         """
+        discoverer = ToolDiscoveryTool(discovery_registry, max_df_ratio=0.0)
         results = discoverer.discover("weather forecast for a city")
         assert len(results) > 1
         assert results[0]["score"] < 1.0
@@ -283,6 +291,105 @@ class TestToolDiscoveryScoreFloor:
         registry = ToolRegistry()
         discoverer = registry.enable_tool_discovery(min_score_ratio=0.0)
         assert discoverer._min_score_ratio == 0.0
+
+
+def _make_wide_registry() -> ToolRegistry:
+    """A corpus big enough for document-frequency filtering to apply.
+
+    Descriptions deliberately share prose ("the", "a", "for") so a query
+    built from those words matches almost everything — the #332 shape.
+    """
+    registry = ToolRegistry()
+
+    for name, description in (
+        ("path_info", "Get metadata for a path on the filesystem."),
+        ("list_dir", "List the entries of a directory."),
+        ("read_file", "Read the contents of a file for the caller."),
+        ("write_file", "Write contents to a file for the caller."),
+        ("docker_logs", "Fetch the logs of a running container."),
+        ("sql_query", "Run a query against a database."),
+        ("json_parse", "Parse a JSON string into an object."),
+        ("add_numbers", "Add two numbers for the sum."),
+    ):
+
+        def handler(query: str = "") -> str:
+            """A tool."""
+            return "ok"
+
+        registry.register(
+            Tool.from_function(handler, name=name, description=description)
+        )
+    return registry
+
+
+class TestToolDiscoveryQueryTokenFilter:
+    """Query tokens that appear in most tools carry no signal (#332)."""
+
+    def test_absent_topic_returns_nothing(self):
+        """No weather tool ⇒ the query's surviving tokens match nothing."""
+        discoverer = ToolDiscoveryTool(_make_wide_registry())
+        assert discoverer.discover("weather forecast for a city") == []
+
+    def test_topic_tool_is_found_when_present(self):
+        """The same corpus with a weather tool returns only that tool."""
+        registry = _make_wide_registry()
+
+        def weather(city: str) -> str:
+            """Get the weather forecast for a city."""
+            return "sunny"
+
+        registry.register(weather)
+        results = ToolDiscoveryTool(registry).discover("weather forecast for a city")
+        assert [r["name"] for r in results] == ["weather"]
+
+    def test_stopword_only_query_returns_nothing(self):
+        """A query of only ubiquitous words is not a search."""
+        registry = ToolRegistry()
+        for i in range(6):
+
+            def handler(query: str = "") -> str:
+                """A tool for the user of a service."""
+                return "ok"
+
+            registry.register(
+                Tool.from_function(
+                    handler,
+                    name=f"tool_{i}",
+                    description="A tool for the user of a service.",
+                )
+            )
+
+        discoverer = ToolDiscoveryTool(registry)
+        assert discoverer.discover("the a of") == []
+
+    def test_rare_token_is_kept(self):
+        """Common words are dropped, the discriminative one is not."""
+        discoverer = ToolDiscoveryTool(_make_wide_registry())
+        results = discoverer.discover("the docker logs for a container")
+        assert [r["name"] for r in results] == ["docker_logs"]
+
+    def test_filter_can_be_disabled(self):
+        """max_df_ratio=0 restores the unfiltered query."""
+        discoverer = ToolDiscoveryTool(_make_wide_registry(), max_df_ratio=0.0)
+        assert discoverer.discover("weather forecast for a city") != []
+
+    def test_small_corpora_bypass_the_filter(self):
+        """With few documents, df is not meaningful; behavior is unchanged."""
+        registry = ToolRegistry()
+
+        def only(x: int) -> int:
+            """A tool the user likes for a while."""
+            return x
+
+        registry.register(only)
+        discoverer = ToolDiscoveryTool(registry)
+        assert discoverer.discover("a tool") != []
+
+    def test_ratio_validation_rejects_bool(self):
+        with pytest.raises(ValueError, match="must be a number"):
+            ToolDiscoveryTool(_make_wide_registry(), min_score_ratio=True)
+        with pytest.raises(ValueError, match="must be a number"):
+            ToolDiscoveryTool(_make_wide_registry(), max_df_ratio=False)
 
 
 # -- tests: exact match ------------------------------------------------------
