@@ -82,6 +82,44 @@ class _ToolError:
         )
 
 
+def _warn_if_discovery_options_differ(
+    discoverer: "ToolDiscoveryTool",
+    field_weights: dict[str, float] | None,
+    min_score_ratio: float | None,
+    max_df_ratio: float | None,
+) -> None:
+    """Warn when a repeated ``enable_tool_discovery()`` asks for new settings.
+
+    Discovery is enabled once per registry: the first call wins, so a caller
+    that retunes through a second call would otherwise be silently ignored
+    (#336).  Omitted options and values that match the live instance stay
+    silent, so idempotent calls (config loaders, fixtures) do not warn.
+
+    Args:
+        discoverer: The discoverer already registered on the registry.
+        field_weights: Field weights passed to the repeated call, if any.
+        min_score_ratio: Score floor passed to the repeated call, if any.
+        max_df_ratio: Document-frequency ratio passed to the repeated call,
+            if any.
+    """
+    ignored: list[str] = []
+    if field_weights is not None and field_weights != discoverer._field_weights:
+        ignored.append("field_weights")
+    if min_score_ratio is not None and min_score_ratio != discoverer._min_score_ratio:
+        ignored.append(f"min_score_ratio={min_score_ratio!r}")
+    if max_df_ratio is not None and max_df_ratio != discoverer._max_df_ratio:
+        ignored.append(f"max_df_ratio={max_df_ratio!r}")
+    if not ignored:
+        return
+    warnings.warn(
+        "enable_tool_discovery() is already enabled and keeps its current "
+        f"configuration; ignored: {', '.join(ignored)}. Call "
+        "disable_tool_discovery() first to change it.",
+        UserWarning,
+        stacklevel=3,
+    )
+
+
 class ToolRegistry(
     AdminMixin,
     ExecutionLoggingMixin,
@@ -374,6 +412,12 @@ class ToolRegistry(
         The discovery tool itself is never deferred (``defer=False``)
         so that LLMs always see it in the initial schema.
 
+        Discovery is enabled once per registry.  A repeated call returns the
+        existing :class:`~toolregistry.llm.discovery.ToolDiscoveryTool`
+        unchanged; options that differ from its live configuration are
+        reported with a :class:`UserWarning`.  Call
+        :meth:`disable_tool_discovery` first to reconfigure.
+
         Args:
             field_weights: Optional per-field BM25F boost weights.
             min_score_ratio: Drop fuzzy hits scoring below this fraction of
@@ -391,6 +435,12 @@ class ToolRegistry(
         from .tool import Tool, ToolMetadata
 
         if self._tool_discovery is not None:
+            _warn_if_discovery_options_differ(
+                self._tool_discovery,
+                field_weights,
+                min_score_ratio,
+                max_df_ratio,
+            )
             return self._tool_discovery
 
         options: dict[str, float] = {}
