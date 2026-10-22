@@ -41,6 +41,8 @@ hide:
 
 ### 修复
 
+- **同质语料不再把可用的查询变成空结果**（#342）：当一个多词查询的每个词元都超过文档频率阈值时，过滤后没有任何词元可搜，`discover()` 返回 `[]`——因此在所有工具都写着「work with a file on disk」的语料上，给 `file`（4 条命中）加上一个词变成 `file on disk` 反而得到 0 条。现在过滤会回退到查询中的**能力词元**（出现在至少一个工具名中的词）并保留最少见的一个，从而复现单词查询的结果。仅由样板描述词组成的查询没有能力词元，仍返回空，符合 #332 的初衷。
+- **`VALIDATION_ERRORS` 可同时捕获两类校验失败**（#342）：`ValidationError`（按签名生成的工具）与 `SchemaValidationError`（原始 JSON Schema）来自不同 vendored 模块、彼此没有继承关系，因此 `except ValidationError` 捕获不到后者。包根现在导出该元组，调用方可用 `except VALIDATION_ERRORS:` 把两类失败映射成同一个结果，而无需逐一枚举。
 - **发现结果携带声明的输出 schema**（#337）：`discover_tools` 此前只返回输入参数，模型发现延迟工具后只知道需要什么参数，却不知道会返回什么——尽管工具确实返回符合已声明 `outputSchema` 的 `structuredContent`。现在，声明了 `ToolMetadata(extra={"output_schema": ...})` 的工具，其结果会在输入 schema 旁一并给出该输出 schema：OpenAI 风格定义位于 `function` 内，扁平的 `openai-responses`、Anthropic 与 Gemini 形式位于顶层。精确匹配与模糊匹配结果都会携带，未声明输出 schema 的工具保持不变。
 - **重复调用 `enable_tool_discovery()` 会报告被忽略的参数**（#336）：第二次调用会原样返回已有的发现器，因此传给它的 `min_score_ratio`、`max_df_ratio` 与 `field_weights` 此前被静默丢弃，使重新调参看起来毫无效果。现在取值不同会触发 `UserWarning` 并列出这些参数、指向 `disable_tool_discovery()`；未传入的参数以及与当前配置相同的取值不会告警，因此幂等调用不会变得嘈杂。文档字符串也说明首次调用生效。
 - **仅被少数工具共享的词元仍可被检索到**（#334）：只有当词元出现在至少三个已索引工具中时，才会把文档频率作为信号。因此在只有四个工具的注册表中，被两个工具使用的词会被正常检索，而不会在 `max_df_ratio` 的 50% 边界上被丢弃。单词查询从不被过滤：单个词是能力关键词而非夹带停用词的散文，因此 `draw` 或 `search` 不会因过于常见而被丢弃；而 `the a of` 这类纯停用词的多词查询仍返回空结果。
