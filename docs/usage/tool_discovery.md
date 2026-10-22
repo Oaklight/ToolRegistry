@@ -137,6 +137,18 @@ discoverer = ToolDiscoveryTool(registry, min_score_ratio=0.3)
 
 The floor is **relative**, not absolute: BM25 scores are not comparable across queries (they depend on corpus size, IDF and query length), so a fixed absolute cutoff would drop valid results for short corpora and keep noise for long ones. A query that matches nothing well keeps its near-tied hits rather than returning an empty list, which would leave a model with no next step.
 
+### Query Token Filter
+
+A query made of words the corpus uses everywhere is not a search. Tokens appearing in at least `max_df_ratio` (default `0.5`) of the indexed tools are dropped before scoring, so "for" and "a" in *"weather forecast for a city"* stop matching every description that happens to contain them. If no token survives, `discover()` returns an empty list rather than near-tied filler.
+
+The filter is corpus-adaptive — document frequency, not an English stopword list — so it works for any language and for domain vocabulary. It is skipped below four indexed tools, where document frequency carries no signal. Disable it with `max_df_ratio=0`:
+
+```python
+registry.enable_tool_discovery(max_df_ratio=0.0)
+```
+
+The two stages compose: the token filter removes words that match too broadly, then the score floor drops hits far below the winner.
+
 ## Progressive Disclosure
 
 The recommended workflow for large registries:
