@@ -42,6 +42,25 @@ ToolRegistry 中所有类和方法的全面 API 文档，从源代码自动生�
 
 - [**参数模型与工具函数**](helpers.md) — 参数验证、工具名规范化、HTTP 客户端配置
 
+## 校验错误
+
+工具在运行前会校验参数。相关异常可以直接从包根导入，调用方无需访问私有模块即可将它们映射到自己的错误格式：
+
+```python
+from toolregistry import ErrorDetail, SchemaValidationError, ValidationError
+
+try:
+    tool.validate_parameters(arguments)
+except ValidationError as exc:
+    for detail in exc.errors:          # ErrorDetail(path, expected, actual, message)
+        print(detail.path, detail.message)
+```
+
+- `ValidationError` / `ErrorDetail` —— 由 `Tool.validate_parameters()` 抛出，用于按签名生成的工具对照其参数模型进行校验。
+- `SchemaValidationError` / `SchemaErrorDetail` —— 在按原始 JSON Schema 校验数据时抛出，代理工具（MCP / OpenAPI / LangChain）走这条路径。
+
+两者捕获的就是库实际抛出的类；这些名字是再导出，而非包装。
+
 ## 类型定义
 
 LLM API 格式兼容性类型：
