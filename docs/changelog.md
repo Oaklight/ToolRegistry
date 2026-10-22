@@ -40,6 +40,7 @@ hide:
 
 ### 修复
 
+- **重复调用 `enable_tool_discovery()` 会报告被忽略的参数**（#336）：第二次调用会原样返回已有的发现器，因此传给它的 `min_score_ratio`、`max_df_ratio` 与 `field_weights` 此前被静默丢弃，使重新调参看起来毫无效果。现在取值不同会触发 `UserWarning` 并列出这些参数、指向 `disable_tool_discovery()`；未传入的参数以及与当前配置相同的取值不会告警，因此幂等调用不会变得嘈杂。文档字符串也说明首次调用生效。
 - **仅被少数工具共享的词元仍可被检索到**（#334）：只有当词元出现在至少三个已索引工具中时，才会把文档频率作为信号。因此在只有四个工具的注册表中，被两个工具使用的词会被正常检索，而不会在 `max_df_ratio` 的 50% 边界上被丢弃。单词查询从不被过滤：单个词是能力关键词而非夹带停用词的散文，因此 `draw` 或 `search` 不会因过于常见而被丢弃；而 `the a of` 这类纯停用词的多词查询仍返回空结果。
 - **直接构造的 `ToolDiscoveryTool` 会跟踪注册表变更**（#334）：发现器现在自行订阅 `REGISTER` / `UNREGISTER` / `OVERRIDE` / `ENABLE` / `DISABLE` / `METADATA_UPDATE` 事件，因此构造之后注册的工具在下一次 `discover()` 时即可被检索，无需手动 `rebuild_index()`；文档频率表也不会再描述一个已经变化的语料。`close()` 会取消订阅（幂等）；`disable_tool_discovery()` 会代为调用。
 - **出现在大多数工具中的查询词元不再产生填充结果**（#332）：`discover_tools` 会在打分前丢弃在索引工具中出现比例达到 `max_df_ratio`（默认 `0.5`；可通过 `ToolDiscoveryTool` 与 `enable_tool_discovery` 配置，`0` 表示关闭）的查询词元。在没有天气工具的语料上，`weather forecast for a city` 现在返回空结果，而不是由 `for` 与 `a` 驱动的近似并列命中；`the a of` 也返回空。该过滤是语料自适应的而非停用词表，要求词元出现在至少三个已索引工具中，并与 `min_score_ratio` 下限互补。`min_score_ratio` 与 `max_df_ratio` 现在会拒绝 `bool` 值。
