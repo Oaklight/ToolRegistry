@@ -362,6 +362,30 @@ class TestToolDiscoveryQueryTokenFilter:
         discoverer = ToolDiscoveryTool(registry)
         assert discoverer.discover("the a of") == []
 
+    def test_homogeneous_corpus_keeps_a_capability_token(self):
+        """Adding a word must not turn hits into no hits (#342)."""
+        registry = ToolRegistry()
+        for name in ("read_file", "write_file", "copy_file", "stat_file"):
+
+            def handler(**kwargs) -> str:
+                return "ok"
+
+            registry.register(
+                Tool.from_function(
+                    handler,
+                    name=name,
+                    description="Work with a file on disk.",
+                )
+            )
+
+        discoverer = ToolDiscoveryTool(registry)
+
+        assert len(discoverer.discover("file", top_k=6)) == 4
+        assert len(discoverer.discover("disk", top_k=6)) == 4
+        # Every token is ubiquitous; "file" names the tools, so it survives
+        # the filter and the multi-word query matches what "file" matched.
+        assert len(discoverer.discover("file on disk", top_k=6)) == 4
+
     def test_rare_token_is_kept(self):
         """Common words are dropped, the discriminative one is not."""
         discoverer = ToolDiscoveryTool(_make_wide_registry())

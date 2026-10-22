@@ -3,6 +3,7 @@
 import pytest
 
 from toolregistry import (
+    VALIDATION_ERRORS,
     ErrorDetail,
     SchemaErrorDetail,
     SchemaValidationError,
@@ -29,6 +30,19 @@ class TestExportedTypes:
         assert ErrorDetail is vendor_validate.ErrorDetail
         assert SchemaValidationError is vendor_jsonschema.SchemaValidationError
         assert SchemaErrorDetail is vendor_jsonschema.SchemaErrorDetail
+
+    def test_the_tuple_catches_both_failures(self):
+        # The two classes share no base, so the tuple is the documented way
+        # to map either failure to one outcome (#342).
+        assert VALIDATION_ERRORS == (ValidationError, SchemaValidationError)
+
+        tool = _tool()
+        with pytest.raises(VALIDATION_ERRORS):
+            tool.validate_parameters({"a": "not-a-number", "b": 1})
+
+        schema = {"type": "object", "properties": {"a": {"type": "integer"}}}
+        with pytest.raises(VALIDATION_ERRORS):
+            vendor_jsonschema.schema_validate({"a": "x"}, schema)
 
     def test_validate_parameters_raises_the_exported_type(self):
         tool = _tool()
