@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 # tests/test_tool_discovery.py::TestDiscoveryCjkSearch::test_ascii_tokenization_unchanged.
 from .._vendor.sparse_search import SparseIndex, _default_tokenize
 from .._vendor.validate import Ge, Match, MinLen
+from ..events import ChangeEvent, ChangeEventType
 from .tool_calls import API_FORMATS
 
 if TYPE_CHECKING:
@@ -62,15 +63,31 @@ DEFAULT_MIN_SCORE_RATIO = 0.3
 #: stopword list is needed and the same rule applies to any language.
 DEFAULT_MAX_DF_RATIO = 0.5
 
-#: Below this many indexed documents, document frequency is not a meaningful
-#: signal (one tool mentioning a word means every query token is ubiquitous),
-#: so the filter is skipped.
-_MIN_DOCS_FOR_DF_FILTER = 4
+#: A token must occur in at least this many indexed tools before its document
+#: frequency is trusted as a signal.  In a small registry a word shared by two
+#: of four tools is 50%, which the ratio alone would treat as ubiquitous even
+#: though it is the very word a user searches for (#334).  Expressed as an
+#: absolute count rather than a corpus size so the filter still catches filler
+#: in small corpora.
+_MIN_DF_FOR_FILTER = 3
 
 TOOL_DISCOVERY_NAME = "discover_tools"
 TOOL_CALL_DEFERRED_NAME = "call_deferred"
 
 INFRASTRUCTURE_TOOLS = frozenset({TOOL_DISCOVERY_NAME, TOOL_CALL_DEFERRED_NAME})
+
+#: Registry events that change the searchable set or an indexed field, so the
+#: index must be rebuilt before the next search.
+_INDEX_AFFECTING_EVENTS = frozenset(
+    {
+        ChangeEventType.REGISTER,
+        ChangeEventType.UNREGISTER,
+        ChangeEventType.OVERRIDE,
+        ChangeEventType.ENABLE,
+        ChangeEventType.DISABLE,
+        ChangeEventType.METADATA_UPDATE,
+    }
+)
 
 _BASE_DISCOVERY_DESCRIPTION = (
     "Discover registered tools by exact name or natural language query. "
@@ -235,6 +252,12 @@ class ToolDiscoveryTool:
         # one rebuild, not one per event.
         self._index_dirty = False
         self.rebuild_index()
+        # Subscribe here rather than relying on ToolRegistry to do it: the
+        # documented usage constructs a discoverer directly, and that path
+        # used to go stale as soon as a tool was registered (#334).
+        self._on_change_event = self._handle_registry_change
+        self._closed = False
+        self._registry.on_change(self._on_change_event)
 
     @staticmethod
     def _validate_ratio(name: str, value: float) -> None:
@@ -293,6 +316,34 @@ class ToolDiscoveryTool:
 
         self._index_dirty = False
         self._sync_description()
+
+    def _handle_registry_change(self, event: ChangeEvent) -> None:
+        """Mark the index stale when the searchable set changes.
+
+        Registered as a change callback by :meth:`__init__`, so both a
+        directly constructed discoverer and one created by
+        :meth:`ToolRegistry.enable_tool_discovery` stay in sync.  Changes to
+        the discovery tools themselves are ignored to avoid a rebuild loop
+        through :meth:`_sync_description`.
+
+        Args:
+            event: The registry change that was emitted.
+        """
+        if event.tool_name in INFRASTRUCTURE_TOOLS:
+            return
+        if event.event_type in _INDEX_AFFECTING_EVENTS:
+            self._mark_dirty()
+
+    def close(self) -> None:
+        """Stop following registry changes.
+
+        Idempotent.  The current index is kept, so searches still work;
+        changes made to the registry afterwards are no longer reflected.
+        """
+        if self._closed:
+            return
+        self._registry.remove_on_change(self._on_change_event)
+        self._closed = True
 
     def _mark_dirty(self) -> None:
         """Mark the search index stale after a registry change.
@@ -483,6 +534,12 @@ class ToolDiscoveryTool:
         document frequency is corpus-adaptive, unlike a language-specific
         stopword list.
 
+        A token is only treated as filler once it occurs in at least
+        :data:`_MIN_DF_FOR_FILTER` tools *and* in at least ``max_df_ratio``
+        of them.  A single-token query is never filtered: one word is a
+        capability keyword rather than prose padded with stopwords, so
+        dropping it would make the phrase unfindable (#334).
+
         Args:
             query: The raw query string.
 
@@ -491,14 +548,10 @@ class ToolDiscoveryTool:
             discriminative enough to justify a search.
         """
         tokens = _tokenize_for_search(query)
-        if self._max_df_ratio <= 0 or self._doc_count < _MIN_DOCS_FOR_DF_FILTER:
+        if self._max_df_ratio <= 0 or len(tokens) < 2:
             return tokens
 
-        kept = [
-            token
-            for token in tokens
-            if self._doc_freq.get(token, 0) / self._doc_count < self._max_df_ratio
-        ]
+        kept = [token for token in tokens if not self._is_ubiquitous(token)]
         if len(kept) != len(tokens):
             logger.debug(
                 "discover(%r): dropped %d common token(s) %s",
@@ -507,6 +560,22 @@ class ToolDiscoveryTool:
                 sorted(set(tokens) - set(kept)),
             )
         return kept
+
+    def _is_ubiquitous(self, token: str) -> bool:
+        """Return whether *token* appears in too many tools to carry signal.
+
+        Args:
+            token: A tokenized query term.
+
+        Returns:
+            ``True`` when the token occurs in at least
+            :data:`_MIN_DF_FOR_FILTER` tools and in at least
+            ``max_df_ratio`` of the indexed corpus.
+        """
+        doc_freq = self._doc_freq.get(token, 0)
+        if doc_freq < _MIN_DF_FOR_FILTER:
+            return False
+        return doc_freq / self._doc_count >= self._max_df_ratio
 
     def _fuzzy_match(
         self, query: str, top_k: int, api_format: API_FORMATS
