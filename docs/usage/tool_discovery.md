@@ -141,7 +141,7 @@ The floor is **relative**, not absolute: BM25 scores are not comparable across q
 
 ### Query Token Filter
 
-A query made of words the corpus uses everywhere is not a search. Tokens appearing in at least `max_df_ratio` (default `0.5`) of the indexed tools are dropped before scoring, so "for" and "a" in *"weather forecast for a city"* stop matching every description that happens to contain them. If no token survives, `discover()` returns an empty list rather than near-tied filler.
+A query made of words the corpus uses everywhere is not a search. Tokens appearing in at least `max_df_ratio` (default `0.5`) of the indexed tools are dropped before scoring, so "for" and "a" in *"weather forecast for a city"* stop matching every description that happens to contain them. If the filter would remove every token, the search falls back to the query's **capability tokens** — the ones that appear in at least one tool name — and keeps the rarest, so on a homogeneous corpus *"file on disk"* still matches the four file tools that *"file"* matches rather than returning nothing. A query made only of boilerplate words ("the a of") has no capability token and returns an empty list rather than near-tied filler.
 
 The filter is corpus-adaptive — document frequency, not an English stopword list — so it works for any language and for domain vocabulary. A term only counts as filler once it appears in **at least three indexed tools**, so in a small registry a word shared by two of four tools is still searched rather than dropped at the 50% boundary. A **single-token query is never filtered**: one word is a capability keyword, and discarding it would make that capability unfindable. Disable the filter with `max_df_ratio=0`:
 
