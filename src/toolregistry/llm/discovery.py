@@ -275,6 +275,10 @@ class ToolDiscoveryTool:
         # Document frequency over the indexed tools, rebuilt with the index.
         self._doc_freq: dict[str, int] = {}
         self._doc_count = 0
+        #: Tokens that occur in at least one tool's name.  A ubiquitous query
+        #: token that names a capability ("file") is still worth searching;
+        #: one that only appears in boilerplate descriptions is not (#342).
+        self._name_tokens: set[str] = set()
         self._field_weights = field_weights or dict(_DEFAULT_FIELD_WEIGHTS)
         self._index = SparseIndex(
             field_weights=self._field_weights,
@@ -325,6 +329,7 @@ class ToolDiscoveryTool:
 
         self._doc_freq = {}
         self._doc_count = 0
+        self._name_tokens = set()
         for name, tool in self._registry._tools.items():
             if name in INFRASTRUCTURE_TOOLS:
                 continue
@@ -336,6 +341,7 @@ class ToolDiscoveryTool:
                 "deferred": tool.metadata.defer if tool.metadata else False,
             }
             self._index.add(name, fields, metadata=metadata)
+            self._name_tokens.update(_tokenize_for_search(fields["name"]))
 
             # Union of the fields' tokens: a term the tool mentions in any
             # field counts once for this document, matching the index's own
@@ -573,26 +579,56 @@ class ToolDiscoveryTool:
         capability keyword rather than prose padded with stopwords, so
         dropping it would make the phrase unfindable (#334).
 
+        When every token is common — "file on disk" where every tool says
+        "work with a file on disk" — the filter falls back to the query's
+        *capability* tokens, the ones that occur in at least one tool name,
+        and keeps the rarest of those.  Adding a word to a query that works
+        must not turn its hits into no hits (#342).  A query made only of
+        words that appear in boilerplate descriptions has no capability
+        token and still returns nothing, which is what #332 wanted: those
+        words describe the corpus, not a capability.
+
         Args:
             query: The raw query string.
 
         Returns:
-            The surviving tokens, or an empty list when no token is
-            discriminative enough to justify a search.
+            The surviving tokens, or an empty list when every token is
+            boilerplate rather than a capability.
         """
         tokens = _tokenize_for_search(query)
         if self._max_df_ratio <= 0 or len(tokens) < 2:
             return tokens
 
         kept = [token for token in tokens if not self._is_ubiquitous(token)]
-        if len(kept) != len(tokens):
+        if kept:
+            if len(kept) != len(tokens):
+                logger.debug(
+                    "discover(%r): dropped %d common token(s) %s",
+                    query,
+                    len(tokens) - len(kept),
+                    sorted(set(tokens) - set(kept)),
+                )
+            return kept
+
+        # Every token is ubiquitous.  Keep the rarest *capability* token
+        # (one that names a tool) rather than searching for nothing: on a
+        # homogeneous corpus that reproduces the single-word query.  Boiler-
+        # plate words carry no capability and stay dropped.
+        capability = [token for token in tokens if token in self._name_tokens]
+        if not capability:
             logger.debug(
-                "discover(%r): dropped %d common token(s) %s",
+                "discover(%r): every token is common and none names a tool",
                 query,
-                len(tokens) - len(kept),
-                sorted(set(tokens) - set(kept)),
             )
-        return kept
+            return []
+        rarest = min(capability, key=lambda token: self._doc_freq.get(token, 0))
+        logger.debug(
+            "discover(%r): every token is common; keeping the rarest "
+            "capability token (%r)",
+            query,
+            rarest,
+        )
+        return [rarest]
 
     def _is_ubiquitous(self, token: str) -> bool:
         """Return whether *token* appears in too many tools to carry signal.
