@@ -110,6 +110,8 @@ Each result is a dict with these keys:
 
 For **exact matches**, the result always includes the full tool schema regardless of deferred status. For **fuzzy search**, only deferred tools include their schema so the LLM can call them immediately after discovery.
 
+A tool whose result shape is declared in `ToolMetadata(extra={"output_schema": ...})` — the same field the server publishes as MCP `outputSchema` — also reports it inside the returned schema, beside the input parameters (inside `function` for OpenAI-style definitions, at the top level for the flat `openai-responses`, Anthropic and Gemini shapes). Without it a model learns what a deferred tool takes but not what it returns, even though the tool emits structured content.
+
 Only **enabled** tools are searchable: a tool disabled at the method or namespace level disappears from both `discover_tools` and `get_deferred_summaries()`. `query` must be a non-empty, non-whitespace string and `top_k` must be at least 1 — the generated schema declares both, and the runtime raises `ValueError` if they arrive anyway. Matching runs against each tool's name, description, tags, parameter names and `search_hint`; coverage is strongest for English keywords, and CJK queries are supported through character bigrams.
 
 ```python
