@@ -110,6 +110,8 @@ print(results[0]["score"])  # 1.23 (BM25 分数)
 
 **精确匹配**时，无论是否为延迟工具，结果始终包含完整 schema。**模糊搜索**时，仅延迟工具包含 schema，使 LLM 发现后可以立即调用。
 
+若工具通过 `ToolMetadata(extra={"output_schema": ...})` 声明了返回结构——即服务端发布为 MCP `outputSchema` 的同一字段——发现结果也会在返回的 schema 中给出它，位置紧邻输入参数（OpenAI 风格定义位于 `function` 内，扁平的 `openai-responses`、Anthropic 与 Gemini 形式位于顶层）。缺少它时，模型只知道延迟工具需要什么参数，却不知道会返回什么，尽管工具确实返回结构化内容。
+
 只有**已启用**的工具可被检索：在方法级或命名空间级被禁用的工具，会同时从 `discover_tools` 和 `get_deferred_summaries()` 中消失。`query` 必须是非空且非纯空白的字符串，`top_k` 至少为 1——生成的 schema 已声明这两点，运行时若仍收到非法值会抛出 `ValueError`。匹配针对每个工具的名称、描述、标签、参数名与 `search_hint`；对英文关键词的覆盖最好，中文查询通过字符二元组支持。
 
 ```python

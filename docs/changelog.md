@@ -40,6 +40,7 @@ hide:
 
 ### 修复
 
+- **发现结果携带声明的输出 schema**（#337）：`discover_tools` 此前只返回输入参数，模型发现延迟工具后只知道需要什么参数，却不知道会返回什么——尽管工具确实返回符合已声明 `outputSchema` 的 `structuredContent`。现在，声明了 `ToolMetadata(extra={"output_schema": ...})` 的工具，其结果会在输入 schema 旁一并给出该输出 schema：OpenAI 风格定义位于 `function` 内，扁平的 `openai-responses`、Anthropic 与 Gemini 形式位于顶层。精确匹配与模糊匹配结果都会携带，未声明输出 schema 的工具保持不变。
 - **重复调用 `enable_tool_discovery()` 会报告被忽略的参数**（#336）：第二次调用会原样返回已有的发现器，因此传给它的 `min_score_ratio`、`max_df_ratio` 与 `field_weights` 此前被静默丢弃，使重新调参看起来毫无效果。现在取值不同会触发 `UserWarning` 并列出这些参数、指向 `disable_tool_discovery()`；未传入的参数以及与当前配置相同的取值不会告警，因此幂等调用不会变得嘈杂。文档字符串也说明首次调用生效。
 - **仅被少数工具共享的词元仍可被检索到**（#334）：只有当词元出现在至少三个已索引工具中时，才会把文档频率作为信号。因此在只有四个工具的注册表中，被两个工具使用的词会被正常检索，而不会在 `max_df_ratio` 的 50% 边界上被丢弃。单词查询从不被过滤：单个词是能力关键词而非夹带停用词的散文，因此 `draw` 或 `search` 不会因过于常见而被丢弃；而 `the a of` 这类纯停用词的多词查询仍返回空结果。
 - **直接构造的 `ToolDiscoveryTool` 会跟踪注册表变更**（#334）：发现器现在自行订阅 `REGISTER` / `UNREGISTER` / `OVERRIDE` / `ENABLE` / `DISABLE` / `METADATA_UPDATE` 事件，因此构造之后注册的工具在下一次 `discover()` 时即可被检索，无需手动 `rebuild_index()`；文档频率表也不会再描述一个已经变化的语料。`close()` 会取消订阅（幂等）；`disable_tool_discovery()` 会代为调用。
