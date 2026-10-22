@@ -18,6 +18,7 @@ hide:
 
 ### 新增
 
+- **`discover_tools` 模糊结果加入相关性下限**（#330）：得分低于最佳命中 `min_score_ratio` 的 BM25 命中会被丢弃，因此当一个查询只有明确匹配时，不再用仅仅共享某个词元的无关工具来填充。默认值为 `0.3`；可通过 `ToolDiscoveryTool(..., min_score_ratio=...)` 与 `enable_tool_discovery(min_score_ratio=...)` 调整，`0` 表示关闭下限。该下限是相对值，因为 BM25 分数在不同查询之间不可比较；最佳命中始终保留，精确名称查找不受影响。
 - **声明式配置中的按源过滤器** (#297)：`MCPSource` 与 `OpenAPISource` 新增 `include` / `exclude`，配置条目可以在注册前缩小 MCP 服务器或 OpenAPI 规范的范围，而不是先全量注册。值可以是字符串或 `fnmatch` 通配模式列表，两侧互斥；省略过滤表示不过滤，空列表是显式的空过滤器，不匹配任何工具。源条目或 `auth` 下的未知键现在会抛出 `ConfigError`，并指出条目与违规键，而不再静默忽略。
 - **`call_deferred` 兼容客户端改写过的工具名** (#277)：解析 `_target_tool` 时把 `/` 和 `-` 折叠为 `_` 并忽略大小写，因此被 MCP 客户端改写过的名字（`weather_get_current`）也能命中注册名（`weather-get-current`）。精确的注册拼写优先于归一化匹配，所以归一化后相撞的两个名字仍各自派发到自己。未命中时错误信息会列出最接近的注册名（`Did you mean: datetime-now?`），让模型一次就能自我纠正。
 - **`discover_tools` 输入校验与中文检索** (#278)：`query` 现在带 `minLength: 1` 和非空白的 `pattern`，`top_k` 带 `minimum: 1`；运行时同样会抛出 `ValueError`。一个零依赖的切词器在 BM25 索引前为连续 CJK 文本补充字符二元组，使中文查询能命中中文工具描述，而不是静默返回空。`discover_tools` 的描述现在会说明查询匹配的是工具的哪些文本。

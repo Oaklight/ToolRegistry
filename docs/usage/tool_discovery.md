@@ -120,6 +120,23 @@ for r in results:
         print(f"  Schema: {r['schema']}")
 ```
 
+### 相关性下限
+
+模糊搜索结果会按照最佳命中进行相对裁剪：得分低于最高分 `min_score_ratio`（默认 `0.3`）的结果会被丢弃，因此当一个查询只有明确匹配时，不会再用仅仅共享某个词元的无关工具来填充。最佳命中始终保留；精确名称查找完全绕过该下限。
+
+```python
+# 更严格（只保留与最高分相差 50% 以内的命中）
+registry.enable_tool_discovery(min_score_ratio=0.5)
+
+# 关闭下限，返回原始 top_k 列表
+registry.enable_tool_discovery(min_score_ratio=0.0)
+
+# 独立对象上的同一参数
+discoverer = ToolDiscoveryTool(registry, min_score_ratio=0.3)
+```
+
+该下限是**相对**的而不是绝对的：BM25 分数在不同查询之间不可比较（取决于语料规模、IDF 与查询长度），因此固定的绝对阈值会在小语料上丢掉有效结果、在大语料上留下噪声。当查询与任何工具都不太匹配时，近似并列的命中会被保留，而不是返回空列表——空列表会让模型无从继续。
+
 ## 渐进式披露
 
 大型 registry 的推荐工作流：
