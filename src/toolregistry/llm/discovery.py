@@ -166,6 +166,39 @@ def _tokenize_for_search(text: str) -> list[str]:
     return tokens
 
 
+def _with_output_schema(tool: Tool, schema: dict[str, Any]) -> dict[str, Any]:
+    """Attach a tool's declared output schema to its generated schema.
+
+    A tool declares its result shape in ``ToolMetadata.extra["output_schema"]``
+    (the same field the server publishes as MCP ``outputSchema``).  Provider
+    tool definitions have no slot for it, so a discovery result would otherwise
+    describe only the arguments — leaving a model unable to tell what a
+    deferred tool returns, even though the tool emits structured content.
+
+    The key is placed beside the input schema for the target format: inside
+    ``function`` for OpenAI-style definitions, at the top level for the flat
+    ``openai-responses``, Anthropic and Gemini shapes.
+
+    Args:
+        tool: The tool the schema was generated from.
+        schema: Schema returned by :meth:`Tool.get_schema`.
+
+    Returns:
+        The same schema dict, extended in place when the tool declares an
+        output schema.
+    """
+    extra = tool.metadata.extra if tool.metadata else None
+    output_schema = (extra or {}).get("output_schema")
+    if not output_schema:
+        return schema
+    function = schema.get("function")
+    if isinstance(function, dict):
+        function["output_schema"] = output_schema
+    else:
+        schema["output_schema"] = output_schema
+    return schema
+
+
 def _extract_param_names(tool: Tool) -> str:
     """Extract parameter names from a tool's JSON schema."""
     props = tool.parameters.get("properties", {})
@@ -521,7 +554,7 @@ class ToolDiscoveryTool:
             "score": 1.0,
             "namespace": tool.namespace,
             "deferred": is_deferred,
-            "schema": tool.get_schema(api_format),
+            "schema": _with_output_schema(tool, tool.get_schema(api_format)),
         }
 
     def _filter_query_tokens(self, query: str) -> list[str]:
@@ -616,7 +649,7 @@ class ToolDiscoveryTool:
                 "deferred": is_deferred,
             }
             if is_deferred and tool is not None:
-                entry["schema"] = tool.get_schema(api_format)
+                entry["schema"] = _with_output_schema(tool, tool.get_schema(api_format))
             out.append(entry)
         return out
 

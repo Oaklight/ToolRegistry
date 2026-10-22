@@ -1680,6 +1680,83 @@ class TestDiscoverQueryValidation:
         assert "read_file" in names
 
 
+class TestDiscoverOutputSchema:
+    """Declared output schemas travel with discovery results (#337)."""
+
+    _OUTPUT_SCHEMA = {
+        "type": "object",
+        "properties": {"temperature": {"type": "number"}},
+        "additionalProperties": True,
+    }
+
+    def _registry(self) -> ToolRegistry:
+        registry = ToolRegistry()
+
+        def weather_current(city: str) -> dict:
+            """Current weather conditions for a city."""
+            return {"temperature": 21.0}
+
+        def plain_tool(query: str) -> str:
+            """Plain lookup with no declared result shape."""
+            return query
+
+        registry.register(
+            Tool.from_function(
+                weather_current,
+                metadata=ToolMetadata(
+                    defer=True,
+                    extra={"output_schema": self._OUTPUT_SCHEMA},
+                ),
+            )
+        )
+        registry.register(plain_tool)
+        return registry
+
+    def test_fuzzy_result_carries_the_output_schema(self):
+        discoverer = ToolDiscoveryTool(self._registry())
+
+        results = discoverer.discover("weather conditions", top_k=3)
+
+        assert results, "expected a fuzzy hit"
+        schema = results[0]["schema"]
+        assert schema["function"]["output_schema"] == self._OUTPUT_SCHEMA
+        assert "parameters" in schema["function"]
+
+    def test_exact_match_carries_the_output_schema(self):
+        discoverer = ToolDiscoveryTool(self._registry())
+
+        result = discoverer.discover("weather_current")
+
+        assert result[0]["schema"]["function"]["output_schema"] == (self._OUTPUT_SCHEMA)
+
+    def test_tool_without_a_declared_schema_gains_nothing(self):
+        discoverer = ToolDiscoveryTool(self._registry())
+
+        result = discoverer.discover("plain_tool")
+
+        assert "output_schema" not in result[0]["schema"]["function"]
+
+    @pytest.mark.parametrize(
+        "api_format, location",
+        [
+            ("openai-chat", "function"),
+            ("openai-responses", "top"),
+            ("anthropic", "top"),
+            ("gemini", "top"),
+        ],
+    )
+    def test_output_schema_follows_the_provider_shape(self, api_format, location):
+        discoverer = ToolDiscoveryTool(self._registry())
+
+        result = discoverer.discover("weather_current", api_format=api_format)
+
+        schema = result[0]["schema"]
+        if location == "function":
+            assert schema["function"]["output_schema"] == self._OUTPUT_SCHEMA
+        else:
+            assert schema["output_schema"] == self._OUTPUT_SCHEMA
+
+
 class TestDiscoveryToolAnnotations:
     """The discovery proxies declare what a host needs to gate them (#280)."""
 
