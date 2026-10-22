@@ -47,6 +47,12 @@ _SPLIT_RE = re.compile(r"[_\-]+")
 # syllables for Korean.
 _CJK_RE = re.compile("[぀-ヿ㐀-䶿一-鿿豈-﫿가-힯]+")
 
+#: Fraction of the best hit's score below which a fuzzy result is dropped.
+#: BM25 scores are not comparable across queries, so the floor is relative:
+#: a query with one strong match no longer pads the answer with unrelated
+#: tools that merely share a token (Oaklight/ToolRegistry#330).
+DEFAULT_MIN_SCORE_RATIO = 0.3
+
 TOOL_DISCOVERY_NAME = "discover_tools"
 TOOL_CALL_DEFERRED_NAME = "call_deferred"
 
@@ -177,14 +183,27 @@ class ToolDiscoveryTool:
         field_weights: Optional per-field BM25F boost weights.
             Defaults to ``{"name": 3.0, "description": 2.0,
             "tags": 1.5, "params": 1.0, "search_hint": 2.0}``.
+        min_score_ratio: Drop fuzzy hits scoring below this fraction of the
+            best hit (default :data:`DEFAULT_MIN_SCORE_RATIO`).  ``0``
+            disables the floor and returns the raw ``top_k`` list.  The
+            exact-name match is unaffected.
+
+    Raises:
+        ValueError: If *min_score_ratio* is outside ``[0.0, 1.0]``.
     """
 
     def __init__(
         self,
         registry: ToolRegistry,
         field_weights: dict[str, float] | None = None,
+        min_score_ratio: float = DEFAULT_MIN_SCORE_RATIO,
     ) -> None:
+        if not 0.0 <= min_score_ratio <= 1.0:
+            raise ValueError(
+                f"min_score_ratio must be between 0.0 and 1.0, got {min_score_ratio}"
+            )
         self._registry = registry
+        self._min_score_ratio = min_score_ratio
         self._field_weights = field_weights or dict(_DEFAULT_FIELD_WEIGHTS)
         self._index = SparseIndex(
             field_weights=self._field_weights,
@@ -305,7 +324,9 @@ class ToolDiscoveryTool:
         If *query* exactly matches an enabled registered tool name, a
         single result with the full tool schema is returned.  Otherwise a
         BM25 fuzzy search is performed over tool names, descriptions,
-        tags, parameter names, and search hints.
+        tags, parameter names, and search hints, and hits scoring below
+        ``min_score_ratio`` of the best hit are dropped, so a query with
+        one clear match is not padded with unrelated tools.
 
         Args:
             query: Tool name (exact match) or natural language query.
@@ -409,8 +430,22 @@ class ToolDiscoveryTool:
         Returns:
             List of result dicts, best first.
         """
+        hits = self._index.search(query, top_k=top_k)
+        if hits and self._min_score_ratio > 0.0:
+            floor = hits[0].score * self._min_score_ratio
+            kept = [h for h in hits if h.score >= floor]
+            if len(kept) != len(hits):
+                logger.debug(
+                    "discover(%r): dropped %d of %d hit(s) below %.2f x best",
+                    query,
+                    len(hits) - len(kept),
+                    len(hits),
+                    self._min_score_ratio,
+                )
+            hits = kept
+
         out: list[dict[str, Any]] = []
-        for r in self._index.search(query, top_k=top_k):
+        for r in hits:
             tool = self._registry.get_tool(r.doc_id)
             is_deferred = r.metadata.get("deferred", False) if r.metadata else False
             entry: dict[str, Any] = {
