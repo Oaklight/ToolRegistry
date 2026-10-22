@@ -120,6 +120,23 @@ for r in results:
         print(f"  Schema: {r['schema']}")
 ```
 
+### Relevance Floor
+
+Fuzzy results are cut relative to the best hit: any hit scoring below `min_score_ratio` (default `0.3`) of the top score is dropped, so a query with one clear match is not padded with tools that merely share a token. The best hit is always kept; exact-name lookups bypass the floor entirely.
+
+```python
+# Stricter (keep only hits within 50% of the best score)
+registry.enable_tool_discovery(min_score_ratio=0.5)
+
+# Disable the floor and get the raw top_k list
+registry.enable_tool_discovery(min_score_ratio=0.0)
+
+# Same knob on the standalone object
+discoverer = ToolDiscoveryTool(registry, min_score_ratio=0.3)
+```
+
+The floor is **relative**, not absolute: BM25 scores are not comparable across queries (they depend on corpus size, IDF and query length), so a fixed absolute cutoff would drop valid results for short corpora and keep noise for long ones. A query that matches nothing well keeps its near-tied hits rather than returning an empty list, which would leave a model with no next step.
+
 ## Progressive Disclosure
 
 The recommended workflow for large registries:
