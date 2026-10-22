@@ -141,7 +141,7 @@ The floor is **relative**, not absolute: BM25 scores are not comparable across q
 
 A query made of words the corpus uses everywhere is not a search. Tokens appearing in at least `max_df_ratio` (default `0.5`) of the indexed tools are dropped before scoring, so "for" and "a" in *"weather forecast for a city"* stop matching every description that happens to contain them. If no token survives, `discover()` returns an empty list rather than near-tied filler.
 
-The filter is corpus-adaptive — document frequency, not an English stopword list — so it works for any language and for domain vocabulary. It is skipped below four indexed tools, where document frequency carries no signal. Disable it with `max_df_ratio=0`:
+The filter is corpus-adaptive — document frequency, not an English stopword list — so it works for any language and for domain vocabulary. A term only counts as filler once it appears in **at least three indexed tools**, so in a small registry a word shared by two of four tools is still searched rather than dropped at the 50% boundary. A **single-token query is never filtered**: one word is a capability keyword, and discarding it would make that capability unfindable. Disable the filter with `max_df_ratio=0`:
 
 ```python
 registry.enable_tool_discovery(max_df_ratio=0.0)
@@ -269,9 +269,7 @@ discoverer = ToolDiscoveryTool(
 
 ## Rebuilding the Index
 
-When tool discovery is enabled via `enable_tool_discovery()`, the index **automatically rebuilds** whenever tools are registered or unregistered, powered by the ChangeCallback mechanism. No manual intervention is needed.
-
-For standalone `ToolDiscoveryTool` usage, the index is built once at construction time. After modifying the registry, call `rebuild_index()` manually:
+The index **automatically rebuilds** whenever tools are registered, unregistered, re-enabled or updated, powered by the ChangeCallback mechanism. This holds both for `enable_tool_discovery()` and for a `ToolDiscoveryTool` you construct directly: the discoverer subscribes itself, and the rebuild happens lazily on the next `discover()` call, so a bulk change costs one rebuild rather than one per event. No manual intervention is needed:
 
 ```python
 @registry.register
@@ -279,11 +277,11 @@ def new_tool(x: int) -> int:
     """A newly added tool."""
     return x * 2
 
-discoverer.rebuild_index()
-
 results = discoverer.discover("newly added")
 assert results[0]["name"] == "new_tool"
 ```
+
+Call `discoverer.close()` to stop following a registry (idempotent); `disable_tool_discovery()` does this for you. `rebuild_index()` remains available to force a rebuild, for example after editing a tool's metadata in place.
 
 ## Implementation Details
 
