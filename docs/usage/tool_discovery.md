@@ -141,7 +141,7 @@ discoverer = ToolDiscoveryTool(registry, min_score_ratio=0.3)
 
 由一个在语料中随处可见的词构成的查询并不构成一次有效的搜索。索引工具中出现比例达到 `max_df_ratio`（默认 `0.5`）的词元会在打分前被丢弃，因此 *"weather forecast for a city"* 中的 "for" 与 "a" 不再匹配每一个恰好包含它们描述的工具。如果没有任何词元保留，`discover()` 会返回空列表，而不是近似并列的填充结果。
 
-该过滤是语料自适应的——基于文档频率，而不是英文停用词表——因此对任何语言与领域词汇都适用。当索引工具少于四个时会跳过该过滤，因为在小语料中文档频率没有意义。可通过 `max_df_ratio=0` 关闭：
+该过滤是语料自适应的——基于文档频率，而不是英文停用词表——因此对任何语言与领域词汇都适用。只有当词元出现在**至少三个已索引工具**中时才会被视为填充词，因此在小型注册表中、四个工具里有两点提到同一个词时，该词仍会被检索，而不会在 50% 边界上被丢弃。**单词查询从不被过滤**：单个词就是能力关键词，丢弃它会让该能力无法被发现。可通过 `max_df_ratio=0` 关闭：
 
 ```python
 registry.enable_tool_discovery(max_df_ratio=0.0)
@@ -269,9 +269,7 @@ discoverer = ToolDiscoveryTool(
 
 ## 重建索引
 
-通过 `enable_tool_discovery()` 启用工具发现时，索引会在工具注册或注销时**自动重建**，由 ChangeCallback 机制驱动，无需手动干预。
-
-对于独立使用 `ToolDiscoveryTool` 的场景，索引在构造时一次性构建。修改注册表后，需手动调用 `rebuild_index()`：
+在工具注册、注销、重新启用或更新时，索引会**自动重建**，由 ChangeCallback 机制驱动。无论通过 `enable_tool_discovery()` 启用，还是直接构造 `ToolDiscoveryTool`，这一行为都成立：发现器会自行订阅注册表变更，并在下一次 `discover()` 时惰性重建，因此批量变更只需一次重建，而不是每个事件一次。无需手动干预：
 
 ```python
 @registry.register
@@ -279,11 +277,11 @@ def new_tool(x: int) -> int:
     """A newly added tool."""
     return x * 2
 
-discoverer.rebuild_index()
-
 results = discoverer.discover("newly added")
 assert results[0]["name"] == "new_tool"
 ```
+
+调用 `discoverer.close()` 可停止跟随注册表变更（幂等）；`disable_tool_discovery()` 会代为调用。`rebuild_index()` 仍可用于强制重建，例如就地修改工具元数据之后。
 
 ## 实现细节
 
