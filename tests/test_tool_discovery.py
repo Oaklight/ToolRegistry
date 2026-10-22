@@ -793,6 +793,50 @@ class TestToolDiscoveryIntegration:
         d2 = registry.enable_tool_discovery()
         assert d1 is d2
 
+    def test_repeated_enable_warns_about_ignored_options(self):
+        """A second call that changes a knob must not be silently ignored (#336)."""
+        registry = ToolRegistry()
+        first = registry.enable_tool_discovery(min_score_ratio=0.5)
+
+        with pytest.warns(UserWarning, match="min_score_ratio=0.0"):
+            second = registry.enable_tool_discovery(min_score_ratio=0.0)
+
+        assert second is first
+        assert first._min_score_ratio == 0.5
+
+    def test_repeated_enable_warns_for_every_ignored_option(self):
+        registry = ToolRegistry()
+        registry.enable_tool_discovery()
+
+        with pytest.warns(UserWarning) as record:
+            registry.enable_tool_discovery(
+                field_weights={"name": 1.0},
+                max_df_ratio=0.9,
+            )
+
+        message = str(record[0].message)
+        assert "field_weights" in message
+        assert "max_df_ratio=0.9" in message
+        assert "disable_tool_discovery()" in message
+
+    def test_repeated_enable_is_silent_when_options_match(self, recwarn):
+        """Idempotent calls (config loaders, fixtures) must stay quiet."""
+        registry = ToolRegistry()
+        registry.enable_tool_discovery(min_score_ratio=0.0, max_df_ratio=0.4)
+        registry.enable_tool_discovery(min_score_ratio=0.0, max_df_ratio=0.4)
+        registry.enable_tool_discovery()
+
+        assert [w for w in recwarn if issubclass(w.category, UserWarning)] == []
+
+    def test_reconfigure_after_disable_uses_new_options(self):
+        """disable → enable is the supported way to change the settings."""
+        registry = ToolRegistry()
+        registry.enable_tool_discovery(min_score_ratio=0.5)
+        registry.disable_tool_discovery()
+
+        discoverer = registry.enable_tool_discovery(min_score_ratio=0.0)
+        assert discoverer._min_score_ratio == 0.0
+
 
 # -- tests: get_deferred_summaries() -----------------------------------------
 
