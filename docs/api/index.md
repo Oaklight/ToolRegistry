@@ -86,3 +86,4 @@ LLM API 格式兼容性类型：
             - langchain
             - native
             - types
+            - errors
