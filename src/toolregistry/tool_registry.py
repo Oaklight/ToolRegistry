@@ -364,6 +364,7 @@ class ToolRegistry(
         self,
         field_weights: dict[str, float] | None = None,
         min_score_ratio: float | None = None,
+        max_df_ratio: float | None = None,
     ) -> ToolDiscoveryTool:
         """Enable tool discovery and register a discovery tool.
 
@@ -381,6 +382,10 @@ class ToolRegistry(
                 the best hit.  ``None`` uses
                 :data:`~toolregistry.llm.discovery.DEFAULT_MIN_SCORE_RATIO`;
                 ``0`` disables the floor.
+            max_df_ratio: Drop query tokens present in at least this fraction
+                of indexed tools.  ``None`` uses
+                :data:`~toolregistry.llm.discovery.DEFAULT_MAX_DF_RATIO`;
+                ``0`` disables the filter.
 
         Returns:
             The :class:`ToolDiscoveryTool` instance.
@@ -390,12 +395,12 @@ class ToolRegistry(
         if self._tool_discovery is not None:
             return self._tool_discovery
 
-        if min_score_ratio is None:
-            discoverer = ToolDiscoveryTool(self, field_weights=field_weights)
-        else:
-            discoverer = ToolDiscoveryTool(
-                self, field_weights=field_weights, min_score_ratio=min_score_ratio
-            )
+        options: dict[str, float] = {}
+        if min_score_ratio is not None:
+            options["min_score_ratio"] = min_score_ratio
+        if max_df_ratio is not None:
+            options["max_df_ratio"] = max_df_ratio
+        discoverer = ToolDiscoveryTool(self, field_weights=field_weights, **options)
 
         discovery_tool = Tool.from_function(
             discoverer.discover,
