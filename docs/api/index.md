@@ -91,3 +91,4 @@ LLM API format compatibility types:
             - langchain
             - native
             - types
+            - errors
