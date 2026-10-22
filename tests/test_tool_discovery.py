@@ -392,6 +392,117 @@ class TestToolDiscoveryQueryTokenFilter:
             ToolDiscoveryTool(_make_wide_registry(), max_df_ratio=False)
 
 
+def _make_small_widget_registry() -> ToolRegistry:
+    """Four tools where "widgets" appears in two — 50% of the corpus (#334)."""
+    registry = ToolRegistry()
+
+    for name, description in (
+        ("alpha_tool", "Uses widgets."),
+        ("beta_tool", "Uses widgets and gears."),
+        ("gamma_tool", "Uses springs."),
+        ("delta_tool", "Uses levers."),
+    ):
+
+        def handler() -> str:
+            """A tool."""
+            return "ok"
+
+        registry.register(
+            Tool.from_function(handler, name=name, description=description)
+        )
+    return registry
+
+
+class TestToolDiscoveryDocumentFrequencyFloor:
+    """A token shared by a few tools is signal, not filler (#334)."""
+
+    def test_shared_term_is_findable_in_small_corpus(self):
+        """Two of four tools mentioning a term still matches both."""
+        discoverer = ToolDiscoveryTool(_make_small_widget_registry())
+        assert discoverer._doc_freq["widgets"] == 2
+        assert discoverer._doc_count == 4
+        names = [r["name"] for r in discoverer.discover("widgets")]
+        assert names == ["alpha_tool", "beta_tool"]
+
+    def test_shared_term_survives_alongside_ubiquitous_words(self):
+        """The df floor keeps the shared term when a filler is dropped."""
+        discoverer = ToolDiscoveryTool(_make_small_widget_registry())
+        assert discoverer._filter_query_tokens("uses widgets") == ["widgets"]
+
+    def test_single_token_query_is_never_filtered(self):
+        """A one-word query is a keyword, not prose padded with stopwords."""
+        registry = ToolRegistry()
+        for i in range(6):
+
+            def handler() -> str:
+                """A tool."""
+                return "ok"
+
+            registry.register(
+                Tool.from_function(
+                    handler,
+                    name=f"tool_{i}",
+                    description="Search the service registry.",
+                )
+            )
+        discoverer = ToolDiscoveryTool(registry)
+        assert discoverer._doc_freq["search"] == 6
+        assert discoverer._filter_query_tokens("search") == ["search"]
+        assert discoverer.discover("search") != []
+
+
+class TestToolDiscoveryIndexFreshness:
+    """A discoverer built directly tracks later registry changes (#334)."""
+
+    def test_register_after_construction_is_indexed(self):
+        registry = _make_small_widget_registry()
+        discoverer = ToolDiscoveryTool(registry)
+
+        def epsilon_tool() -> str:
+            """Uses widgets and flanges."""
+            return "ok"
+
+        registry.register(epsilon_tool)
+        assert [r["name"] for r in discoverer.discover("flanges")] == ["epsilon_tool"]
+        assert discoverer._doc_freq["widgets"] == 3
+        assert discoverer._doc_count == 5
+
+    def test_unregister_after_construction_leaves_the_index(self):
+        registry = _make_small_widget_registry()
+        discoverer = ToolDiscoveryTool(registry)
+        assert discoverer.discover("gears") != []
+
+        registry._unregister("beta_tool")
+        assert discoverer.discover("gears") == []
+
+    def test_close_stops_following_the_registry(self):
+        registry = _make_small_widget_registry()
+        discoverer = ToolDiscoveryTool(registry)
+        discoverer.close()
+        discoverer.close()  # idempotent
+
+        def epsilon_tool() -> str:
+            """Uses widgets and flanges."""
+            return "ok"
+
+        registry.register(epsilon_tool)
+        assert discoverer._index_dirty is False
+        assert discoverer.discover("flanges") == []
+
+    def test_disable_tool_discovery_unsubscribes(self):
+        registry = _make_small_widget_registry()
+        discoverer = registry.enable_tool_discovery()
+        registry.disable_tool_discovery()
+        assert discoverer._closed is True
+
+        def epsilon_tool() -> str:
+            """Uses widgets and flanges."""
+            return "ok"
+
+        registry.register(epsilon_tool)
+        assert discoverer._index_dirty is False
+
+
 # -- tests: exact match ------------------------------------------------------
 
 

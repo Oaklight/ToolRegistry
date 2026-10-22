@@ -31,12 +31,11 @@ from .llm.tool_calls import (
 )
 
 from .utils import encode_tool_result
-from .events import ChangeCallback, ChangeEvent, ChangeEventType
+from .events import ChangeEvent, ChangeEventType
 from .llm.discovery import (
     TOOL_CALL_DEFERRED_NAME,
     TOOL_DISCOVERY_NAME,
     BASE_CALL_DEFERRED_DESCRIPTION,
-    INFRASTRUCTURE_TOOLS,
     ToolDiscoveryTool,
     _BASE_DISCOVERY_DESCRIPTION,
 )
@@ -161,7 +160,6 @@ class ToolRegistry(
         self._think_augment = think_augment
         self._name_sep: Literal["-", "."] = name_sep
         self._tool_discovery: ToolDiscoveryTool | None = None
-        self._tool_discovery_callback: ChangeCallback | None = None
         self._ptc = PtcController(self)
 
         if tool_discovery:
@@ -430,30 +428,13 @@ class ToolRegistry(
         # tools are known.
         discoverer._sync_description()
 
-        def _on_registry_change(event: ChangeEvent) -> None:
-            if event.tool_name in INFRASTRUCTURE_TOOLS:
-                return
-            if event.event_type in {
-                ChangeEventType.REGISTER,
-                ChangeEventType.UNREGISTER,
-                ChangeEventType.OVERRIDE,
-                ChangeEventType.ENABLE,
-                ChangeEventType.DISABLE,
-                ChangeEventType.METADATA_UPDATE,
-            }:
-                # Every event that changes the searchable set or an indexed
-                # field marks the index stale instead of rebuilding per
-                # event.  A bulk change (registering a remote source,
-                # disable_by_tags, profile application) then pays one rebuild
-                # at the next discover() rather than one per event.
-                # Deferred descriptions are refreshed eagerly because the
-                # discover_tools description is read before any call.
-                discoverer._mark_dirty()
-
-        self.on_change(_on_registry_change)
-
+        # The discoverer subscribes to registry changes itself, so it stays
+        # in sync whether it was built here or directly (#334).  Every event
+        # that changes the searchable set or an indexed field marks the index
+        # stale instead of rebuilding per event, so a bulk change
+        # (registering a remote source, disable_by_tags, profile
+        # application) pays one rebuild at the next discover().
         self._tool_discovery = discoverer
-        self._tool_discovery_callback = _on_registry_change
         return discoverer
 
     def disable_tool_discovery(self) -> None:
@@ -465,11 +446,8 @@ class ToolRegistry(
         self._tools.pop(TOOL_DISCOVERY_NAME, None)
         self._tools.pop(TOOL_CALL_DEFERRED_NAME, None)
 
-        # Remove the change callback
-        if self._tool_discovery_callback is not None:
-            self.remove_on_change(self._tool_discovery_callback)
-            self._tool_discovery_callback = None
-
+        # Stop following registry changes
+        self._tool_discovery.close()
         self._tool_discovery = None
 
     # ============== PTC (Programmatic Tool Calling) ==============
