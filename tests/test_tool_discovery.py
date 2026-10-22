@@ -233,6 +233,58 @@ class TestToolDiscoveryFuzzy:
         assert "schema" not in results[0]
 
 
+class TestToolDiscoveryScoreFloor:
+    """Fuzzy hits below a fraction of the best hit are filler (#330)."""
+
+    def test_filler_hits_are_dropped(self, discoverer):
+        """'read a file' matches read_file strongly and three tools weakly."""
+        results = discoverer.discover("read a file")
+        assert [r["name"] for r in results] == ["read_file"]
+
+    def test_close_hits_survive(self, discoverer):
+        """A genuinely close second hit (0.39 x best here) is kept."""
+        names = [r["name"] for r in discoverer.discover("add numbers")]
+        assert names == ["add_numbers", "multiply_numbers"]
+
+    def test_floor_can_be_disabled(self, discovery_registry):
+        """min_score_ratio=0 returns the raw top_k list."""
+        discoverer = ToolDiscoveryTool(discovery_registry, min_score_ratio=0.0)
+        results = discoverer.discover("read a file")
+        assert len(results) > 1
+        assert results[0]["name"] == "read_file"
+
+    def test_weak_matches_stay_proportional(self, discoverer):
+        """The floor is relative: when every hit is equally weak, all survive.
+
+        BM25 scores are not comparable across queries (they depend on corpus
+        size, IDF and query length), so no absolute cutoff is applied.  A
+        query that matches nothing well keeps its near-tied hits rather than
+        being silently emptied.
+        """
+        results = discoverer.discover("weather forecast for a city")
+        assert len(results) > 1
+        assert results[0]["score"] < 1.0
+
+    def test_exact_match_is_unaffected(self, discoverer):
+        """The exact-name path short-circuits before the floor."""
+        results = discoverer.discover("read_file")
+        assert len(results) == 1
+        assert results[0]["score"] == 1.0
+        assert "schema" in results[0]
+
+    def test_ratio_is_validated(self, discovery_registry):
+        with pytest.raises(ValueError, match="between 0.0 and 1.0"):
+            ToolDiscoveryTool(discovery_registry, min_score_ratio=-0.1)
+        with pytest.raises(ValueError, match="between 0.0 and 1.0"):
+            ToolDiscoveryTool(discovery_registry, min_score_ratio=1.5)
+
+    def test_enable_tool_discovery_forwards_the_ratio(self):
+        """A deployment can tune or disable the floor when enabling."""
+        registry = ToolRegistry()
+        discoverer = registry.enable_tool_discovery(min_score_ratio=0.0)
+        assert discoverer._min_score_ratio == 0.0
+
+
 # -- tests: exact match ------------------------------------------------------
 
 

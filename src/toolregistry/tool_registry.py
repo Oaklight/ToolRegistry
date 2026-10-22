@@ -363,6 +363,7 @@ class ToolRegistry(
     def enable_tool_discovery(
         self,
         field_weights: dict[str, float] | None = None,
+        min_score_ratio: float | None = None,
     ) -> ToolDiscoveryTool:
         """Enable tool discovery and register a discovery tool.
 
@@ -376,6 +377,10 @@ class ToolRegistry(
 
         Args:
             field_weights: Optional per-field BM25F boost weights.
+            min_score_ratio: Drop fuzzy hits scoring below this fraction of
+                the best hit.  ``None`` uses
+                :data:`~toolregistry.llm.discovery.DEFAULT_MIN_SCORE_RATIO`;
+                ``0`` disables the floor.
 
         Returns:
             The :class:`ToolDiscoveryTool` instance.
@@ -385,7 +390,12 @@ class ToolRegistry(
         if self._tool_discovery is not None:
             return self._tool_discovery
 
-        discoverer = ToolDiscoveryTool(self, field_weights=field_weights)
+        if min_score_ratio is None:
+            discoverer = ToolDiscoveryTool(self, field_weights=field_weights)
+        else:
+            discoverer = ToolDiscoveryTool(
+                self, field_weights=field_weights, min_score_ratio=min_score_ratio
+            )
 
         discovery_tool = Tool.from_function(
             discoverer.discover,
