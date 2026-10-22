@@ -42,6 +42,30 @@ Supporting utilities:
 
 - [**Parameter Models & Utilities**](helpers.md) — Parameter validation, tool name normalization, HTTP client configuration
 
+## Validation Errors
+
+Tools validate their arguments before running. The exceptions are importable from the
+package root, so a caller can map them to its own error format without touching a
+private module:
+
+```python
+from toolregistry import ErrorDetail, SchemaValidationError, ValidationError
+
+try:
+    tool.validate_parameters(arguments)
+except ValidationError as exc:
+    for detail in exc.errors:          # ErrorDetail(path, expected, actual, message)
+        print(detail.path, detail.message)
+```
+
+- `ValidationError` / `ErrorDetail` — raised by `Tool.validate_parameters()`, which
+  validates signature-derived tools against their parameter model.
+- `SchemaValidationError` / `SchemaErrorDetail` — raised when data is validated
+  against a raw JSON Schema, as proxy tools (MCP / OpenAPI / LangChain) are.
+
+Both `except` the same classes the library raises; the names are re-exports, not
+wrappers.
+
 ## Type Definitions
 
 LLM API format compatibility types:
