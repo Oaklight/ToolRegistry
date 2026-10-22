@@ -7,6 +7,12 @@ from .admin import (
     RequestMetrics,
     TokenAuth,
 )
+from .errors import (
+    ErrorDetail,
+    SchemaErrorDetail,
+    SchemaValidationError,
+    ValidationError,
+)
 from .events import (
     ChangeCallback,
     ChangeEvent,
@@ -39,6 +45,7 @@ from .tool import Tool, ToolMetadata, ToolTag
 from .tool_registry import ToolRegistry
 
 __all__ = [
+    "ErrorDetail",
     "ErrorResult",
     "ResultList",
     "ToolCallResult",
@@ -72,6 +79,9 @@ __all__ = [
     "ToolDiscoveryTool",
     "ToolTag",
     "SchemaChangeKind",
+    "SchemaErrorDetail",
+    "SchemaValidationError",
+    "ValidationError",
 ]
 
 __version__ = "0.19.0.dev1"
