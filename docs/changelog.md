@@ -16,6 +16,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-10-23
+
 ### Added
 
 - **Public validation error types** (#340): `ValidationError` / `ErrorDetail` and `SchemaValidationError` / `SchemaErrorDetail` are now importable from `toolregistry`. `Tool.validate_parameters()` raises the first pair and raw JSON Schema validation raises the second; previously both lived only behind `toolregistry._vendor`, so a downstream server could not map a validation failure to its own error format without importing a private path. The names are re-exports of the classes actually raised, pinned by identity in `tests/test_validation_errors.py`.
