@@ -3,7 +3,7 @@
 # deps = []
 # tier = "medium"
 # category = "validation"
-# note = "Install/update via: https://zerodep.readthedocs.io/en/latest/guide/cli/"
+# note = "Install/update via `zerodep add validate`"
 # ///
 
 """Zero-dependency runtime validator for TypedDict and dataclass types.

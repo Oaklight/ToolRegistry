@@ -1,0 +1,74 @@
+{
+  "generated_by": "zerodep 2026.10.23.1",
+  "lock_version": 1,
+  "modules": {
+    "httpclient": {
+      "files": {
+        "httpclient.py": "01d2af5ebd00d272f506e61e213d8997e66652498cbbe0bde947f31ceee3872e"
+      },
+      "requested": true,
+      "upstream_hash": "0ca30195bf729aea7be56c40868f254904032f3755d74d3f8044f57e234180e2",
+      "version": "0.6.1"
+    },
+    "httpserver": {
+      "files": {
+        "httpserver.py": "a70930aeebf6a01a48e4d21cef51727dd468a352ec0d6ae511a89ab1df1943b4"
+      },
+      "requested": true,
+      "upstream_hash": "cecfbef158f6acea196a55ac4ca17e20ef3ed8de7dbcf1136d11fc88a59c15a9",
+      "version": "0.6.1"
+    },
+    "jsonschema": {
+      "files": {
+        "jsonschema.py": "ab200cf7cbc29c23da6607312ed4b3472ec0cd1cb9036e656f610139b765fb56"
+      },
+      "requested": true,
+      "upstream_hash": "9b4f8684930617202004f8024e3e1e7b6e248982060e5d6caacdbf544e3ab0ab",
+      "version": "0.4.1"
+    },
+    "jsonx": {
+      "files": {
+        "jsonx.py": "bf7063d0cbbd76c3313fce47a7c31ab6a52b2017438b1492979d4e9702a7cd19"
+      },
+      "requested": true,
+      "upstream_hash": "d4b4feddd59d0e17ad9a3392583c5c9a85ea1665fcd7e89e800a2bdf9ebbb154",
+      "version": "1.0.2"
+    },
+    "sparse_search": {
+      "files": {
+        "sparse_search.py": "a26950b26e14e50574bb6288b84586f01a22acb7c96dcc0c3cdc24f18038c68c"
+      },
+      "requested": true,
+      "upstream_hash": "9da4fd5f87bd0f9c7d21c4af5ff0c52353a08ae222f39c7c7a14f316a96a6e31",
+      "version": "0.4.0"
+    },
+    "structlog": {
+      "files": {
+        "structlog.py": "6340d09bd07480fc691a61a64b323ba8d736c2c8fa5596ae3b455ac3fffc9d93"
+      },
+      "requested": true,
+      "upstream_hash": "d2616b1a69fe42b1367d413888c69dd2026c00e58c36e1e83acda77fd3633ed6",
+      "version": "0.3.0"
+    },
+    "validate": {
+      "files": {
+        "validate.py": "d1d08edb3fd7b0441ead44b8a75607a7914f984a83ec80c16d94dcf5aabe0e15"
+      },
+      "requested": true,
+      "upstream_hash": "77e8f097941779d6231dfe5466aa5ded8e6d764a5982b3c8d0a8d63a5b7e2713",
+      "version": "0.7.1"
+    },
+    "yaml": {
+      "files": {
+        "yaml.py": "f333c755dd148c1cfbe47c4c18871a020567f75d64661f433585ba77365903ce"
+      },
+      "requested": true,
+      "upstream_hash": "5fd31be65d0c15cc82ef518e7b6e9cb553f8a7722a70c1ae6f9cda0999c92344",
+      "version": "0.3.1"
+    }
+  },
+  "source": {
+    "ref": "v2026.10.23.1",
+    "repo": "Oaklight/zerodep"
+  }
+}

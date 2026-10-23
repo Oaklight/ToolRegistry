@@ -26,37 +26,79 @@ jobs:
           python-version: "3.12"
 
       - name: Install zerodep CLI
-        run: pip install 'zerodep>=2026.9.9'
+        # The lock file needs a CLI that understands it (2026.10.23.1+).
+        run: pip install 'zerodep>=2026.10.23.1'
 
-      - name: Check for outdated modules
-        id: check
+      - name: Inspect vendored modules
+        id: state
         run: |
-          output=$(zerodep outdated --json)
-          echo "$output"
-          count=$(echo "$output" | python3 -c "import sys,json; d=json.load(sys.stdin); print(sum(1 for m in d['modules'] if m['status']=='outdated'))")
-          if [ "$count" -gt 0 ]; then
-            echo "has_updates=true" >> "$GITHUB_OUTPUT"
-            modules=$(echo "$output" | python3 -c "
-          import sys, json
-          d = json.load(sys.stdin)
-          for m in d['modules']:
-              s = m['status']
-              if s == 'outdated':
-                  print(f\"- {m['name']}: {m['local_version']} -> {m['latest_version']}\")
-              elif s != 'up-to-date':
-                  print(f\"- {m['name']}: {s} (manual migration needed)\")
-          ")
-            echo "modules<<EOF" >> "$GITHUB_OUTPUT"
-            echo "$modules" >> "$GITHUB_OUTPUT"
-            echo "EOF" >> "$GITHUB_OUTPUT"
-          fi
+          zerodep status --json > "$RUNNER_TEMP/zerodep-before.json"
+          python3 - "$RUNNER_TEMP/zerodep-before.json" <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import sys
 
-      - name: Update outdated modules
-        if: steps.check.outputs.has_updates == 'true'
-        run: zerodep update --all
+          rows = json.load(open(sys.argv[1]))["modules"]
+          updatable = [r for r in rows if r["state"] in ("outdated", "missing")]
+          manual = [
+              r
+              for r in rows
+              if r["state"]
+              in ("locally-modified", "conflict", "unverified", "upstream-removed")
+          ]
+          print(f"has_updates={'true' if updatable else 'false'}")
+          lines = [
+              f"- {r['name']}: {r['installed_version']} -> "
+              f"{r['latest_version']} (`{r['state']}`)"
+              for r in updatable
+          ]
+          lines += [
+              f"- {r['name']}: `{r['state']}` — needs a human decision"
+              for r in manual
+          ]
+          print("modules<<EOF")
+          print("\n".join(lines))
+          print("EOF")
+          PY
+
+      - name: Report modules that need a human
+        if: steps.state.outputs.has_updates == 'false'
+        run: |
+          echo "::warning::No automatic update possible; see the state table below."
+          zerodep status
+
+      - name: Update modules
+        if: steps.state.outputs.has_updates == 'true'
+        # Exits 1 when it skipped a module it will not touch without --force;
+        # that is expected here, so the verification step below decides
+        # whether the update actually failed.
+        run: zerodep update --all || true
+
+      - name: Verify the update landed
+        if: steps.state.outputs.has_updates == 'true'
+        run: |
+          zerodep status --json > "$RUNNER_TEMP/zerodep-after.json"
+          python3 - "$RUNNER_TEMP/zerodep-before.json" \
+            "$RUNNER_TEMP/zerodep-after.json" <<'PY'
+          import json
+          import sys
+
+          def states(path):
+              rows = json.load(open(path))["modules"]
+              return {r["name"]: r["state"] for r in rows}
+
+          before, after = states(sys.argv[1]), states(sys.argv[2])
+          stuck = [
+              name
+              for name, state in before.items()
+              if state in ("outdated", "missing")
+              and after.get(name) != "up-to-date"
+          ]
+          if stuck:
+              raise SystemExit(f"update did not bring these modules up to date: {stuck}")
+          PY
 
       - name: Create or update Pull Request
-        if: steps.check.outputs.has_updates == 'true'
+        if: steps.state.outputs.has_updates == 'true'
         uses: peter-evans/create-pull-request@v7
         with:
           branch: zerodep-update
@@ -65,6 +107,10 @@ jobs:
           body: |
             Automated update of vendored zerodep modules.
 
-            ${{ steps.check.outputs.modules }}
+            The committed `zerodep.lock.json` records what is installed and
+            lets the next run tell an upstream change from a local edit, so a
+            patched file is never overwritten automatically.
+
+            ${{ steps.state.outputs.modules }}
           labels: dependencies,zerodep
           commit-message: "chore(deps): update vendored zerodep modules"
