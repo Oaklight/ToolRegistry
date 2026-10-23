@@ -16,6 +16,8 @@ hide:
 
 ## [未发布]
 
+## [0.19.0] - 2026-10-23
+
 ### 新增
 
 - **公开的校验错误类型**（#340）：`ValidationError` / `ErrorDetail` 与 `SchemaValidationError` / `SchemaErrorDetail` 现在可以直接从 `toolregistry` 导入。`Tool.validate_parameters()` 抛出前者，按原始 JSON Schema 校验时抛出后者；此前两者只存在于 `toolregistry._vendor` 之下，下游服务端若不导入私有路径就无法把校验失败映射成自己的错误格式。这些名字是实际抛出的类的再导出，并由 `tests/test_validation_errors.py` 以身份相等固定。
