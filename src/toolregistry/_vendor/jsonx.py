@@ -1,5 +1,5 @@
 # /// zerodep
-# version = "1.0.0"
+# version = "1.0.2"
 # deps = []
 # tier = "simple"
 # category = "serialization"
@@ -188,10 +188,18 @@ def loads(
     """Deserialize a JSONC string to a Python object.
 
     Strips ``//``, ``#``, and ``/* */`` comments and trailing commas before
-    delegating to :func:`json.loads`.
+    delegating to :func:`json.loads`. Documents that already parse as plain
+    JSON skip the preprocessing pass entirely; a custom decoder or hook opts
+    out of that fast path, so it never parses the same text twice.
+
+    Hooks (``object_hook``, ``object_pairs_hook``, ``parse_float``, …) must
+    not raise :class:`json.JSONDecodeError` to reject a document: that
+    exception is the syntax-error signal, so a hook raising it is
+    indistinguishable from a parse failure. Raise ``ValueError`` instead.
 
     Args:
-        text: JSONC source string.
+        text: JSONC source string. Only ``str`` is accepted; decode bytes
+            before calling this function.
         cls: Custom JSON decoder class.
         object_hook: Called with the result of any object literal decoded.
         parse_float: Called with every JSON float string decoded.
@@ -206,10 +214,16 @@ def loads(
     Raises:
         JSONCDecodeError: If the text is not valid JSONC.
     """
-    cleaned = _preprocess(text)
-    try:
+
+    if not isinstance(text, str):
+        raise TypeError(
+            f"loads() requires str input, not {type(text).__name__}; "
+            "decode bytes before calling it"
+        )
+
+    def _decode(s: str) -> Any:
         return json.loads(
-            cleaned,
+            s,
             cls=cls,
             object_hook=object_hook,
             parse_float=parse_float,
@@ -218,6 +232,38 @@ def loads(
             object_pairs_hook=object_pairs_hook,
             **kwargs,
         )
+
+    # Fast path: JSON is a subset of JSONC, so a document that parses as
+    # plain JSON needs no preprocessing — a successful json.loads is the
+    # same answer. Only a failed parse pays for the comment scanner.
+    #
+    # A custom decoder or a caller hook opts out: the speculative parse would
+    # otherwise invoke it on values the caller never receives, and then again
+    # on the fallback parse.  A custom decoder may also accept JSONC itself,
+    # in which case preprocessing must still run first.
+    custom_parse = (
+        cls is not None
+        or object_hook is not None
+        or object_pairs_hook is not None
+        or parse_float is not None
+        or parse_int is not None
+        or parse_constant is not None
+    )
+    if not custom_parse:
+        try:
+            return _decode(text)
+        except json.JSONDecodeError as exc:
+            cleaned = _preprocess(text)
+            if cleaned == text:
+                # Nothing JSONC to strip, so a retry would parse the same
+                # document for the same result.  Report the failure exactly
+                # as the pre-fast-path code did.
+                raise JSONCDecodeError(exc.msg, text, exc.pos) from None
+    else:
+        cleaned = _preprocess(text)
+
+    try:
+        return _decode(cleaned)
     except json.JSONDecodeError as exc:
         line, col = _remap_error_position(text, cleaned, exc.pos)
         raise JSONCDecodeError(exc.msg, text, exc.pos) from None
@@ -386,6 +432,10 @@ def loads_lines(
     matching ``ndjson``-level performance.  If that fails (comments,
     trailing commas, etc.), falls back to per-line JSONC processing.
 
+    A custom decoder or hook opts out of the batch fast-path, so the
+    callback is never invoked on a speculative parse and a hook that raises
+    :class:`json.JSONDecodeError` is not retried.
+
     Args:
         text: JSONL source string (one JSON value per line).
         **kwargs: Keyword arguments forwarded to :func:`json.loads`
@@ -401,18 +451,39 @@ def loads_lines(
     stripped = [ln for ln in lines if ln.strip()]
     if not stripped:
         return []
-    # Fast path: join non-empty lines into a JSON array, single parse.
-    # This avoids per-line Python overhead and lets the C json parser
-    # handle everything in one call.
+    # A custom decoder or hook opts out of the batch parse: the speculative
+    # attempt would invoke it on rows that parsed before the failure, and the
+    # per-line fallback would invoke it again — including a hook that raised
+    # JSONDecodeError to reject a value, whose refusal must not be retried.
+    custom_parse = any(
+        key in kwargs
+        for key in (
+            "cls",
+            "object_hook",
+            "object_pairs_hook",
+            "parse_float",
+            "parse_int",
+            "parse_constant",
+        )
+    )
     _json_loads = json.loads
-    try:
-        return _json_loads("[" + ",".join(stripped) + "]", **kwargs)
-    except json.JSONDecodeError:
-        pass
+    if not custom_parse:
+        # Fast path: join non-empty lines into a JSON array, single parse.
+        # This avoids per-line Python overhead and lets the C json parser
+        # handle everything in one call.
+        try:
+            return _json_loads("[" + ",".join(stripped) + "]", **kwargs)
+        except json.JSONDecodeError:
+            pass
     # Slow path: comments, trailing commas, or JSONC syntax present.
     results: list[Any] = []
     for line in lines:
         if _is_blank_or_comment(line):
+            continue
+        if custom_parse:
+            # ``loads`` preprocesses before parsing, so callbacks see each
+            # value exactly once even when the line is JSONC.
+            results.append(loads(line, **kwargs))
             continue
         try:
             results.append(_json_loads(line, **kwargs))
