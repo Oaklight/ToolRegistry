@@ -16,6 +16,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- **Non-finite floats are written as `null` in tool results** (#346, #347): `json.dumps` emits bare `NaN` / `Infinity`, which is not valid JSON — `JSON.parse`, Go's `encoding/json`, serde and `json.loads(parse_constant=...)` all reject it — so a tool returning a loss, score or ratio computed from an empty set produced a body a conforming client could not read. `ToolResultJSONEncoder` now projects non-finite floats to `null`, matching FastAPI's encoder and the JSON spec's recommendation. The sanitiser runs over the JSON containers and over the encoder's own projections, so a `NaN` inside a dataclass, a Pydantic model or a set is covered too; finite floats are untouched.
+
 ## [0.19.0] - 2026-10-23
 
 ### Added
