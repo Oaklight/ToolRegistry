@@ -598,3 +598,68 @@ class TestProcessModeUsesEncoder:
         assert "UnpicklableResultError" in batch.message
         assert "nat-gen" in batch.message
         assert "thread backend" in batch.message
+
+
+class TestNonFiniteFloats:
+    """NaN and Infinity are not valid JSON; they become ``null`` (#346)."""
+
+    @staticmethod
+    def _strict_loads(text: str):
+        def reject(value: str):
+            raise AssertionError(f"non-finite {value} in JSON body: {text}")
+
+        return json.loads(text, parse_constant=reject)
+
+    def test_top_level_nan(self):
+        reg = ToolRegistry()
+
+        def metric() -> float:
+            """Return a NaN metric."""
+            return float("nan")
+
+        reg.register(metric)
+        text = _invoke_result(reg, "metric")
+        assert self._strict_loads(text) is None
+
+    def test_nan_in_container(self):
+        reg = ToolRegistry()
+
+        def metrics() -> dict:
+            """Return metrics with non-finite values."""
+            return {"loss": float("nan"), "ratios": [1.0, float("inf"), float("-inf")]}
+
+        reg.register(metrics)
+        parsed = self._strict_loads(_invoke_result(reg, "metrics"))
+        assert parsed == {"loss": None, "ratios": [1.0, None, None]}
+
+    def test_nan_in_dataclass(self):
+        reg = ToolRegistry()
+
+        def hit() -> SearchResult:
+            """Return a dataclass holding a NaN score."""
+            return SearchResult("T", "u", "c", float("nan"))
+
+        reg.register(hit)
+        parsed = self._strict_loads(_invoke_result(reg, "hit"))
+        assert parsed["score"] is None
+
+    def test_nan_in_nested_dataclass_list(self):
+        reg = ToolRegistry()
+
+        def hits() -> list[SearchResult]:
+            """Return a list of dataclasses holding NaN scores."""
+            return [SearchResult("T", "u", "c", float("inf"))]
+
+        reg.register(hits)
+        assert self._strict_loads(_invoke_result(reg, "hits"))[0]["score"] is None
+
+    def test_finite_floats_unchanged(self):
+        reg = ToolRegistry()
+
+        def finite() -> dict:
+            """Return finite floats."""
+            return {"a": 0.5, "b": -0.0, "c": 1e308}
+
+        reg.register(finite)
+        parsed = self._strict_loads(_invoke_result(reg, "finite"))
+        assert parsed == {"a": 0.5, "b": -0.0, "c": 1e308}

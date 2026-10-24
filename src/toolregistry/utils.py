@@ -3,6 +3,7 @@ import dataclasses
 import fnmatch
 import hashlib
 import json
+import math
 import re
 import uuid
 import warnings
@@ -495,6 +496,22 @@ def utc_iso_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _replace_non_finite(value: Any) -> Any:
+    """Return *value* with non-finite floats replaced by ``None``.
+
+    Walks the JSON containers ``json`` traverses itself.  Set elements and
+    dataclass fields are projected by :class:`ToolResultJSONEncoder`, which
+    sanitizes its own output, so they are left untouched here.
+    """
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {key: _replace_non_finite(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_replace_non_finite(item) for item in value]
+    return value
+
+
 class ToolResultJSONEncoder(json.JSONEncoder):
     """JSON encoder for values returned by tools.
 
@@ -521,10 +538,25 @@ class ToolResultJSONEncoder(json.JSONEncoder):
     Whatever ``tolist`` returns is serialized by ``json`` normally, so a
     non-native element inside it is routed back through this encoder.
 
+    Non-finite floats (``NaN``, ``Infinity``, ``-Infinity``) are written as
+    ``null``.  ``json`` would otherwise emit the bare constants, which are
+    not valid JSON: ``JSON.parse``, Go's ``encoding/json`` and serde all
+    reject them, so a tool returning a metric computed from an empty set
+    would produce a body a conforming client cannot read.  FastAPI's
+    encoder and the JSON spec's recommendation both use ``null``.
+
     Anything else has no JSON projection and raises ``TypeError``.
     """
 
+    def iterencode(self, o: Any, _one_shot: bool = False):  # noqa: ANN401
+        """Encode *o* after replacing non-finite floats with ``null``."""
+        return super().iterencode(_replace_non_finite(o), _one_shot)
+
     def default(self, o: Any) -> Any:
+        """Project *o* to JSON-native values, sanitising non-finite floats."""
+        return _replace_non_finite(self._project(o))
+
+    def _project(self, o: Any) -> Any:
         if isinstance(o, Enum):
             return o.value
         if isinstance(o, Path):
