@@ -1,5 +1,5 @@
 # /// zerodep
-# version = "0.6.1"
+# version = "0.7.0"
 # deps = []
 # tier = "subsystem"
 # category = "network"
@@ -47,10 +47,12 @@ import re
 import signal
 import ssl
 import sys
-from collections.abc import AsyncIterator, Callable
+import uuid
+from collections.abc import AsyncIterator, Callable, Mapping
 from email.utils import formatdate
 from http.cookies import CookieError, SimpleCookie
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -64,6 +66,7 @@ __all__ = [
     "StreamingResponse",
     "FileResponse",
     "State",
+    "RejectedRequest",
     # Exceptions
     "HTTPException",
     # Utilities
@@ -504,10 +507,24 @@ class Response:
 class JSONResponse(Response):
     """Response serialized as JSON.
 
+    Non-finite floats (``NaN``, ``Infinity``) are rejected rather than
+    written: they are not valid JSON, and a server that emits them hands
+    clients a body ``JSON.parse`` and Go's ``encoding/json`` refuse. Starlette
+    makes the same choice. Pass ``allow_nan=True`` to emit Python's
+    non-standard constants anyway; an application that wants ``null`` for
+    non-finite values should sanitize the payload before building the
+    response.
+
     Args:
         data: Python object to serialize.
         status_code: HTTP status code.
         headers: Extra response headers.
+        allow_nan: Emit ``NaN`` / ``Infinity`` instead of raising
+            :class:`ValueError`. Defaults to ``False``.
+
+    Raises:
+        ValueError: If *data* contains a non-finite float and
+            *allow_nan* is ``False``.
     """
 
     def __init__(
@@ -515,8 +532,12 @@ class JSONResponse(Response):
         data: Any,
         status_code: int = 200,
         headers: dict[str, str] | None = None,
+        *,
+        allow_nan: bool = False,
     ):
-        body = _json.dumps(data, ensure_ascii=False).encode("utf-8")
+        body = _json.dumps(data, ensure_ascii=False, allow_nan=allow_nan).encode(
+            "utf-8"
+        )
         super().__init__(
             body=body,
             status_code=status_code,
@@ -836,7 +857,85 @@ def _compile_route(
     return re.compile(full_regex), param_names, param_converters
 
 
+@dataclasses.dataclass(frozen=True, slots=True)
+class RejectedRequest:
+    """A request refused while it was being read, before any dispatch.
+
+    Passed to :meth:`App.on_request_rejected` handlers.  Fields describing
+    the request are best-effort: ``None`` (or ``0``) when the failure
+    happened before that part of the request was parsed.
+
+    Attributes:
+        client_addr: Peer address as ``(host, port)``.
+        status_code: Status of the error response being sent.
+        reason: Stable token: ``"bad_request"``, ``"too_large"``,
+            ``"timeout"``, ``"incomplete_body"`` or ``"read_error"``.
+        exception: The exception that caused the rejection.
+        request_id: Value sent as ``X-Request-Id``: the client's own when
+            its headers were parsed far enough to carry one, otherwise a
+            generated id.
+        method: Request method, once the request line was parsed.
+        path: Decoded request path, once the request line was parsed.
+        headers: Read-only view of the lower-cased request headers parsed
+            so far, or ``None``
+            when the request line itself was not usable.
+        content_length: Declared ``Content-Length``, when present and valid.
+        bytes_received: Body bytes read before the failure.
+    """
+
+    client_addr: tuple[str, int]
+    status_code: int
+    reason: str
+    exception: BaseException | None
+    request_id: str
+    method: str | None = None
+    path: str | None = None
+    headers: Mapping[str, str] | None = None
+    content_length: int | None = None
+    bytes_received: int = 0
+
+
+class _ReadState:
+    """What :func:`_read_request` had parsed when it stopped."""
+
+    __slots__ = ("method", "path", "headers", "content_length", "bytes_received")
+
+    def __init__(self) -> None:
+        self.method: str | None = None
+        self.path: str | None = None
+        self.headers: dict[str, str] | None = None
+        self.content_length: int | None = None
+        self.bytes_received = 0
+
+
+# A single token of URL-safe characters: no spaces, commas or semicolons that a
+# proxy could read as separate values.
+_REQUEST_ID_RE = re.compile(r"[A-Za-z0-9._~:/+=@-]{1,128}")
+
+
+def _request_id_from(headers: dict[str, str] | None) -> str:
+    """Return the client's ``X-Request-Id`` if usable, else a generated id."""
+    candidate = (headers or {}).get("x-request-id", "").strip()
+    if _REQUEST_ID_RE.fullmatch(candidate):
+        return candidate
+    return uuid.uuid4().hex
+
+
 # ── HTTP Parsing ─────────────────────────────────────────────────────────────
+
+
+def _read_failure_reason(exc: BaseException) -> str:
+    """Stable ``RejectedRequest.reason`` token for a read-phase exception."""
+    if isinstance(exc, _BadRequest):
+        return "bad_request"
+    # _read_request only raises HTTPException for 413.
+    if isinstance(exc, HTTPException) and exc.status_code == 413:
+        return "too_large"
+    if isinstance(exc, asyncio.TimeoutError):
+        return "timeout"
+    if isinstance(exc, asyncio.IncompleteReadError):
+        return "incomplete_body"
+    return "read_error"
 
 
 def _read_error_response(exc: Exception) -> Response:
@@ -870,6 +969,7 @@ async def _read_request(
     *,
     idle_timeout: float | None = None,
     on_request_start: Callable[[], None] | None = None,
+    state: _ReadState | None = None,
 ) -> tuple[str, str, str, dict[str, str], bytes, str]:
     """Read and parse an HTTP request from a stream.
 
@@ -886,6 +986,8 @@ async def _read_request(
             treating the connection as idle the moment a request begins,
             so shutdown drains a request that is still arriving instead of
             closing it mid-upload.
+        state: Filled in as parsing progresses, so a caller can report what
+            had been read when a failure is raised.
 
     Returns:
         Tuple of (method, path, query_string, headers, body, version).
@@ -894,7 +996,8 @@ async def _read_request(
         _ClientDisconnected: If the stream ended before a request line, which
             is how a client closes a kept-alive connection.
         _IdleTimeout: If no request line arrived within *idle_timeout*.
-        _BadRequest: If the request is malformed.
+        _BadRequest: If the request is malformed, including a
+            ``Content-Length`` or chunk size that is not a valid number.
         asyncio.TimeoutError: If reading headers or the body times out.
     """
     # -- Request line --
@@ -926,9 +1029,14 @@ async def _read_request(
     parsed = urlparse(raw_url)
     path = unquote(parsed.path)
     query_string = parsed.query
+    if state is not None:
+        state.method = method.upper()
+        state.path = path
 
     # -- Headers --
     headers: dict[str, str] = {}
+    if state is not None:
+        state.headers = headers
     while True:
         line = await asyncio.wait_for(reader.readline(), timeout=timeout)
         decoded = line.decode("latin-1").rstrip("\r\n")
@@ -942,21 +1050,58 @@ async def _read_request(
     body = b""
     cl = headers.get("content-length")
     if cl is not None:
+        # 1*DIGIT only: int() would also take "1_0", "+5" and non-ASCII digits.
+        if not (cl.isascii() and cl.isdigit()):
+            raise _BadRequest(f"Invalid Content-Length: {cl!r}")
         length = int(cl)
+        if state is not None:
+            state.content_length = length
         if length > max_body_size:
             raise HTTPException(413, f"Request body too large ({length} bytes)")
         if length > 0:
-            body = await asyncio.wait_for(reader.readexactly(length), timeout=timeout)
+            body = await asyncio.wait_for(
+                _read_exact_body(reader, length, state), timeout=timeout
+            )
     elif headers.get("transfer-encoding", "").lower() == "chunked":
-        body = await _read_chunked_body(reader, timeout, max_body_size)
+        body = await _read_chunked_body(reader, timeout, max_body_size, state)
 
     return method.upper(), path, query_string, headers, body, version.upper()
+
+
+_CHUNK_SIZE_RE = re.compile(r"[0-9A-Fa-f]+")  # 1*HEXDIG, no sign or 0x prefix
+
+
+async def _read_exact_body(
+    reader: asyncio.StreamReader,
+    length: int,
+    state: _ReadState | None,
+) -> bytes:
+    """Read *length* body bytes, counting them in *state* as they arrive.
+
+    Unlike ``readexactly`` this keeps the byte count visible when the caller
+    cancels the read on a timeout.
+
+    Raises:
+        asyncio.IncompleteReadError: If the stream ends first.
+    """
+    parts: list[bytes] = []
+    remaining = length
+    while remaining:
+        chunk = await reader.read(min(remaining, 65536))
+        if not chunk:
+            raise asyncio.IncompleteReadError(b"".join(parts), length)
+        parts.append(chunk)
+        remaining -= len(chunk)
+        if state is not None:
+            state.bytes_received += len(chunk)
+    return b"".join(parts)
 
 
 async def _read_chunked_body(
     reader: asyncio.StreamReader,
     timeout: float,
     max_body_size: int,
+    state: _ReadState | None = None,
 ) -> bytes:
     """Read a chunked transfer-encoded body."""
     parts: list[bytes] = []
@@ -966,6 +1111,8 @@ async def _read_chunked_body(
         size_str = size_line.decode("latin-1").split(";")[0].strip()
         if not size_str:
             break
+        if not _CHUNK_SIZE_RE.fullmatch(size_str):
+            raise _BadRequest(f"Invalid chunk size: {size_str!r}")
         chunk_size = int(size_str, 16)
         if chunk_size == 0:
             await asyncio.wait_for(reader.readline(), timeout=timeout)
@@ -976,6 +1123,8 @@ async def _read_chunked_body(
         data = await asyncio.wait_for(reader.readexactly(chunk_size), timeout=timeout)
         await asyncio.wait_for(reader.readline(), timeout=timeout)
         parts.append(data)
+        if state is not None:
+            state.bytes_received = total
     return b"".join(parts)
 
 
@@ -1154,6 +1303,7 @@ class App:
         self._on_response_started_handlers: list[Callable[..., Any]] = []
         self._on_response_completed_handlers: list[Callable[..., Any]] = []
         self._on_client_disconnect_handlers: list[Callable[..., Any]] = []
+        self._on_request_rejected_handlers: list[Callable[..., Any]] = []
         self._error_handlers: dict[int | type, Callable[..., Any]] = {}
         self._server: asyncio.Server | None = None
         self._shutdown_event: asyncio.Event | None = None
@@ -1392,6 +1542,36 @@ class App:
         self._on_client_disconnect_handlers.append(handler)
         return handler
 
+    def on_request_rejected(self, handler: Callable[..., Any]) -> Callable[..., Any]:
+        """Register a request-rejected signal.
+
+        Fired when a request is refused while it is being read, before a
+        :class:`Request` exists, so none of the other lifecycle hooks see
+        it: malformed request line, ``Content-Length`` or chunk size (``400``), a body over
+        ``max_body_size`` (``413``), a read timeout (``408``), a body
+        shorter than ``Content-Length`` (``400``) and any other read error
+        (``500``).  A keep-alive connection that goes idle or closes
+        between requests is not a rejection.
+
+        The handler receives one :class:`RejectedRequest` and its return
+        value is ignored.  Both sync and async callables are supported.
+        Exceptions are logged and suppressed.  Handlers run sequentially,
+        just before the error response is written.
+
+        Example::
+
+            @app.on_request_rejected
+            async def record(rejection):
+                logger.warning(
+                    "rejected %s (%s) id=%s",
+                    rejection.status_code,
+                    rejection.reason,
+                    rejection.request_id,
+                )
+        """
+        self._on_request_rejected_handlers.append(handler)
+        return handler
+
     async def _fire_signal(
         self, name: str, handlers: list[Callable[..., Any]], *args: Any
     ) -> None:
@@ -1446,23 +1626,58 @@ class App:
             )
             return await self._handle_error(request, exc)
 
+    async def _run_before_hooks(
+        self, request: Request
+    ) -> Response | StreamingResponse | None:
+        """Run before-request hooks; a failing hook becomes an error response.
+
+        A hook returns a response to short-circuit routing.  Its body is
+        serialized here, outside the per-handler ``try`` that guards route
+        handlers, so without the catch a hook that returns an unserializable
+        body would drop the connection instead of answering.
+        """
+        for hook in self._before_request_handlers:
+            try:
+                result = await _invoke(hook, request)
+                if result is not None:
+                    return _coerce_response(result)
+            except HTTPException as exc:
+                return await self._handle_error(request, exc)
+            except Exception as exc:
+                logger.exception(
+                    "Unhandled exception in before_request hook %s",
+                    getattr(hook, "__name__", repr(hook)),
+                )
+                return await self._handle_error(request, exc)
+        return None
+
     async def _run_after_hooks(
         self, request: Request, response: Response | StreamingResponse
     ) -> Response | StreamingResponse:
         """Run after-request hooks, allowing them to replace the response."""
         for hook in self._after_request_handlers:
-            hook_result = await _invoke(hook, request, response)
-            if hook_result is not None:
-                response = _coerce_response(hook_result)
+            try:
+                hook_result = await _invoke(hook, request, response)
+                if hook_result is not None:
+                    response = _coerce_response(hook_result)
+            except HTTPException as exc:
+                return await self._handle_error(request, exc)
+            except Exception as exc:
+                # Same reason as _run_before_hooks: this runs outside the
+                # handler's guard, where an exception costs the response.
+                logger.exception(
+                    "Unhandled exception in after_request hook %s",
+                    getattr(hook, "__name__", repr(hook)),
+                )
+                return await self._handle_error(request, exc)
         return response
 
     async def _dispatch(self, request: Request) -> Response | StreamingResponse:
         """Match a request to a route and invoke the handler."""
         # -- before_request hooks --
-        for hook in self._before_request_handlers:
-            result = await _invoke(hook, request)
-            if result is not None:
-                return _coerce_response(result)
+        short_circuit = await self._run_before_hooks(request)
+        if short_circuit is not None:
+            return short_circuit
 
         # -- Static file check --
         for prefix, directory in self._static_routes:
@@ -1497,6 +1712,22 @@ class App:
         exc = HTTPException(404, "Not Found")
         return await self._handle_error(request, exc)
 
+    async def _run_error_handler(
+        self, request: Request, handler: Any, exc: Exception
+    ) -> Response | StreamingResponse | None:
+        """Render an error through a registered handler.
+
+        Returns ``None`` when the handler itself fails, so the caller falls
+        back to the default response: a broken error page must not cost the
+        client its response.
+        """
+        try:
+            result = await _invoke(handler, request, exc)
+            return _coerce_response(result)
+        except Exception:
+            logger.exception("Error handler %s failed while handling %s", handler, exc)
+            return None
+
     async def _handle_error(
         self, request: Request, exc: Exception
     ) -> Response | StreamingResponse:
@@ -1504,13 +1735,15 @@ class App:
         if isinstance(exc, HTTPException):
             handler = self._error_handlers.get(exc.status_code)
             if handler is not None:
-                result = await _invoke(handler, request, exc)
-                return _coerce_response(result)
+                response = await self._run_error_handler(request, handler, exc)
+                if response is not None:
+                    return response
 
         for exc_cls, handler in self._error_handlers.items():
             if isinstance(exc_cls, type) and isinstance(exc, exc_cls):
-                result = await _invoke(handler, request, exc)
-                return _coerce_response(result)
+                response = await self._run_error_handler(request, handler, exc)
+                if response is not None:
+                    return response
 
         if isinstance(exc, HTTPException):
             return JSONResponse(
@@ -1573,6 +1806,7 @@ class App:
                 # in it leaves the set (``on_request_start``), so a body
                 # that is still uploading is drained, not cut off.
                 self._idle_connections.add(writer)
+                read_state = _ReadState()
                 try:
                     request_parts = await _read_request(
                         reader,
@@ -1580,11 +1814,12 @@ class App:
                         self.max_body_size,
                         idle_timeout=idle_timeout,
                         on_request_start=lambda: self._idle_connections.discard(writer),
+                        state=read_state,
                     )
                 except _ClientDisconnected:
                     break
                 except Exception as exc:
-                    await self._reject_read(exc, writer, client_addr)
+                    await self._reject_read(exc, writer, client_addr, read_state)
                     break
                 finally:
                     self._idle_connections.discard(writer)
@@ -1622,6 +1857,7 @@ class App:
         exc: Exception,
         writer: asyncio.StreamWriter,
         client_addr: tuple,
+        state: _ReadState | None = None,
     ) -> None:
         """Answer a failed request read, or close quietly on an idle timeout.
 
@@ -1630,23 +1866,64 @@ class App:
         response. A timeout after the request line means the client started a
         request and did not finish it, which gets a ``408``.
 
+        Every response sent here carries an ``X-Request-Id`` and is reported
+        to :meth:`on_request_rejected` handlers first.
+
         Args:
             exc: The exception raised while reading the request.
             writer: The client connection.
             client_addr: Client address for logging.
+            state: What the read had parsed when it failed.
         """
         if isinstance(exc, _IdleTimeout):
             logger.debug("Keep-alive idle timeout from %s", client_addr)
             return
-        if isinstance(exc, asyncio.TimeoutError):
-            logger.debug("Request read timed out from %s", client_addr)
-        elif isinstance(exc, _BadRequest):
-            logger.debug("Bad request from %s: %s", client_addr, exc)
-        elif not isinstance(exc, (HTTPException, asyncio.IncompleteReadError)):
-            logger.debug("Failed to read request from %s", client_addr, exc_info=True)
-        elif isinstance(exc, asyncio.IncompleteReadError):
-            logger.debug("Incomplete request body from %s", client_addr)
-        await self._send_error_and_close(writer, _read_error_response(exc))
+        state = state or _ReadState()
+        response = _read_error_response(exc)
+        reason = _read_failure_reason(exc)
+        request_id = _request_id_from(state.headers)
+        response.headers["X-Request-Id"] = request_id
+
+        bytes_received = state.bytes_received
+        if isinstance(exc, asyncio.IncompleteReadError):
+            bytes_received = len(exc.partial)
+        if reason == "read_error":
+            logger.warning(
+                "Failed to read request from %s (id=%s)",
+                client_addr,
+                request_id,
+                exc_info=exc,
+            )
+        else:
+            logger.warning(
+                "Rejected request from %s: %s, status %d (id=%s)",
+                client_addr,
+                reason,
+                response.status_code,
+                request_id,
+            )
+
+        await self._fire_signal(
+            "on_request_rejected",
+            self._on_request_rejected_handlers,
+            RejectedRequest(
+                client_addr=(client_addr[0], client_addr[1]),
+                status_code=response.status_code,
+                reason=reason,
+                exception=exc,
+                request_id=request_id,
+                method=state.method,
+                path=state.path,
+                headers=(
+                    None
+                    if state.headers is None
+                    else MappingProxyType(dict(state.headers))
+                ),
+                content_length=state.content_length,
+                bytes_received=bytes_received,
+            ),
+        )
+        await self._send_error_and_close(writer, response)
 
     @staticmethod
     def _connection_tokens(headers: dict[str, str]) -> set[str]:

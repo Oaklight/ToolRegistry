@@ -1,5 +1,5 @@
 # /// zerodep
-# version = "0.6.1"
+# version = "0.6.2"
 # deps = []
 # tier = "subsystem"
 # category = "network"
@@ -3080,7 +3080,16 @@ def _prepare_body(
         (body_bytes, content_type) tuple.
     """
     if json is not None:
-        return _json.dumps(json, ensure_ascii=False).encode("utf-8"), "application/json"
+        try:
+            # allow_nan=False: NaN/Infinity are not valid JSON, so refuse to
+            # put them on the wire (requests raises InvalidJSONError here).
+            payload = _json.dumps(json, ensure_ascii=False, allow_nan=False)
+        except ValueError as exc:
+            raise ValueError(
+                f"JSON request body is not valid JSON: {exc}. Non-finite floats "
+                "(NaN, Infinity) cannot be transmitted; send null instead."
+            ) from exc
+        return payload.encode("utf-8"), "application/json"
     if files is not None:
         form_data = data if isinstance(data, dict) else None
         return _encode_multipart(form_data, files)
