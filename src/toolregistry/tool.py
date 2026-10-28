@@ -734,6 +734,7 @@ class Tool:
             func_name,
             tool.parameters,
             getattr(parameters_model, "_parameter_annotations", {}),
+            getattr(parameters_model, "_degraded_parameter_names", set()),
         )
 
         if namespace:

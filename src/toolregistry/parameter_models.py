@@ -243,8 +243,19 @@ def _field_def_for_parameter(
     param: inspect.Parameter,
     globalns: dict[str, Any],
     resolved_hints: dict[str, Any],
+    degraded: set[str] | None = None,
 ) -> tuple[Any, Any]:
-    """Create a schema-safe field definition for one parameter."""
+    """Create a schema-safe field definition for one parameter.
+
+    Args:
+        func: Function being inspected.
+        param: The parameter.
+        globalns: The function's globals, for annotation resolution.
+        resolved_hints: Resolved type hints for the function.
+        degraded: Optional set that receives the names of parameters whose
+            annotation already produced a fallback warning, so the later
+            untyped-schema diagnostic does not repeat the symptom.
+    """
     if param.annotation is inspect.Parameter.empty:
         field_def = _create_field(param, Any)
     elif param.annotation is None:
@@ -260,6 +271,8 @@ def _field_def_for_parameter(
             field_def = _create_field(param, annotation)
         except Exception as e:
             _warn_parameter_fallback(func, param.name, e)
+            if degraded is not None:
+                degraded.add(param.name)
             field_def = _create_field(param, Any)
 
     if _is_json_schema_compatible(param.name, field_def):
@@ -270,6 +283,8 @@ def _field_def_for_parameter(
         param.name,
         InvalidSignature(f"unsupported annotation {param.annotation!r}"),
     )
+    if degraded is not None:
+        degraded.add(param.name)
     return _create_field(param, Any)
 
 
@@ -495,6 +510,7 @@ def _generate_parameters_model(func: Callable) -> type | None:
 
     field_definitions: dict[str, tuple[Any, Any]] = {}
     annotations: dict[str, Any] = {}
+    degraded: set[str] = set()
     has_var_keyword = False
     for param in signature.parameters.values():
         if param.name == "self":
@@ -511,6 +527,7 @@ def _generate_parameters_model(func: Callable) -> type | None:
             param,
             globalns,
             resolved_hints,
+            degraded=degraded,
         )
 
     model = _create_parameters_model(
@@ -521,6 +538,7 @@ def _generate_parameters_model(func: Callable) -> type | None:
         # flattened, the original annotation is the only way to tell a
         # deliberate ``Any`` from a degraded bare container.
         model._parameter_annotations = annotations  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+        model._degraded_parameter_names = degraded  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     return model
 
 
@@ -556,6 +574,7 @@ def warn_untyped_parameters(
     func_name: str,
     parameters_schema: dict[str, Any],
     annotations: dict[str, Any],
+    already_warned: set[str] | None = None,
 ) -> None:
     """Warn when a parameter renders without a type in the JSON Schema.
 
@@ -569,12 +588,16 @@ def warn_untyped_parameters(
         func_name: Name used in the warning message.
         parameters_schema: The final ``Tool.parameters`` schema.
         annotations: Original resolved annotations, keyed by parameter name.
+        already_warned: Parameters whose annotation already produced a
+            specific fallback warning; the generic diagnostic is skipped for
+            them so one mistake does not produce two warnings.
     """
     properties = parameters_schema.get("properties")
     if not isinstance(properties, dict):
         return
+    skip = already_warned or set()
     for name, prop in properties.items():
-        if name not in annotations:
+        if name not in annotations or name in skip:
             continue
         annotation = annotations[name]
         if _is_any_like(annotation):
@@ -592,5 +615,5 @@ def warn_untyped_parameters(
                 "valid value. Annotate the element type (for example "
                 "list[float] instead of list).",
                 UserWarning,
-                stacklevel=2,
+                stacklevel=3,
             )
