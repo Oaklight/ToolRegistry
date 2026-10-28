@@ -1,5 +1,9 @@
 """Tests for schema fingerprint and staleness timestamp on ToolMetadata."""
 
+import dataclasses
+
+import pytest
+
 from toolregistry import Tool, ToolMetadata, ToolRegistry
 from toolregistry.utils import compute_schema_hash
 
@@ -107,16 +111,30 @@ class TestToolSchemaHash:
         t2 = Tool.from_function(greet)
         assert t1.metadata.schema_hash != t2.metadata.schema_hash
 
-    def test_pre_set_hash_not_overwritten(self):
+    def test_pre_set_hash_kept_but_mismatch_warns(self):
         meta = ToolMetadata(schema_hash="custom_hash")
-        tool = Tool(
+        with pytest.warns(UserWarning, match="does not describe"):
+            tool = Tool(
+                name="test",
+                description="test tool",
+                parameters={"type": "object", "properties": {}},
+                callable=lambda: None,
+                metadata=meta,
+            )
+        assert tool.metadata.schema_hash == "custom_hash"
+
+    def test_matching_pre_set_hash_does_not_warn(self, recwarn):
+        parameters = {"type": "object", "properties": {"x": {"type": "integer"}}}
+        normalized = Tool._normalize_parameters(dict(parameters))
+        meta = ToolMetadata(schema_hash=compute_schema_hash(normalized))
+        Tool(
             name="test",
             description="test tool",
-            parameters={"type": "object", "properties": {}},
+            parameters=parameters,
             callable=lambda: None,
             metadata=meta,
         )
-        assert tool.metadata.schema_hash == "custom_hash"
+        assert not [w for w in recwarn if issubclass(w.category, UserWarning)]
 
 
 # ---- Registry registration populates hash ----
@@ -225,3 +243,52 @@ class TestRefreshPathIntegration:
         new_hash = registry.get_tool("greet").metadata.schema_hash
         assert new_hash != old_hash
         assert registry.get_tool("greet").metadata.last_refreshed_at != ""
+
+
+class TestWithParameters:
+    """Replacing a schema goes through a path that recomputes the hash."""
+
+    @staticmethod
+    def _tool():
+        def f(x: int = 0) -> int:
+            return x
+
+        return Tool.from_function(f)
+
+    def test_recomputes_hash(self):
+        tool = self._tool()
+        new_parameters = {
+            "type": "object",
+            "properties": {"x": {"type": "number"}},
+        }
+        updated = tool.with_parameters(new_parameters)
+        assert updated.metadata.schema_hash == compute_schema_hash(updated.parameters)
+        assert updated.metadata.schema_hash != tool.metadata.schema_hash
+        assert updated.name == tool.name
+        assert updated.description == tool.description
+
+    def test_dataclasses_replace_warns_when_hash_goes_stale(self):
+        tool = self._tool()
+        new_parameters = {
+            "type": "object",
+            "properties": {"x": {"type": "number"}},
+        }
+        with pytest.warns(UserWarning, match="does not describe"):
+            replaced = dataclasses.replace(tool, parameters=new_parameters)
+        # The old value is preserved, but the disagreement is no longer silent.
+        assert replaced.metadata.schema_hash == tool.metadata.schema_hash
+
+    def test_drops_parameters_model_by_default(self):
+        tool = self._tool()
+        updated = tool.with_parameters(
+            {"type": "object", "properties": {"x": {"type": "number"}}}
+        )
+        assert updated.parameters_model is None
+
+    def test_can_keep_parameters_model(self):
+        tool = self._tool()
+        updated = tool.with_parameters(
+            {"type": "object", "properties": {"x": {"type": "number"}}},
+            parameters_model=tool.parameters_model,
+        )
+        assert updated.parameters_model is tool.parameters_model

@@ -154,8 +154,10 @@ class ToolMetadata:
     comparison, and lets consumers detect schema changes without
     inspecting the full schema.
 
-    If set before ``Tool.__init__`` runs, the value is trusted and
-    not recomputed.
+    If set before ``Tool.__init__`` runs, the value is trusted and kept,
+    but a value that disagrees with the normalized parameters emits a
+    ``UserWarning``: it does not describe the schema on this tool.  Prefer
+    :meth:`Tool.with_parameters` when replacing a schema.
     """
 
     last_refreshed_at: str = ""
@@ -510,9 +512,16 @@ class Tool:
         object.__setattr__(self, "parameters_model", parameters_model)
         object.__setattr__(self, "namespace", namespace)
         object.__setattr__(self, "method_name", method_name)
+        computed_hash = compute_schema_hash(self.parameters)
         if not metadata.schema_hash:
-            metadata = dataclasses.replace(
-                metadata, schema_hash=compute_schema_hash(self.parameters)
+            metadata = dataclasses.replace(metadata, schema_hash=computed_hash)
+        elif metadata.schema_hash != computed_hash:
+            warnings.warn(
+                f"schema_hash for tool '{name}' does not describe its "
+                "parameters after normalization. The supplied value was kept; "
+                "use Tool.with_parameters() when replacing a schema.",
+                UserWarning,
+                stacklevel=2,
             )
         object.__setattr__(self, "metadata", metadata)
 
@@ -944,6 +953,40 @@ class Tool:
         return dataclasses.replace(
             self,
             metadata=dataclasses.replace(self.metadata, last_refreshed_at=timestamp),
+        )
+
+    def with_parameters(
+        self: _ToolT,
+        parameters: dict[str, Any],
+        *,
+        parameters_model: Any | None = None,
+    ) -> _ToolT:
+        """Return a copy with a new parameter schema and a recomputed hash.
+
+        ``dataclasses.replace(tool, parameters=...)`` reuses the existing
+        metadata, so the fingerprint would keep describing the old schema.
+        This is the supported replacement path.
+
+        Args:
+            parameters: New JSON Schema, normally ``{"type": "object",
+                "properties": {...}}``.
+            parameters_model: Validation type for the new parameters.  The
+                default ``None`` drops native validation, because the old
+                model describes the old schema.  Pass
+                ``self.parameters_model`` when the new schema is equivalent.
+
+        Returns:
+            A copy of the tool with the new schema and its hash.
+        """
+        normalized = self._normalize_parameters(copy.deepcopy(parameters))
+        metadata = dataclasses.replace(
+            self.metadata, schema_hash=compute_schema_hash(normalized)
+        )
+        return dataclasses.replace(
+            self,
+            parameters=normalized,
+            parameters_model=parameters_model,
+            metadata=metadata,
         )
 
     def requalify(
