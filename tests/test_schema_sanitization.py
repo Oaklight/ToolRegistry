@@ -516,3 +516,87 @@ class TestBareContainersAndDuplicateBranches:
         messages = [str(w.message) for w in caught]
         assert any("cannot be represented" in message for message in messages)
         assert not any("renders without a type" in message for message in messages)
+
+
+class TestNullabilityFollowsTheTool:
+    """A published null branch is removed only where the tool cannot use it.
+
+    A required parameter has no default, so its ``None`` branch is a real
+    value the tool accepts; the same holds for array items and mapping
+    values, where no ``required`` rule applies (#354 review).
+    """
+
+    def test_required_nullable_keeps_its_null_branch(self):
+        def f(x: str | None) -> None: ...
+
+        tool = Tool.from_function(f)
+        prop = tool.parameters["properties"]["x"]
+        types = {branch.get("type") for branch in prop.get("anyOf", [])}
+        assert "null" in types or prop.get("type") == ["string", "null"]
+        assert tool.validate_parameters({"x": None})["x"] is None
+
+    def test_optional_nullable_still_collapses(self):
+        def f(x: str | None = None) -> None: ...
+
+        prop = Tool.from_function(f).parameters["properties"]["x"]
+        assert prop.get("type") == "string"
+        assert "anyOf" not in prop
+
+    def test_required_duplicate_branches_are_still_dropped(self):
+        from toolregistry.parameter_models import _simplify_nullable_schemas
+
+        schema = {
+            "type": "object",
+            "properties": {
+                "x": {
+                    "anyOf": [
+                        {"type": "array"},
+                        {"type": "array"},
+                        {"type": "null"},
+                    ]
+                }
+            },
+            "required": ["x"],
+        }
+        # Removing nulls is suppressed for a required property, deduplication
+        # is not.
+        result = _simplify_nullable_schemas(schema)
+        assert result["properties"]["x"]["anyOf"] == [
+            {"type": "array"},
+            {"type": "null"},
+        ]
+
+    def test_nullable_array_items_keep_the_null_branch(self):
+        def f(x: list[str | None]) -> None: ...
+
+        items = Tool.from_function(f).parameters["properties"]["x"]["items"]
+        types = {branch.get("type") for branch in items.get("anyOf", [])}
+        assert "null" in types or items.get("type") == ["string", "null"]
+
+    def test_nullable_mapping_values_keep_the_null_branch(self):
+        def f(x: dict[str, str | None]) -> None: ...
+
+        value_schema = Tool.from_function(f).parameters["properties"]["x"][
+            "additionalProperties"
+        ]
+        types = {branch.get("type") for branch in value_schema.get("anyOf", [])}
+        assert "null" in types or value_schema.get("type") == ["string", "null"]
+
+    def test_optional_property_of_a_nested_object_still_collapses(self):
+        raw = {
+            "type": "object",
+            "properties": {
+                "config": {
+                    "type": "object",
+                    "properties": {
+                        "retries": {
+                            "anyOf": [{"type": "integer"}, {"type": "null"}],
+                            "default": 3,
+                        }
+                    },
+                }
+            },
+        }
+        tool = Tool(name="t", description="t", parameters=raw, callable=lambda **k: k)
+        retries = tool.parameters["properties"]["config"]["properties"]["retries"]
+        assert retries.get("type") == "integer"
