@@ -595,7 +595,9 @@ class ToolResultJSONEncoder(json.JSONEncoder):
             return o.value
         if isinstance(o, Path):
             return str(o)
-        if isinstance(o, (Decimal, uuid.UUID)):
+        if isinstance(o, Decimal):
+            return None if not o.is_finite() else str(o)
+        if isinstance(o, uuid.UUID):
             return str(o)
         if isinstance(o, (datetime, date, time)):
             return o.isoformat()
@@ -661,6 +663,9 @@ def encode_tool_result(result: Any, *, tool_name: str = "") -> str:
         return json.dumps(result.value, cls=ToolResultJSONEncoder)
     if isinstance(result, str):
         return result
+    if isinstance(result, Decimal) and not result.is_finite():
+        # str(Decimal("NaN")) is the bare NaN, which is not valid JSON.
+        return "null"
     if isinstance(result, _STR_LIKE_SCALARS) and not isinstance(result, datetime):
         return str(result)
     try:
