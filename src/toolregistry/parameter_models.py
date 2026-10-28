@@ -1,4 +1,5 @@
 import inspect
+import json
 import types
 import typing
 import warnings
@@ -177,19 +178,46 @@ def _translate_annotated_metadata(annotation: Any) -> Any:
     return base
 
 
-def _normalize_bare_tuple(annotation: Any) -> Any:
-    """Represent a bare ``tuple`` as a variable-length JSON array.
+#: Bare containers and the parametrized form that renders as a typed node.
+#:
+#: A bare container has no element type, so the schema backend renders it as
+#: an unconstrained ``{}``.  Inside a union that branch either disappears
+#: (``T | None`` collapses to nothing) or matches every value, which makes the
+#: whole ``anyOf`` vacuous.  The ``typing`` aliases (``typing.List`` and
+#: friends) have the same problem when their ``__args__`` are empty.
+_BARE_CONTAINERS: dict[Any, Any] = {
+    list: list[Any],
+    dict: dict[Any, Any],
+    set: set[Any],
+    frozenset: frozenset[Any],
+    tuple: tuple[Any, ...],
+}
 
-    The schema backend renders bare ``tuple`` as an unconstrained ``{}``, while
-    ``tuple[Any, ...]`` correctly renders as an array. Normalize it recursively
-    so tuple branches inside unions retain their container type.
+
+def _normalize_bare_containers(annotation: Any) -> Any:
+    """Parameterize containers that were annotated without arguments.
+
+    Only annotations that name a container with no element type are rewritten;
+    parameterized forms are returned untouched.  The rewrite recurses through
+    unions, so a bare container branch keeps its container identity next to
+    the other branches of ``X | Y``.
+
+    Args:
+        annotation: A resolved type annotation.
+
+    Returns:
+        The annotation with bare containers parameterized by ``Any``.
     """
-    if annotation is tuple:
-        return tuple[Any, ...]
+    replacement = _BARE_CONTAINERS.get(annotation)
+    if replacement is not None:
+        return replacement
 
     origin = typing.get_origin(annotation)
+    if origin in _BARE_CONTAINERS and not typing.get_args(annotation):
+        return _BARE_CONTAINERS[origin]
+
     if origin in (Union, types.UnionType):
-        args = tuple(_normalize_bare_tuple(a) for a in typing.get_args(annotation))
+        args = tuple(_normalize_bare_containers(a) for a in typing.get_args(annotation))
         return Union[args]  # type: ignore[valid-type]
     return annotation
 
@@ -226,7 +254,7 @@ def _field_def_for_parameter(
             annotation = resolved_hints.get(param.name)
             if annotation is None:
                 annotation = _get_typed_annotation(param.annotation, globalns)
-            annotation = _normalize_bare_tuple(annotation)
+            annotation = _normalize_bare_containers(annotation)
             annotation = _resolve_enum(annotation)
             annotation = _translate_annotated_metadata(annotation)
             field_def = _create_field(param, annotation)
@@ -295,12 +323,115 @@ def _normalize_union_keywords(schema: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-def _simplify_nullable_schemas(schema: dict[str, Any]) -> dict[str, Any]:
-    """Collapse nullable schema patterns into simpler forms.
+#: Schema keys whose value maps a name to a nested schema.
+_SCHEMA_MAP_KEYS: tuple[str, ...] = (
+    "properties",
+    "patternProperties",
+    "dependentSchemas",
+    "$defs",
+    "definitions",
+)
 
-    Handles two patterns:
-    - Pydantic v2: ``anyOf: [{type: T}, {type: null}]`` → ``type: T``
-    - zerodep:     ``type: [T, "null"]`` → ``type: T``
+#: Schema keys whose value is a nested schema or a list of them.
+_SCHEMA_CHILD_KEYS: tuple[str, ...] = (
+    "items",
+    "additionalProperties",
+    "additionalItems",
+    "contains",
+    "not",
+    "if",
+    "then",
+    "else",
+    "propertyNames",
+    "prefixItems",
+    "anyOf",
+    "oneOf",
+    "allOf",
+)
+
+
+def _canonical_schema_key(schema: Any) -> str:
+    """Return a stable key used to recognize duplicate union branches."""
+    return json.dumps(schema, sort_keys=True, separators=(",", ":"), default=str)
+
+
+def _simplify_nested_schemas(schema: dict[str, Any]) -> None:
+    """Apply the nullable/duplicate cleanup to every nested schema in *schema*."""
+    for key in _SCHEMA_MAP_KEYS:
+        value = schema.get(key)
+        if isinstance(value, dict):
+            for sub in value.values():
+                if isinstance(sub, dict):
+                    _simplify_nullable_schemas(sub)
+    for key in _SCHEMA_CHILD_KEYS:
+        value = schema.get(key)
+        if isinstance(value, dict):
+            _simplify_nullable_schemas(value)
+        elif isinstance(value, list):
+            _simplify_schema_list(value)
+
+
+def _simplify_schema_list(schemas: list[Any]) -> None:
+    """Apply the cleanup to each schema object in a list."""
+    for sub in schemas:
+        if isinstance(sub, dict):
+            _simplify_nullable_schemas(sub)
+
+
+def _simplify_union_branches(schema: dict[str, Any], keyword: str) -> None:
+    """Drop null and duplicate branches from one union keyword in place."""
+    variants = schema.get(keyword)
+    if not isinstance(variants, list):
+        return
+
+    kept: list[Any] = []
+    seen: set[str] = set()
+    for variant in variants:
+        if variant == {"type": "null"}:
+            continue
+        key = _canonical_schema_key(variant)
+        if key in seen:
+            continue
+        seen.add(key)
+        kept.append(variant)
+
+    if kept == variants:
+        return
+    if not kept:
+        # A union of only ``null`` is degenerate; keep the original rather
+        # than deleting the only branch.
+        return
+    if len(kept) == 1:
+        del schema[keyword]
+        schema.update(kept[0])
+    else:
+        schema[keyword] = kept
+
+
+def _simplify_type_array(schema: dict[str, Any]) -> None:
+    """Remove ``"null"`` from a zerodep-style ``type: [T, "null"]`` list."""
+    type_val = schema.get("type")
+    if not isinstance(type_val, list) or "null" not in type_val:
+        return
+    non_null_types = [t for t in type_val if t != "null"]
+    if len(non_null_types) == 1:
+        schema["type"] = non_null_types[0]
+    elif non_null_types:
+        schema["type"] = non_null_types
+
+
+def _simplify_nullable_schemas(schema: dict[str, Any]) -> dict[str, Any]:
+    """Remove null alternatives and duplicate union branches, recursively.
+
+    Optional parameters are already represented by ``required`` and their
+    default, so an explicit ``{"type": "null"}`` branch adds nothing.
+    Duplicate branches are dropped as well: ``tuple`` and ``list[Any]`` both
+    render as an untyped array, and keeping both inflates the payload without
+    adding a distinguishable alternative.
+
+    Unlike the previous top-level-only pass, this traverses nested schemas
+    (array items, nested objects, ``$defs``) so a union behaves the same
+    wherever it appears.
 
     This function mutates *schema* in place and returns it.
 
@@ -308,33 +439,12 @@ def _simplify_nullable_schemas(schema: dict[str, Any]) -> dict[str, Any]:
         schema: A JSON Schema dict.
 
     Returns:
-        The same dict with nullable patterns simplified.
+        The same dict with null alternatives and duplicate branches removed.
     """
-    props = schema.get("properties")
-    if not props:
-        return schema
-
-    for prop_schema in props.values():
-        # Handle anyOf pattern (Pydantic v2 style)
-        any_of = prop_schema.get("anyOf")
-        if any_of and isinstance(any_of, list):
-            non_null = [v for v in any_of if v != {"type": "null"}]
-            if len(non_null) < len(any_of):
-                if len(non_null) == 1:
-                    del prop_schema["anyOf"]
-                    prop_schema.update(non_null[0])
-                else:
-                    prop_schema["anyOf"] = non_null
-
-        # Handle type-array pattern (zerodep style): type: ["string", "null"]
-        type_val = prop_schema.get("type")
-        if isinstance(type_val, list) and "null" in type_val:
-            non_null_types = [t for t in type_val if t != "null"]
-            if len(non_null_types) == 1:
-                prop_schema["type"] = non_null_types[0]
-            elif len(non_null_types) > 1:
-                prop_schema["type"] = non_null_types
-
+    _simplify_nested_schemas(schema)
+    for keyword in ("anyOf", "oneOf"):
+        _simplify_union_branches(schema, keyword)
+    _simplify_type_array(schema)
     return schema
 
 
@@ -384,6 +494,7 @@ def _generate_parameters_model(func: Callable) -> type | None:
         resolved_hints = {}
 
     field_definitions: dict[str, tuple[Any, Any]] = {}
+    annotations: dict[str, Any] = {}
     has_var_keyword = False
     for param in signature.parameters.values():
         if param.name == "self":
@@ -394,6 +505,7 @@ def _generate_parameters_model(func: Callable) -> type | None:
         if param.kind == inspect.Parameter.VAR_KEYWORD:
             has_var_keyword = True
             continue
+        annotations[param.name] = resolved_hints.get(param.name, param.annotation)
         field_definitions[param.name] = _field_def_for_parameter(
             func,
             param,
@@ -401,6 +513,84 @@ def _generate_parameters_model(func: Callable) -> type | None:
             resolved_hints,
         )
 
-    return _create_parameters_model(
+    model = _create_parameters_model(
         func, field_definitions, has_var_keyword=has_var_keyword
     )
+    if model is not None:
+        # Kept for the post-normalization diagnostic: once the schema has been
+        # flattened, the original annotation is the only way to tell a
+        # deliberate ``Any`` from a degraded bare container.
+        model._parameter_annotations = annotations  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    return model
+
+
+#: Keys that make a schema node typed or explicitly unconstrained.
+_TYPED_SCHEMA_KEYS: frozenset[str] = frozenset(
+    {"type", "$ref", "enum", "const", "anyOf", "oneOf", "allOf", "not"}
+)
+
+
+def _is_untyped_schema(node: Any) -> bool:
+    """Return True when *node* carries no type information at all."""
+    if not isinstance(node, dict):
+        return False
+    return not (node.keys() & _TYPED_SCHEMA_KEYS)
+
+
+def _is_any_like(annotation: Any) -> bool:
+    """Return True when an unconstrained schema is correct for *annotation*.
+
+    ``Any``, ``object``, and an optional form of either (``Any | None``)
+    legitimately render as an empty schema; they are not a degradation.
+    """
+    if annotation in (typing.Any, object, inspect.Parameter.empty):
+        return True
+    origin = typing.get_origin(annotation)
+    if origin in (Union, types.UnionType):
+        non_null = [a for a in typing.get_args(annotation) if a is not type(None)]
+        return all(_is_any_like(a) for a in non_null)
+    return False
+
+
+def warn_untyped_parameters(
+    func_name: str,
+    parameters_schema: dict[str, Any],
+    annotations: dict[str, Any],
+) -> None:
+    """Warn when a parameter renders without a type in the JSON Schema.
+
+    An empty schema tells a schema-driven client nothing about what to send.
+    The usual causes are a bare container that escaped normalization and an
+    annotation the backend cannot express; both used to degrade silently.
+    ``Any``, ``object``, and unannotated parameters are excluded because an
+    unconstrained schema is the correct rendering for them.
+
+    Args:
+        func_name: Name used in the warning message.
+        parameters_schema: The final ``Tool.parameters`` schema.
+        annotations: Original resolved annotations, keyed by parameter name.
+    """
+    properties = parameters_schema.get("properties")
+    if not isinstance(properties, dict):
+        return
+    for name, prop in properties.items():
+        if name not in annotations:
+            continue
+        annotation = annotations[name]
+        if _is_any_like(annotation):
+            continue
+        untyped = _is_untyped_schema(prop)
+        untyped_branch = isinstance(prop, dict) and any(
+            _is_untyped_schema(branch)
+            for keyword in ("anyOf", "oneOf")
+            for branch in prop.get(keyword, [])
+        )
+        if untyped or untyped_branch:
+            warnings.warn(
+                f"Parameter '{name}' of '{func_name}' renders without a type "
+                "in its JSON Schema, so schema-driven clients cannot build a "
+                "valid value. Annotate the element type (for example "
+                "list[float] instead of list).",
+                UserWarning,
+                stacklevel=2,
+            )
