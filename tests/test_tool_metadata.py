@@ -542,3 +542,62 @@ class TestExecutionHintsSerialization:
         reg = ToolRegistry()
         reg.register(_sync_func)
         assert reg.get_tools_status()[0]["execution_hints"] == {}
+
+
+class TestDeclaredExecutionHints:
+    """Only explicit declarations reach ``declared_execution_hints``.
+
+    A policy tag must not become a client-facing claim (#353).  The resolved
+    ``execution_hints`` mapping keeps its tag derivation for backward
+    compatibility; this mapping is what a transport should publish.
+    """
+
+    def test_read_only_tag_makes_no_claim(self):
+        assert ToolMetadata(tags={ToolTag.READ_ONLY}).declared_execution_hints == {}
+
+    def test_destructive_tag_makes_no_claim(self):
+        assert ToolMetadata(tags={ToolTag.DESTRUCTIVE}).declared_execution_hints == {}
+
+    def test_explicit_read_only_fills_the_complement(self):
+        assert ToolMetadata(read_only_hint=True).declared_execution_hints == {
+            "read_only_hint": True,
+            "destructive_hint": False,
+        }
+
+    def test_explicit_fields_pass_through(self):
+        m = ToolMetadata(
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=False,
+            open_world_hint=True,
+        )
+        assert m.declared_execution_hints == {
+            "read_only_hint": False,
+            "destructive_hint": True,
+            "idempotent_hint": False,
+            "open_world_hint": True,
+        }
+
+    def test_tag_does_not_leak_into_declared(self):
+        m = ToolMetadata(tags={ToolTag.READ_ONLY}, idempotent_hint=True)
+        assert m.declared_execution_hints == {"idempotent_hint": True}
+        # The resolved view is unchanged.
+        assert m.execution_hints == {
+            "read_only_hint": True,
+            "destructive_hint": False,
+            "idempotent_hint": True,
+        }
+
+    def test_explicit_false_is_kept(self):
+        m = ToolMetadata(read_only_hint=False, tags={ToolTag.READ_ONLY})
+        assert m.declared_execution_hints == {"read_only_hint": False}
+
+    def test_tool_proxy(self):
+        tool = Tool.from_function(
+            _sync_func, metadata=ToolMetadata(tags={ToolTag.READ_ONLY})
+        )
+        assert tool.declared_execution_hints == {}
+        assert tool.execution_hints == {
+            "read_only_hint": True,
+            "destructive_hint": False,
+        }
