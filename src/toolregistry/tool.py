@@ -115,7 +115,10 @@ class ToolMetadata:
             transport URI, spec URL, or class name).
         schema_hash: SHA-256 hex digest of the canonical JSON Schema for
             the tool's parameters.  Computed at registration time and
-            updated on refresh.
+            updated on refresh.  A value supplied on construction is kept
+            verbatim, even when it does not match the parameters: that is an
+            operator pin, and the mismatched fingerprint is then reported as
+            given.  :meth:`Tool.with_parameters` recomputes it.
         last_refreshed_at: ISO 8601 timestamp of the most recent
             successful refresh, or empty string for tools that have
             never been refreshed.
@@ -561,7 +564,9 @@ class Tool:
         elif metadata.schema_hash != computed_hash:
             warnings.warn(
                 f"schema_hash for tool '{name}' does not describe its "
-                "parameters after normalization. The supplied value was kept; "
+                "parameters after normalization. The supplied value is kept "
+                "verbatim, so metadata.schema_hash keeps reporting it rather "
+                "than the hash of these parameters; pass a matching value or "
                 "use Tool.with_parameters() when replacing a schema.",
                 UserWarning,
                 stacklevel=2,
@@ -1019,6 +1024,12 @@ class Tool:
         metadata, so the fingerprint would keep describing the old schema.
         This is the supported replacement path.
 
+        The new copy validates its arguments only when a ``parameters_model``
+        is supplied.  Without one, ``validate_parameters()`` is a pass-through:
+        it neither checks types nor ``required`` nor unknown keys, so payloads
+        that violate the published schema are accepted.  Dropping the old model
+        is still the safe default, because it describes the old schema.
+
         Args:
             parameters: New JSON Schema, normally ``{"type": "object",
                 "properties": {...}}``.
@@ -1034,8 +1045,10 @@ class Tool:
             warnings.warn(
                 f"Tool '{self.name}' had a parameter validation model; "
                 "with_parameters() drops it by default because it describes "
-                "the old schema. Pass parameters_model=... when the new "
-                "schema is equivalent.",
+                "the old schema. Without a model, validate_parameters() is a "
+                "pass-through and accepts payloads that violate the new "
+                "schema. Pass parameters_model=... when the new schema is "
+                "equivalent.",
                 UserWarning,
                 stacklevel=2,
             )
