@@ -371,30 +371,41 @@ def _canonical_schema_key(schema: Any) -> str:
 
 
 def _simplify_nested_schemas(schema: dict[str, Any]) -> None:
-    """Apply the nullable/duplicate cleanup to every nested schema in *schema*."""
+    """Apply the cleanup to every nested schema in *schema*.
+
+    A property listed in the parent's ``required`` keeps its null branches:
+    a required parameter has no default, so ``None`` is one of the values the
+    annotation allows and the tool still accepts.  Element schemas
+    (``items``, ``additionalProperties``, ``$defs``) keep them too, because no
+    ``required`` rule governs whether an element may be null.
+    """
     for key in _SCHEMA_MAP_KEYS:
         value = schema.get(key)
-        if isinstance(value, dict):
-            for sub in value.values():
-                if isinstance(sub, dict):
-                    _simplify_nullable_schemas(sub)
+        if not isinstance(value, dict):
+            continue
+        required = set(schema.get("required") or ()) if key == "properties" else set()
+        for name, sub in value.items():
+            if isinstance(sub, dict):
+                _simplify_nullable_schemas(sub, drop_null=name not in required)
     for key in _SCHEMA_CHILD_KEYS:
         value = schema.get(key)
         if isinstance(value, dict):
-            _simplify_nullable_schemas(value)
+            _simplify_nullable_schemas(value, drop_null=False)
         elif isinstance(value, list):
             _simplify_schema_list(value)
 
 
 def _simplify_schema_list(schemas: list[Any]) -> None:
-    """Apply the cleanup to each schema object in a list."""
+    """Apply the cleanup to each schema object in a list, keeping nulls."""
     for sub in schemas:
         if isinstance(sub, dict):
-            _simplify_nullable_schemas(sub)
+            _simplify_nullable_schemas(sub, drop_null=False)
 
 
-def _simplify_union_branches(schema: dict[str, Any], keyword: str) -> None:
-    """Drop null and duplicate branches from one union keyword in place."""
+def _simplify_union_branches(
+    schema: dict[str, Any], keyword: str, *, drop_null: bool
+) -> None:
+    """Drop duplicate branches and, when asked, the null branch, in place."""
     variants = schema.get(keyword)
     if not isinstance(variants, list):
         return
@@ -402,7 +413,7 @@ def _simplify_union_branches(schema: dict[str, Any], keyword: str) -> None:
     kept: list[Any] = []
     seen: set[str] = set()
     for variant in variants:
-        if variant == {"type": "null"}:
+        if drop_null and variant == {"type": "null"}:
             continue
         key = _canonical_schema_key(variant)
         if key in seen:
@@ -423,10 +434,10 @@ def _simplify_union_branches(schema: dict[str, Any], keyword: str) -> None:
         schema[keyword] = kept
 
 
-def _simplify_type_array(schema: dict[str, Any]) -> None:
+def _simplify_type_array(schema: dict[str, Any], *, drop_null: bool) -> None:
     """Remove ``"null"`` from a zerodep-style ``type: [T, "null"]`` list."""
     type_val = schema.get("type")
-    if not isinstance(type_val, list) or "null" not in type_val:
+    if not drop_null or not isinstance(type_val, list) or "null" not in type_val:
         return
     non_null_types = [t for t in type_val if t != "null"]
     if len(non_null_types) == 1:
@@ -435,31 +446,39 @@ def _simplify_type_array(schema: dict[str, Any]) -> None:
         schema["type"] = non_null_types
 
 
-def _simplify_nullable_schemas(schema: dict[str, Any]) -> dict[str, Any]:
-    """Remove null alternatives and duplicate union branches, recursively.
+def _simplify_nullable_schemas(
+    schema: dict[str, Any], *, drop_null: bool = True
+) -> dict[str, Any]:
+    """Remove duplicate union branches and, when asked, null alternatives.
 
-    Optional parameters are already represented by ``required`` and their
-    default, so an explicit ``{"type": "null"}`` branch adds nothing.
-    Duplicate branches are dropped as well: ``tuple`` and ``list[Any]`` both
+    Duplicate branches are always dropped: ``tuple`` and ``list[Any]`` both
     render as an untyped array, and keeping both inflates the payload without
     adding a distinguishable alternative.
 
+    Null branches are dropped only where ``drop_null`` is true.  That is the
+    case for an optional property: ``required`` and the default already carry
+    the absent case, so an explicit ``{"type": "null"}`` branch adds nothing.
+    Required properties and element schemas (array items, mapping values)
+    keep their null branch, because the tool really does accept ``None``
+    there and a schema that forbids it no longer describes the tool.
+
     Unlike the previous top-level-only pass, this traverses nested schemas
-    (array items, nested objects, ``$defs``) so a union behaves the same
-    wherever it appears.
+    (array items, nested objects, ``$defs``).
 
     This function mutates *schema* in place and returns it.
 
     Args:
         schema: A JSON Schema dict.
+        drop_null: Whether null branches may be removed at this node.
 
     Returns:
-        The same dict with null alternatives and duplicate branches removed.
+        The same dict with duplicate branches and, if allowed, null
+        alternatives removed.
     """
     _simplify_nested_schemas(schema)
     for keyword in ("anyOf", "oneOf"):
-        _simplify_union_branches(schema, keyword)
-    _simplify_type_array(schema)
+        _simplify_union_branches(schema, keyword, drop_null=drop_null)
+    _simplify_type_array(schema, drop_null=drop_null)
     return schema
 
 
