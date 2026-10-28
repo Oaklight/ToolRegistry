@@ -1030,6 +1030,15 @@ class Tool:
         Returns:
             A copy of the tool with the new schema and its hash.
         """
+        if parameters_model is None and self.parameters_model is not None:
+            warnings.warn(
+                f"Tool '{self.name}' had a parameter validation model; "
+                "with_parameters() drops it by default because it describes "
+                "the old schema. Pass parameters_model=... when the new "
+                "schema is equivalent.",
+                UserWarning,
+                stacklevel=2,
+            )
         normalized = self._normalize_parameters(copy.deepcopy(parameters))
         metadata = dataclasses.replace(
             self.metadata, schema_hash=compute_schema_hash(normalized)
