@@ -34,7 +34,7 @@ The Tool class follows a data-transfer-object pattern with the following key com
 
 ### Design Philosophy
 
-- **Immutability**: `Tool` and `ToolMetadata` are `frozen=True` dataclasses — fields cannot be reassigned after construction. `ToolMetadata` copies its `tags`, `custom_tags` and `extra` containers when constructed, so `dataclasses.replace()` copies are independent. Use `dataclasses.replace()` to create modified copies, or `Tool.with_parameters()` when replacing a parameter schema.
+- **Immutability**: `Tool` and `ToolMetadata` are `frozen=True` dataclasses — fields cannot be reassigned after construction. `ToolMetadata` copies its `tags`, `custom_tags` and `extra` containers when constructed, so `dataclasses.replace()` copies are independent; every `extra` value is deep-copied on its own, so nested containers are isolated too, and an uncopyable value (a lock, a generator, a module) is kept by reference with a `UserWarning`. Use `dataclasses.replace()` to create modified copies, or `Tool.with_parameters()` when replacing a parameter schema.
 - **Schema-Driven**: Parameter validation based on JSON Schema standards
 - **Execution Flexibility**: Support for both sync and async execution patterns
 - **Metadata Preservation**: Complete preservation of tool metadata for LLM consumption
@@ -191,7 +191,7 @@ print(explicit.declared_execution_hints)  # {'read_only_hint': True, 'destructiv
 
 ### Replacing a Parameter Schema
 
-`dataclasses.replace(tool, parameters=...)` reuses the existing metadata, so the fingerprint would still describe the old schema. It now warns when that happens. Use `Tool.with_parameters()` to replace the schema and recompute the hash in one step:
+`dataclasses.replace(tool, parameters=...)` reuses the existing metadata, so the fingerprint would still describe the old schema. It now warns when that happens; a hash supplied at construction is stored verbatim, even when it disagrees, so the reported fingerprint is the supplied one. Use `Tool.with_parameters()` to replace the schema and recompute the hash in one step:
 
 ```python
 from toolregistry.utils import compute_schema_hash
@@ -202,7 +202,7 @@ updated = tool.with_parameters(
 assert updated.metadata.schema_hash == compute_schema_hash(updated.parameters)
 ```
 
-The old validation model is dropped by default, because it describes the old schema, and a `UserWarning` names the tool when that happens; pass `parameters_model=` when the new schema is equivalent.
+The old validation model is dropped by default, because it describes the old schema, and a `UserWarning` names the tool when that happens; pass `parameters_model=` when the new schema is equivalent. Without a model, `validate_parameters()` is a pass-through: it does not check types, `required` fields, or unknown keys, so payloads that violate the published schema are accepted.
 
 ### Async Tool
 
