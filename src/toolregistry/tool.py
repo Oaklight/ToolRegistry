@@ -13,6 +13,7 @@ from .parameter_models import (
     _generate_parameters_model,
     _normalize_union_keywords,
     _simplify_nullable_schemas,
+    warn_untyped_parameters,
 )
 from .llm.tool_calls import API_FORMATS
 from .tool_wrapper import BaseToolWrapper, _FunctionToolWrapper
@@ -728,6 +729,11 @@ class Tool:
             metadata=metadata,
             parameters_model=parameters_model if parameters_model is not None else None,
             method_name=resolved_method_name,
+        )
+        warn_untyped_parameters(
+            func_name,
+            tool.parameters,
+            getattr(parameters_model, "_parameter_annotations", {}),
         )
 
         if namespace:

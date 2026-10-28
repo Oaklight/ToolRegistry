@@ -418,3 +418,85 @@ class TestSimplifyNullableNoNullableKey:
         assert prop.get("type") == "integer"
         assert "nullable" not in prop
         assert "anyOf" not in prop
+
+
+class TestBareContainersAndDuplicateBranches:
+    """Bare containers keep a type; duplicate union branches are dropped.
+
+    Issue #354: the 0.19 fix for #269 covered only ``tuple``, so ``list``,
+    ``dict``, ``set`` and ``frozenset`` still collapsed to ``{"default": null}``
+    and a union could carry the same array branch twice.
+    """
+
+    @staticmethod
+    def _property(func) -> dict:
+        return Tool.from_function(func).parameters["properties"]["x"]
+
+    def test_bare_list_nullable_keeps_array_type(self):
+        def f(x: list | None = None) -> None: ...
+
+        prop = self._property(f)
+        assert prop["type"] == "array"
+        assert prop["items"] == {}
+
+    def test_bare_dict_nullable_keeps_object_type(self):
+        def f(x: dict | None = None) -> None: ...
+
+        prop = self._property(f)
+        assert prop["type"] == "object"
+        assert prop["additionalProperties"] == {}
+
+    def test_bare_set_nullable_keeps_unique_array(self):
+        def f(x: set | None = None) -> None: ...
+
+        prop = self._property(f)
+        assert prop["type"] == "array"
+        assert prop["uniqueItems"] is True
+
+    def test_bare_frozenset_nullable_keeps_unique_array(self):
+        def f(x: frozenset | None = None) -> None: ...
+
+        prop = self._property(f)
+        assert prop["type"] == "array"
+        assert prop["uniqueItems"] is True
+
+    def test_bare_list_branch_in_union_is_not_empty(self):
+        def f(x: tuple | float | list | None = None) -> None: ...
+
+        prop = self._property(f)
+        assert {} not in prop["anyOf"]
+        assert [branch.get("type") for branch in prop["anyOf"]] == [
+            "array",
+            "number",
+        ]
+
+    def test_duplicate_array_branches_collapse(self):
+        def f(x: tuple | float | list[typing.Any] | None = None) -> None: ...
+
+        prop = self._property(f)
+        assert [branch.get("type") for branch in prop["anyOf"]] == [
+            "array",
+            "number",
+        ]
+
+    def test_distinct_array_branches_survive(self):
+        def f(x: tuple[float, float] | list[float] | None = None) -> None: ...
+
+        prop = self._property(f)
+        assert len(prop["anyOf"]) == 2
+        assert all(branch.get("type") == "array" for branch in prop["anyOf"])
+
+    def test_optional_any_does_not_warn(self):
+        import warnings
+
+        def f(x: typing.Any | None = None) -> None: ...
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            Tool.from_function(f)
+
+    def test_untyped_parameter_warns(self):
+        def f(x: typing.Callable = None) -> None: ...  # type: ignore[assignment]
+
+        with pytest.warns(UserWarning, match="renders without a type"):
+            Tool.from_function(f)
