@@ -435,14 +435,23 @@ def _simplify_union_branches(
 
 
 def _simplify_type_array(schema: dict[str, Any], *, drop_null: bool) -> None:
-    """Remove ``"null"`` from a zerodep-style ``type: [T, "null"]`` list."""
+    """Resolve a zerodep-style ``type: [T, "null"]`` list.
+
+    Dropping null leaves the remaining type.  Keeping the list is only
+    possible where a provider accepts a type array, so ``Tool.get_schema``
+    rewrites it for Gemini before emitting.
+    """
     type_val = schema.get("type")
-    if not drop_null or not isinstance(type_val, list) or "null" not in type_val:
+    if not isinstance(type_val, list) or "null" not in type_val:
         return
     non_null_types = [t for t in type_val if t != "null"]
+    if not non_null_types:
+        return
+    if not drop_null:
+        return
     if len(non_null_types) == 1:
         schema["type"] = non_null_types[0]
-    elif non_null_types:
+    else:
         schema["type"] = non_null_types
 
 
@@ -460,7 +469,9 @@ def _simplify_nullable_schemas(
     the absent case, so an explicit ``{"type": "null"}`` branch adds nothing.
     Required properties and element schemas (array items, mapping values)
     keep their null branch, because the tool really does accept ``None``
-    there and a schema that forbids it no longer describes the tool.
+    there and a schema that forbids it no longer describes the tool.  The
+    kept form stays a ``type`` list here; :meth:`Tool.get_schema` translates
+    it for a dialect that spells nullability differently (Gemini).
 
     Unlike the previous top-level-only pass, this traverses nested schemas
     (array items, nested objects, ``$defs``).

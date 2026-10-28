@@ -600,3 +600,23 @@ class TestNullabilityFollowsTheTool:
         tool = Tool(name="t", description="t", parameters=raw, callable=lambda **k: k)
         retries = tool.parameters["properties"]["config"]["properties"]["retries"]
         assert retries.get("type") == "integer"
+
+    def test_required_compound_union_keeps_null_through_flattening(self):
+        def f(x: float | list[float] | None) -> None: ...
+
+        prop = Tool.from_function(f).parameters["properties"]["x"]
+        assert {"type": "null"} in prop["anyOf"]
+
+    def test_nullable_element_of_a_compound_union_keeps_null(self):
+        def f(x: list[float | list[float] | None]) -> None: ...
+
+        items = Tool.from_function(f).parameters["properties"]["x"]["items"]
+        assert {"type": "null"} in items["anyOf"]
+
+    def test_gemini_schema_uses_nullable_not_a_type_list(self):
+        def f(x: str | None) -> None: ...
+
+        prop = Tool.from_function(f).get_schema("gemini")["parameters"]["properties"][
+            "x"
+        ]
+        assert prop == {"type": "STRING", "nullable": True}
