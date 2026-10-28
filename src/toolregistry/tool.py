@@ -284,7 +284,7 @@ class ToolMetadata:
         # copy and the caller's input containers -- owns its own data.
         object.__setattr__(self, "tags", set(self.tags))
         object.__setattr__(self, "custom_tags", set(self.custom_tags))
-        object.__setattr__(self, "extra", dict(self.extra))
+        object.__setattr__(self, "extra", copy.deepcopy(self.extra))
         if self.locality not in self._VALID_LOCALITY:
             raise ValueError(
                 f"Invalid locality {self.locality!r}, "
