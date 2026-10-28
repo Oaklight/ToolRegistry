@@ -34,7 +34,7 @@ Tool 类遵循数据传输对象模式，包含以下关键组件：
 
 ### 设计理念
 
-- **不可变性**：`Tool` 和 `ToolMetadata` 是 `frozen=True` 数据类——字段在构造后不可重新赋值。使用 `dataclasses.replace()` 创建修改后的副本。
+- **不可变性**：`Tool` 和 `ToolMetadata` 是 `frozen=True` 数据类——字段在构造后不可重新赋值。`ToolMetadata` 在构造时会复制 `tags`、`custom_tags` 与 `extra` 容器，因此 `dataclasses.replace()` 生成的副本彼此独立。使用 `dataclasses.replace()` 创建修改后的副本，替换参数字段时使用 `Tool.with_parameters()`。
 - **模式驱动**：基于 JSON Schema 标准的参数验证
 - **执行灵活性**：支持同步和异步执行模式
 - **元数据保留**：完整保留工具元数据以供 LLM 使用
@@ -161,6 +161,47 @@ tool = Tool.from_function(lambda x: x, name="echo")
 updated = tool.with_refreshed_at("2026-09-15T08:00:00Z")
 print(updated.metadata.last_refreshed_at)  # "2026-09-15T08:00:00Z"
 ```
+
+### 执行提示
+
+`Tool.execution_hints` 会为每个工具解析提示，并从 `ToolTag.READ_ONLY` / `ToolTag.DESTRUCTIVE` 推导 `read_only_hint` / `destructive_hint`。这两个标签同时驱动内置权限规则，因此解析结果并不一定适合直接发布：一个为本地策略选择的标签会变成面向客户端的自动批准声明。
+
+`Tool.declared_execution_hints` 只返回工具显式声明的提示，并补上显式 `read_only_hint=True` 所蕴含的 `destructive_hint=False`。传输层应发布这个映射，并把空结果视为“不作声明”（省略标注），这正是 MCP 客户端理解为可写工具的行为。
+
+```python
+from toolregistry import Tool
+from toolregistry.tool import ToolMetadata, ToolTag
+
+tagged = Tool.from_function(
+    lambda: "state",
+    name="reader",
+    metadata=ToolMetadata(tags={ToolTag.READ_ONLY}),
+)
+print(tagged.execution_hints)          # {'read_only_hint': True, 'destructive_hint': False}
+print(tagged.declared_execution_hints) # {}
+
+explicit = Tool.from_function(
+    lambda: "state",
+    name="reader2",
+    metadata=ToolMetadata(read_only_hint=True),
+)
+print(explicit.declared_execution_hints)  # {'read_only_hint': True, 'destructive_hint': False}
+```
+
+### 替换参数字段
+
+`dataclasses.replace(tool, parameters=...)` 会复用现有元数据，因此指纹仍描述旧 schema；现在出现这种不一致会发出警告。需要替换 schema 并同时重算哈希时，请使用 `Tool.with_parameters()`：
+
+```python
+from toolregistry.utils import compute_schema_hash
+
+updated = tool.with_parameters(
+    {"type": "object", "properties": {"q": {"type": "string"}}}
+)
+assert updated.metadata.schema_hash == compute_schema_hash(updated.parameters)
+```
+
+旧参数校验模型默认会被丢弃，因为它描述的是旧 schema；当新 schema 等价时可传入 `parameters_model=` 保留。
 
 ### 异步工具
 

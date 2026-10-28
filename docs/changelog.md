@@ -16,6 +16,18 @@ hide:
 
 ## [未发布]
 
+### 新增
+
+- **`declared_execution_hints` 将策略标签与线上声明分开**（#353）：`ToolMetadata.declared_execution_hints`（以及 `Tool` 上的同名代理）只返回显式声明的提示，并补上显式 `read_only_hint=True` 所蕴含的 `destructive_hint=False`。`execution_hints` 为兼容性保持不变，但它会从 `ToolTag.READ_ONLY` / `ToolTag.DESTRUCTIVE` 推导值，而这两个标签同时驱动内置权限规则；发布推导结果会让一个为本地策略选择的标签变成面向客户端的自动批准声明。传输层应发布 declared 映射，并把空结果视为“不作声明”。
+- **`Tool.with_parameters()`**（#356）：一步替换工具的参数字段并重新计算 `metadata.schema_hash`。旧参数校验模型默认被丢弃，因为它描述的是旧 schema；当新 schema 等价时可传入 `parameters_model=` 保留。
+
+### 修复
+
+- **裸容器保留类型，重复的联合分支被合并**（#354）：裸 `list`、`dict`、`set`、`frozenset` 没有像裸 `tuple` 那样被规范化（#269），因此 `Optional[list]` 渲染成 `{"default": null}`，联合中的裸 `list` 变成一个匹配任意值的 `{}` 分支。现在所有裸容器（包括 `__args__` 为空的 `typing` 别名）都会以 `Any` 参数化，完全相同的联合分支会被去重，而仍然渲染为无类型的参数会发出 `UserWarning` 并指出函数与参数名。
+- **`ToolMetadata` 在构造时复制可变容器**（#355）：`tags`、`custom_tags` 与 `extra` 会在 `dataclasses.replace()` 副本之间共享，修改副本会改到原对象。现在每个实例拥有自己的容器。就地修改仍不受支持，因为它会绕过变更事件；请使用 `ToolRegistry.update_tool_metadata()` / `update_namespace_metadata()`。
+- **过期的 `schema_hash` 不再静默**（#356）：`Tool.__init__` 仍保留显式传入的哈希，但与规范化参数不一致时会发出警告。因此 `dataclasses.replace(tool, parameters=...)` 不会再无提示地留下描述旧 schema 的指纹；需要重算时请使用 `Tool.with_parameters()`。
+
+
 ## [0.19.1] - 2026-10-28
 
 ### 修复
