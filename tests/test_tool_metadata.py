@@ -646,3 +646,11 @@ class TestMetadataContainerIsolation:
         assert copy.tags is not md.tags
         copy.tags.add(ToolTag.NETWORK)
         assert ToolTag.NETWORK not in md.tags
+
+    def test_extra_nested_values_are_isolated(self):
+        source = {"nested": {"n": 1}}
+        md = ToolMetadata(extra=source)
+        copy_md = dataclasses.replace(md, title="x")
+        source["nested"]["n"] = 2
+        copy_md.extra["nested"]["n"] = 3
+        assert md.extra["nested"]["n"] == 1
