@@ -706,3 +706,30 @@ class TestNonFiniteFloats:
         shared = [float("inf")]
         body = json.dumps([shared, shared], cls=ToolResultJSONEncoder)
         assert json.loads(body, parse_constant=_reject) == [[None], [None]]
+
+    @pytest.mark.parametrize("value", ["NaN", "Infinity", "-Infinity"])
+    def test_non_finite_decimal_is_null_at_top_level(self, value):
+        """str(Decimal('NaN')) is a bare NaN — not valid JSON (#347 review)."""
+        from decimal import Decimal
+
+        from toolregistry.utils import encode_tool_result
+
+        body = encode_tool_result(Decimal(value), tool_name="t")
+        assert json.loads(body, parse_constant=_reject) is None
+
+    def test_non_finite_decimal_is_null_when_nested(self):
+        from decimal import Decimal
+
+        from toolregistry.utils import encode_tool_result
+
+        body = encode_tool_result(
+            {"d": Decimal("NaN"), "e": [Decimal("Infinity")]}, tool_name="t"
+        )
+        assert json.loads(body, parse_constant=_reject) == {"d": None, "e": [None]}
+
+    def test_finite_decimal_is_unchanged(self):
+        from decimal import Decimal
+
+        from toolregistry.utils import encode_tool_result
+
+        assert json.loads(encode_tool_result(Decimal("1.5"))) == 1.5
