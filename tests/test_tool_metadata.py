@@ -659,10 +659,38 @@ class TestMetadataContainerIsolation:
         import threading
 
         lock = threading.Lock()
-        md = ToolMetadata(extra={"nested": {"lock": lock}, "k": "v"})
+        with pytest.warns(UserWarning, match="cannot be deep-copied"):
+            md = ToolMetadata(extra={"nested": {"lock": lock}, "k": "v"})
         copy_md = dataclasses.replace(md, title="x")
         copy_md.extra["k"] = "changed"
         assert md.extra["k"] == "v"
-        # The fallback keeps the top-level copy; the nested uncopyable value
-        # is shared by necessity.
+        # The value holding the uncopyable object is shared by necessity.
         assert copy_md.extra["nested"]["lock"] is lock
+
+    def test_extra_isolates_copyable_siblings_of_an_uncopyable_value(self):
+        import threading
+
+        nested = {"n": 1}
+        with pytest.warns(UserWarning, match="cannot be deep-copied"):
+            md = ToolMetadata(extra={"nested": nested, "bad": threading.Lock()})
+        copy_md = dataclasses.replace(md, title="x")
+        copy_md.extra["nested"]["n"] = 2
+        nested["n"] = 3
+        assert md.extra["nested"]["n"] == 1
+
+    def test_extra_copy_through_a_tuple_is_isolated(self):
+        inner = {"n": 1}
+        md = ToolMetadata(extra={"t": (inner,)})
+        copy_md = dataclasses.replace(md, title="x")
+        copy_md.extra["t"][0]["n"] = 55
+        inner["n"] = 56
+        assert md.extra["t"][0]["n"] == 1
+
+    def test_extra_copy_through_a_custom_mapping_is_isolated(self):
+        class Bag(dict):
+            pass
+
+        bag = Bag(items=[1])
+        md = ToolMetadata(extra={"bag": bag})
+        bag["items"].append(2)
+        assert md.extra["bag"]["items"] == [1]

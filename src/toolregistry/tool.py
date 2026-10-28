@@ -22,28 +22,55 @@ from .utils import compute_schema_hash, normalize_tool_name
 _ToolT = TypeVar("_ToolT", bound="Tool")
 
 
-def _copy_extra(extra: dict[str, Any]) -> dict[str, Any]:
-    """Copy a metadata ``extra`` mapping, deeply when it has nested containers.
+#: Types whose values cannot be mutated, so a copy may share them safely.
+_IMMUTABLE_METADATA_TYPES = (
+    str,
+    bytes,
+    int,
+    float,
+    complex,
+    bool,
+    type(None),
+    Enum,
+)
 
-    Flat mappings are copied at the top level only, which keeps construction
-    cheap for the common case.  Nested containers are deep-copied so a copy
-    cannot mutate the original; a value that cannot be deep-copied falls back
-    to the top-level copy instead of failing construction.
+
+def _copy_extra(extra: dict[str, Any]) -> dict[str, Any]:
+    """Copy a metadata ``extra`` mapping, isolating every copyable value.
+
+    Containers and opaque objects are deep-copied one value at a time, so a
+    single value that cannot be copied (a lock, a generator, a module) does
+    not leave its copyable siblings shared with the caller.  Immutable
+    scalars are shared, since sharing them cannot leak a mutation.
+    An uncopyable value is kept by reference and reported with a warning:
+    the copy is still isolated except for that value.
 
     Args:
         extra: The mapping supplied by the caller.
 
     Returns:
-        An independent mapping (nested values included when copyable).
+        An independent mapping, except for values that cannot be copied.
     """
-    if not any(isinstance(value, (dict, list, set)) for value in extra.values()):
-        return dict(extra)
-    try:
-        return copy.deepcopy(extra)
-    except (TypeError, copy.Error):
-        # User metadata may hold an object that cannot be copied; keep the
-        # top-level isolation rather than refusing to build the metadata.
-        return dict(extra)
+    copied: dict[str, Any] = {}
+    uncopyable: set[str] = set()
+    for key, value in extra.items():
+        if isinstance(value, _IMMUTABLE_METADATA_TYPES):
+            copied[key] = value
+            continue
+        try:
+            copied[key] = copy.deepcopy(value)
+        except (TypeError, copy.Error):
+            copied[key] = value
+            uncopyable.add(type(value).__name__)
+    if uncopyable:
+        warnings.warn(
+            "ToolMetadata.extra holds value(s) that cannot be deep-copied "
+            f"({', '.join(sorted(uncopyable))}); they are shared with the "
+            "caller, so mutations through the original remain visible.",
+            UserWarning,
+            stacklevel=3,
+        )
+    return copied
 
 
 def _apply_flattened_parameters(
@@ -117,8 +144,10 @@ class ToolMetadata:
         the containers (``tags``, ``custom_tags``, ``extra``) are still
         mutable.  They are copied on construction, so a
         ``dataclasses.replace`` copy never shares them with the original.
-        ``extra`` is deep-copied when it contains nested containers; a value
-        that cannot be deep-copied keeps the top-level copy only.
+        Each value in ``extra`` is deep-copied on its own, so nested
+        containers are isolated too; immutable scalars are shared, and a
+        value that cannot be deep-copied (a lock, a generator, a module) is
+        kept by reference and reported with a ``UserWarning``.
         In-place mutation of a live instance remains unsupported because it
         bypasses change events; use
         :meth:`ToolRegistry.update_tool_metadata` (or
