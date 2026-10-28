@@ -500,3 +500,19 @@ class TestBareContainersAndDuplicateBranches:
 
         with pytest.warns(UserWarning, match="renders without a type"):
             Tool.from_function(f)
+
+    def test_degraded_annotation_does_not_warn_twice(self):
+        import warnings
+
+        class Model:
+            pass
+
+        def f(x: Model = None) -> None: ...  # type: ignore[assignment]
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            Tool.from_function(f)
+
+        messages = [str(w.message) for w in caught]
+        assert any("cannot be represented" in message for message in messages)
+        assert not any("renders without a type" in message for message in messages)
