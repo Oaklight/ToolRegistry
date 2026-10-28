@@ -202,7 +202,7 @@ updated = tool.with_parameters(
 assert updated.metadata.schema_hash == compute_schema_hash(updated.parameters)
 ```
 
-The old validation model is dropped by default, because it describes the old schema; pass `parameters_model=` when the new schema is equivalent.
+The old validation model is dropped by default, because it describes the old schema, and a `UserWarning` names the tool when that happens; pass `parameters_model=` when the new schema is equivalent.
 
 ### Async Tool
 
