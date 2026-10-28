@@ -280,9 +280,10 @@ class TestWithParameters:
 
     def test_drops_parameters_model_by_default(self):
         tool = self._tool()
-        updated = tool.with_parameters(
-            {"type": "object", "properties": {"x": {"type": "number"}}}
-        )
+        with pytest.warns(UserWarning, match="drops it by default"):
+            updated = tool.with_parameters(
+                {"type": "object", "properties": {"x": {"type": "number"}}}
+            )
         assert updated.parameters_model is None
 
     def test_can_keep_parameters_model(self):
