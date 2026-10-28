@@ -331,6 +331,14 @@ class ToolMetadata:
         ``destructive_hint=True`` alongside a read-only resolution.  See
         :meth:`_warn_if_contradictory_hints`.
 
+        Warning:
+            This mapping includes values derived from policy tags.  A tag
+            chosen to drive local permission rules (``ALLOW_READONLY``) or a
+            deployment profile therefore appears here as a client-facing
+            claim.  Transports that publish hints should use
+            :attr:`declared_execution_hints` unless the operator explicitly
+            opts in to tag-derived claims.
+
         Returns:
             Mapping of hint name to boolean value; empty when nothing is
             set.
@@ -355,6 +363,41 @@ class ToolMetadata:
         if destructive is not None:
             hints["destructive_hint"] = destructive
 
+        if self.idempotent_hint is not None:
+            hints["idempotent_hint"] = self.idempotent_hint
+        if self.open_world_hint is not None:
+            hints["open_world_hint"] = self.open_world_hint
+        return hints
+
+    @property
+    def declared_execution_hints(self) -> dict[str, bool]:
+        """Execution hints built only from explicit declarations.
+
+        Unlike :attr:`execution_hints`, this never derives a hint from a
+        :class:`ToolTag`.  A tool tagged ``READ_ONLY`` for permission policy
+        but with no explicit ``read_only_hint`` returns an empty mapping, so a
+        transport can publish "no claim" (absent annotations) instead of
+        either guessing or asserting a value nobody checked.
+
+        The one complement kept is ``destructive_hint=False`` when
+        ``read_only_hint`` was explicitly declared ``True``.  That follows
+        from a claim the caller made, not from a tag, and avoids shipping
+        ``readOnlyHint=true`` next to the protocol default
+        ``destructiveHint=true``.
+
+        Returns:
+            Mapping of hint name to explicitly declared boolean; empty when
+            nothing was declared.
+        """
+        hints: dict[str, bool] = {}
+        if self.read_only_hint is not None:
+            hints["read_only_hint"] = self.read_only_hint
+        if self.destructive_hint is not None:
+            hints["destructive_hint"] = self.destructive_hint
+        elif self.read_only_hint is True:
+            # MCP defaults ``destructiveHint`` to true; the complement is
+            # implied by an explicit read-only claim.
+            hints["destructive_hint"] = False
         if self.idempotent_hint is not None:
             hints["idempotent_hint"] = self.idempotent_hint
         if self.open_world_hint is not None:
@@ -608,6 +651,15 @@ class Tool:
         read :attr:`ToolMetadata.title` for the display name.
         """
         return self.metadata.execution_hints
+
+    @property
+    def declared_execution_hints(self) -> dict[str, bool]:
+        """Explicitly declared execution hints, excluding tag-derived values.
+
+        Convenience proxy to :attr:`ToolMetadata.declared_execution_hints`;
+        transports should publish this mapping rather than the resolved one.
+        """
+        return self.metadata.declared_execution_hints
 
     @property
     def fn(self) -> Callable[..., Any]:
