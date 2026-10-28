@@ -23,8 +23,8 @@ hide:
 
 ### 修复
 
-- **裸容器保留类型，重复的联合分支被合并**（#354）：裸 `list`、`dict`、`set`、`frozenset` 没有像裸 `tuple` 那样被规范化（#269），因此 `Optional[list]` 渲染成 `{"default": null}`，联合中的裸 `list` 变成一个匹配任意值的 `{}` 分支。现在所有裸容器（包括 `__args__` 为空的 `typing` 别名）都会以 `Any` 参数化，完全相同的联合分支会被去重，而仍然渲染为无类型的参数会发出 `UserWarning` 并指出函数与参数名。
-- **`ToolMetadata` 在构造时复制可变容器**（#355）：`tags`、`custom_tags` 与 `extra` 会在 `dataclasses.replace()` 副本之间共享，修改副本会改到原对象。现在每个实例拥有自己的容器。就地修改仍不受支持，因为它会绕过变更事件；请使用 `ToolRegistry.update_tool_metadata()` / `update_namespace_metadata()`。
+- **裸容器保留类型，重复的联合分支被合并**（#354）：裸 `list`、`dict`、`set`、`frozenset` 没有像裸 `tuple` 那样被规范化（#269），因此 `Optional[list]` 渲染成 `{"default": null}`，联合中的裸 `list` 变成一个匹配任意值的 `{}` 分支。现在所有裸容器（包括 `__args__` 为空的 `typing` 别名）都会以 `Any` 参数化，完全相同的联合分支会被去重，而仍然渲染为无类型的参数会发出 `UserWarning` 并指出函数与参数名。可空清理现在也会遍历嵌套 schema（数组 `items`、嵌套对象、`$defs`），因此嵌套的 `int | None` 会像顶层一样渲染为 `{"type": "integer"}`；此前只处理顶层。
+- **`ToolMetadata` 在构造时复制可变容器**（#355）：`tags`、`custom_tags` 与 `extra` 会在 `dataclasses.replace()` 副本之间共享，修改副本会改到原对象。现在每个实例拥有自己的顶层容器；`extra` 中的嵌套值在可复制时会深拷贝，遇到不可复制的值时退回到顶层拷贝。就地修改仍不受支持，因为它会绕过变更事件；请使用 `ToolRegistry.update_tool_metadata()` / `update_namespace_metadata()`。
 - **过期的 `schema_hash` 不再静默**（#356）：`Tool.__init__` 仍保留显式传入的哈希，但与规范化参数不一致时会发出警告。因此 `dataclasses.replace(tool, parameters=...)` 不会再无提示地留下描述旧 schema 的指纹；需要重算时请使用 `Tool.with_parameters()`。
 
 

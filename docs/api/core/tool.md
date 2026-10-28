@@ -201,7 +201,7 @@ updated = tool.with_parameters(
 assert updated.metadata.schema_hash == compute_schema_hash(updated.parameters)
 ```
 
-旧参数校验模型默认会被丢弃，因为它描述的是旧 schema；当新 schema 等价时可传入 `parameters_model=` 保留。
+旧参数校验模型默认会被丢弃，因为它描述的是旧 schema，并会发出 `UserWarning` 指出工具名；当新 schema 等价时可传入 `parameters_model=` 保留。
 
 ### 异步工具
 
