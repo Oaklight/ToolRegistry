@@ -620,3 +620,22 @@ class TestNullabilityFollowsTheTool:
             "x"
         ]
         assert prop == {"type": "STRING", "nullable": True}
+
+    def test_gemini_rewrite_leaves_literal_defaults_alone(self):
+        def f(x: dict = {"type": ["a", "b"]}) -> None: ...
+
+        prop = Tool.from_function(f).get_schema("gemini")["parameters"]["properties"][
+            "x"
+        ]
+        assert prop["default"] == {"type": ["a", "b"]}
+
+    def test_gemini_multi_type_list_becomes_anyof_not_a_narrowing(self):
+        """A literal type list keeps every branch; annotation unions do not."""
+        from toolregistry.tool import _gemini_nullable_types
+
+        node = {"type": ["string", "integer", "null"]}
+        _gemini_nullable_types(node)
+        assert node == {
+            "anyOf": [{"type": "STRING"}, {"type": "INTEGER"}],
+            "nullable": True,
+        }
