@@ -659,8 +659,10 @@ class TestMetadataContainerIsolation:
         import threading
 
         lock = threading.Lock()
-        with pytest.warns(UserWarning, match="cannot be deep-copied"):
+        with pytest.warns(UserWarning, match="cannot be deep-copied") as record:
             md = ToolMetadata(extra={"nested": {"lock": lock}, "k": "v"})
+        # The warning points at this file, not at the generated __init__.
+        assert record[0].filename == __file__
         copy_md = dataclasses.replace(md, title="x")
         copy_md.extra["k"] = "changed"
         assert md.extra["k"] == "v"

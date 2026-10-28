@@ -68,7 +68,8 @@ def _copy_extra(extra: dict[str, Any]) -> dict[str, Any]:
             f"({', '.join(sorted(uncopyable))}); they are shared with the "
             "caller, so mutations through the original remain visible.",
             UserWarning,
-            stacklevel=3,
+            # _copy_extra -> __post_init__ -> generated __init__ -> caller.
+            stacklevel=4,
         )
     return copied
 
