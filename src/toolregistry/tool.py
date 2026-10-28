@@ -57,27 +57,86 @@ def _apply_flattened_parameters(
         target[key] = copy.deepcopy(parameters)
 
 
-def _gemini_nullable_types(node: Any) -> None:
-    """Rewrite ``type: [T, "null"]`` nodes into Gemini's ``nullable`` form.
+#: Schema keys whose value maps a name to a nested schema.
+_NESTED_SCHEMA_MAP_KEYS: tuple[str, ...] = (
+    "properties",
+    "patternProperties",
+    "dependentSchemas",
+    "$defs",
+    "definitions",
+)
 
-    Gemini's ``Schema`` takes a single type string plus ``nullable``; a type
-    list is not part of its dialect.  A node that allows several non-null
-    types as well is narrowed to the first one, since the dialect has no
-    union-of-types form either.
+#: Schema keys whose value is a nested schema or a list of them.
+_NESTED_SCHEMA_CHILD_KEYS: tuple[str, ...] = (
+    "items",
+    "additionalProperties",
+    "additionalItems",
+    "contains",
+    "not",
+    "if",
+    "then",
+    "else",
+    "propertyNames",
+    "prefixItems",
+    "anyOf",
+    "oneOf",
+    "allOf",
+)
+
+
+def _gemini_rewrite_type_list(node: dict[str, Any]) -> None:
+    """Rewrite one node's ``type`` list into Gemini's own spelling."""
+    type_val = node.get("type")
+    if not isinstance(type_val, list):
+        return
+    non_null = [t for t in type_val if t != "null"]
+    if not non_null:
+        return
+    if len(non_null) > 1 and "anyOf" not in node:
+        node.pop("type")
+        node["anyOf"] = [{"type": str(t).upper()} for t in non_null]
+    else:
+        node["type"] = str(non_null[0]).upper()
+    if len(non_null) < len(type_val):
+        node["nullable"] = True
+
+
+def _gemini_nullable_types(node: Any) -> None:
+    """Rewrite ``type: [T, ...]`` nodes into Gemini's own spelling.
+
+    Gemini's ``Schema`` takes a single type string per node, so a type list
+    is not part of its dialect.  A single non-null type plus ``nullable``
+    covers the common case; several non-null types become an ``anyOf`` of the
+    same branches, which recent ``Schema`` protos accept and which keeps the
+    values such a schema allows.
+
+    Note:
+        Only a literal ``type`` list reaches this rewrite.  An annotation such
+        as ``float | list[float] | None`` is carried as ``anyOf`` through the
+        IR, and its spelling is whatever the installed ``llm-rosetta``
+        converter emits.  While that converter collapses a union to its first
+        type (plus ``nullable``), the remaining branches are not recoverable
+        here.
+
+    The walk follows schema-bearing keys only, so literal data such as a
+    ``default`` or ``enum`` value that happens to look like a schema node is
+    left alone.
     """
-    if isinstance(node, dict):
-        type_val = node.get("type")
-        if isinstance(type_val, list):
-            non_null = [t for t in type_val if t != "null"]
-            if non_null:
-                node["type"] = str(non_null[0]).upper()
-                if len(non_null) < len(type_val):
-                    node["nullable"] = True
-        for value in node.values():
+    if not isinstance(node, dict):
+        return
+    _gemini_rewrite_type_list(node)
+    for key in _NESTED_SCHEMA_MAP_KEYS:
+        value = node.get(key)
+        if isinstance(value, dict):
+            for sub in value.values():
+                _gemini_nullable_types(sub)
+    for key in _NESTED_SCHEMA_CHILD_KEYS:
+        value = node.get(key)
+        if isinstance(value, dict):
             _gemini_nullable_types(value)
-    elif isinstance(node, list):
-        for item in node:
-            _gemini_nullable_types(item)
+        elif isinstance(value, list):
+            for sub in value:
+                _gemini_nullable_types(sub)
 
 
 _NULL_BRANCH: dict[str, str] = {"type": "null"}
