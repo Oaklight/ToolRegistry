@@ -5,7 +5,7 @@ import warnings
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, ClassVar, Literal, TypeVar, get_type_hints
-from collections.abc import Callable
+from collections.abc import Callable, Set as AbstractSet
 
 from ._names import NameSeparator, qualify_name
 from ._validation import HINT_METADATA_FIELDS, validate_metadata_field
@@ -107,6 +107,110 @@ def _apply_flattened_parameters(
 
     if target.get(key) != parameters:
         target[key] = copy.deepcopy(parameters)
+
+
+def _gemini_nullable_types(node: Any) -> None:
+    """Rewrite ``type: [T, "null"]`` nodes into Gemini's ``nullable`` form.
+
+    Gemini's ``Schema`` takes a single type string plus ``nullable``; a type
+    list is not part of its dialect.  A node that allows several non-null
+    types as well is narrowed to the first one, since the dialect has no
+    union-of-types form either.
+    """
+    if isinstance(node, dict):
+        type_val = node.get("type")
+        if isinstance(type_val, list):
+            non_null = [t for t in type_val if t != "null"]
+            if non_null:
+                node["type"] = str(non_null[0]).upper()
+                if len(non_null) < len(type_val):
+                    node["nullable"] = True
+        for value in node.values():
+            _gemini_nullable_types(value)
+    elif isinstance(node, list):
+        for item in node:
+            _gemini_nullable_types(item)
+
+
+_NULL_BRANCH: dict[str, str] = {"type": "null"}
+
+
+def _allows_null(node: Any) -> bool:
+    """Return whether a schema node admits ``null``."""
+    if not isinstance(node, dict):
+        return False
+    type_val = node.get("type")
+    if type_val == "null":
+        return True
+    if isinstance(type_val, list):
+        return "null" in type_val
+    return any(
+        branch == _NULL_BRANCH
+        for keyword in ("anyOf", "oneOf")
+        for branch in node.get(keyword, [])
+        if isinstance(branch, dict)
+    )
+
+
+def _add_null_branch(node: dict[str, Any]) -> None:
+    """Re-admit ``null`` in a node that lost its null alternative."""
+    type_val = node.get("type")
+    if isinstance(type_val, list):
+        if "null" not in type_val:
+            node["type"] = [*type_val, "null"]
+        return
+    if isinstance(type_val, str):
+        node.pop("type")
+        node["anyOf"] = [{"type": type_val}, dict(_NULL_BRANCH)]
+        return
+    for keyword in ("anyOf", "oneOf"):
+        if isinstance(node.get(keyword), list):
+            node[keyword] = [*node[keyword], dict(_NULL_BRANCH)]
+            return
+
+
+def _restore_property_nulls(
+    properties: dict[str, Any],
+    original_props: dict[str, Any],
+    required: AbstractSet[str],
+) -> None:
+    """Restore null branches for required properties of one object node."""
+    for name, node in properties.items():
+        node_original = original_props.get(name)
+        if name in required and _allows_null(node_original):
+            if not _allows_null(node):
+                _add_null_branch(node)
+        _restore_dropped_nulls(node, node_original)
+
+
+def _restore_child_null(flattened: dict[str, Any], original: dict[str, Any], key: str):
+    """Restore a null branch on one element schema (items/additionalProperties)."""
+    child = flattened.get(key)
+    child_original = original.get(key)
+    if not isinstance(child, dict) or not isinstance(child_original, dict):
+        return
+    if _allows_null(child_original) and not _allows_null(child):
+        _add_null_branch(child)
+    _restore_dropped_nulls(child, child_original)
+
+
+def _restore_dropped_nulls(flattened: Any, original: Any) -> None:
+    """Re-admit null where the flatten pass dropped it but the tool accepts it.
+
+    ``flatten_schema`` collapses every ``anyOf`` null branch, including the
+    ones kept only for a required property or an element schema.  Those have
+    no default, so their null branch is a real value; the pre-flatten schema
+    is the only record of it.
+    """
+    if not isinstance(flattened, dict) or not isinstance(original, dict):
+        return
+    properties = flattened.get("properties")
+    original_props = original.get("properties")
+    if isinstance(properties, dict) and isinstance(original_props, dict):
+        required = set(flattened.get("required") or ())
+        _restore_property_nulls(properties, original_props, required)
+    for key in ("items", "additionalProperties"):
+        _restore_child_null(flattened, original, key)
 
 
 class ToolTag(str, Enum):
@@ -698,7 +802,10 @@ class Tool:
         elif not isinstance(parameters.get("properties"), dict):
             parameters = {**parameters, "properties": {}}
 
-        return flatten_schema(parameters, strip_keys=cls._EXTRA_STRIP_KEYS)
+        original = copy.deepcopy(parameters)
+        flattened = flatten_schema(parameters, strip_keys=cls._EXTRA_STRIP_KEYS)
+        _restore_dropped_nulls(flattened, original)
+        return flattened
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to dict, excluding non-serializable fields."""
@@ -942,7 +1049,9 @@ class Tool:
         if api_format == "gemini":
             # Unwrap the function_declarations wrapper to return a single
             # tool definition, consistent with other format outputs.
-            return result["function_declarations"][0]
+            declaration = result["function_declarations"][0]
+            _gemini_nullable_types(declaration.get("parameters"))
+            return declaration
 
         _apply_flattened_parameters(result, params, api_format)
         return result
