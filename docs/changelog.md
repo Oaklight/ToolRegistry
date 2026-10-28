@@ -16,6 +16,8 @@ hide:
 
 ## [未发布]
 
+## [0.19.1] - 2026-10-28
+
 ### 修复
 
 - **工具结果中的非有限浮点数现在写成 `null`**（#346、#347）：`json.dumps` 会把 `NaN` / `Infinity` 写成裸常量，而这不是合法 JSON——`JSON.parse`、Go 的 `encoding/json`、serde 以及带 `parse_constant=` 的 `json.loads` 都会拒绝。于是当工具返回由空集合算出的 loss、score 或 ratio 时，客户端拿到的响应无法解析。`ToolResultJSONEncoder` 现在把非有限浮点投影为 `null`，与 FastAPI 的编码器和 JSON 规范的推荐一致。净化同时覆盖 JSON 容器与编码器自身的投影结果，因此 dataclass、Pydantic 模型或集合内部的 `NaN` 也会被处理；有限浮点不受影响。
