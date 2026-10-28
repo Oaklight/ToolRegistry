@@ -22,6 +22,30 @@ from .utils import compute_schema_hash, normalize_tool_name
 _ToolT = TypeVar("_ToolT", bound="Tool")
 
 
+def _copy_extra(extra: dict[str, Any]) -> dict[str, Any]:
+    """Copy a metadata ``extra`` mapping, deeply when it has nested containers.
+
+    Flat mappings are copied at the top level only, which keeps construction
+    cheap for the common case.  Nested containers are deep-copied so a copy
+    cannot mutate the original; a value that cannot be deep-copied falls back
+    to the top-level copy instead of failing construction.
+
+    Args:
+        extra: The mapping supplied by the caller.
+
+    Returns:
+        An independent mapping (nested values included when copyable).
+    """
+    if not any(isinstance(value, (dict, list, set)) for value in extra.values()):
+        return dict(extra)
+    try:
+        return copy.deepcopy(extra)
+    except (TypeError, copy.Error):
+        # User metadata may hold an object that cannot be copied; keep the
+        # top-level isolation rather than refusing to build the metadata.
+        return dict(extra)
+
+
 def _apply_flattened_parameters(
     result: dict[str, Any], parameters: dict[str, Any], api_format: str
 ) -> None:
@@ -93,6 +117,8 @@ class ToolMetadata:
         the containers (``tags``, ``custom_tags``, ``extra``) are still
         mutable.  They are copied on construction, so a
         ``dataclasses.replace`` copy never shares them with the original.
+        ``extra`` is deep-copied when it contains nested containers; a value
+        that cannot be deep-copied keeps the top-level copy only.
         In-place mutation of a live instance remains unsupported because it
         bypasses change events; use
         :meth:`ToolRegistry.update_tool_metadata` (or
@@ -284,7 +310,7 @@ class ToolMetadata:
         # copy and the caller's input containers -- owns its own data.
         object.__setattr__(self, "tags", set(self.tags))
         object.__setattr__(self, "custom_tags", set(self.custom_tags))
-        object.__setattr__(self, "extra", copy.deepcopy(self.extra))
+        object.__setattr__(self, "extra", _copy_extra(self.extra))
         if self.locality not in self._VALID_LOCALITY:
             raise ValueError(
                 f"Invalid locality {self.locality!r}, "

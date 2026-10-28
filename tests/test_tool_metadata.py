@@ -654,3 +654,15 @@ class TestMetadataContainerIsolation:
         source["nested"]["n"] = 2
         copy_md.extra["nested"]["n"] = 3
         assert md.extra["nested"]["n"] == 1
+
+    def test_extra_with_uncopyable_value_still_constructs(self):
+        import threading
+
+        lock = threading.Lock()
+        md = ToolMetadata(extra={"nested": {"lock": lock}, "k": "v"})
+        copy_md = dataclasses.replace(md, title="x")
+        copy_md.extra["k"] = "changed"
+        assert md.extra["k"] == "v"
+        # The fallback keeps the top-level copy; the nested uncopyable value
+        # is shared by necessity.
+        assert copy_md.extra["nested"]["lock"] is lock
