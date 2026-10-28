@@ -34,7 +34,7 @@ Tool 类遵循数据传输对象模式，包含以下关键组件：
 
 ### 设计理念
 
-- **不可变性**：`Tool` 和 `ToolMetadata` 是 `frozen=True` 数据类——字段在构造后不可重新赋值。`ToolMetadata` 在构造时会复制 `tags`、`custom_tags` 与 `extra` 容器，因此 `dataclasses.replace()` 生成的副本彼此独立。使用 `dataclasses.replace()` 创建修改后的副本，替换参数字段时使用 `Tool.with_parameters()`。
+- **不可变性**：`Tool` 和 `ToolMetadata` 是 `frozen=True` 数据类——字段在构造后不可重新赋值。`ToolMetadata` 在构造时会复制 `tags`、`custom_tags` 与 `extra` 容器，因此 `dataclasses.replace()` 生成的副本彼此独立；`extra` 中每个值都单独深拷贝，嵌套容器同样隔离，无法复制的值（锁、生成器、模块）保留引用并发出 `UserWarning`。使用 `dataclasses.replace()` 创建修改后的副本，替换参数字段时使用 `Tool.with_parameters()`。
 - **模式驱动**：基于 JSON Schema 标准的参数验证
 - **执行灵活性**：支持同步和异步执行模式
 - **元数据保留**：完整保留工具元数据以供 LLM 使用
@@ -190,7 +190,7 @@ print(explicit.declared_execution_hints)  # {'read_only_hint': True, 'destructiv
 
 ### 替换参数字段
 
-`dataclasses.replace(tool, parameters=...)` 会复用现有元数据，因此指纹仍描述旧 schema；现在出现这种不一致会发出警告。需要替换 schema 并同时重算哈希时，请使用 `Tool.with_parameters()`：
+`dataclasses.replace(tool, parameters=...)` 会复用现有元数据，因此指纹仍描述旧 schema；现在出现这种不一致会发出警告。构造时传入的哈希会被原样保存（即使与参数不符），因此对外报告的始终是传入的那个指纹。需要替换 schema 并同时重算哈希时，请使用 `Tool.with_parameters()`：
 
 ```python
 from toolregistry.utils import compute_schema_hash
@@ -201,7 +201,7 @@ updated = tool.with_parameters(
 assert updated.metadata.schema_hash == compute_schema_hash(updated.parameters)
 ```
 
-旧参数校验模型默认会被丢弃，因为它描述的是旧 schema，并会发出 `UserWarning` 指出工具名；当新 schema 等价时可传入 `parameters_model=` 保留。
+旧参数校验模型默认会被丢弃，因为它描述的是旧 schema，并会发出 `UserWarning` 指出工具名；当新 schema 等价时可传入 `parameters_model=` 保留。没有模型时，`validate_parameters()` 变为直通：不检查类型、`required` 字段与未知键，因此违反已发布 schema 的参数也会被接受。
 
 ### 异步工具
 
