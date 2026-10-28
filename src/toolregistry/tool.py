@@ -89,10 +89,15 @@ class ToolMetadata:
     """Behavioral and classification metadata for a Tool.
 
     Note:
-        Frozen semantics are shallow — field reassignment is prevented
-        but mutable containers (``tags`` set, ``custom_tags`` set,
-        ``extra`` dict) can still be modified in place.  Mutation
-        should only occur during ``__post_init__``.
+        Frozen semantics are shallow: field reassignment is prevented, but
+        the containers (``tags``, ``custom_tags``, ``extra``) are still
+        mutable.  They are copied on construction, so a
+        ``dataclasses.replace`` copy never shares them with the original.
+        In-place mutation of a live instance remains unsupported because it
+        bypasses change events; use
+        :meth:`ToolRegistry.update_tool_metadata` (or
+        ``update_namespace_metadata``) to change metadata on a registered
+        tool.
 
     Attributes:
         is_async: Whether the tool requires async execution.
@@ -274,6 +279,12 @@ class ToolMetadata:
     _VALID_BACKEND = {"inline", "thread", "process", None}
 
     def __post_init__(self) -> None:
+        # Frozen only prevents rebinding.  Copy the mutable containers so
+        # every constructed instance -- including every dataclasses.replace
+        # copy and the caller's input containers -- owns its own data.
+        object.__setattr__(self, "tags", set(self.tags))
+        object.__setattr__(self, "custom_tags", set(self.custom_tags))
+        object.__setattr__(self, "extra", dict(self.extra))
         if self.locality not in self._VALID_LOCALITY:
             raise ValueError(
                 f"Invalid locality {self.locality!r}, "

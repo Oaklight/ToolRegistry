@@ -601,3 +601,48 @@ class TestDeclaredExecutionHints:
             "read_only_hint": True,
             "destructive_hint": False,
         }
+
+
+class TestMetadataContainerIsolation:
+    """Construction copies mutable containers, so copies are independent.
+
+    ``frozen=True`` only prevents field reassignment.  Before this, a
+    ``dataclasses.replace`` copy shared the original's tag sets, so
+    mutating one silently changed the other (#355).
+    """
+
+    def test_replace_does_not_share_tags(self):
+        md = ToolMetadata(tags={ToolTag.READ_ONLY})
+        copy = dataclasses.replace(md, title="x")
+        assert copy.tags is not md.tags
+        copy.tags.add(ToolTag.NETWORK)
+        assert ToolTag.NETWORK not in md.tags
+
+    def test_replace_does_not_share_custom_tags_or_extra(self):
+        md = ToolMetadata(custom_tags={"mine"}, extra={"k": "v"})
+        copy = dataclasses.replace(md, title="x")
+        assert copy.custom_tags is not md.custom_tags
+        assert copy.extra is not md.extra
+        copy.custom_tags.add("yours")
+        copy.extra["k"] = "changed"
+        assert md.custom_tags == {"mine"}
+        assert md.extra == {"k": "v"}
+
+    def test_constructor_copies_input_containers(self):
+        tags = {ToolTag.READ_ONLY}
+        custom = {"mine"}
+        extra = {"k": "v"}
+        md = ToolMetadata(tags=tags, custom_tags=custom, extra=extra)
+        tags.add(ToolTag.NETWORK)
+        custom.add("yours")
+        extra["k"] = "changed"
+        assert md.tags == {ToolTag.READ_ONLY}
+        assert md.custom_tags == {"mine"}
+        assert md.extra == {"k": "v"}
+
+    def test_model_copy_does_not_share_tags(self):
+        md = ToolMetadata(tags={ToolTag.READ_ONLY})
+        copy = md.model_copy(update={"title": "x"})
+        assert copy.tags is not md.tags
+        copy.tags.add(ToolTag.NETWORK)
+        assert ToolTag.NETWORK not in md.tags
