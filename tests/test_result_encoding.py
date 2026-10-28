@@ -600,6 +600,10 @@ class TestProcessModeUsesEncoder:
         assert "thread backend" in batch.message
 
 
+def _reject(value: str):
+    raise AssertionError(f"non-finite {value} in JSON body")
+
+
 class TestNonFiniteFloats:
     """NaN and Infinity are not valid JSON; they become ``null`` (#346)."""
 
@@ -663,3 +667,42 @@ class TestNonFiniteFloats:
         reg.register(finite)
         parsed = self._strict_loads(_invoke_result(reg, "finite"))
         assert parsed == {"a": 0.5, "b": -0.0, "c": 1e308}
+
+    def test_deeply_nested_result_walks_without_recursion(self):
+        """The sanitiser must not impose its own depth limit (#347 review)."""
+        from toolregistry.utils import _replace_non_finite
+
+        depth = 5000
+        root = current = []
+        for _ in range(depth):
+            child = []
+            current.append(child)
+            current = child
+        current.append(float("nan"))
+
+        result = _replace_non_finite(root)
+        seen = 0
+        node = result
+        while len(node) == 1 and isinstance(node[0], list):
+            node = node[0]
+            seen += 1
+        assert seen == depth
+        assert node == [None]
+
+    def test_self_referential_result_keeps_the_error_contract(self):
+        """A cycle must raise the tool-named TypeError, not RecursionError."""
+        from toolregistry.utils import encode_tool_result
+
+        cyclic: list = []
+        cyclic.append(cyclic)
+        cyclic.append(float("nan"))
+
+        with pytest.raises(TypeError, match="Circular reference"):
+            encode_tool_result(cyclic, tool_name="cyclic_tool")
+
+    def test_shared_container_is_sanitised_in_every_position(self):
+        from toolregistry.utils import ToolResultJSONEncoder
+
+        shared = [float("inf")]
+        body = json.dumps([shared, shared], cls=ToolResultJSONEncoder)
+        assert json.loads(body, parse_constant=_reject) == [[None], [None]]

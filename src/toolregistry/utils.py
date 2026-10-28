@@ -496,20 +496,54 @@ def utc_iso_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _sanitise_float(value: Any) -> Any:
+    """Return a finite float unchanged and a non-finite one as ``None``."""
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    return value
+
+
+def _copy_into(container: Any, key: Any, item: Any, state: dict) -> None:
+    """Append or assign *item*, copying a JSON container if it is new."""
+    if not isinstance(item, (dict, list, tuple)):
+        value = _sanitise_float(item)
+    else:
+        value = state["copies"].get(id(item))
+        if value is None:
+            value = {} if isinstance(item, dict) else []
+            state["copies"][id(item)] = value
+            state["stack"].append((item, value))
+    if isinstance(container, dict):
+        container[key] = value
+    else:
+        container.append(value)
+
+
 def _replace_non_finite(value: Any) -> Any:
     """Return *value* with non-finite floats replaced by ``None``.
 
     Walks the JSON containers ``json`` traverses itself.  Set elements and
     dataclass fields are projected by :class:`ToolResultJSONEncoder`, which
     sanitizes its own output, so they are left untouched here.
+
+    The walk is iterative and keeps one copy per container identity, for two
+    reasons.  A deeply nested result must not exhaust the interpreter's
+    recursion limit, which ``json``'s own C encoder does not; and a
+    self-referential result must reach ``json``'s circular-reference check so
+    the caller sees the documented error instead of a ``RecursionError``
+    raised from here.
     """
-    if isinstance(value, float):
-        return value if math.isfinite(value) else None
-    if isinstance(value, dict):
-        return {key: _replace_non_finite(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_replace_non_finite(item) for item in value]
-    return value
+    if not isinstance(value, (dict, list, tuple)):
+        return _sanitise_float(value)
+
+    root: Any = {} if isinstance(value, dict) else []
+    state = {"copies": {id(value): root}, "stack": [(value, root)]}
+    while state["stack"]:
+        source, target = state["stack"].pop()
+        items = source.items() if isinstance(source, dict) else enumerate(source)
+        for key, item in items:
+            _copy_into(target, key, item, state)
+    return root
 
 
 class ToolResultJSONEncoder(json.JSONEncoder):
