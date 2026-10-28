@@ -16,6 +16,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **`declared_execution_hints` separates policy tags from wire claims** (#353): `ToolMetadata.declared_execution_hints` (and the `Tool` proxy) returns only hints that were explicitly declared, plus the `destructive_hint=False` complement implied by an explicit `read_only_hint=True`. `execution_hints` is unchanged for compatibility, but it derives values from `ToolTag.READ_ONLY` / `ToolTag.DESTRUCTIVE`, which also drive the built-in permission rules; publishing that resolved mapping let a tag chosen for local policy become a client-facing auto-approve claim. Transports should publish the declared mapping and treat an empty result as "no claim".
+- **`Tool.with_parameters()`** (#356): replaces a tool's parameter schema and recomputes `metadata.schema_hash` in one step. The old validation model is dropped by default, because it describes the old schema; pass `parameters_model=` when the schema is equivalent.
+
+### Fixed
+
+- **Bare containers keep their type and duplicate union branches collapse** (#354): bare `list`, `dict`, `set` and `frozenset` were not normalized the way bare `tuple` was (#269), so `Optional[list]` rendered as `{"default": null}` and a bare `list` inside a union became a `{}` branch that matched every value. All bare containers (including `typing` aliases with empty `__args__`) are now parameterized by `Any`, identical union branches are deduplicated, and a parameter that still renders without a type emits a `UserWarning` naming the function and parameter.
+- **`ToolMetadata` copies its mutable containers on construction** (#355): `tags`, `custom_tags` and `extra` were shared between `dataclasses.replace()` copies, so mutating a copy changed the original. Each constructed instance now owns its containers. In-place mutation remains unsupported because it bypasses change events; use `ToolRegistry.update_tool_metadata()` / `update_namespace_metadata()`.
+- **A stale `schema_hash` is no longer silent** (#356): `Tool.__init__` keeps an explicitly supplied hash but warns when it disagrees with the normalized parameters. `dataclasses.replace(tool, parameters=...)` therefore no longer leaves a fingerprint describing the old schema without a signal; use `Tool.with_parameters()` to recompute it.
+
+
 ## [0.19.1] - 2026-10-28
 
 ### Fixed

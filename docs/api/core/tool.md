@@ -34,7 +34,7 @@ The Tool class follows a data-transfer-object pattern with the following key com
 
 ### Design Philosophy
 
-- **Immutability**: `Tool` and `ToolMetadata` are `frozen=True` dataclasses — fields cannot be reassigned after construction. Use `dataclasses.replace()` to create modified copies.
+- **Immutability**: `Tool` and `ToolMetadata` are `frozen=True` dataclasses — fields cannot be reassigned after construction. `ToolMetadata` copies its `tags`, `custom_tags` and `extra` containers when constructed, so `dataclasses.replace()` copies are independent. Use `dataclasses.replace()` to create modified copies, or `Tool.with_parameters()` when replacing a parameter schema.
 - **Schema-Driven**: Parameter validation based on JSON Schema standards
 - **Execution Flexibility**: Support for both sync and async execution patterns
 - **Metadata Preservation**: Complete preservation of tool metadata for LLM consumption
@@ -162,6 +162,47 @@ tool = Tool.from_function(lambda x: x, name="echo")
 updated = tool.with_refreshed_at("2026-09-15T08:00:00Z")
 print(updated.metadata.last_refreshed_at)  # "2026-09-15T08:00:00Z"
 ```
+
+### Execution Hints
+
+`Tool.execution_hints` resolves hints for every tool, deriving `read_only_hint` / `destructive_hint` from `ToolTag.READ_ONLY` / `ToolTag.DESTRUCTIVE`. Those tags also drive the built-in permission rules, so the resolved mapping is not automatically safe to publish: a tag chosen for local policy would become a client-facing auto-approve claim.
+
+`Tool.declared_execution_hints` returns only what the tool declared explicitly, plus the `destructive_hint=False` complement implied by an explicit `read_only_hint=True`. Transports should publish this mapping and treat an empty result as "no claim" (absent annotations), which is what an MCP client interprets as write-capable.
+
+```python
+from toolregistry import Tool
+from toolregistry.tool import ToolMetadata, ToolTag
+
+tagged = Tool.from_function(
+    lambda: "state",
+    name="reader",
+    metadata=ToolMetadata(tags={ToolTag.READ_ONLY}),
+)
+print(tagged.execution_hints)          # {'read_only_hint': True, 'destructive_hint': False}
+print(tagged.declared_execution_hints) # {}
+
+explicit = Tool.from_function(
+    lambda: "state",
+    name="reader2",
+    metadata=ToolMetadata(read_only_hint=True),
+)
+print(explicit.declared_execution_hints)  # {'read_only_hint': True, 'destructive_hint': False}
+```
+
+### Replacing a Parameter Schema
+
+`dataclasses.replace(tool, parameters=...)` reuses the existing metadata, so the fingerprint would still describe the old schema. It now warns when that happens. Use `Tool.with_parameters()` to replace the schema and recompute the hash in one step:
+
+```python
+from toolregistry.utils import compute_schema_hash
+
+updated = tool.with_parameters(
+    {"type": "object", "properties": {"q": {"type": "string"}}}
+)
+assert updated.metadata.schema_hash == compute_schema_hash(updated.parameters)
+```
+
+The old validation model is dropped by default, because it describes the old schema; pass `parameters_model=` when the new schema is equivalent.
 
 ### Async Tool
 
