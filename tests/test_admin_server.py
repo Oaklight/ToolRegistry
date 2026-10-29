@@ -1473,3 +1473,97 @@ class TestAdminServerTLS:
         assert server._thread is None
         assert server._app is None
         assert not server.is_running()
+
+
+class TestAdminJSONBody:
+    """Admin responses must stay valid JSON whatever a tool returns (#348).
+
+    The panel builds its own bodies, so it never went through the vendored
+    ``JSONResponse`` that writes non-finite floats as ``null``.  ``NaN`` would
+    reach the browser as a bare constant and ``JSON.parse`` would reject the
+    whole response.
+    """
+
+    def test_non_finite_floats_are_written_as_null(self) -> None:
+        from toolregistry.admin.handlers import _json_response
+
+        response = _json_response(
+            {"loss": float("nan"), "up": float("inf"), "down": float("-inf"), "ok": 1.5}
+        )
+
+        assert json.loads(response.body) == {
+            "loss": None,
+            "up": None,
+            "down": None,
+            "ok": 1.5,
+        }
+
+    def test_nested_non_finite_floats_are_written_as_null(self) -> None:
+        from toolregistry.admin.handlers import _json_response
+
+        response = _json_response({"entries": [{"metrics": [float("nan")]}]})
+
+        assert json.loads(response.body) == {"entries": [{"metrics": [None]}]}
+
+    def test_datetime_and_sets_still_serialize(self) -> None:
+        from datetime import datetime
+
+        from toolregistry.admin.handlers import _json_response
+
+        response = _json_response(
+            {"when": datetime(2024, 1, 2, 3, 4, 5), "tags": {"a"}}
+        )
+
+        assert json.loads(response.body) == {
+            "when": "2024-01-02T03:04:05",
+            "tags": ["a"],
+        }
+
+    def test_unsupported_object_raises_instead_of_emitting_invalid_json(self) -> None:
+        from toolregistry.admin.handlers import _json_response
+
+        with pytest.raises(TypeError):
+            _json_response({"bad": object()})
+
+
+class TestAdminNonFiniteToolResult:
+    """A tool result holding ``NaN`` must not blank the log view (#348)."""
+
+    @pytest.fixture
+    def metric_server(self):
+        registry = ToolRegistry()
+        registry.enable_logging(max_entries=10)
+
+        def metric() -> dict:
+            """Return metrics computed from an empty set."""
+            return {"loss": float("nan"), "ratio": float("inf")}
+
+        registry.register(metric)
+        registry.execute_tool_calls(
+            [
+                {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {"name": "metric", "arguments": "{}"},
+                }
+            ]
+        )
+
+        server = AdminServer(registry, port=18107)
+        info = server.start()
+        time.sleep(0.1)
+
+        yield info
+
+        server.stop()
+
+    def test_logs_endpoint_returns_parseable_json(self, metric_server) -> None:
+        with urllib.request.urlopen(f"{metric_server.url}/api/logs", timeout=5) as resp:
+            payload = json.loads(resp.read().decode())
+
+        # The log stores the result as JSON text; the panel echoes it, so the
+        # body must stay parseable end to end.
+        assert json.loads(payload["entries"][0]["result"]) == {
+            "loss": None,
+            "ratio": None,
+        }
