@@ -2191,17 +2191,23 @@
 
             async request(path, options = {}, authRetried = false) {
                 options.headers = { ...this.getHeaders(), ...options.headers };
+                const requestToken = this.token;
                 try {
                     const response = await fetch(this.baseUrl + path, options);
                     if (response.status === 401) {
                         // A stored or freshly entered token that still gets 401
                         // is final: never loop the prompt forever on a typo.
                         if (authRetried) throw new Error('Unauthorized');
-                        const token = await promptForAdminToken();
-                        if (!token) throw new Error('Unauthorized');
-                        localStorage.setItem('admin_token', token);
-                        this.token = token;
-                        AUTH_TOKEN = token;
+                        // Another request may have obtained a token while this
+                        // one was in flight; reuse it instead of prompting.
+                        let token = this.token;
+                        if (!token || token === requestToken) {
+                            token = await promptForAdminToken();
+                            if (!token) throw new Error('Unauthorized');
+                            localStorage.setItem('admin_token', token);
+                            this.token = token;
+                            AUTH_TOKEN = token;
+                        }
                         return this.request(path, options, true);
                     }
                     const data = await response.json();
