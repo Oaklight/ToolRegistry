@@ -596,6 +596,14 @@ class TestAdminUIAssets:
         assert "let _currentNameSep" in ADMIN_HTML
         assert "renames every namespaced tool immediately" in ADMIN_HTML
 
+    def test_concurrent_auth_requests_reuse_a_fresh_token(self) -> None:
+        from toolregistry.admin.static import ADMIN_HTML
+
+        # A request that got 401 while another request was prompting must
+        # reuse the token that prompt produced instead of prompting again.
+        assert "const requestToken = this.token;" in ADMIN_HTML
+        assert "token === requestToken" in ADMIN_HTML
+
     def test_ui_polish_regressions(self) -> None:
         from toolregistry.admin.static import ADMIN_HTML
 
