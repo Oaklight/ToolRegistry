@@ -26,7 +26,7 @@ hide:
 - **裸容器保留类型，重复的联合分支被合并**（#354）：裸 `list`、`dict`、`set`、`frozenset` 没有像裸 `tuple` 那样被规范化（#269），因此 `Optional[list]` 渲染成 `{"default": null}`，联合中的裸 `list` 变成一个匹配任意值的 `{}` 分支。现在所有裸容器（包括 `__args__` 为空的 `typing` 别名）都会以 `Any` 参数化，完全相同的联合分支会被去重，而仍然渲染为无类型的参数会发出 `UserWarning` 并指出函数与参数名。可空清理现在也会遍历嵌套 schema（数组 `items`、嵌套对象、`$defs`），并且只在“省略”已能表达该情况时才移除 null 分支：可选属性仍渲染为 `{"type": "integer"}`，而必填属性、数组元素与映射值会保留 `null` 分支——这些位置工具确实接受 `None`，禁止 `null` 的 schema 已不能描述该工具。Gemini 收到等价的 `{type: T, nullable: true}`，因为它的 `Schema` 方言没有类型数组；字面量多类型列表在 Gemini 上会变成 `anyOf`，而注解产生的多分支联合由 provider converter 生成，保持其原有写法。
 - **`ToolMetadata` 在构造时复制可变容器**（#355）：`tags`、`custom_tags` 与 `extra` 会在 `dataclasses.replace()` 副本之间共享，修改副本会改到原对象。现在每个实例拥有自己的容器：`extra` 中每个值都单独深拷贝，因此嵌套容器同样隔离。不可变标量直接共享；无法深拷贝的值（锁、生成器、模块）保留引用并发出 `UserWarning`，而不再连带让本可复制的同级值也变成共享。就地修改仍不受支持，因为它会绕过变更事件；请使用 `ToolRegistry.update_tool_metadata()` / `update_namespace_metadata()`。
 - **过期的 `schema_hash` 不再静默**（#356）：`Tool.__init__` 会原样保留显式传入的哈希（作为运维锁定值），但与规范化参数不一致时会发出警告，因此对外报告的始终是传入的那一个指纹。因此 `dataclasses.replace(tool, parameters=...)` 不会再无提示地留下描述旧 schema 的指纹；需要重算时请使用 `Tool.with_parameters()`。
-
+- **管理面板的响应始终是合法 JSON**（#348）：面板自己用 `json.dumps` 构造响应体，会把 `NaN` 与 `Infinity` 写成裸常量——那并不是 JSON。当工具返回由空集合计算出的指标（如 `loss`、比值）时，浏览器里的 `JSON.parse` 会拒绝整个响应，页面直接空白，而不是只显示某个字段有问题。现在响应体统一走 `ToolResultJSONEncoder` 并设置 `allow_nan=False`：非有限浮点数写成 `null`，而任何绕过编码器直接进入 `json` 的值都会显式失败，而不是产出一个无法解析的 200。
 
 ## [0.19.1] - 2026-10-28
 
