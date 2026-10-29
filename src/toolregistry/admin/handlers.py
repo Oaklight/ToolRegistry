@@ -9,10 +9,10 @@ import json
 import os
 import urllib.parse
 from dataclasses import asdict
-from datetime import datetime
 from typing import TYPE_CHECKING, Any, cast
 
 from .._vendor.httpserver import HTTPException, Request, Response
+from ..utils import ToolResultJSONEncoder
 
 from .static import ADMIN_HTML
 
@@ -44,25 +44,16 @@ def _app(request: Request) -> "AdminApp":
 # ============== Response Helpers ==============
 
 
-def _json_serializer(obj: Any) -> Any:
-    """Custom JSON serializer for non-standard types.
-
-    Args:
-        obj: Object to serialize.
-
-    Returns:
-        JSON-serializable representation.
-
-    Raises:
-        TypeError: If object is not serializable.
-    """
-    if isinstance(obj, datetime):
-        return obj.isoformat()
-    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
-
-
 def _json_response(data: Any, status_code: int = 200) -> Response:
-    """Create a JSON response with custom datetime serialization.
+    """Create a JSON response.
+
+    Values a tool may produce -- ``datetime``, ``Decimal``, ``set``,
+    dataclasses, non-finite floats -- are projected by
+    :class:`ToolResultJSONEncoder`, so a ``NaN`` becomes ``null`` rather than
+    the bare constant, which is not valid JSON and would make the whole body
+    unparseable in the browser.  ``allow_nan=False`` keeps that a hard
+    failure if a value ever reaches ``json`` without going through the
+    encoder.
 
     Args:
         data: The data to serialize as JSON.
@@ -71,7 +62,7 @@ def _json_response(data: Any, status_code: int = 200) -> Response:
     Returns:
         Response with JSON content type.
     """
-    body = json.dumps(data, default=_json_serializer)
+    body = json.dumps(data, cls=ToolResultJSONEncoder, allow_nan=False)
     return Response(
         body=body,
         status_code=status_code,
