@@ -1735,7 +1735,7 @@
                                         </select>
                                         <button class="btn btn-primary btn-sm" onclick="saveNameSep()" data-i18n="btn.apply">Apply</button>
                                     </div>
-                                    <p class="text-muted mt-2" style="font-size:0.75rem;" data-i18n="config.nameSepHint">Separator between namespace and method name (applies to future registrations only).</p>
+                                    <p class="text-muted mt-2" style="font-size:0.75rem;" data-i18n="config.nameSepHint">Separator between namespace and method name. Changing it renames every namespaced tool immediately.</p>
                                 </div>
                             </div>
                         </div>
@@ -1978,7 +1978,10 @@
             'toast.copied':'Copied to clipboard',
             'toast.copyFailed':'Copy failed',
             'config.nameSep':'Name Separator',
-            'config.nameSepHint':'Separator between namespace and method name (applies to future registrations only).',
+            'config.nameSepHint':'Separator between namespace and method name. Changing it renames every namespaced tool immediately.',
+            'modal.changeNameSep':'Change Name Separator',
+            'confirm.nameSepChange':'Rename namespaced tools from "{from}" to "{to}"?',
+            'confirm.nameSepWarn':'Existing tool names change immediately. Calls that still use the old names will fail, and log entries keep their old names.',
           },
           zh: {
             'app.title':'ToolRegistry \u7ba1\u7406\u9762\u677f',
@@ -2094,7 +2097,10 @@
             'toast.copied':'\u5df2\u590d\u5236\u5230\u526a\u8d34\u677f',
             'toast.copyFailed':'\u590d\u5236\u5931\u8d25',
             'config.nameSep':'\u540d\u79f0\u5206\u9694\u7b26',
-            'config.nameSepHint':'\u547d\u540d\u7a7a\u95f4\u4e0e\u65b9\u6cd5\u540d\u4e4b\u95f4\u7684\u5206\u9694\u7b26\uff08\u4ec5\u5f71\u54cd\u65b0\u6ce8\u518c\u5de5\u5177\uff09\u3002',
+            'config.nameSepHint':'\u547d\u540d\u7a7a\u95f4\u4e0e\u65b9\u6cd5\u540d\u4e4b\u95f4\u7684\u5206\u9694\u7b26\u3002\u66f4\u6539\u540e\u4f1a\u7acb\u5373\u91cd\u547d\u540d\u6240\u6709\u5e26\u547d\u540d\u7a7a\u95f4\u7684\u5de5\u5177\u3002',
+            'modal.changeNameSep':'\u66f4\u6539\u540d\u79f0\u5206\u9694\u7b26',
+            'confirm.nameSepChange':'\u5c06\u6240\u6709\u547d\u540d\u7a7a\u95f4\u5de5\u5177\u7684\u540d\u79f0\u5206\u9694\u7b26\u4ece "{from}" \u6539\u4e3a "{to}"\uff1f',
+            'confirm.nameSepWarn':'\u73b0\u6709\u5de5\u5177\u540d\u4f1a\u7acb\u5373\u6539\u53d8\uff1b\u4ecd\u4f7f\u7528\u65e7\u540d\u79f0\u7684\u8c03\u7528\u5c06\u5931\u8d25\uff0c\u65e5\u5fd7\u4fdd\u7559\u65e7\u540d\u79f0\u3002',
           },
         };
 
@@ -2558,7 +2564,8 @@
                 </tr>`;
 
                 children.forEach(tool => {
-                    const shortName = (!isDefault && tool.name.startsWith(ns + '-')) ? tool.name.slice(ns.length + 1) : tool.name;
+                    const shortName = (!isDefault && (tool.name.startsWith(ns + '-') || tool.name.startsWith(ns + '.')))
+                        ? tool.name.slice(ns.length + 1) : tool.name;
                     const tagBadges = renderTagBadges(tool.tags, true);
                     const metaIcons = renderMetaIcons(tool);
                     const permBadge = renderPermissionBadge(tool.permission);
@@ -3529,22 +3536,38 @@
             }
         }
 
+        let _currentNameSep = '-';
+
         function renderRegistrySettings(info) {
             const card = document.getElementById('registry-settings-card');
             if (!card) return;
-            const nameSep = info.name_sep || '-';
-            document.getElementById('name-sep-select').value = nameSep;
+            _currentNameSep = info.name_sep || '-';
+            document.getElementById('name-sep-select').value = _currentNameSep;
             card.style.display = '';
         }
 
-        async function saveNameSep() {
+        function saveNameSep() {
             const sep = document.getElementById('name-sep-select').value;
-            try {
-                await api.updateConfig({ name_sep: sep });
-                showToast(t('toast.configSavedMemory'), 'success');
-            } catch (e) {
-                showToast(t('toast.configSaveFailed', { error: e.message }), 'error');
-            }
+            if (sep === _currentNameSep) return;
+
+            // The registry setter re-keys every namespaced tool, so this is a
+            // breaking rename, not a setting for future registrations.
+            showModal(t('modal.changeNameSep'), `
+                <p>${t('confirm.nameSepChange', { from: _currentNameSep, to: sep })}</p>
+                <p class="text-muted text-sm mt-2">${t('confirm.nameSepWarn')}</p>
+            `, async () => {
+                try {
+                    await api.updateConfig({ name_sep: sep });
+                    _currentNameSep = sep;
+                    showToast(t('toast.configSavedMemory'), 'success');
+                    refreshAll();
+                    refreshRegistrySettings();
+                } catch (e) {
+                    showToast(t('toast.configSaveFailed', { error: e.message }), 'error');
+                }
+            }, () => {
+                document.getElementById('name-sep-select').value = _currentNameSep;
+            });
         }
 
         // ============== Initialization ==============
