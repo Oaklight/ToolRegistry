@@ -58,7 +58,7 @@ Clicking a tool name opens a detail modal with three sections:
 - Press Enter in the tool filter or click Apply to run the query
 - Expand an entry to see its arguments, result, warnings, and — for failures —
   the exception type and a collapsible traceback
-- Filters survive Refresh and enable/disable actions
+- Filters survive the panel's Refresh and enable/disable actions (a full page reload resets them)
 - Clear logs when needed (a confirmation is required)
 - View aggregate statistics, including timeouts
 
@@ -68,6 +68,8 @@ Clicking a tool name opens a detail modal with three sections:
 - Import previously exported state
 - Invalid files are rejected before the confirmation dialog, and a malformed
   request returns `400` without changing the current disabled set
+- Names must resolve to a registered tool or namespace; unknown names return
+  `400` rather than silently clearing the disabled set
 - Useful for backup/restore scenarios
 
 ## Registry Settings

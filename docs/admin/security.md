@@ -33,6 +33,14 @@ Non-browser clients are unaffected: CORS is a browser enforcement mechanism.
 To embed the panel in another origin, serve both through one origin with a
 reverse proxy rather than loosening the panel's CORS policy.
 
+## Frame Protection
+
+Every admin response carries `X-Frame-Options: DENY` and
+`Content-Security-Policy: frame-ancestors 'none'`. The shell loads without a
+token so it can prompt for one, and an embedded copy would inherit the
+origin's `localStorage` token; refusing frames keeps another page from
+clickjacking the panel's enable/disable, import and rename controls.
+
 ## Best Practices
 
 !!! warning "Production Deployment"
