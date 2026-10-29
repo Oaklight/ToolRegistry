@@ -36,6 +36,16 @@ localhost without authentication, and a wildcard let any website read tool
 metadata and toggle tools through the user's browser.
 """
 
+_SECURITY_HEADERS = {
+    # The UI shell is served without a token so its own prompt can run.  A
+    # frame loads that shell with the origin's localStorage, so without frame
+    # protection any page could embed a fully authenticated panel and
+    # clickjack its destructive controls.
+    "X-Frame-Options": "DENY",
+    "Content-Security-Policy": "frame-ancestors 'none'",
+}
+"""Frame protections applied to every admin response."""
+
 
 # ============== Request Helpers ==============
 
@@ -121,10 +131,13 @@ def _add_cors(request: Request, response: Response) -> Response:
         The response with CORS headers added.
     """
     response.headers.update(_CORS_HEADERS)
+    response.headers.update(_SECURITY_HEADERS)
+    # Set on every response, not only when an origin is echoed: a cache that
+    # normalises or strips Vary must never mix the two shapes.
+    response.headers.setdefault("Vary", "Origin")
     origin = _same_origin(request)
     if origin is not None:
         response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Vary"] = "Origin"
     return response
 
 
@@ -194,8 +207,9 @@ def _auth_check(request: Request) -> Response | None:
     # attach an Authorization header to a top-level navigation.  The shell is a
     # static document with no registry data, and every /api request below still
     # requires credentials.  When the UI is disabled, "/" is an API index and
-    # stays protected.
-    if request.method == "GET" and request.path == "/" and app.serve_ui:
+    # stays protected.  HEAD mirrors GET (the server strips the body) so a
+    # health check agrees with a browser.
+    if request.method in ("GET", "HEAD") and request.path == "/" and app.serve_ui:
         return None
 
     session = app.session
@@ -778,7 +792,10 @@ def _import_state(request: Request) -> Response:
     """Import/restore state.
 
     The payload is validated in full before the registry is touched so a
-    malformed import can never clear the existing disabled set.
+    malformed import can never clear the existing disabled set.  Import is a
+    wholesale replacement, so every name must resolve to a registered tool or
+    namespace: a state file from another registry (or a single typo) would
+    otherwise re-enable the current tools and disable nothing real.
     """
     if not request.body:
         return _error_response(400, "Bad Request", "Request body is required")
@@ -812,6 +829,25 @@ def _import_state(request: Request) -> Response:
                 400, "Bad Request", "'disabled' keys and values must be strings"
             )
         clean[name] = reason
+
+    known_tools = set(registry.list_tools(include_disabled=True))
+    known_namespaces: set[str] = set()
+    for tool_name in known_tools:
+        tool = registry.get_tool(tool_name)
+        if tool is not None and tool.namespace:
+            known_namespaces.add(tool.namespace)
+
+    unknown = sorted(
+        name
+        for name in clean
+        if name not in known_tools and name not in known_namespaces
+    )
+    if unknown:
+        return _error_response(
+            400,
+            "Bad Request",
+            "Unknown tool or namespace: " + ", ".join(unknown),
+        )
 
     registry._disabled.clear()
     for name, reason in clean.items():
