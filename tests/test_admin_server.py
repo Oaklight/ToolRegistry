@@ -554,6 +554,35 @@ class TestAdminCORS:
             assert response.headers.get("Access-Control-Allow-Origin") is None
 
 
+class TestAdminUIAssets:
+    """Regression guards for behaviour implemented only in admin.html."""
+
+    def test_admin_html_is_loaded_from_package_data(self) -> None:
+        """The served UI must be the on-disk source, not an embedded copy."""
+        from importlib.resources import files
+
+        from toolregistry.admin.static import ADMIN_HTML
+
+        on_disk = (
+            files("toolregistry.admin")
+            .joinpath("admin.html")
+            .read_text(encoding="utf-8")
+        )
+        assert ADMIN_HTML == on_disk
+
+    def test_log_details_render_arguments_and_traceback(self) -> None:
+        from toolregistry.admin.static import ADMIN_HTML
+
+        assert "JSON.stringify(entry.arguments" in ADMIN_HTML
+        assert "entry.traceback" in ADMIN_HTML
+
+    def test_timeout_status_is_filterable(self) -> None:
+        from toolregistry.admin.static import ADMIN_HTML
+
+        assert 'value="timeout"' in ADMIN_HTML
+        assert "by_status?.timeout" in ADMIN_HTML
+
+
 class TestToolRegistryAdminIntegration:
     """Tests for ToolRegistry admin integration methods."""
 
