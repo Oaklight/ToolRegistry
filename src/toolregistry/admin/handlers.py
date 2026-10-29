@@ -25,10 +25,16 @@ if TYPE_CHECKING:
 # ============== CORS Constants ==============
 
 _CORS_HEADERS = {
-    "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
 }
+"""Headers shared by every response.
+
+``Access-Control-Allow-Origin`` is deliberately absent: it is added per
+request only for same-origin callers.  The panel is commonly served on
+localhost without authentication, and a wildcard let any website read tool
+metadata and toggle tools through the user's browser.
+"""
 
 
 # ============== Request Helpers ==============
@@ -84,16 +90,41 @@ def _error_response(status: int, error: str, message: str) -> Response:
     return _json_response({"error": error, "message": message}, status)
 
 
-def _add_cors(response: Response) -> Response:
+def _same_origin(request: Request) -> str | None:
+    """Return the request Origin when it points at this server.
+
+    Compares the Origin's netloc with the Host header, which covers the
+    browser's same-origin requests and reverse-proxy deployments where the
+    proxy preserves Host.
+    """
+    origin = request.headers.get("origin", "")
+    host = request.headers.get("host", "")
+    if not origin or not host:
+        return None
+    parts = urllib.parse.urlsplit(origin)
+    if parts.scheme in ("http", "https") and parts.netloc == host:
+        return origin
+    return None
+
+
+def _add_cors(request: Request, response: Response) -> Response:
     """Add CORS headers to a response.
 
+    Cross-origin browser access is denied by default; only a same-origin
+    caller receives ``Access-Control-Allow-Origin``.  See ``_CORS_HEADERS``.
+
     Args:
+        request: The incoming request, used to check the Origin.
         response: The response to add headers to.
 
     Returns:
         The response with CORS headers added.
     """
     response.headers.update(_CORS_HEADERS)
+    origin = _same_origin(request)
+    if origin is not None:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Vary"] = "Origin"
     return response
 
 
@@ -141,7 +172,7 @@ def _evaluate_tool_permission(
 def _cors_preflight(request: Request) -> Response | None:
     """Handle CORS preflight requests."""
     if request.method == "OPTIONS":
-        return Response(status_code=204, headers=dict(_CORS_HEADERS))
+        return _add_cors(request, Response(status_code=204))
     return None
 
 
@@ -176,11 +207,11 @@ def _auth_check(request: Request) -> Response | None:
         if len(parts) != 2 or parts[0].lower() != "bearer":
             resp = _error_response(401, "Unauthorized", "Invalid Authorization format")
             resp.headers["WWW-Authenticate"] = 'Bearer realm="admin"'
-            return _add_cors(resp)
+            return _add_cors(request, resp)
         if not auth.verify(parts[1]):
             resp = _error_response(401, "Unauthorized", "Invalid token")
             resp.headers["WWW-Authenticate"] = 'Bearer realm="admin"'
-            return _add_cors(resp)
+            return _add_cors(request, resp)
         setattr(request.state, "set_session_cookie", True)
         return None
 
@@ -193,7 +224,7 @@ def _auth_check(request: Request) -> Response | None:
 
     resp = _error_response(401, "Unauthorized", "Missing credentials")
     resp.headers["WWW-Authenticate"] = 'Bearer realm="admin"'
-    return _add_cors(resp)
+    return _add_cors(request, resp)
 
 
 def _set_session_cookie(request: Request, response: Response) -> None:
@@ -218,19 +249,21 @@ def _set_session_cookie(request: Request, response: Response) -> None:
 
 def _after_cors(request: Request, response: Response) -> None:
     """Add CORS headers to all routed responses."""
-    _add_cors(response)
+    _add_cors(request, response)
 
 
 def _handle_404(request: Request, exc: HTTPException) -> Response:
     """Handle 404 errors with CORS headers."""
     return _add_cors(
-        _error_response(404, "Not Found", f"Path not found: {request.path}")
+        request, _error_response(404, "Not Found", f"Path not found: {request.path}")
     )
 
 
 def _handle_405(request: Request, exc: HTTPException) -> Response:
     """Handle 405 errors with CORS headers."""
-    return _add_cors(_error_response(405, "Method Not Allowed", "Method Not Allowed"))
+    return _add_cors(
+        request, _error_response(405, "Method Not Allowed", "Method Not Allowed")
+    )
 
 
 # ============== Route Handlers ==============

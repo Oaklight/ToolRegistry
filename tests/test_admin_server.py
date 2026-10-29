@@ -515,6 +515,45 @@ class TestAdminServerAuth:
             server.stop()
 
 
+class TestAdminCORS:
+    """Tests for cross-origin access to the admin panel."""
+
+    @pytest.fixture
+    def info(self):
+        """Start an unauthenticated admin server."""
+        registry = ToolRegistry()
+        server = AdminServer(registry, port=18110)
+        info = server.start()
+        time.sleep(0.1)
+        yield info
+        server.stop()
+
+    def test_cross_origin_response_has_no_allow_origin(self, info) -> None:
+        """A foreign Origin must not receive Access-Control-Allow-Origin."""
+        req = urllib.request.Request(f"{info.url}/api/tools")
+        req.add_header("Origin", "https://evil.example")
+        with urllib.request.urlopen(req, timeout=5) as response:
+            assert response.status == 200
+            assert response.headers.get("Access-Control-Allow-Origin") is None
+
+    def test_same_origin_response_echoes_origin(self, info) -> None:
+        """Same-origin callers keep working (header echoed, Vary set)."""
+        req = urllib.request.Request(f"{info.url}/api/tools")
+        req.add_header("Origin", info.url)
+        with urllib.request.urlopen(req, timeout=5) as response:
+            assert response.headers.get("Access-Control-Allow-Origin") == info.url
+            assert response.headers.get("Vary") == "Origin"
+
+    def test_cross_origin_preflight_has_no_allow_origin(self, info) -> None:
+        """Preflight from a foreign origin is not granted access."""
+        req = urllib.request.Request(f"{info.url}/api/tools", method="OPTIONS")
+        req.add_header("Origin", "https://evil.example")
+        req.add_header("Access-Control-Request-Method", "POST")
+        with urllib.request.urlopen(req, timeout=5) as response:
+            assert response.status == 204
+            assert response.headers.get("Access-Control-Allow-Origin") is None
+
+
 class TestToolRegistryAdminIntegration:
     """Tests for ToolRegistry admin integration methods."""
 
