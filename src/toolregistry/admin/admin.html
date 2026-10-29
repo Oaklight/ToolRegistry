@@ -2190,10 +2190,17 @@
             }
 
             async request(path, options = {}, authRetried = false) {
-                options.headers = { ...this.getHeaders(), ...options.headers };
                 const requestToken = this.token;
+                // Build headers per attempt and let the current token win:
+                // spreading the caller's headers last would re-send the token
+                // the server just rejected.  The caller's options are not
+                // mutated, so the retry below starts from the same shape.
+                const requestOptions = {
+                    ...options,
+                    headers: { ...options.headers, ...this.getHeaders() },
+                };
                 try {
-                    const response = await fetch(this.baseUrl + path, options);
+                    const response = await fetch(this.baseUrl + path, requestOptions);
                     if (response.status === 401) {
                         // A stored or freshly entered token that still gets 401
                         // is final: never loop the prompt forever on a typo.

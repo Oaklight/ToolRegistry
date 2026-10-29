@@ -382,6 +382,44 @@ class TestAdminServerAPI:
         assert status == 400
         assert "strings" in data["message"]
 
+    def test_import_state_rejects_unknown_names_without_data_loss(
+        self, server_with_tools
+    ) -> None:
+        """A wholesale replace must not accept names the registry cannot resolve."""
+        server, info = server_with_tools
+
+        self._request(
+            f"{info.url}/api/tools/math-add/disable",
+            method="POST",
+            data={"reason": "keep me"},
+        )
+
+        status, data = self._request(
+            f"{info.url}/api/state",
+            method="POST",
+            data={"disabled": {"no_such_tool": "typo"}},
+        )
+        assert status == 400
+        assert "no_such_tool" in data["message"]
+
+        status, data = self._request(f"{info.url}/api/tools/math-add")
+        assert data["enabled"] is False
+        assert data["reason"] == "keep me"
+
+    def test_import_state_accepts_namespace_names(self, server_with_tools) -> None:
+        """Namespace entries are valid keys in the disabled map."""
+        server, info = server_with_tools
+
+        status, data = self._request(
+            f"{info.url}/api/state",
+            method="POST",
+            data={"disabled": {"math": "namespace reason"}},
+        )
+        assert status == 200
+
+        status, data = self._request(f"{info.url}/api/tools/math-add")
+        assert data["enabled"] is False
+
     def test_logs_without_logging_enabled(self, server_with_tools) -> None:
         """Test GET /api/logs when logging is not enabled."""
         server, info = server_with_tools
@@ -487,6 +525,32 @@ class TestAdminServerAuth:
         finally:
             server.stop()
 
+    def test_shell_sends_frame_protection(self) -> None:
+        """The public shell must not be embeddable (clickjacking)."""
+        registry = ToolRegistry()
+        server = AdminServer(registry, port=18111, auth_token="secret123")
+
+        try:
+            info = server.start()
+            time.sleep(0.1)
+
+            req = urllib.request.Request(f"{info.url}/")
+            with urllib.request.urlopen(req, timeout=5) as response:
+                assert response.headers.get("X-Frame-Options") == "DENY"
+                assert (
+                    response.headers.get("Content-Security-Policy")
+                    == "frame-ancestors 'none'"
+                )
+
+            # HEAD mirrors GET so a health check sees the same status.
+            req = urllib.request.Request(f"{info.url}/", method="HEAD")
+            with urllib.request.urlopen(req, timeout=5) as response:
+                assert response.status == 200
+                assert response.headers.get("X-Frame-Options") == "DENY"
+
+        finally:
+            server.stop()
+
     def test_api_index_is_protected_when_ui_is_disabled(self) -> None:
         """With serve_ui=False, "/" is an API index and requires a token."""
         registry = ToolRegistry()
@@ -544,6 +608,13 @@ class TestAdminCORS:
             assert response.headers.get("Access-Control-Allow-Origin") == info.url
             assert response.headers.get("Vary") == "Origin"
 
+    def test_vary_is_set_without_an_origin(self, info) -> None:
+        """Cache-key safety: Vary is present even when ACAO is not."""
+        req = urllib.request.Request(f"{info.url}/api/tools")
+        with urllib.request.urlopen(req, timeout=5) as response:
+            assert response.headers.get("Vary") == "Origin"
+            assert response.headers.get("Access-Control-Allow-Origin") is None
+
     def test_cross_origin_preflight_has_no_allow_origin(self, info) -> None:
         """Preflight from a foreign origin is not granted access."""
         req = urllib.request.Request(f"{info.url}/api/tools", method="OPTIONS")
@@ -557,18 +628,17 @@ class TestAdminCORS:
 class TestAdminUIAssets:
     """Regression guards for behaviour implemented only in admin.html."""
 
-    def test_admin_html_is_loaded_from_package_data(self) -> None:
-        """The served UI must be the on-disk source, not an embedded copy."""
+    def test_static_module_does_not_embed_a_second_copy(self) -> None:
+        """static.py loads admin.html instead of carrying its own HTML string."""
         from importlib.resources import files
 
-        from toolregistry.admin.static import ADMIN_HTML
-
-        on_disk = (
+        source = (
             files("toolregistry.admin")
-            .joinpath("admin.html")
+            .joinpath("static.py")
             .read_text(encoding="utf-8")
         )
-        assert ADMIN_HTML == on_disk
+        assert "<!DOCTYPE html>" not in source
+        assert "admin.html" in source
 
     def test_log_details_render_arguments_and_traceback(self) -> None:
         from toolregistry.admin.static import ADMIN_HTML
