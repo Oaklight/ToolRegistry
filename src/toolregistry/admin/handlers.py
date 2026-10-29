@@ -742,7 +742,11 @@ def _export_state(request: Request) -> Response:
 
 
 def _import_state(request: Request) -> Response:
-    """Import/restore state."""
+    """Import/restore state.
+
+    The payload is validated in full before the registry is touched so a
+    malformed import can never clear the existing disabled set.
+    """
     if not request.body:
         return _error_response(400, "Bad Request", "Request body is required")
 
@@ -751,11 +755,34 @@ def _import_state(request: Request) -> Response:
     except (json.JSONDecodeError, ValueError) as e:
         return _error_response(400, "Bad Request", f"Invalid JSON: {e}")
 
+    if not isinstance(state, dict):
+        return _error_response(400, "Bad Request", "Body must be a JSON object")
+
     registry = _app(request).registry
-    if "disabled" in state:
-        registry._disabled.clear()
-        for n, reason in state["disabled"].items():
-            registry.disable(n, reason)
+    if "disabled" not in state:
+        return _json_response(
+            {"success": True, "message": "State restored successfully"}
+        )
+
+    disabled = state["disabled"]
+    if not isinstance(disabled, dict):
+        return _error_response(
+            400,
+            "Bad Request",
+            "'disabled' must be an object mapping tool names to reasons",
+        )
+
+    clean: dict[str, str] = {}
+    for name, reason in disabled.items():
+        if not isinstance(name, str) or not isinstance(reason, str):
+            return _error_response(
+                400, "Bad Request", "'disabled' keys and values must be strings"
+            )
+        clean[name] = reason
+
+    registry._disabled.clear()
+    for name, reason in clean.items():
+        registry.disable(name, reason)
 
     return _json_response({"success": True, "message": "State restored successfully"})
 
