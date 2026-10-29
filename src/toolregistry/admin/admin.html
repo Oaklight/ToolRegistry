@@ -2132,6 +2132,18 @@
         }
 
         // ============== API Client ==============
+        // Concurrent 401s share a single prompt so the browser does not stack
+        // dialogs; a rejected token gets exactly one retry (see request()).
+        let _authPromptPromise = null;
+        function promptForAdminToken() {
+            if (!_authPromptPromise) {
+                _authPromptPromise = Promise.resolve(prompt(t('misc.enterToken')))
+                    .then((value) => (value || '').trim())
+                    .finally(() => { _authPromptPromise = null; });
+            }
+            return _authPromptPromise;
+        }
+
         class AdminAPI {
             constructor(baseUrl, token) {
                 this.baseUrl = baseUrl;
@@ -2146,19 +2158,20 @@
                 return headers;
             }
 
-            async request(path, options = {}) {
+            async request(path, options = {}, authRetried = false) {
                 options.headers = { ...this.getHeaders(), ...options.headers };
                 try {
                     const response = await fetch(this.baseUrl + path, options);
                     if (response.status === 401) {
-                        const token = prompt(t('misc.enterToken'));
-                        if (token) {
-                            localStorage.setItem('admin_token', token);
-                            this.token = token;
-                            AUTH_TOKEN = token;
-                            return this.request(path, options);
-                        }
-                        throw new Error('Unauthorized');
+                        // A stored or freshly entered token that still gets 401
+                        // is final: never loop the prompt forever on a typo.
+                        if (authRetried) throw new Error('Unauthorized');
+                        const token = await promptForAdminToken();
+                        if (!token) throw new Error('Unauthorized');
+                        localStorage.setItem('admin_token', token);
+                        this.token = token;
+                        AUTH_TOKEN = token;
+                        return this.request(path, options, true);
                     }
                     const data = await response.json();
                     if (!response.ok) {

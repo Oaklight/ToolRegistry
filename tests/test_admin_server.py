@@ -422,6 +422,62 @@ class TestAdminServerAuth:
         finally:
             server.stop()
 
+    def test_ui_shell_is_public_so_the_token_prompt_can_run(self) -> None:
+        """GET / stays reachable without a token when the UI is enabled.
+
+        The browser cannot attach an Authorization header to a top-level
+        navigation, and the shell carries no registry data.  API routes must
+        still require credentials.
+        """
+        registry = ToolRegistry()
+        server = AdminServer(registry, port=18108, auth_token="secret123")
+
+        try:
+            info = server.start()
+            time.sleep(0.1)
+
+            req = urllib.request.Request(f"{info.url}/")
+            with urllib.request.urlopen(req, timeout=5) as response:
+                assert response.status == 200
+                assert "ToolRegistry Admin Panel" in response.read().decode()
+
+            req = urllib.request.Request(f"{info.url}/api/tools")
+            try:
+                urllib.request.urlopen(req, timeout=5)
+                pytest.fail("Should have raised HTTPError")
+            except urllib.error.HTTPError as e:
+                assert e.code == 401
+
+        finally:
+            server.stop()
+
+    def test_api_index_is_protected_when_ui_is_disabled(self) -> None:
+        """With serve_ui=False, "/" is an API index and requires a token."""
+        registry = ToolRegistry()
+        server = AdminServer(
+            registry, port=18109, serve_ui=False, auth_token="secret123"
+        )
+
+        try:
+            info = server.start()
+            time.sleep(0.1)
+
+            req = urllib.request.Request(f"{info.url}/")
+            try:
+                urllib.request.urlopen(req, timeout=5)
+                pytest.fail("Should have raised HTTPError")
+            except urllib.error.HTTPError as e:
+                assert e.code == 401
+
+            req = urllib.request.Request(f"{info.url}/")
+            req.add_header("Authorization", "Bearer secret123")
+            with urllib.request.urlopen(req, timeout=5) as response:
+                assert response.status == 200
+                assert b"ToolRegistry Admin API" in response.read()
+
+        finally:
+            server.stop()
+
 
 class TestToolRegistryAdminIntegration:
     """Tests for ToolRegistry admin integration methods."""

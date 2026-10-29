@@ -159,6 +159,14 @@ def _auth_check(request: Request) -> Response | None:
     if auth is None:
         return None
 
+    # The UI shell must load before the token prompt can run: a browser cannot
+    # attach an Authorization header to a top-level navigation.  The shell is a
+    # static document with no registry data, and every /api request below still
+    # requires credentials.  When the UI is disabled, "/" is an API index and
+    # stays protected.
+    if request.method == "GET" and request.path == "/" and app.serve_ui:
+        return None
+
     session = app.session
     auth_header = request.headers.get("authorization", "")
 
