@@ -1893,6 +1893,7 @@
             'toast.stateExported':'State exported successfully',
             'toast.stateImported':'State imported successfully',
             'toast.invalidJson':'Invalid JSON file',
+            'toast.invalidState':'Invalid state file: "disabled" must map tool names to reasons',
             'toast.metaUpdated':'{field} {state} for "{name}"',
             'toast.nsMetaUpdated':'{field} {state} for namespace "{name}"',
             'modal.disableTool':'Disable Tool', 'modal.disableNs':'Disable Namespace',
@@ -2007,6 +2008,7 @@
             'toast.stateExported':'\u72b6\u6001\u5df2\u5bfc\u51fa',
             'toast.stateImported':'\u72b6\u6001\u5df2\u5bfc\u5165',
             'toast.invalidJson':'\u65e0\u6548\u7684 JSON \u6587\u4ef6',
+            'toast.invalidState':'\u72b6\u6001\u6587\u4ef6\u65e0\u6548\uff1a"disabled" \u5fc5\u987b\u662f\u5de5\u5177\u540d\u5230\u539f\u56e0\u7684\u6620\u5c04',
             'toast.metaUpdated':'{field} \u5df2\u4e3a "{name}" {state}',
             'toast.nsMetaUpdated':'{field} \u5df2\u4e3a\u547d\u540d\u7a7a\u95f4 "{name}" {state}',
             'modal.disableTool':'\u7981\u7528\u5de5\u5177', 'modal.disableNs':'\u7981\u7528\u547d\u540d\u7a7a\u95f4',
@@ -3037,6 +3039,19 @@
             try {
                 const text = await file.text();
                 const state = JSON.parse(text);
+
+                const disabled = state && typeof state === 'object' ? state.disabled : undefined;
+                if (
+                    !state ||
+                    typeof state !== 'object' ||
+                    Array.isArray(state) ||
+                    (disabled !== undefined &&
+                        (typeof disabled !== 'object' || disabled === null || Array.isArray(disabled)))
+                ) {
+                    showToast(t('toast.invalidState'), 'error');
+                    event.target.value = '';
+                    return;
+                }
 
                 showModal(t('modal.importState'), `
                     <p>${t('confirm.importState')}</p>

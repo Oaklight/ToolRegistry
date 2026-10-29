@@ -346,6 +346,42 @@ class TestAdminServerAPI:
         assert data["enabled"] is False
         assert data["reason"] == "Imported reason"
 
+    def test_import_state_rejects_bad_disabled_without_data_loss(
+        self, server_with_tools
+    ) -> None:
+        """A malformed import must not clear the existing disabled set."""
+        server, info = server_with_tools
+
+        self._request(
+            f"{info.url}/api/tools/math-add/disable",
+            method="POST",
+            data={"reason": "keep me"},
+        )
+
+        status, data = self._request(
+            f"{info.url}/api/state",
+            method="POST",
+            data={"disabled": "not-a-dict"},
+        )
+        assert status == 400
+        assert "disabled" in data["message"]
+
+        status, data = self._request(f"{info.url}/api/tools/math-add")
+        assert data["enabled"] is False
+        assert data["reason"] == "keep me"
+
+    def test_import_state_rejects_non_string_reasons(self, server_with_tools) -> None:
+        """Reasons in the disabled map must be strings."""
+        server, info = server_with_tools
+
+        status, data = self._request(
+            f"{info.url}/api/state",
+            method="POST",
+            data={"disabled": {"math-add": 123}},
+        )
+        assert status == 400
+        assert "strings" in data["message"]
+
     def test_logs_without_logging_enabled(self, server_with_tools) -> None:
         """Test GET /api/logs when logging is not enabled."""
         server, info = server_with_tools
