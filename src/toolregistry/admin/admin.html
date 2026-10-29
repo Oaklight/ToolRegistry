@@ -1647,6 +1647,7 @@
                                         <option value="" data-i18n="filter.allStatus">All Status</option>
                                         <option value="success" data-i18n="log.success">Success</option>
                                         <option value="error" data-i18n="log.error">Error</option>
+                                        <option value="timeout" data-i18n="log.timeout">Timeout</option>
                                         <option value="disabled" data-i18n="log.rejected">Rejected</option>
                                     </select>
                                     <label class="warning-filter-label">
@@ -1770,9 +1771,10 @@
                             <div style="display:flex;gap:8px;align-items:center;">
                                 <select id="schema-format-select" class="btn btn-secondary btn-sm" style="padding:4px 8px;cursor:pointer;" onchange="loadSchema(this.value)">
                                     <option value="openai-chat">openai-chat</option>
-                                    <option value="openai-response">openai-response</option>
+                                    <option value="openai-responses">openai-responses</option>
                                     <option value="anthropic">anthropic</option>
                                     <option value="gemini">gemini</option>
+                                    <option value="rosetta-ir">rosetta-ir</option>
                                 </select>
                                 <button class="btn btn-secondary btn-sm" onclick="loadSchema(document.getElementById('schema-format-select').value)" data-i18n="btn.refresh">Refresh</button>
                                 <button class="btn btn-secondary btn-sm" onclick="copySchemaContent('schema-content')" data-i18n="btn.copy">Copy</button>
@@ -1918,7 +1920,7 @@
             'empty.permPolicyHint':'Set a policy via <code>registry.set_permission_policy()</code> to enable permission controls.',
             'stat.totalTools':'Total Tools', 'stat.enabled':'Enabled', 'stat.disabled':'Disabled',
             'stat.namespaces':'Namespaces', 'stat.totalEntries':'Total Entries',
-            'stat.successful':'Successful', 'stat.errors':'Errors', 'stat.rejected':'Rejected',
+            'stat.successful':'Successful', 'stat.errors':'Errors', 'stat.rejected':'Rejected', 'stat.timeouts':'Timeouts',
             'stat.avgDuration':'Avg Duration', 'stat.loggingNotEnabled':'Logging not enabled',
             'detail.basicInfo':'Basic Info', 'detail.metadata':'Metadata', 'detail.schema':'Schema',
             'detail.name':'Name', 'detail.namespace':'Namespace', 'detail.methodName':'Method Name',
@@ -1936,8 +1938,9 @@
             'meta.enabled':'enabled', 'meta.disabled':'disabled',
             'meta.yes':'Yes', 'meta.no':'No',
             'log.last50':'Last 50', 'log.last100':'Last 100', 'log.last500':'Last 500',
-            'log.success':'Success', 'log.error':'Error', 'log.rejected':'Rejected',
+            'log.success':'Success', 'log.error':'Error', 'log.timeout':'Timeout', 'log.rejected':'Rejected',
             'log.arguments':'Arguments:', 'log.result':'Result:', 'log.errorLabel':'Error:',
+            'log.exceptionType':'Exception:', 'log.traceback':'Traceback',
             'log.warnings':'Warnings', 'filter.hasWarnings':'\u26a0 Warnings only',
             'state.exportDesc':'Download the current state of disabled tools and namespaces as a JSON file.',
             'state.importDesc':'Upload a previously exported state file to restore disabled tools and namespaces.',
@@ -2033,7 +2036,7 @@
             'empty.permPolicyHint':'\u901a\u8fc7 <code>registry.set_permission_policy()</code> \u8bbe\u7f6e\u7b56\u7565\u4ee5\u542f\u7528\u6743\u9650\u63a7\u5236\u3002',
             'stat.totalTools':'\u5de5\u5177\u603b\u6570', 'stat.enabled':'\u5df2\u542f\u7528', 'stat.disabled':'\u5df2\u7981\u7528',
             'stat.namespaces':'\u547d\u540d\u7a7a\u95f4', 'stat.totalEntries':'\u603b\u6761\u76ee\u6570',
-            'stat.successful':'\u6210\u529f', 'stat.errors':'\u9519\u8bef', 'stat.rejected':'\u5df2\u62d2\u7edd',
+            'stat.successful':'\u6210\u529f', 'stat.errors':'\u9519\u8bef', 'stat.rejected':'\u5df2\u62d2\u7edd', 'stat.timeouts':'\u8d85\u65f6',
             'stat.avgDuration':'\u5e73\u5747\u8017\u65f6', 'stat.loggingNotEnabled':'\u672a\u542f\u7528\u65e5\u5fd7',
             'detail.basicInfo':'\u57fa\u672c\u4fe1\u606f', 'detail.metadata':'\u5143\u6570\u636e', 'detail.schema':'\u6a21\u5f0f',
             'detail.name':'\u540d\u79f0', 'detail.namespace':'\u547d\u540d\u7a7a\u95f4', 'detail.methodName':'\u65b9\u6cd5\u540d',
@@ -2051,8 +2054,9 @@
             'meta.enabled':'\u5df2\u542f\u7528', 'meta.disabled':'\u5df2\u7981\u7528',
             'meta.yes':'\u662f', 'meta.no':'\u5426',
             'log.last50':'\u6700\u8fd1 50', 'log.last100':'\u6700\u8fd1 100', 'log.last500':'\u6700\u8fd1 500',
-            'log.success':'\u6210\u529f', 'log.error':'\u9519\u8bef', 'log.rejected':'\u5df2\u62d2\u7edd',
+            'log.success':'\u6210\u529f', 'log.error':'\u9519\u8bef', 'log.rejected':'\u5df2\u62d2\u7edd', 'log.timeout':'\u8d85\u65f6',
             'log.arguments':'\u53c2\u6570\uff1a', 'log.result':'\u7ed3\u679c\uff1a', 'log.errorLabel':'\u9519\u8bef\uff1a',
+            'log.exceptionType':'\u5f02\u5e38', 'log.traceback':'\u8c03\u7528\u6808',
             'log.warnings':'\u8b66\u544a', 'filter.hasWarnings':'\u26a0 \u4ec5\u663e\u793a\u8b66\u544a',
             'state.exportDesc':'\u5c06\u5f53\u524d\u7981\u7528\u7684\u5de5\u5177\u548c\u547d\u540d\u7a7a\u95f4\u72b6\u6001\u4e0b\u8f7d\u4e3a JSON \u6587\u4ef6\u3002',
             'state.importDesc':'\u4e0a\u4f20\u4e4b\u524d\u5bfc\u51fa\u7684\u72b6\u6001\u6587\u4ef6\u4ee5\u6062\u590d\u5de5\u5177\u548c\u547d\u540d\u7a7a\u95f4\u7684\u7981\u7528\u72b6\u6001\u3002',
@@ -2925,6 +2929,10 @@
                         <div class="stat-label">${t('stat.rejected')}</div>
                     </div>
                     <div class="stat-card">
+                        <div class="stat-value" style="color: var(--warning);">${data.by_status?.timeout || 0}</div>
+                        <div class="stat-label">${t('stat.timeouts')}</div>
+                    </div>
+                    <div class="stat-card">
                         <div class="stat-value">${(data.avg_duration_ms || 0).toFixed(2)}ms</div>
                         <div class="stat-label">${t('stat.avgDuration')}</div>
                     </div>
@@ -2950,7 +2958,9 @@
             tbody.innerHTML = entries.map((entry, idx) => {
                 const statusClass = entry.status === 'success' ? 'badge-success' :
                                    entry.status === 'error' ? 'badge-error' : 'badge-warning';
-                const statusLabel = entry.status === 'disabled' ? 'rejected' : entry.status;
+                const statusLabel = entry.status === 'disabled' ? t('log.rejected') :
+                                    entry.status === 'timeout' ? t('log.timeout') :
+                                    entry.status;
                 const timestamp = new Date(entry.timestamp).toLocaleString();
                 const duration = entry.duration_ms ? entry.duration_ms.toFixed(2) + 'ms' : '-';
 
@@ -2971,8 +2981,8 @@
                         <td colspan="5" style="padding: 0;">
                             <div class="log-details" id="log-details-${idx}">
                                 <div class="mb-2"><strong>${t('log.arguments')}</strong></div>
-                                <pre>${escapeHtml(JSON.stringify(entry.args || {}, null, 2))}</pre>
-                                ${entry.result !== undefined ? `
+                                <pre>${escapeHtml(JSON.stringify(entry.arguments ?? {}, null, 2))}</pre>
+                                ${entry.status === 'success' ? `
                                     <div class="mb-2 mt-4"><strong>${t('log.result')}</strong></div>
                                     <pre>${escapeHtml(JSON.stringify(entry.result, null, 2))}</pre>
                                 ` : ''}
@@ -2983,6 +2993,16 @@
                                 ${entry.error ? `
                                     <div class="mb-2 mt-4"><strong>${t('log.errorLabel')}</strong></div>
                                     <pre class="text-error">${escapeHtml(entry.error)}</pre>
+                                ` : ''}
+                                ${entry.exception_type ? `
+                                    <div class="mb-2 mt-4"><strong>${t('log.exceptionType')}</strong></div>
+                                    <pre class="text-error">${escapeHtml(entry.exception_type)}</pre>
+                                ` : ''}
+                                ${entry.traceback ? `
+                                    <details class="mt-4">
+                                        <summary style="cursor:pointer;"><strong>${t('log.traceback')}</strong></summary>
+                                        <pre class="text-error" style="white-space:pre-wrap;">${escapeHtml(entry.traceback)}</pre>
+                                    </details>
                                 ` : ''}
                             </div>
                         </td>
