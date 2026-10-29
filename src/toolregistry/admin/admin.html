@@ -1913,7 +1913,7 @@
             'confirm.importState':'Are you sure you want to import this state?',
             'confirm.importOverwrite':'This will overwrite the current disabled tools/namespaces configuration.',
             'confirm.disabledItems':'Disabled items: {count}',
-            'empty.tools':'No tools registered', 'empty.toolsHint':'Tools will appear here once registered.',
+            'empty.tools':'No tools registered', 'empty.toolsHint':'Tools will appear here once registered.', 'empty.filteredTools':'No matching tools', 'empty.filteredToolsHint':'No tool matches the current search and filters.', 'btn.clearFilters':'Clear filters',
             'empty.ns':'No namespaces', 'empty.nsHint':'Namespaces will appear here once tools are registered.',
             'empty.logs':'No entries', 'empty.logsHint':'No log entries found',
             'empty.permPolicy':'No permission policy configured',
@@ -2029,7 +2029,7 @@
             'confirm.importState':'\u786e\u5b9a\u8981\u5bfc\u5165\u6b64\u72b6\u6001\u5417\uff1f',
             'confirm.importOverwrite':'\u8fd9\u5c06\u8986\u76d6\u5f53\u524d\u7684\u5de5\u5177/\u547d\u540d\u7a7a\u95f4\u7981\u7528\u914d\u7f6e\u3002',
             'confirm.disabledItems':'\u7981\u7528\u9879\u76ee\u6570\uff1a{count}',
-            'empty.tools':'\u6682\u65e0\u5df2\u6ce8\u518c\u5de5\u5177', 'empty.toolsHint':'\u5de5\u5177\u6ce8\u518c\u540e\u5c06\u663e\u793a\u5728\u6b64\u5904\u3002',
+            'empty.tools':'\u6682\u65e0\u5df2\u6ce8\u518c\u5de5\u5177', 'empty.toolsHint':'\u5de5\u5177\u6ce8\u518c\u540e\u5c06\u663e\u793a\u5728\u6b64\u5904\u3002', 'empty.filteredTools':'\u6ca1\u6709\u5339\u914d\u7684\u5de5\u5177', 'empty.filteredToolsHint':'\u5f53\u524d\u641c\u7d22\u548c\u7b5b\u9009\u6761\u4ef6\u4e0b\u6ca1\u6709\u5339\u914d\u7684\u5de5\u5177\u3002', 'btn.clearFilters':'\u6e05\u9664\u7b5b\u9009',
             'empty.ns':'\u6682\u65e0\u547d\u540d\u7a7a\u95f4', 'empty.nsHint':'\u5de5\u5177\u6ce8\u518c\u540e\u547d\u540d\u7a7a\u95f4\u5c06\u663e\u793a\u5728\u6b64\u5904\u3002',
             'empty.logs':'\u6682\u65e0\u6761\u76ee', 'empty.logsHint':'\u672a\u627e\u5230\u65e5\u5fd7\u6761\u76ee',
             'empty.permPolicy':'\u672a\u914d\u7f6e\u6743\u9650\u7b56\u7565',
@@ -2401,8 +2401,10 @@
                 const data = await api.getTools();
                 allTools = data.tools || [];
                 updateConnectionStatus(true);
-                renderTools(allTools);
                 updateNamespaceFilter(allTools);
+                // Re-apply the active search/filters: rendering allTools here
+                // left the controls showing a query that no longer applied.
+                filterTools();
             } catch (e) {
                 document.getElementById('tools-body').innerHTML =
                     `<tr><td colspan="7" class="empty-state"><div class="text-error">${e.message}</div></td></tr>`;
@@ -2483,14 +2485,15 @@
             return `<span class="${cls}" title="${escapeHtml(title)}">${perm.result}</span>`;
         }
 
-        function renderTools(tools) {
+        function renderTools(tools, filtersActive = false) {
             const tbody = document.getElementById('tools-body');
 
             if (tools.length === 0) {
                 tbody.innerHTML = `
                     <tr><td colspan="7" class="empty-state">
-                        <div class="empty-state-icon">${t('empty.tools')}</div>
-                        <div class="empty-state-text">${t('empty.toolsHint')}</div>
+                        <div class="empty-state-icon">${filtersActive ? t('empty.filteredTools') : t('empty.tools')}</div>
+                        <div class="empty-state-text">${filtersActive ? t('empty.filteredToolsHint') : t('empty.toolsHint')}</div>
+                        ${filtersActive ? `<button class="btn btn-secondary btn-sm" style="margin-top:12px;" onclick="clearToolFilters()">${t('btn.clearFilters')}</button>` : ''}
                     </td></tr>`;
                 return;
             }
@@ -2656,7 +2659,14 @@
                 return matchSearch && matchNamespace && matchStatus && matchTag && matchLocality && matchSource;
             });
 
-            renderTools(filtered);
+            const filtersActive = Boolean(search || namespace || status || tag || locality || source);
+            renderTools(filtered, filtersActive);
+        }
+
+        function clearToolFilters() {
+            ['tool-search', 'namespace-filter', 'status-filter', 'tag-filter', 'locality-filter', 'source-filter']
+                .forEach(id => { document.getElementById(id).value = ''; });
+            filterTools();
         }
 
         function updateNamespaceFilter(tools) {

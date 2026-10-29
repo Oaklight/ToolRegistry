@@ -582,6 +582,13 @@ class TestAdminUIAssets:
         assert 'value="timeout"' in ADMIN_HTML
         assert "by_status?.timeout" in ADMIN_HTML
 
+    def test_tool_filters_survive_refresh_with_a_clear_action(self) -> None:
+        from toolregistry.admin.static import ADMIN_HTML
+
+        assert "renderTools(filtered, filtersActive)" in ADMIN_HTML
+        assert "function clearToolFilters" in ADMIN_HTML
+        assert "empty.filteredTools" in ADMIN_HTML
+
 
 class TestToolRegistryAdminIntegration:
     """Tests for ToolRegistry admin integration methods."""
