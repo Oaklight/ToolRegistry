@@ -596,6 +596,22 @@ class TestAdminUIAssets:
         assert "let _currentNameSep" in ADMIN_HTML
         assert "renames every namespaced tool immediately" in ADMIN_HTML
 
+    def test_ui_polish_regressions(self) -> None:
+        from toolregistry.admin.static import ADMIN_HTML
+
+        # Favicon is inlined so the page does not request /favicon.ico.
+        assert 'rel="icon"' in ADMIN_HTML
+        # Escape closes every modal, including Version Info.
+        assert "closeVersionModal();" in ADMIN_HTML
+        # The log filter applies on Enter as well as the Apply button.
+        assert "event.key==='Enter'" in ADMIN_HTML
+        # Namespace THINK/DEFER boxes show a partial state.
+        assert "data-indeterminate" in ADMIN_HTML
+        # A cheap poll keeps the status dot honest while idle.
+        assert "checkConnection" in ADMIN_HTML
+        # Permission badges explain that they were evaluated with {}.
+        assert "perm.emptyArgsNote" in ADMIN_HTML
+
 
 class TestToolRegistryAdminIntegration:
     """Tests for ToolRegistry admin integration methods."""

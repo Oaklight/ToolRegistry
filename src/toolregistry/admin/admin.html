@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ToolRegistry Admin Panel</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='10' fill='%23C2922E'/%3E%3Ccircle cx='12' cy='12' r='3' fill='%23FFFFFF'/%3E%3C/svg%3E">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -1021,12 +1022,29 @@
 
         /* ============== Responsive ============== */
         @media (max-width: 768px) {
+            /* Content wraps at this width; a fixed height clipped the
+               logo and title at the top of the sticky header. */
             .header {
-                padding: 0 16px;
+                height: auto;
+                min-height: 56px;
+                padding: 8px 16px;
             }
 
             .header-content {
                 flex-wrap: wrap;
+                row-gap: 8px;
+            }
+
+            /* Seven tabs do not fit in 390px; scroll them instead of
+               widening the whole document. */
+            .tabs {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: thin;
+            }
+
+            .tab {
+                flex: 0 0 auto;
             }
 
             .main {
@@ -1642,7 +1660,7 @@
                         <div class="card-body no-padding">
                             <div class="search-bar" style="padding: 16px 16px 0;">
                                 <div class="filter-group" style="flex: 1;">
-                                    <input type="text" class="input" id="log-tool-filter" placeholder="Filter by tool..." data-i18n-placeholder="label.filterByTool" style="flex: 1;">
+                                    <input type="text" class="input" id="log-tool-filter" placeholder="Filter by tool..." data-i18n-placeholder="label.filterByTool" style="flex: 1;" onkeydown="if(event.key==='Enter'){event.preventDefault();refreshLogs();}">
                                     <select class="input select" id="log-status-filter">
                                         <option value="" data-i18n="filter.allStatus">All Status</option>
                                         <option value="success" data-i18n="log.success">Success</option>
@@ -1945,6 +1963,7 @@
             'state.exportDesc':'Download the current state of disabled tools and namespaces as a JSON file.',
             'state.importDesc':'Upload a previously exported state file to restore disabled tools and namespaces.',
             'perm.policyActive':'Policy Active',
+            'perm.emptyArgsNote':'evaluated with empty arguments',
             'perm.handlerRegistered':'Handler Registered', 'perm.handlerNotSet':'Handler Not Set',
             'perm.fallback':'Fallback:',
             'perm.noRules':'No rules defined. All tool calls will use the fallback result.',
@@ -2063,7 +2082,7 @@
             'log.warnings':'\u8b66\u544a', 'filter.hasWarnings':'\u26a0 \u4ec5\u663e\u793a\u8b66\u544a',
             'state.exportDesc':'\u5c06\u5f53\u524d\u7981\u7528\u7684\u5de5\u5177\u548c\u547d\u540d\u7a7a\u95f4\u72b6\u6001\u4e0b\u8f7d\u4e3a JSON \u6587\u4ef6\u3002',
             'state.importDesc':'\u4e0a\u4f20\u4e4b\u524d\u5bfc\u51fa\u7684\u72b6\u6001\u6587\u4ef6\u4ee5\u6062\u590d\u5de5\u5177\u548c\u547d\u540d\u7a7a\u95f4\u7684\u7981\u7528\u72b6\u6001\u3002',
-            'perm.policyActive':'\u7b56\u7565\u5df2\u6fc0\u6d3b',
+            'perm.policyActive':'\u7b56\u7565\u5df2\u6fc0\u6d3b', 'perm.emptyArgsNote':'\u4ee5\u7a7a\u53c2\u6570\u8bc4\u4f30',
             'perm.handlerRegistered':'\u5904\u7406\u5668\u5df2\u6ce8\u518c', 'perm.handlerNotSet':'\u5904\u7406\u5668\u672a\u8bbe\u7f6e',
             'perm.fallback':'\u56de\u9000\u7b56\u7565\uff1a',
             'perm.noRules':'\u672a\u5b9a\u4e49\u89c4\u5219\u3002\u6240\u6709\u5de5\u5177\u8c03\u7528\u5c06\u4f7f\u7528\u56de\u9000\u7ed3\u679c\u3002',
@@ -2487,7 +2506,10 @@
         function renderPermissionBadge(perm) {
             if (!perm) return '<span style="color: var(--border);">&mdash;</span>';
             const cls = 'badge-' + perm.result;
-            const title = perm.rule_name ? `${perm.rule_name}: ${perm.reason}` : perm.reason;
+            const basis = perm.rule_name ? `${perm.rule_name}: ${perm.reason}` : (perm.reason || '');
+            // The API evaluates the policy with {} arguments, so parameter-
+            // dependent rules may decide differently for a real call.
+            const title = (basis ? basis + ' — ' : '') + t('perm.emptyArgsNote');
             return `<span class="${cls}" title="${escapeHtml(title)}">${perm.result}</span>`;
         }
 
@@ -2542,13 +2564,13 @@
                     </td>
                     <td class="col-think" onclick="event.stopPropagation()">
                         <label class="meta-checkbox" style="justify-content: center;" title="${t('misc.thinkAugmentedAll')}">
-                            <input type="checkbox" ${allThink ? 'checked' : ''}
+                            <input type="checkbox" ${allThink ? 'checked' : ''} data-indeterminate="${anyThink && !allThink}"
                                 onchange="toggleNamespaceMeta('${escapeHtml(ns)}', 'think_augment', this.checked)">
                         </label>
                     </td>
                     <td class="col-defer" onclick="event.stopPropagation()">
                         <label class="meta-checkbox" style="justify-content: center;" title="${t('misc.deferredAll')}">
-                            <input type="checkbox" ${allDefer ? 'checked' : ''}
+                            <input type="checkbox" ${allDefer ? 'checked' : ''} data-indeterminate="${anyDefer && !allDefer}"
                                 onchange="toggleNamespaceMeta('${escapeHtml(ns)}', 'defer', this.checked)">
                         </label>
                     </td>
@@ -2595,6 +2617,11 @@
             });
 
             tbody.innerHTML = html;
+            // Namespace checkboxes are tri-state: some children on means
+            // indeterminate, which can only be set from script.
+            tbody.querySelectorAll('input[data-indeterminate="true"]').forEach(cb => {
+                cb.indeterminate = true;
+            });
             // Expand all groups by default
             expandAllGroups();
         }
@@ -3294,9 +3321,21 @@
             }
 
             body.innerHTML = sources.map(src => {
-                const toolChips = src.tools.map(tn =>
-                    `<span class="source-tool-chip">${escapeHtml(tn)}</span>`
-                ).join('');
+                const toolChips = src.tools.map(tn => {
+                    // Match the Tools tab: short names inside a namespace,
+                    // full name in the tooltip.
+                    let short = tn;
+                    if (src.namespace && src.namespace !== 'default') {
+                        for (const sep of ['-', '.']) {
+                            const prefix = src.namespace + sep;
+                            if (tn.startsWith(prefix)) {
+                                short = tn.slice(prefix.length);
+                                break;
+                            }
+                        }
+                    }
+                    return `<span class="source-tool-chip" title="${escapeHtml(tn)}">${escapeHtml(short)}</span>`;
+                }).join('');
                 return `
                 <div class="source-card">
                     <div class="source-card-header">
@@ -3571,11 +3610,24 @@
         }
 
         // ============== Initialization ==============
+        // Poll a cheap endpoint so an idle tab still notices a dead server.
+        // A 401 is left alone: the token prompt owns that path.
+        async function checkConnection() {
+            try {
+                const response = await fetch(API_BASE + '/api/info', { headers: api.getHeaders() });
+                if (response.ok) updateConnectionStatus(true);
+                else if (response.status !== 401) updateConnectionStatus(false);
+            } catch (e) {
+                updateConnectionStatus(false);
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('langSwitcher').value = currentLang;
             applyI18n();
             refreshTools();
             refreshStats();
+            setInterval(checkConnection, 30000);
         });
 
         // Handle keyboard shortcuts
@@ -3583,6 +3635,7 @@
             if (e.key === 'Escape') {
                 closeModal();
                 closeDetailModal();
+                closeVersionModal();
             }
         });
     </script>
