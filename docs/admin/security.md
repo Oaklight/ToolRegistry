@@ -15,6 +15,24 @@ When `remote=True` or `auth_token` is provided:
 - Tokens are compared using constant-time comparison to prevent timing attacks
 - Auto-generated tokens are 32-character hex strings (128 bits of entropy)
 
+The web UI shell (`GET /`) is the one exception: a browser cannot attach an
+`Authorization` header to a top-level navigation, so the static document is
+served without a token. It contains no registry data. On the first API call
+the page prompts for the token, stores it in `localStorage`, and retries; the
+successful request issues an `HttpOnly` session cookie so the prompt appears
+once per browser session. Concurrent API calls share a single prompt, and a
+rejected token is retried only once, so a typo cannot loop the dialog.
+
+## Cross-Origin Access
+
+The panel only answers `Access-Control-Allow-Origin` for same-origin requests
+(`Origin` matching the `Host` header). A page on another origin cannot read
+API responses or drive state-changing endpoints through the user's browser,
+which matters because the default local panel runs without authentication.
+Non-browser clients are unaffected: CORS is a browser enforcement mechanism.
+To embed the panel in another origin, serve both through one origin with a
+reverse proxy rather than loosening the panel's CORS policy.
+
 ## Best Practices
 
 !!! warning "Production Deployment"

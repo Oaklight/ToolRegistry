@@ -55,7 +55,7 @@ print(f"Admin panel: {info.url}")
 
 ### Accessing the Web UI
 
-Once enabled, open your browser and navigate to the URL printed (e.g., `http://localhost:8081`). The web UI provides:
+Once enabled, open your browser and navigate to the URL printed (e.g., `http://localhost:8081`). If a token is configured, the page loads and prompts for it — enter the token printed at startup; the prompt appears once per browser session. The web UI provides:
 
 - Tool list with enable/disable toggles
 - Namespace management

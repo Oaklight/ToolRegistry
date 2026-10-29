@@ -39,7 +39,7 @@ The `think_augment` and `defer` properties can be toggled at runtime directly fr
 
 ### Tool Detail Modal
 
-Clicking a tool name opens a detail modal with three tabs:
+Clicking a tool name opens a detail modal with three sections:
 
 - **Schema**: Full JSON schema of the tool's parameters
 - **Metadata**: All `ToolMetadata` fields with interactive toggles for `think_augment` and `defer`
@@ -54,16 +54,30 @@ Clicking a tool name opens a detail modal with three tabs:
 
 ## Execution Log Viewer
 
-- Filter logs by tool name or status
-- View execution details including arguments and results
-- Clear logs when needed
-- View aggregate statistics
+- Filter logs by tool name or status (success, error, timeout, rejected)
+- Press Enter in the tool filter or click Apply to run the query
+- Expand an entry to see its arguments, result, warnings, and — for failures —
+  the exception type and a collapsible traceback
+- Filters survive Refresh and enable/disable actions
+- Clear logs when needed (a confirmation is required)
+- View aggregate statistics, including timeouts
 
 ## State Import/Export
 
 - Export current disabled state as JSON
 - Import previously exported state
+- Invalid files are rejected before the confirmation dialog, and a malformed
+  request returns `400` without changing the current disabled set
 - Useful for backup/restore scenarios
+
+## Registry Settings
+
+The State panel also controls the namespace separator (`-` or `.`). Applying a
+change **renames every namespaced tool immediately** — for example
+`math_utils-square` becomes `math_utils.square`. Calls that still use the old
+names pass no longer resolve, and existing log entries keep the old names. The
+UI asks for confirmation before applying the change and refreshes every tab
+afterwards.
 
 ## Language Switching (i18n)
 
