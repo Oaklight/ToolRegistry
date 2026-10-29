@@ -589,6 +589,13 @@ class TestAdminUIAssets:
         assert "function clearToolFilters" in ADMIN_HTML
         assert "empty.filteredTools" in ADMIN_HTML
 
+    def test_name_separator_change_is_confirmed(self) -> None:
+        from toolregistry.admin.static import ADMIN_HTML
+
+        assert "modal.changeNameSep" in ADMIN_HTML
+        assert "let _currentNameSep" in ADMIN_HTML
+        assert "renames every namespaced tool immediately" in ADMIN_HTML
+
 
 class TestToolRegistryAdminIntegration:
     """Tests for ToolRegistry admin integration methods."""
