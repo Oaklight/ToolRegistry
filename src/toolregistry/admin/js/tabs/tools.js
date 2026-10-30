@@ -412,6 +412,60 @@ async function disableTool(name, reason) {
     }
 }
 
+// Namespace-level enable/disable.  The registry keys these on the namespace
+// name, and is_enabled() then reports every tool in it as disabled.
+async function enableNamespace(ns) {
+    try {
+        const result = await api.enableNamespace(ns);
+        showToast(
+            t('toast.nsEnabled', {name: ns, count: result.tools_enabled ?? 0}),
+            'success',
+        );
+        const skipped = result.skipped_missing_env || [];
+        if (skipped.length) {
+            showToast(t('toast.nsSkippedEnv', {count: skipped.length}), 'warning');
+        }
+        refreshTools();
+        refreshStats();
+    } catch (e) {
+        showToast(e.message, 'error');
+        refreshTools();
+    }
+}
+
+async function disableNamespace(ns, reason) {
+    try {
+        const result = await api.disableNamespace(ns, reason);
+        showToast(
+            t('toast.nsDisabled', {name: ns, count: result.tools_affected ?? 0}),
+            'success',
+        );
+        refreshTools();
+        refreshStats();
+    } catch (e) {
+        showToast(e.message, 'error');
+        refreshTools();
+    }
+}
+
+function showDisableNamespaceModal(ns) {
+    showModal(t('modal.disableNamespace'), `
+        <div class="form-group">
+            <label class="form-label">${t('modal.namespaceLabel')}<strong>${escapeHtml(ns)}</strong></label>
+        </div>
+        <div class="form-group">
+            <label class="form-label">${t('label.reasonOptional')}</label>
+            <input type="text" class="input" id="disable-reason" placeholder="${t('label.enterReason')}">
+        </div>
+    `, async () => {
+        const reason = document.getElementById('disable-reason').value;
+        await disableNamespace(ns, reason);
+    }, () => {
+        // On cancel, revert the toggle visually
+        refreshTools();
+    });
+}
+
 
 // ============== Stats ==============
 async function refreshStats() {
@@ -721,6 +775,27 @@ async function openOverrideModal(name) {
         .map((tag) => normalizeTagKey(tag))
         .join(', ');
     const customTags = (meta.custom_tags || []).join(', ');
+    const currentTitle = meta.title || '';
+
+    // Execution hints are tri-state: an empty selection means "unset", which
+    // lets the registry derive the value from tags when it builds a schema.
+    const hintFields = [
+        ['read_only_hint', t('override.hintReadOnly')],
+        ['destructive_hint', t('override.hintDestructive')],
+        ['idempotent_hint', t('override.hintIdempotent')],
+        ['open_world_hint', t('override.hintOpenWorld')],
+    ];
+    const hintRows = hintFields.map(([field, label]) => {
+        const current = meta[field];
+        return `<div class="hint-grid-row">
+            <label class="form-label" for="ov-${field}">${label}</label>
+            <select id="ov-${field}" class="input select">
+                <option value="" ${current == null ? 'selected' : ''}>${t('override.hintDefault')}</option>
+                <option value="true" ${current === true ? 'selected' : ''}>${t('override.hintYes')}</option>
+                <option value="false" ${current === false ? 'selected' : ''}>${t('override.hintNo')}</option>
+            </select>
+        </div>`;
+    }).join('');
 
     const content = `
         <div class="form-group">
@@ -729,12 +804,21 @@ async function openOverrideModal(name) {
                 style="width:100%;resize:vertical;">${escapeHtml(tool.description || '')}</textarea>
         </div>
         <div class="form-group">
+            <label class="form-label" for="ov-title">${t('override.fieldTitle')}</label>
+            <input id="ov-title" class="input" style="width:100%;" value="${escapeHtml(currentTitle)}">
+        </div>
+        <div class="form-group">
             <label class="form-label" for="ov-tags">${t('override.tags')}</label>
             <input id="ov-tags" class="input" style="width:100%;" value="${escapeHtml(tags)}">
         </div>
         <div class="form-group">
             <label class="form-label" for="ov-custom-tags">${t('override.customTags')}</label>
             <input id="ov-custom-tags" class="input" style="width:100%;" value="${escapeHtml(customTags)}">
+        </div>
+        <div class="form-group">
+            <label class="form-label">${t('override.hints')}</label>
+            ${hintRows}
+            <p class="text-muted" style="font-size: var(--text-small); margin-top: 6px;">${t('override.hintsHint')}</p>
         </div>
     `;
 
@@ -755,6 +839,16 @@ async function openOverrideModal(name) {
         if (customList.slice().sort().join(',') !== (meta.custom_tags || []).slice().sort().join(',')) {
             changes.custom_tags = customList;
         }
+
+        const newTitle = document.getElementById('ov-title')?.value ?? '';
+        if (newTitle !== currentTitle) changes.title = newTitle;
+
+        hintFields.forEach(([field]) => {
+            const el = document.getElementById(`ov-${field}`);
+            if (!el) return;
+            const next = el.value === '' ? null : el.value === 'true';
+            if (next !== (meta[field] ?? null)) changes[field] = next;
+        });
 
         if (Object.keys(changes).length === 0) return;
         try {

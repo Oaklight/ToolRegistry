@@ -391,6 +391,13 @@ def _get_tool(request: Request, name: str) -> Response:
             "search_hint": tool.metadata.search_hint,
             "title": tool.metadata.title,
             "think_augment": tool.metadata.think_augment,
+            # Raw tri-state values, not the resolved ``execution_hints``: the
+            # override form must show "unset" separately from an explicit
+            # value, because unset lets the registry derive the hint.
+            "read_only_hint": tool.metadata.read_only_hint,
+            "destructive_hint": tool.metadata.destructive_hint,
+            "idempotent_hint": tool.metadata.idempotent_hint,
+            "open_world_hint": tool.metadata.open_world_hint,
             "execution_hints": tool.metadata.execution_hints,
             "extra": tool.metadata.extra,
         },
