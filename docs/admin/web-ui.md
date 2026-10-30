@@ -31,6 +31,14 @@ The overview cards at the top of the Tools section are links: the total opens
 the unfiltered list, enabled and disabled open it filtered to that status, and
 the namespace count opens the Namespaces panel.
 
+## Schema
+
+The Schema section renders the schemas published to models. The format picker
+offers llm-rosetta's canonical, vendor-neutral names — `chat_completions`,
+`open_responses`, `messages`, `google_generate`, `google_interactions` and
+`rosetta_ir` — and `GET /api/schema?format=…` accepts them as well as the older
+spellings (`openai-chat`, `anthropic`, …), which remain valid.
+
 ## Moving between sections
 
 The four sections that describe where tools come from are connected, so a
