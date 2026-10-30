@@ -333,8 +333,8 @@
                 <h2 class="card-title" data-i18n="section.exportState">Export State</h2>
             </div>
             <div class="card-body">
-                <p class="text-muted mb-4" style="font-size: 0.8125rem;" data-i18n="state.exportDesc">Download the current state of disabled tools and namespaces as a JSON file.</p>
-                <button class="btn btn-primary" onclick="exportState()" data-i18n="btn.downloadState">
+                <p class="text-muted mb-4" style="font-size: var(--text-body);" data-i18n="state.exportDesc">Download the current state of disabled tools and namespaces as a JSON file.</p>
+                <button class="btn btn-primary btn-sm" onclick="exportState()" data-i18n="btn.downloadState">
                     Download State
                 </button>
             </div>
@@ -345,9 +345,9 @@
                 <h2 class="card-title" data-i18n="section.importState">Import State</h2>
             </div>
             <div class="card-body">
-                <p class="text-muted mb-4" style="font-size: 0.8125rem;" data-i18n="state.importDesc">Upload a previously exported state file to restore disabled tools and namespaces.</p>
+                <p class="text-muted mb-4" style="font-size: var(--text-body);" data-i18n="state.importDesc">Upload a previously exported state file to restore disabled tools and namespaces.</p>
                 <input type="file" id="import-file" accept=".json" style="display: none;" onchange="handleImportFile(event)">
-                <button class="btn btn-secondary" onclick="document.getElementById('import-file').click()" data-i18n="btn.uploadState">
+                <button class="btn btn-secondary btn-sm" onclick="document.getElementById('import-file').click()" data-i18n="btn.uploadState">
                     Upload State
                 </button>
             </div>
@@ -377,7 +377,7 @@
                             </select>
                             <button class="btn btn-primary btn-sm" onclick="saveNameSep()" data-i18n="btn.apply">Apply</button>
                         </div>
-                        <p class="text-muted mt-2" style="font-size:0.75rem;" data-i18n="config.nameSepHint">Separator between namespace and method name. Changing it renames every namespaced tool immediately.</p>
+                        <p class="text-muted mt-2" style="font-size:var(--text-small);" data-i18n="config.nameSepHint">Separator between namespace and method name. Changing it renames every namespaced tool immediately.</p>
                     </div>
                 </div>
             </div>
@@ -424,8 +424,8 @@
                 </div>
             </div>
             <div class="card-body">
-                <div id="schema-meta" style="margin-bottom:8px;font-size:0.85rem;color:var(--text-muted);"></div>
-                <pre id="schema-content" style="background:var(--bg-sunken);color:var(--text-primary);border:1px solid var(--border);padding:16px;border-radius:var(--radius-sm);font-size:0.75rem;overflow:auto;white-space:pre-wrap;font-family:var(--font-mono);max-height:70vh;"></pre>
+                <div id="schema-meta" style="margin-bottom:8px;font-size:var(--text-small);color:var(--text-muted);"></div>
+                <pre id="schema-content" style="background:var(--bg-sunken);color:var(--text-primary);border:1px solid var(--border);padding:16px;border-radius:var(--radius-sm);font-size:var(--text-small);overflow:auto;white-space:pre-wrap;font-family:var(--font-mono);max-height:70vh;"></pre>
             </div>
         </div>
     </div>
@@ -440,9 +440,9 @@
                 </div>
             </div>
             <div class="card-body">
-                <div id="discover-meta" style="margin-bottom:8px;font-size:0.85rem;color:var(--text-muted);"></div>
+                <div id="discover-meta" style="margin-bottom:8px;font-size:var(--text-small);color:var(--text-muted);"></div>
                 <div id="discover-warnings"></div>
-                <pre id="discover-content" style="background:var(--bg-sunken);color:var(--text-primary);border:1px solid var(--border);padding:16px;border-radius:var(--radius-sm);font-size:0.75rem;overflow:auto;white-space:pre-wrap;font-family:var(--font-mono);max-height:70vh;"></pre>
+                <pre id="discover-content" style="background:var(--bg-sunken);color:var(--text-primary);border:1px solid var(--border);padding:16px;border-radius:var(--radius-sm);font-size:var(--text-small);overflow:auto;white-space:pre-wrap;font-family:var(--font-mono);max-height:70vh;"></pre>
             </div>
         </div>
     </div>

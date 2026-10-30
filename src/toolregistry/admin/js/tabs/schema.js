@@ -46,12 +46,20 @@ async function loadDiscover() {
     meta.textContent = '';
     warnDiv.innerHTML = '';
 
+    // When discovery is off there is nothing to put in the code block: the
+    // explanation and the fix belong in one notice, not in a <pre> with a
+    // button floating above it.
     if (!_discoverEnabled) {
-        pre.textContent = t('discovery.notEnabled');
-        meta.textContent = '';
-        warnDiv.innerHTML = `<button class="btn btn-primary btn-sm" onclick="enableToolDiscovery()">${t('discovery.enable')}</button>`;
+        pre.style.display = 'none';
+        pre.textContent = '';
+        warnDiv.innerHTML = `<div class="notice inline">
+            <span>${inlineIdentifiers(t('discovery.notEnabled'))}</span>
+            <button class="btn btn-secondary btn-sm" style="margin-left:auto;"
+                    onclick="enableToolDiscovery()">${t('discovery.enable')}</button>
+        </div>`;
         return;
     }
+    pre.style.display = '';
     try {
         const data = await api.getSchema('discover');
         pre.textContent = data.text || '(discover_tools not enabled)';
@@ -71,14 +79,14 @@ async function loadDiscover() {
                         <strong class="ident">${escapeHtml(w.name)}</strong> <span style="opacity:0.7;">(${w.description.length} chars)</span>
                     </span>
                     <input type="text" id="${safeId}" placeholder="${t('schema.hintPlaceholder')}"
-                        style="flex:1;min-width:160px;padding:2px 6px;font-size:0.8rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-secondary);color:var(--text-primary);"
+                        style="flex:1;min-width:160px;padding:2px 6px;font-size:var(--text-small);border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-secondary);color:var(--text-primary);"
                         onkeydown="if(event.key==='Enter')saveSearchHint('${escapeHtml(w.name)}',document.getElementById('${safeId}'),true)">
                     <button class="btn btn-secondary btn-sm" onclick="saveSearchHint('${escapeHtml(w.name)}',document.getElementById('${safeId}'),true)">${t('btn.apply')}</button>
                 </div>`;
             }).join('');
-            warnDiv.innerHTML = `<div style="background:var(--bg-secondary);border:1px solid #f59e0b;border-radius:var(--radius-sm);padding:10px 14px;font-size:0.83rem;margin-bottom:10px;">
-                <span style="color:#d97706;">&#9888;</span> ${t('schema.warnLong', {count: warnings.length})}
-                <div style="margin-top:6px;">${items}</div>
+            warnDiv.innerHTML = `<div class="notice inline">
+                <strong>&#9888; ${t('schema.warnLong', {count: warnings.length})}</strong>
+                <div style="flex-basis:100%;">${items}</div>
             </div>`;
         }
     } catch (e) {

@@ -226,11 +226,11 @@ function renderRegisterPreview(result) {
                 </label>
             </td>
             <td>
-                <button type="button" class="mono ns-link" style="font-size: 0.8125rem;"
+                <button type="button" class="mono ns-link" style="font-size: var(--text-body);"
                         onclick="showToolDetailModal('${escapeJs(tool.name)}')">${escapeHtml(tool.name)}</button>
                 ${tool.registered ? `<span class="badge-source badge-source-native">${t('register.registered')}</span>` : ''}
             </td>
-            <td class="text-muted" style="font-size: 0.75rem;">${escapeHtml((tool.description || '').slice(0, 160))}</td>
+            <td class="text-muted" style="font-size: var(--text-small);">${escapeHtml((tool.description || '').slice(0, 160))}</td>
             <td style="text-align: right; font-variant-numeric: tabular-nums;">${tool.parameter_count ?? ''}</td>
         </tr>`).join('');
 
