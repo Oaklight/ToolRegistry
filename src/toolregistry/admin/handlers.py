@@ -1364,6 +1364,73 @@ def _restore_tool_override(request: Request, name: str) -> Response:
     )
 
 
+def _deferred_tools(registry: Any) -> list[str]:
+    """Names of tools marked deferred, in registry order."""
+    names: list[str] = []
+    for name in registry.list_tools(include_disabled=True):
+        tool = registry.get_tool(name)
+        if tool is not None and getattr(tool.metadata, "defer", False):
+            names.append(name)
+    return names
+
+
+def _get_discovery(request: Request) -> Response:
+    """Report whether tool discovery is enabled and what it would restore."""
+    registry = _app(request).registry
+    deferred = _deferred_tools(registry)
+    return _json_response(
+        {
+            "enabled": bool(registry.tool_discovery_enabled),
+            "deferred_count": len(deferred),
+            "deferred_tools": deferred,
+        }
+    )
+
+
+def _enable_tool_discovery(request: Request) -> Response:
+    """Register ``discover_tools`` and ``call_deferred``.
+
+    Enabling is safe to repeat: the registry keeps its existing discoverer
+    and reports the options it was built with.
+    """
+    registry = _app(request).registry
+    try:
+        registry.enable_tool_discovery()
+    except Exception as e:  # noqa: BLE001 - reported to the operator
+        return _error_response(400, "Bad Request", str(e))
+    return _json_response(
+        {
+            "success": True,
+            "enabled": True,
+            "registered": [
+                name
+                for name in ("discover_tools", "call_deferred")
+                if name in registry.list_tools(include_disabled=True)
+            ],
+            "deferred_count": len(_deferred_tools(registry)),
+        }
+    )
+
+
+def _disable_tool_discovery(request: Request) -> Response:
+    """Unregister ``discover_tools`` and ``call_deferred``.
+
+    Deferred tools stay registered but become unreachable to a model, so the
+    response reports how many are in that state.
+    """
+    registry = _app(request).registry
+    deferred = _deferred_tools(registry)
+    registry.disable_tool_discovery()
+    return _json_response(
+        {
+            "success": True,
+            "enabled": False,
+            "unreachable": len(deferred),
+            "deferred_tools": deferred,
+        }
+    )
+
+
 def setup_routes(app: "AdminApp") -> None:
     """Register all middleware and routes on the app.
 
@@ -1385,6 +1452,9 @@ def setup_routes(app: "AdminApp") -> None:
     app.post("/api/sources/preview")(_preview_source)
     app.post("/api/sources/register")(_register_source)
     app.get("/api/overrides")(_list_overrides)
+    app.get("/api/discovery")(_get_discovery)
+    app.post("/api/discovery/enable")(_enable_tool_discovery)
+    app.post("/api/discovery/disable")(_disable_tool_discovery)
     app.post("/api/tools/<path:name>/override")(_override_tool)
     app.delete("/api/tools/<path:name>/override")(_restore_tool_override)
     app.get("/api/tools")(_get_tools)

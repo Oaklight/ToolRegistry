@@ -446,6 +446,51 @@ class TestAdminServerAPI:
         assert status == 404
         assert "Not Found" in data["error"]
 
+    def test_discovery_can_be_enabled_and_disabled(self, server_with_tools) -> None:
+        """The panel can turn discovery on, and reports what it unregisters."""
+        server, info = server_with_tools
+
+        status, data = self._request(f"{info.url}/api/discovery")
+        assert status == 200
+        assert data["enabled"] is False
+
+        status, data = self._request(f"{info.url}/api/discovery/enable", "POST")
+        assert status == 200
+        assert data["registered"] == ["discover_tools", "call_deferred"]
+
+        status, data = self._request(f"{info.url}/api/discovery")
+        assert data["enabled"] is True
+
+        status, data = self._request(f"{info.url}/api/tools")
+        names = [tool["name"] for tool in data["tools"]]
+        assert "discover_tools" in names
+        assert "call_deferred" in names
+
+        status, data = self._request(f"{info.url}/api/discovery/disable", "POST")
+        assert status == 200
+        assert data["enabled"] is False
+
+        status, data = self._request(f"{info.url}/api/tools")
+        names = [tool["name"] for tool in data["tools"]]
+        assert "discover_tools" not in names
+
+    def test_disabling_discovery_reports_unreachable_deferred_tools(
+        self, server_with_tools
+    ) -> None:
+        server, info = server_with_tools
+        self._request(f"{info.url}/api/discovery/enable", "POST")
+        self._request(
+            f"{info.url}/api/tools/math-add/metadata", "PATCH", {"defer": True}
+        )
+
+        status, data = self._request(f"{info.url}/api/discovery")
+        assert data["deferred_count"] == 1
+        assert data["deferred_tools"] == ["math-add"]
+
+        status, data = self._request(f"{info.url}/api/discovery/disable", "POST")
+        assert data["unreachable"] == 1
+        assert data["deferred_tools"] == ["math-add"]
+
     @pytest.mark.parametrize(
         "format_name",
         [
