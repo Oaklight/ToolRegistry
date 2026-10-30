@@ -1476,6 +1476,43 @@ button.stat-card:focus-visible {
     margin-left: 8px;
 }
 
+/* The name and its tags are separate runs.  When the tags do not fit beside
+   the name, the whole run moves to the next line instead of splitting around
+   the name, which used to leave one badge stranded under it. */
+.tool-name-cell {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+}
+
+.tool-name-cell .ns-child-name-link {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.tool-tags {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+}
+
+.tool-name-cell .tool-badges,
+.tool-name-cell .tool-meta-icons,
+.tool-name-cell .badge-override {
+    margin-left: 0;
+}
+
+/* A narrow row stacks: name on its line, tags underneath. */
+@media (max-width: 900px) {
+    .tool-name-cell {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+}
+
 /* ============== Tool Detail Modal ============== */
 .detail-overlay {
     position: fixed;
