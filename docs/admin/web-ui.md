@@ -46,6 +46,20 @@ so: when any tool is deferred and discovery is off, a notice above the table
 states how many and why, and the Schema section's **Discover Tools** sub-tab
 stays visible with the same explanation instead of disappearing.
 
+Discovery can be turned on and off from the panel:
+
+- the notice above the table, and the **Discover Tools** sub-tab while it is
+  off, carry an **Enable tool discovery** button;
+- once enabled, the sub-tab shows the `discover_tools` description and a
+  **Disable tool discovery** control, which asks for confirmation because every
+  deferred tool becomes unreachable again.
+
+This is a registry change, not a configuration edit: it takes effect
+immediately and is not written to the config file, so a restart returns to
+whatever the process configured. The same three operations are available as
+`GET /api/discovery`, `POST /api/discovery/enable` and
+`POST /api/discovery/disable`.
+
 ## Schema
 
 The Schema section renders the schemas published to models. The format picker
