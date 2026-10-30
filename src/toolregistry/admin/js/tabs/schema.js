@@ -45,6 +45,12 @@ async function loadDiscover() {
     pre.textContent = t('misc.loading');
     meta.textContent = '';
     warnDiv.innerHTML = '';
+
+    if (!_discoverEnabled) {
+        pre.textContent = t('discovery.notEnabled');
+        meta.textContent = '';
+        return;
+    }
     try {
         const data = await api.getSchema('discover');
         pre.textContent = data.text || '(discover_tools not enabled)';

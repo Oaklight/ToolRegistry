@@ -421,6 +421,15 @@ async function refreshStats() {
         const enabled = tools.filter(t => t.enabled).length;
         const disabled = tools.filter(t => !t.enabled).length;
         const namespaces = new Set(tools.map(t => t.namespace).filter(Boolean)).size;
+        const deferred = tools.filter(t => t.defer);
+
+        try {
+            const info = await api.getInfo();
+            _discoverEnabled = !!info.discover_enabled;
+        } catch (e) {
+            _discoverEnabled = false;
+        }
+        renderDeferredWarning(deferred.length);
 
         // Each card links to where its number comes from: the tools list
         // filtered by status, or the namespaces panel.
@@ -595,6 +604,22 @@ function closeDetailModal(event) {
     document.getElementById('detail-overlay').classList.remove('active');
 }
 
+
+// A deferred tool is left out of the schema, and only discover_tools can
+// bring it back.  With discovery off, nothing registers that tool, so the
+// defer flag makes the tool unreachable rather than deferred.
+function renderDeferredWarning(deferredCount) {
+    const box = document.getElementById('deferred-warning');
+    if (!box) return;
+    if (deferredCount === 0 || _discoverEnabled) {
+        box.style.display = 'none';
+        box.innerHTML = '';
+        return;
+    }
+    box.style.display = '';
+    box.innerHTML = `<strong>${t('discovery.offTitle', { count: deferredCount })}</strong>
+        <span>${t('discovery.offHint')}</span>`;
+}
 
 // ============== Tool override ==============
 // An override swaps the registered definition for an edited copy and keeps
