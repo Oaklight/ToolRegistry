@@ -17,7 +17,9 @@ hide:
 ## [未发布]
 
 ### 新增
-
+- **管理面板改为带主题的控制台**：分区切换从顶部标签栏移到左侧固定导轨——可折叠为图标，小于 900px 时变为抽屉；标题栏与导轨使用同一底色，两者看上去像包裹内容的同一个框架。外观拆成**配色**（取值，按配色与模式声明在 `css/base.css`）与**组件**（结构，`css/components.css`），内置 Paper 与 Slate 两套配色，各有浅色与深色。配色区块只能声明自定义属性，不得包含深入组件的选择器；这两条规则以及“各配色声明相同的 token 集合”由 `tests/test_admin_theme.py` 保证。所选配色与模式在首次绘制前应用，因此刷新不会闪现默认值。
+- **可在面板中注册工具**：「注册」分区可连接 OpenAPI 规范（地址或路径）、MCP 服务器（地址或 stdio 命令）或 Python 模块，在**注册任何工具之前**列出该来源提供的全部工具，然后只注册被勾选的工具——所选名称会作为注册表自身的 `include` 过滤器传入，因此来源无法注册任何未经选择的工具。后端为 `POST /api/sources/preview` 与 `POST /api/sources/register`；无法连接的服务器与无法导入的模块会在面板中报告，而不是静默失败。
+- **可在面板中按工具覆写**：可在工具详情弹窗中编辑描述、`ToolTag` 与自定义标签。覆写会安装一份编辑副本并保留被替换的定义，因此 **恢复原始定义** 可以放回来源的定义；注册表的键与可调用对象保持不变，调用、日志与权限行为与之前一致。后端为 `POST`/`DELETE /api/tools/{name}/override` 与 `GET /api/overrides`。
 - **`declared_execution_hints` 将策略标签与线上声明分开**（#353）：`ToolMetadata.declared_execution_hints`（以及 `Tool` 上的同名代理）只返回显式声明的提示，并补上显式 `read_only_hint=True` 所蕴含的 `destructive_hint=False`。`execution_hints` 为兼容性保持不变，但它会从 `ToolTag.READ_ONLY` / `ToolTag.DESTRUCTIVE` 推导值，而这两个标签同时驱动内置权限规则；发布推导结果会让一个为本地策略选择的标签变成面向客户端的自动批准声明。传输层应发布 declared 映射，并把空结果视为“不作声明”。
 - **`Tool.with_parameters()`**（#356）：一步替换工具的参数字段并重新计算 `metadata.schema_hash`。旧参数校验模型默认被丢弃，因为它描述的是旧 schema，并会发出 `UserWarning`；当新 schema 等价时可传入 `parameters_model=` 保留。没有模型时，`validate_parameters()` 变为直通：它不检查类型、`required` 字段与未知键，因此违反已发布 schema 的参数也会被接受。
 
