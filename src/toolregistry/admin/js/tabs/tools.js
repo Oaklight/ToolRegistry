@@ -40,6 +40,12 @@ function normalizeTagKey(tag) {
     return key;
 }
 
+// OpenAI and Anthropic accept [A-Za-z0-9_-] only (64 chars max); Gemini also
+// allows dots.  A name outside that set is stored as-is, so the row says so.
+function isProviderSafeName(name) {
+    return /^[A-Za-z0-9_-]{1,64}$/.test(name || '');
+}
+
 function renderSourceBadge(source) {
     if (!source) return '';
     const cls = 'badge-source badge-source-' + source;
@@ -180,11 +186,15 @@ function renderTools(tools, filtersActive = false) {
             const metaIcons = renderMetaIcons(tool);
             const permBadge = renderPermissionBadge(tool.permission);
             const sourceBadge = nsSources.length > 1 ? renderSourceBadge(tool.source) : '';
+            const nameWarning = isProviderSafeName(tool.name)
+                ? ''
+                : `<span class="badge-name-warning" title="${t('tools.unsafeNameHint')}">!</span>`;
             html += `
         <tr class="ns-child-row" data-ns-group="${nsId}">
             <td></td>
             <td>
                 <span class="ns-child-name-link" onclick="event.stopPropagation(); showToolDetailModal('${escapeHtml(tool.name)}')">${escapeHtml(shortName)}</span>
+                ${nameWarning}
                 ${_overrideNames.has(tool.name) ? `<span class="badge-override">${t('override.badge')}</span>` : ''}
                 <span class="tool-badges">${tagBadges}</span>
                 ${sourceBadge}
@@ -404,28 +414,42 @@ async function refreshStats() {
         const disabled = tools.filter(t => !t.enabled).length;
         const namespaces = new Set(tools.map(t => t.namespace).filter(Boolean)).size;
 
+        // Each card links to where its number comes from: the tools list
+        // filtered by status, or the namespaces panel.
         document.getElementById('stats-grid').innerHTML = `
-            <div class="stat-card">
+            <button type="button" class="stat-card" onclick="showToolsByStatus('')" title="${t('stat.showAll')}">
                 <div class="stat-value">${tools.length}</div>
                 <div class="stat-label">${t('stat.totalTools')}</div>
-            </div>
-            <div class="stat-card">
+            </button>
+            <button type="button" class="stat-card" onclick="showToolsByStatus('enabled')" title="${t('stat.showEnabled')}">
                 <div class="stat-value text-success">${enabled}</div>
                 <div class="stat-label">${t('stat.enabled')}</div>
-            </div>
-            <div class="stat-card">
+            </button>
+            <button type="button" class="stat-card" onclick="showToolsByStatus('disabled')" title="${t('stat.showDisabled')}">
                 <div class="stat-value text-error">${disabled}</div>
                 <div class="stat-label">${t('stat.disabled')}</div>
-            </div>
-            <div class="stat-card">
+            </button>
+            <button type="button" class="stat-card" onclick="showNamespacesPanel()" title="${t('stat.showNamespaces')}">
                 <div class="stat-value">${namespaces}</div>
                 <div class="stat-label">${t('stat.namespaces')}</div>
-            </div>
+            </button>
         `;
     } catch (e) {
         document.getElementById('stats-grid').innerHTML =
             `<div class="stat-card"><div class="stat-label text-error">${e.message}</div></div>`;
     }
+}
+
+
+function showToolsByStatus(status) {
+    switchTab('tools');
+    const select = document.getElementById('status-filter');
+    if (select) select.value = status;
+    filterTools();
+}
+
+function showNamespacesPanel() {
+    switchTab('namespaces');
 }
 
 
