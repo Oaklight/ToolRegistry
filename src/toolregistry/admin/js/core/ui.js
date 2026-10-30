@@ -93,9 +93,9 @@ function switchTab(tabName) {
         refreshSources();
     } else if (tabName === 'permissions') {
         refreshPermissions();
-    } else if (tabName === 'state') {
+    } else if (tabName === 'settings') {
         refreshConfig();
-        refreshRegistrySettings();
+        refreshSettings();
     } else if (tabName === 'schema') {
         api.getInfo().then(info => {
             const enabled = !!info.discover_enabled;

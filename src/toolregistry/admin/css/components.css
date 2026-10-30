@@ -1913,6 +1913,25 @@ button.source-tool-chip:hover {
     margin: 0 0 12px;
 }
 
+/* Package links at the foot of the About card. */
+.about-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+
+.about-links .btn {
+    text-decoration: none;
+}
+
+.link-icon {
+    width: 14px;
+    height: 14px;
+}
+
 .schema-subtab.disabled {
     opacity: 0.6;
 }

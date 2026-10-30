@@ -837,8 +837,13 @@ class TestAdminUIAssets:
 
         # Favicon is inlined so the page does not request /favicon.ico.
         assert 'rel="icon"' in source
-        # Escape closes every modal, including Version Info.
-        assert "closeVersionModal();" in source
+        # Version info is a Settings card with the package links, not a
+        # header modal; Escape still closes the two modals that remain.
+        assert 'id="about-card"' in source
+        assert "function renderAbout" in source
+        assert "pypi.org/project/toolregistry" in source
+        assert "closeModal();" in source
+        assert "closeDetailModal();" in source
         # The log filter applies on Enter as well as the Apply button.
         assert "event.key==='Enter'" in source
         # Namespace THINK/DEFER boxes show a partial state.

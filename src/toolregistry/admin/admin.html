@@ -76,20 +76,6 @@
                     <div class="status-indicator" id="status-indicator" title="Connected" data-i18n-title="status.connected">
                         <span class="status-dot" id="status-dot"></span>
                     </div>
-                    <button class="btn-refresh" onclick="showVersionInfo()" title="Version Info" data-i18n-title="btn.versionInfo">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <line x1="12" y1="16" x2="12" y2="12"></line>
-                            <line x1="12" y1="8" x2="12.01" y2="8"></line>
-                        </svg>
-                    </button>
-                    <button class="btn-refresh" onclick="refreshAll()" title="Refresh" data-i18n-title="btn.refresh">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="23 4 23 10 17 10"></polyline>
-                            <polyline points="1 20 1 14 7 14"></polyline>
-                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-                        </svg>
-                    </button>
                 </div>
             </div>
         </header>
@@ -128,9 +114,9 @@
 
                 <hr class="console-sep">
                 <div class="console-group">
-                    <button class="console-item" data-tab="state" onclick="switchTab('state')" title="State">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"></ellipse><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"></path><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"></path></svg>
-                        <span class="console-item-label" data-i18n="tab.state">State</span>
+                    <button class="console-item" data-tab="settings" onclick="switchTab('settings')" title="Settings">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                        <span class="console-item-label" data-i18n="tab.settings">Settings</span>
                     </button>
                 </div>
 
@@ -166,7 +152,7 @@
                         <svg id="toggle-expand-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3l4 4 4-4"/><path d="M4 9l4 4 4-4"/></svg>
                     </button>
                     <button class="btn btn-primary btn-sm" onclick="openAddSource()" data-i18n="source.add">Add source</button>
-                    <button class="btn btn-secondary btn-sm" onclick="refreshTools()" data-i18n="btn.refresh">Refresh</button>
+                    <button class="btn btn-secondary btn-sm" onclick="refreshTools(); refreshStats()" data-i18n="btn.refresh">Refresh</button>
                 </div>
             </div>
             <div class="card-body no-padding">
@@ -277,7 +263,7 @@
             <div class="card-header">
                 <h2 class="card-title" data-i18n="section.execLogs">Execution Logs</h2>
                 <div class="flex gap-2">
-                    <button class="btn btn-secondary btn-sm" onclick="refreshLogs()" data-i18n="btn.refresh">Refresh</button>
+                    <button class="btn btn-secondary btn-sm" onclick="refreshLogs(); refreshLogStats()" data-i18n="btn.refresh">Refresh</button>
                     <button class="btn btn-danger btn-sm" onclick="confirmClearLogs()" data-i18n="btn.clearLogs">Clear Logs</button>
                 </div>
             </div>
@@ -325,9 +311,34 @@
     </div>
 </div>
 
-<!-- State Tab -->
-<div id="tab-state" class="tab-content" style="display: none;">
+<!-- Settings Tab: registry settings, saved state and package info -->
+<div id="tab-settings" class="tab-content" style="display: none;">
     <div class="grid">
+        <div class="card" id="registry-settings-card" style="display: none;">
+            <div class="card-header">
+                <h2 class="card-title" data-i18n="config.nameSep">Name Separator</h2>
+            </div>
+            <div class="card-body">
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <select id="name-sep-select" class="btn btn-secondary btn-sm" style="padding:4px 8px;cursor:pointer;">
+                        <option value="-">- (hyphen)</option>
+                        <option value=".">. (dot)</option>
+                    </select>
+                    <button class="btn btn-primary btn-sm" onclick="saveNameSep()" data-i18n="btn.apply">Apply</button>
+                </div>
+                <p class="text-muted mt-2" style="font-size:var(--text-small);" data-i18n="config.nameSepHint">Separator between namespace and method name. Changing it renames every namespaced tool immediately.</p>
+            </div>
+        </div>
+
+        <div class="card" id="config-card" style="display: none;">
+            <div class="card-header">
+                <h2 class="card-title" data-i18n="section.configFile">Config File</h2>
+            </div>
+            <div class="card-body" id="config-body">
+                <div class="loading"><div class="spinner"></div><span data-i18n="misc.loading">Loading...</span></div>
+            </div>
+        </div>
+
         <div class="card">
             <div class="card-header">
                 <h2 class="card-title" data-i18n="section.exportState">Export State</h2>
@@ -353,33 +364,12 @@
             </div>
         </div>
 
-        <div class="card" id="config-card" style="display: none;">
+        <div class="card" id="about-card">
             <div class="card-header">
-                <h2 class="card-title" data-i18n="section.configFile">Config File</h2>
+                <h2 class="card-title" data-i18n="section.about">About</h2>
             </div>
-            <div class="card-body" id="config-body">
+            <div class="card-body" id="about-body">
                 <div class="loading"><div class="spinner"></div><span data-i18n="misc.loading">Loading...</span></div>
-            </div>
-        </div>
-
-        <div class="card" id="registry-settings-card" style="display: none;">
-            <div class="card-header">
-                <h2 class="card-title" data-i18n="config.nameSep">Name Separator</h2>
-            </div>
-            <div class="card-body">
-                <div class="metadata-grid">
-                    <div class="meta-item">
-                        <span class="meta-label" data-i18n="config.nameSep">Name Separator</span>
-                        <div style="display:flex;gap:8px;align-items:center;margin-top:4px;">
-                            <select id="name-sep-select" class="btn btn-secondary btn-sm" style="padding:4px 8px;cursor:pointer;">
-                                <option value="-">- (hyphen)</option>
-                                <option value=".">. (dot)</option>
-                            </select>
-                            <button class="btn btn-primary btn-sm" onclick="saveNameSep()" data-i18n="btn.apply">Apply</button>
-                        </div>
-                        <p class="text-muted mt-2" style="font-size:var(--text-small);" data-i18n="config.nameSepHint">Separator between namespace and method name. Changing it renames every namespaced tool immediately.</p>
-                    </div>
-                </div>
             </div>
         </div>
     </div>
@@ -483,20 +473,7 @@
     </div>
 </div>
 
-<!-- Version Info Modal -->
-<div class="modal-overlay" id="version-modal-overlay" onclick="closeVersionModal(event)">
-    <div class="modal" onclick="event.stopPropagation()" style="max-width:360px;">
-        <div class="modal-header">
-            <h3 class="modal-title" data-i18n="modal.versionInfo">Version Info</h3>
-            <button class="modal-close" onclick="closeVersionModal()">&times;</button>
-        </div>
-        <div class="modal-body" id="version-modal-body"></div>
-        <div class="modal-footer">
-            <button class="btn btn-primary" onclick="closeVersionModal()" data-i18n="btn.close">Close</button>
-        </div>
-    </div>
-
-    <!-- Toast Container -->
+<!-- Toast Container -->
     <div class="toast-container" id="toast-container"></div>
 
     <script src="assets/js/core/state.js"></script>
