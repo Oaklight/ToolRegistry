@@ -29,6 +29,15 @@
     --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
     /* Tool and namespace names are identifiers, not prose. */
     --font-ident: var(--font-mono);
+    /* Typographic scale.  Every piece of text in the panel is one of these
+       four steps: a stat number, body copy (data, controls, headings),
+       secondary copy (hints, code, descriptions) or a micro label (badges,
+       table headers, counts).  Components and inline styles draw from these
+       tokens so one section cannot drift to a size of its own. */
+    --text-display: 1.5rem;
+    --text-body: 0.875rem;
+    --text-small: 0.75rem;
+    --text-micro: 0.6875rem;
     --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
     --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06);
     --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.08);
@@ -215,6 +224,9 @@ html, body {
 
 body {
     font-family: var(--font-sans);
+    /* The body step of the scale above: data, controls and headings all sit
+       here; smaller text is a deliberate step down, not an inherited default. */
+    font-size: var(--text-body);
     background: var(--bg-primary);
     color: var(--text-primary);
     line-height: 1.6;
@@ -229,6 +241,15 @@ a {
 
 code, pre, .mono {
     font-family: var(--font-mono);
+}
+
+/* A tool or API name named in prose: monospace at the small step, on the
+   sunken surface, so it reads as an identifier rather than emphasis. */
+code {
+    font-size: var(--text-small);
+    padding: 1px 5px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-sunken);
 }
 
 :focus-visible {

@@ -75,10 +75,10 @@ function renderConfig(config) {
     const body = document.getElementById('config-body');
     const disabledList = (config.disabled || []).map(d =>
         `<span class="source-tool-chip">${escapeHtml(d)}</span>`
-    ).join('') || `<span class="text-muted" style="font-size: 0.75rem;">${t('misc.none')}</span>`;
+    ).join('') || `<span class="text-muted" style="font-size: var(--text-small);">${t('misc.none')}</span>`;
     const enabledList = (config.enabled || []).map(e =>
         `<span class="source-tool-chip">${escapeHtml(e)}</span>`
-    ).join('') || `<span class="text-muted" style="font-size: 0.75rem;">${t('misc.none')}</span>`;
+    ).join('') || `<span class="text-muted" style="font-size: var(--text-small);">${t('misc.none')}</span>`;
 
     body.innerHTML = `
         <div class="config-section">
@@ -94,7 +94,7 @@ function renderConfig(config) {
             </div>
             ${config.source ? `<div class="mt-2">
                 <button class="btn btn-primary btn-sm" onclick="saveCurrentStateToConfig()">${t('btn.saveToConfig')}</button>
-                <span class="text-muted" style="font-size: 0.75rem; margin-left: 8px;">${t('config.saveHint')}</span>
+                <span class="text-muted" style="font-size: var(--text-small); margin-left: 8px;">${t('config.saveHint')}</span>
             </div>` : ''}
         </div>`;
 }
@@ -128,14 +128,14 @@ async function showVersionInfo() {
         const vRows = versionFields
             .filter(k => data[k] !== undefined)
             .map(k => `<tr>
-                <td style="padding:5px 12px 5px 0;color:var(--text-muted);white-space:nowrap;font-size:0.85rem;">${escapeHtml(k)}</td>
-                <td style="padding:5px 0;font-family:monospace;font-size:0.85rem;">${escapeHtml(String(data[k]))}</td>
+                <td style="padding:5px 12px 5px 0;color:var(--text-muted);white-space:nowrap;font-size:var(--text-small);">${escapeHtml(k)}</td>
+                <td style="padding:5px 0;font-family:monospace;font-size:var(--text-small);">${escapeHtml(String(data[k]))}</td>
             </tr>`).join('');
         const extraRows = Object.entries(data)
             .filter(([k]) => !versionFields.includes(k))
             .map(([k, v]) => `<tr>
-                <td style="padding:5px 12px 5px 0;color:var(--text-muted);white-space:nowrap;font-size:0.85rem;">${escapeHtml(k)}</td>
-                <td style="padding:5px 0;font-family:monospace;font-size:0.85rem;">${escapeHtml(String(v))}</td>
+                <td style="padding:5px 12px 5px 0;color:var(--text-muted);white-space:nowrap;font-size:var(--text-small);">${escapeHtml(k)}</td>
+                <td style="padding:5px 0;font-family:monospace;font-size:var(--text-small);">${escapeHtml(String(v))}</td>
             </tr>`).join('');
         document.getElementById('version-modal-body').innerHTML = `
             <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">

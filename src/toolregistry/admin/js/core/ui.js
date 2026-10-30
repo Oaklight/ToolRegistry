@@ -130,3 +130,13 @@ function escapeHtml(str) {
     div.textContent = str;
     return div.innerHTML;
 }
+
+// Prose that names a tool sets it as an identifier.  The sentence comes from
+// i18n and is translated, so match the stable tool names rather than the
+// words around them, and escape first so a translation cannot inject markup.
+function inlineIdentifiers(text) {
+    return escapeHtml(text).replace(
+        /\b(discover_tools|call_deferred)\b/g,
+        '<code>$1</code>',
+    );
+}

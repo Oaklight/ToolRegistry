@@ -160,7 +160,7 @@ function renderTools(tools, filtersActive = false) {
             <td>
                 <button type="button" class="ns-link" onclick="event.stopPropagation(); toggleNsGroup('${nsId}')" title="${t('ns.toggleGroup')}">${escapeHtml(ns)}</button>
                 ${nsSourceBadge ? `<button type="button" class="source-badge-link" onclick="event.stopPropagation(); focusSources('${escapeJs(nsSources[0])}')" title="${t('source.showInPanel')}">${escapeHtml(nsSources[0])}</button>` : ''}
-                <span class="text-muted" style="margin-left: 8px; font-size: 0.6875rem;">${children.length > 1 ? t('misc.toolCountPlural', {count: children.length}) : t('misc.toolCount', {count: children.length})}</span>
+                <span class="text-muted" style="margin-left: 8px; font-size: var(--text-small);">${children.length > 1 ? t('misc.toolCountPlural', {count: children.length}) : t('misc.toolCount', {count: children.length})}</span>
             </td>
             <td class="col-think" onclick="event.stopPropagation()">
                 <label class="meta-checkbox" style="justify-content: center;" title="${t('misc.thinkAugmentedAll')}">
@@ -528,7 +528,7 @@ async function showToolDetailModal(toolName) {
 
         const perm = tool.permission;
         const permHtml = perm
-            ? `<span class="badge-${perm.result}">${perm.result}</span>${perm.rule_name ? ` <span class="text-muted" style="font-size: 0.75rem;">(${escapeHtml(perm.rule_name)})</span>` : ''}`
+            ? `<span class="badge-${perm.result}">${perm.result}</span>${perm.rule_name ? ` <span class="text-muted" style="font-size: var(--text-small);">(${escapeHtml(perm.rule_name)})</span>` : ''}`
             : `<span class="text-muted">${t('detail.noPolicy')}</span>`;
 
         // Basic info
@@ -545,7 +545,7 @@ async function showToolDetailModal(toolName) {
             ${meta.source_detail ? `<div class="meta-item mt-2"><span class="meta-label">${t('detail.sourceDetail')}</span><span class="meta-value" style="word-break: break-all;">${escapeHtml(meta.source_detail)}</span></div>` : ''}
             ${tool.reason ? `<div class="meta-item mt-2"><span class="meta-label">${t('detail.disableReason')}</span><span class="meta-value text-error">${escapeHtml(tool.reason)}</span></div>` : ''}
             ${perm && perm.reason ? `<div class="meta-item mt-2"><span class="meta-label">${t('detail.permReason')}</span><span class="meta-value">${escapeHtml(perm.reason)}</span></div>` : ''}
-            <div class="mt-2"><span class="meta-label">${t('detail.description')}</span><p style="font-size: 0.8125rem; margin-top: 4px;">${escapeHtml(tool.description || '')}</p></div>
+            <div class="mt-2"><span class="meta-label">${t('detail.description')}</span><p style="font-size: var(--text-body); margin-top: 4px;">${escapeHtml(tool.description || '')}</p></div>
         </div>`;
 
         // Metadata
@@ -561,14 +561,14 @@ async function showToolDetailModal(toolName) {
                 <div class="meta-item"><span class="meta-label">${t('detail.deferred')}</span><span class="meta-value"><label class="meta-checkbox"><input type="checkbox" ${meta.defer ? 'checked' : ''} onchange="toggleToolMeta('${escapeHtml(tool.name)}', 'defer', this.checked)"></label></span></div>
                 <div class="meta-item" style="grid-column:1/-1;"><span class="meta-label">${t('detail.searchHint')}</span><span class="meta-value" style="display:flex;gap:4px;align-items:center;margin-top:2px;">
                     <input type="text" id="sh-modal-${escapeHtml(tool.name)}" value="${escapeHtml(meta.search_hint || '')}" placeholder="${t('detail.searchHintPlaceholder')}"
-                        style="flex:1;padding:3px 7px;font-size:0.8rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-secondary);color:var(--text-primary);"
+                        style="flex:1;padding:3px 7px;font-size:var(--text-small);border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-secondary);color:var(--text-primary);"
                         onkeydown="if(event.key==='Enter')saveSearchHint('${escapeHtml(tool.name)}',this,false)">
                     <button class="btn btn-secondary btn-sm" onclick="saveSearchHint('${escapeHtml(tool.name)}',document.getElementById('sh-modal-${escapeHtml(tool.name)}'),false)">${t('btn.apply')}</button>
                 </span></div>
             </div>
             ${systemTags.length > 0 ? `<div class="mt-2"><span class="meta-label">${t('detail.tags')}</span><div style="margin-top: 4px;">${renderTagBadges(systemTags)}</div></div>` : ''}
             ${customTags.length > 0 ? `<div class="mt-2"><span class="meta-label">${t('detail.customTags')}</span><div style="margin-top: 4px;">${renderTagBadges(customTags)}</div></div>` : ''}
-            ${meta.extra && Object.keys(meta.extra).length > 0 ? `<div class="mt-2"><span class="meta-label">${t('detail.extra')}</span><pre style="margin-top: 4px; background: var(--bg-primary); padding: 8px; border-radius: var(--radius-sm); font-size: 0.75rem;">${escapeHtml(JSON.stringify(meta.extra, null, 2))}</pre></div>` : ''}
+            ${meta.extra && Object.keys(meta.extra).length > 0 ? `<div class="mt-2"><span class="meta-label">${t('detail.extra')}</span><pre style="margin-top: 4px; background: var(--bg-primary); padding: 8px; border-radius: var(--radius-sm); font-size: var(--text-small);">${escapeHtml(JSON.stringify(meta.extra, null, 2))}</pre></div>` : ''}
         </div>`;
 
         // Schema (collapsible)
@@ -578,7 +578,7 @@ async function showToolDetailModal(toolName) {
                 <span class="detail-section-title" style="margin-bottom: 0;">${t('detail.schema')}</span>
             </div>
             <div class="schema-content">
-                <pre style="background: var(--bg-sunken); color: var(--text-primary); border: 1px solid var(--border); padding: 12px; border-radius: var(--radius-sm); font-size: 0.75rem; overflow-x: auto; white-space: pre-wrap; font-family: var(--font-mono);">${escapeHtml(JSON.stringify(tool.schema, null, 2))}</pre>
+                <pre style="background: var(--bg-sunken); color: var(--text-primary); border: 1px solid var(--border); padding: 12px; border-radius: var(--radius-sm); font-size: var(--text-small); overflow-x: auto; white-space: pre-wrap; font-family: var(--font-mono);">${escapeHtml(JSON.stringify(tool.schema, null, 2))}</pre>
             </div>
         </div>`;
 
@@ -618,7 +618,7 @@ function renderDeferredWarning(deferredCount) {
     }
     box.style.display = '';
     box.innerHTML = `<strong>${t('discovery.offTitle', { count: deferredCount })}</strong>
-        <span>${t('discovery.offHint')}</span>
+        <span>${inlineIdentifiers(t('discovery.offHint'))}</span>
         <button class="btn btn-secondary btn-sm" style="margin-left:auto;"
                 onclick="enableToolDiscovery()">${t('discovery.enable')}</button>`;
 }

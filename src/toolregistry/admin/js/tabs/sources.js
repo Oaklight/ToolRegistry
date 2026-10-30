@@ -75,7 +75,7 @@ function renderSources(sources) {
             <div class="source-card-header">
                 ${renderSourceBadge(src.type)}
                 <button type="button" class="ns-link" onclick="gotoTools({ namespace: '${escapeJs(src.namespace)}' })" title="${t('ns.showTools')}">${escapeHtml(src.namespace)}</button>
-                <span class="text-muted" style="font-size: 0.75rem; margin-left: auto;">${src.enabled_count}/${src.tool_count} ${t('stat.enabled').toLowerCase()}</span>
+                <span class="text-muted" style="font-size: var(--text-small); margin-left: auto;">${src.enabled_count}/${src.tool_count} ${t('stat.enabled').toLowerCase()}</span>
             </div>
             ${src.detail ? `<div class="source-detail">${escapeHtml(src.detail)}</div>` : ''}
             <div class="source-tools-list">${toolChips}</div>

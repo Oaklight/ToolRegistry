@@ -56,13 +56,13 @@ function renderPermissions(data) {
             html += `<tr>
                 <td><span style="font-weight: 500;">${escapeHtml(rule.name)}</span></td>
                 <td><span class="badge badge-${rule.result}">${rule.result}</span></td>
-                <td class="text-muted" style="font-size: 0.8125rem;">${escapeHtml(rule.reason || '—')}</td>
+                <td class="text-muted" style="font-size: var(--text-body);">${escapeHtml(rule.reason || '—')}</td>
             </tr>`;
         });
 
         html += `</tbody></table></div>`;
     } else {
-        html += `<p class="text-muted" style="font-size: 0.8125rem;">${t('perm.noRules')}</p>`;
+        html += `<p class="text-muted" style="font-size: var(--text-body);">${t('perm.noRules')}</p>`;
     }
 
     body.innerHTML = html;
