@@ -56,7 +56,9 @@ Discovery can be turned on and off from the panel:
   off, carry an **Enable tool discovery** button;
 - once enabled, the sub-tab shows the `discover_tools` description and a
   **Disable tool discovery** control, which asks for confirmation because every
-  deferred tool becomes unreachable again.
+  deferred tool becomes unreachable again;
+- the **Settings** section states the effective state and how many deferred
+  tools a switch would restore, with the same two controls.
 
 This is a registry change, not a configuration edit: it takes effect
 immediately and is not written to the config file, so a restart returns to
