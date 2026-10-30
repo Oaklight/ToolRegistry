@@ -25,6 +25,25 @@ The overview cards at the top of the Tools section are links: the total opens
 the unfiltered list, enabled and disabled open it filtered to that status, and
 the namespace count opens the Namespaces panel.
 
+## Moving between sections
+
+The four sections that describe where tools come from are connected, so a
+number is always a way into the list that explains it:
+
+| From | Click | Lands in |
+|---|---|---|
+| Overview cards | all / enabled / disabled | Tools, filtered by status |
+| Overview cards | namespaces | Namespaces |
+| Namespaces | name or count | Tools, filtered by namespace (and status for the enabled/disabled counts) |
+| Namespaces | source badge | Sources, filtered by that source type |
+| Tools | namespace header | Namespaces, with that row highlighted |
+| Tools | source badge | Sources, filtered by that source type |
+| Sources | namespace name | Tools, filtered by namespace |
+| Sources | "Show N tools" | Tools, filtered by source and namespace |
+| Sources | "Register from this source" | Register, pre-filled with the kind, detail and namespace |
+| Register | a registered tool name | that tool's detail modal |
+| Register | "View registered tools" (after registering) | Tools, filtered by the namespace just used |
+
 ## Themes
 
 Two colour schemes ship with the panel — **Paper** (warm neutrals, brass
