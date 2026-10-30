@@ -147,7 +147,7 @@ Schema 分区展示发布给模型的 schema。格式选择器使用 llm-rosetta
 - **Schema**：工具参数的完整 JSON Schema
 - **Metadata**：所有 `ToolMetadata` 字段，`think_augment` 和 `defer` 提供交互式开关
 - **Permissions**：权限评估结果，显示适用的规则和决策
-- **覆写**：编辑工具的描述、标题、`ToolTag`、自定义标签与四个执行提示
+- **覆写**：按钮位于弹窗标题栏、紧邻工具名；可编辑工具的描述、标题、`ToolTag`、自定义标签与四个执行提示
   （`read_only_hint`、`destructive_hint`、`idempotent_hint`、`open_world_hint`）
 
 覆写会安装该工具的一份编辑副本，并保留被替换的定义，因此 **恢复原始定义**
