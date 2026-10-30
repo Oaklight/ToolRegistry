@@ -1381,6 +1381,7 @@ def _get_discovery(request: Request) -> Response:
     return _json_response(
         {
             "enabled": bool(registry.tool_discovery_enabled),
+            "mode": registry.tool_discovery_mode,
             "deferred_count": len(deferred),
             "deferred_tools": deferred,
         }
@@ -1402,6 +1403,7 @@ def _enable_tool_discovery(request: Request) -> Response:
         {
             "success": True,
             "enabled": True,
+            "mode": registry.tool_discovery_mode,
             "registered": [
                 name
                 for name in ("discover_tools", "call_deferred")
@@ -1425,7 +1427,42 @@ def _disable_tool_discovery(request: Request) -> Response:
         {
             "success": True,
             "enabled": False,
+            "mode": registry.tool_discovery_mode,
             "unreachable": len(deferred),
+            "deferred_tools": deferred,
+        }
+    )
+
+
+def _set_tool_discovery_mode(request: Request) -> Response:
+    """Choose how tool discovery is controlled.
+
+    ``auto`` follows the deferred set, so marking a tool deferred enables
+    discovery and undoing the last deferral disables it.  ``on`` and ``off``
+    are explicit choices that later registrations do not override.
+    """
+    registry = _app(request).registry
+    if not request.body:
+        return _error_response(400, "Bad Request", "Request body is required")
+    try:
+        data = request.json()
+    except (json.JSONDecodeError, ValueError) as e:
+        return _error_response(400, "Bad Request", f"Invalid JSON: {e}")
+    if not isinstance(data, dict):
+        return _error_response(400, "Bad Request", "Body must be a JSON object")
+
+    try:
+        registry.set_tool_discovery_mode(data.get("mode"))
+    except ValueError as e:
+        return _error_response(400, "Bad Request", str(e))
+
+    deferred = _deferred_tools(registry)
+    return _json_response(
+        {
+            "success": True,
+            "mode": registry.tool_discovery_mode,
+            "enabled": bool(registry.tool_discovery_enabled),
+            "deferred_count": len(deferred),
             "deferred_tools": deferred,
         }
     )
@@ -1455,6 +1492,7 @@ def setup_routes(app: "AdminApp") -> None:
     app.get("/api/discovery")(_get_discovery)
     app.post("/api/discovery/enable")(_enable_tool_discovery)
     app.post("/api/discovery/disable")(_disable_tool_discovery)
+    app.post("/api/discovery/mode")(_set_tool_discovery_mode)
     app.post("/api/tools/<path:name>/override")(_override_tool)
     app.delete("/api/tools/<path:name>/override")(_restore_tool_override)
     app.get("/api/tools")(_get_tools)

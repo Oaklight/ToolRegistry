@@ -177,6 +177,13 @@ class AdminAPI {
         return this.request('/api/discovery/disable', { method: 'POST' });
     }
 
+    async setDiscoveryMode(mode) {
+        return this.request('/api/discovery/mode', {
+            method: 'POST',
+            body: JSON.stringify({ mode })
+        });
+    }
+
     async listOverrides() {
         return this.request('/api/overrides');
     }

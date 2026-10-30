@@ -491,6 +491,43 @@ class TestAdminServerAPI:
         assert data["unreachable"] == 1
         assert data["deferred_tools"] == ["math-add"]
 
+    def test_discovery_mode_controls_are_exposed(self, server_with_tools) -> None:
+        """``auto`` follows the deferred set; ``off`` wins over it."""
+        server, info = server_with_tools
+
+        status, data = self._request(f"{info.url}/api/discovery")
+        assert status == 200
+        assert data["mode"] == "auto"
+
+        status, data = self._request(
+            f"{info.url}/api/discovery/mode", "POST", {"mode": "off"}
+        )
+        assert status == 200
+        assert data["mode"] == "off"
+        assert data["enabled"] is False
+
+        # An explicit off is not overridden by a deferred tool.
+        self._request(
+            f"{info.url}/api/tools/math-add/metadata", "PATCH", {"defer": True}
+        )
+        status, data = self._request(f"{info.url}/api/discovery")
+        assert data["enabled"] is False
+        assert data["mode"] == "off"
+
+        # Auto turns it back on because a deferred tool now exists.
+        status, data = self._request(
+            f"{info.url}/api/discovery/mode", "POST", {"mode": "auto"}
+        )
+        assert status == 200
+        assert data["mode"] == "auto"
+        assert data["enabled"] is True
+        assert data["deferred_count"] == 1
+
+        status, data = self._request(
+            f"{info.url}/api/discovery/mode", "POST", {"mode": "sometimes"}
+        )
+        assert status == 400
+
     @pytest.mark.parametrize(
         "format_name",
         [
