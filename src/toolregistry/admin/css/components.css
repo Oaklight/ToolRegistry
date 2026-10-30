@@ -392,6 +392,10 @@ th, td {
     border-bottom: 1px solid var(--border);
 }
 
+td {
+    font-size: 0.8125rem;
+}
+
 th {
     background: var(--bg-primary);
     font-weight: 500;
@@ -1505,6 +1509,16 @@ button.stat-card:focus-visible {
     display: block;
 }
 
+/* Identifiers — tool names, namespace names — are set in the monospace face:
+   they read as names rather than prose, and align column-wise. */
+.ident,
+.ns-child-name-link,
+.ns-link,
+#detail-title {
+    font-family: var(--font-ident);
+    letter-spacing: -0.005em;
+}
+
 .ns-child-name-link {
     cursor: pointer;
     color: var(--text-primary);
@@ -1610,6 +1624,7 @@ button.stat-card:focus-visible {
     display: inline-block;
     padding: 2px 8px;
     font-size: 0.6875rem;
+    font-family: var(--font-ident);
     /* A <button> does not inherit colour, and the UA default (black) is
        invisible on a dark scheme — the chip states its own. */
     color: var(--text-primary);
@@ -1764,9 +1779,15 @@ button.stat-card:focus-visible {
     border: 0;
     background: none;
     padding: 0;
-    font: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: inherit;
     color: inherit;
     cursor: pointer;
+}
+
+.ns-link {
+    font-family: var(--font-ident);
 }
 
 .ns-link {

@@ -81,7 +81,7 @@ function renderLogs(entries) {
             <tr class="log-row" onclick="toggleLogDetails(${idx})">
                 <td><span class="expand-icon">${SVG_CHEVRON}</span></td>
                 <td class="text-sm">${timestamp}</td>
-                <td><span style="font-weight: 500;">${escapeHtml(entry.tool_name)}</span></td>
+                <td><span class="ident" style="font-weight: 500;">${escapeHtml(entry.tool_name)}</span></td>
                 <td><span class="badge ${statusClass}">${statusLabel}</span>${warningBadge}</td>
                 <td class="text-muted">${duration}</td>
             </tr>
