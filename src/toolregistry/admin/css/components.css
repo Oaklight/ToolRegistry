@@ -1570,6 +1570,11 @@ button.stat-card:focus-visible {
 .header-select:hover { border-color: var(--accent); }
 .header-select:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-light); }
 
+/* Fixed widths: these labels change with the language (Paper/纸张, EN/中文),
+   and a box that shrinks would shift every control to its right. */
+#schemeSwitcher { width: 84px; }
+#langSwitcher { width: 72px; }
+
 .badge-allow, .badge-deny, .badge-ask {
     display: inline-flex;
     align-items: center;

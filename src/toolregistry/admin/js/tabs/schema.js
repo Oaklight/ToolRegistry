@@ -62,7 +62,7 @@ async function loadDiscover() {
     pre.style.display = '';
     try {
         const data = await api.getSchema('discover');
-        pre.textContent = data.text || '(discover_tools not enabled)';
+        pre.textContent = data.text || t('schema.discoverEmpty');
         meta.textContent = t('schema.discoverStats', {
             deferred: data.deferred_count ?? 0,
             disabled: data.disabled_count ?? 0,
@@ -76,7 +76,7 @@ async function loadDiscover() {
                 const safeId = 'sh-' + w.name.replace(/[^a-zA-Z0-9]/g, '_');
                 return `<div style="display:flex;align-items:center;gap:6px;margin:4px 0;flex-wrap:wrap;">
                     <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(w.description)}">
-                        <strong class="ident">${escapeHtml(w.name)}</strong> <span style="opacity:0.7;">(${w.description.length} chars)</span>
+                        <strong class="ident">${escapeHtml(w.name)}</strong> <span style="opacity:0.7;">(${t('schema.charCount', {count: w.description.length})})</span>
                     </span>
                     <input type="text" id="${safeId}" placeholder="${t('schema.hintPlaceholder')}"
                         style="flex:1;min-width:160px;padding:2px 6px;font-size:var(--text-small);border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-secondary);color:var(--text-primary);"

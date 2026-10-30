@@ -56,14 +56,14 @@ function registerFieldsTemplate(kind) {
             <label class="form-label" data-i18n="register.module">Module</label>
             <input class="input" id="rf-module" placeholder="mypkg.tools">
             <label class="form-label" data-i18n="register.object">Class or function (optional)</label>
-            <input class="input" id="rf-object" placeholder="leave empty for every public function">
+            <input class="input" id="rf-object" placeholder="leave empty for every public function" data-i18n-placeholder="register.objectHint">
         `;
     }
     return `
         <label class="form-label" data-i18n="register.specUrl">OpenAPI spec URL or path</label>
         <input class="input" id="rf-spec-url" placeholder="https://api.example.com/openapi.json">
         <label class="form-label" data-i18n="register.baseUrl">Base URL (optional)</label>
-        <input class="input" id="rf-base-url" placeholder="defaults to servers[] in the spec">
+        <input class="input" id="rf-base-url" placeholder="defaults to servers[] in the spec" data-i18n-placeholder="register.baseUrlHint">
     `;
 }
 
@@ -113,7 +113,7 @@ function renderRegisterForm() {
         </div>`).join('');
 
     body.innerHTML = `
-        <div class="seg-control" role="radiogroup" aria-label="Source kind">${seg}</div>
+        <div class="seg-control" role="radiogroup" aria-label="Source kind" data-i18n-aria-label="register.kind">${seg}</div>
         <div class="register-form">
             ${registerFieldsTemplate(kind)}
             ${registerAuthTemplate(kind)}
@@ -130,6 +130,7 @@ function renderRegisterForm() {
         <div id="register-preview"></div>
     `;
     onAuthTypeChange();
+    applyI18n(document.getElementById('register-body'));
 }
 
 function parseHeaderLines(text) {
@@ -213,7 +214,7 @@ function renderRegisterPreview(result) {
     if (!box) return;
     if (!result.tools || result.tools.length === 0) {
         box.innerHTML = `<div class="empty-state"><div data-i18n="register.empty">This source offers no tools.</div></div>`;
-        applyI18n();
+        applyI18n(box);
         return;
     }
 
@@ -267,7 +268,7 @@ function renderRegisterPreview(result) {
     document.querySelectorAll('.register-pick').forEach((box) => {
         box.addEventListener('change', updateRegisterSelectionCount);
     });
-    applyI18n();
+    applyI18n(box);
     updateRegisterSelectionCount();
 }
 

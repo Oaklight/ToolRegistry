@@ -40,13 +40,13 @@ class AdminAPI {
             if (response.status === 401) {
                 // A stored or freshly entered token that still gets 401
                 // is final: never loop the prompt forever on a typo.
-                if (authRetried) throw new Error('Unauthorized');
+                if (authRetried) throw new Error(t('error.unauthorized'));
                 // Another request may have obtained a token while this
                 // one was in flight; reuse it instead of prompting.
                 let token = this.token;
                 if (!token || token === requestToken) {
                     token = await promptForAdminToken();
-                    if (!token) throw new Error('Unauthorized');
+                    if (!token) throw new Error(t('error.unauthorized'));
                     localStorage.setItem('admin_token', token);
                     this.token = token;
                     AUTH_TOKEN = token;
@@ -55,13 +55,13 @@ class AdminAPI {
             }
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.message || 'Request failed');
+                throw new Error(data.message || t('error.requestFailed'));
             }
             return data;
         } catch (error) {
             if (error.name === 'TypeError') {
                 updateConnectionStatus(false);
-                throw new Error('Connection failed');
+                throw new Error(t('error.connectionFailed'));
             }
             throw error;
         }

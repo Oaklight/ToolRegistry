@@ -162,7 +162,9 @@ def _auth_client_source() -> str:
                 "calls": ["Bearer stale", "Bearer wrong"],
                 "prompts": 1,
                 "stored": "wrong",
-                "threw": "Unauthorized",
+                # The harness stubs t() as the identity, so the message is
+                # the i18n key the client throws.
+                "threw": "error.unauthorized",
             },
         ),
     ],

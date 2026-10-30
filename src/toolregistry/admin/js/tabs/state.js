@@ -123,6 +123,9 @@ function refreshAll() {
 }
 
 async function refreshSettings() {
+    // The discovery card reads its own endpoint; it is rendered alongside the
+    // registry settings because both describe the running registry.
+    refreshDiscoveryCard();
     try {
         const info = await api.getInfo();
         renderRegistrySettings(info);

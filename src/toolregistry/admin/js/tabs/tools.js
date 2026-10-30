@@ -84,10 +84,10 @@ function renderMetaIcons(tool) {
     let icons = '';
     if (tool.locality && tool.locality !== 'any') {
         const cls = tool.locality === 'local' ? 'badge-locality-local' : 'badge-locality-remote';
-        icons += `<span class="badge-locality ${cls}" title="Locality: ${tool.locality}">${tool.locality}</span>`;
+        icons += `<span class="badge-locality ${cls}" title="${t('meta.localityTitle', {value: tool.locality})}">${tool.locality}</span>`;
     }
     if (tool.is_async) {
-        icons += `<span class="meta-icon" title="Async">async</span>`;
+        icons += `<span class="meta-icon" title="${t('meta.async')}">async</span>`;
     }
     return icons ? `<span class="tool-meta-icons">${icons}</span>` : '';
 }
@@ -623,6 +623,30 @@ function renderDeferredWarning(deferredCount) {
                 onclick="enableToolDiscovery()">${t('discovery.enable')}</button>`;
 }
 
+// The Settings page states the same thing in full; the notices in Tools and
+// Schema stay as shortcuts.  Rendering reads /api/discovery so the count and
+// the buttons agree with the registry rather than with a cached flag.
+async function refreshDiscoveryCard() {
+    const badge = document.getElementById('discovery-state');
+    if (!badge) return;
+    const hint = document.getElementById('discovery-hint');
+    const deferred = document.getElementById('discovery-deferred');
+    const enableBtn = document.getElementById('discovery-enable');
+    const disableBtn = document.getElementById('discovery-disable');
+    hint.innerHTML = inlineIdentifiers(t('discovery.cardHint'));
+    try {
+        const data = await api.getDiscovery();
+        setDiscoverEnabled(data.enabled);
+        badge.textContent = data.enabled ? t('discovery.stateOn') : t('discovery.stateOff');
+        badge.className = 'badge ' + (data.enabled ? 'badge-success' : 'badge-neutral');
+        deferred.textContent = t('discovery.deferredCount', { count: data.deferred_count ?? 0 });
+        enableBtn.style.display = data.enabled ? 'none' : '';
+        disableBtn.style.display = data.enabled ? '' : 'none';
+    } catch (e) {
+        badge.textContent = '';
+    }
+}
+
 // Enabling is a registry change, not a config edit: it registers
 // discover_tools and call_deferred immediately and builds the index lazily.
 async function enableToolDiscovery() {
@@ -632,6 +656,7 @@ async function enableToolDiscovery() {
         _discoverEnabled = true;
         await refreshTools();
         refreshStats();
+        refreshDiscoveryCard();
         if (typeof _activeSchemaSubTab !== 'undefined' && _activeSchemaSubTab === 'discover') {
             loadDiscover();
         }
@@ -654,6 +679,7 @@ async function disableToolDiscovery() {
         );
         await refreshTools();
         refreshStats();
+        refreshDiscoveryCard();
         if (typeof _activeSchemaSubTab !== 'undefined' && _activeSchemaSubTab === 'discover') {
             loadDiscover();
         }
