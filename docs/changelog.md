@@ -17,7 +17,7 @@ hide:
 ## [未发布]
 
 ### 新增
-- **「状态」分区升级为「设置」**：注册表设置、状态导出/导入与 **关于** 卡片合并到同一分区。「关于」卡片显示当前使用的 `toolregistry`、`toolregistry-server` 与 `toolregistry-hub` 版本，并链接到仓库、PyPI 与文档，取代了顶栏的版本弹窗。顶栏只保留配色方案、明暗切换、语言切换与连接状态点；全局刷新按钮已移除，因为各分区会自行刷新，连接状态点也会自行轮询。
+- **「状态」分区升级为「设置」**：注册表设置（含工具发现开关）、状态导出/导入与 **关于** 卡片合并到同一分区。「关于」卡片显示当前使用的 `toolregistry`、`toolregistry-server` 与 `toolregistry-hub` 版本，并链接到仓库、PyPI 与文档，取代了顶栏的版本弹窗。顶栏只保留配色方案、明暗切换、语言切换与连接状态点；全局刷新按钮已移除，因为各分区会自行刷新，连接状态点也会自行轮询。
 - **可在面板中开关工具发现**：工具页的提示条与 Schema 分区的 Discover 子标签都提供「启用工具发现」，启用后子标签提供带确认的「关闭」；该操作属于注册表级变更（立即生效、不持久化），同时以 `GET /api/discovery`、`POST /api/discovery/enable`、`POST /api/discovery/disable` 暴露，并会报告关闭后将有多少 deferred 工具失去可达性。`ToolRegistry.tool_discovery_enabled` 暴露当前状态。
 - **面板会解释"已被 deferred 却无法取回"的工具**：`discover_tools` 与 `call_deferred` 只在调用 `enable_tool_discovery()` 时注册，因此在未启用工具发现时把工具设为 deferred 会让它无法被调用。工具分区现在会在表格上方说明这一点，Schema 分区的 Discover Tools 子标签也不再隐藏，而是给出解释。顶栏 logo 改为锤子图标。
 - **全面接受规范的 API 格式名称**：`get_schema()`、`get_schemas()` 与 `GET /api/schema` 现在接受 llm-rosetta 的中立写法——`chat_completions`、`open_responses`、`messages`、`google_generate`、`google_interactions`、`rosetta_ir`——同时保留原有的 `openai-chat` / `anthropic` / `gemini` / `rosetta-ir`。管理面板的 Schema 选择器使用规范名称。
@@ -35,6 +35,7 @@ hide:
 - **Discover 子标签的说明合并为一个区块**：启用按钮与说明原本是两个元素，按钮会压在提示文字上。现在说明、按钮与长描述警告都是 `.notice` 区块，正文中提到的工具名（`discover_tools`、`call_deferred`）也改为行内代码。
 - **面板字号统一为四档**：display、body、small、micro 四档字号只在 `css/base.css` 中声明一次，所有组件与内联样式都引用它们，各分区不再大小不一——标题、卡片操作与日志行都与相邻内容对齐。`tests/test_admin_typography.py` 防止硬编码字号再次混入。
 - **分区刷新不再报错**：左侧导轨取代标签栏后，`refreshAll()` 仍在查找旧的 `.tab.active`，导致顶栏刷新以及导入/保存设置后的刷新抛出 `TypeError`。
+- **面板已完整翻译**：绕过 i18n 的字符串——注册表单的提示占位符与来源类型标签、导轨提示、位置与警告提示、API 错误消息以及工具发现卡片——现在都来自词典；注册表单在渲染时即翻译，而不是等到切换语言之后。语言切换时下拉框不再随文字宽度变化，已移除的命名空间页面遗留的键也已从两种语言中删除。
 - **裸容器保留类型，重复的联合分支被合并**（#354）：裸 `list`、`dict`、`set`、`frozenset` 没有像裸 `tuple` 那样被规范化（#269），因此 `Optional[list]` 渲染成 `{"default": null}`，联合中的裸 `list` 变成一个匹配任意值的 `{}` 分支。现在所有裸容器（包括 `__args__` 为空的 `typing` 别名）都会以 `Any` 参数化，完全相同的联合分支会被去重，而仍然渲染为无类型的参数会发出 `UserWarning` 并指出函数与参数名。可空清理现在也会遍历嵌套 schema（数组 `items`、嵌套对象、`$defs`），并且只在“省略”已能表达该情况时才移除 null 分支：可选属性仍渲染为 `{"type": "integer"}`，而必填属性、数组元素与映射值会保留 `null` 分支——这些位置工具确实接受 `None`，禁止 `null` 的 schema 已不能描述该工具。Gemini 收到等价的 `{type: T, nullable: true}`，因为它的 `Schema` 方言没有类型数组；字面量多类型列表在 Gemini 上会变成 `anyOf`，而注解产生的多分支联合由 provider converter 生成，保持其原有写法。
 - **`ToolMetadata` 在构造时复制可变容器**（#355）：`tags`、`custom_tags` 与 `extra` 会在 `dataclasses.replace()` 副本之间共享，修改副本会改到原对象。现在每个实例拥有自己的容器：`extra` 中每个值都单独深拷贝，因此嵌套容器同样隔离。不可变标量直接共享；无法深拷贝的值（锁、生成器、模块）保留引用并发出 `UserWarning`，而不再连带让本可复制的同级值也变成共享。就地修改仍不受支持，因为它会绕过变更事件；请使用 `ToolRegistry.update_tool_metadata()` / `update_namespace_metadata()`。
 - **过期的 `schema_hash` 不再静默**（#356）：`Tool.__init__` 会原样保留显式传入的哈希（作为运维锁定值），但与规范化参数不一致时会发出警告，因此对外报告的始终是传入的那一个指纹。因此 `dataclasses.replace(tool, parameters=...)` 不会再无提示地留下描述旧 schema 的指纹；需要重算时请使用 `Tool.with_parameters()`。
