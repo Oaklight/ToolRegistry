@@ -21,6 +21,10 @@ remembered), and below 900px it becomes a drawer opened by the header's menu
 button. The header stays pinned to the top and shares the rail's surface, so
 the two read as one frame around the content.
 
+The overview cards at the top of the Tools section are links: the total opens
+the unfiltered list, enabled and disabled open it filtered to that status, and
+the namespace count opens the Namespaces panel.
+
 ## Themes
 
 Two colour schemes ship with the panel — **Paper** (warm neutrals, brass
@@ -52,13 +56,28 @@ anything is registered**:
    function).
 2. Optionally set a namespace; preview names include it, so what you tick is
    exactly what gets registered.
-3. **Preview tools** lists every tool the source advertises, with the ones
-   already registered marked.
-4. Tick the tools to keep and press **Register selected**. Only the ticked
+3. For OpenAPI and MCP sources, set **Authentication** — a bearer token, basic
+   credentials, or extra headers written one per line as `Name: value`. An
+   `Authorization` header typed here wins over the fields above, so a scheme
+   the panel does not model can still be sent. Credentials are used for the
+   preview and for registration, and are never written to the registry.
+4. **Preview tools** lists every tool the source advertises, with the ones
+   already registered marked. **Select all**, **Select none**, **Invert** and
+   **Refresh** work on the list.
+5. Tick the tools to keep and press **Register selected**. Only the ticked
    names are sent, so a source can never add a tool nobody asked for.
 
 Errors — an unreachable server, an unimportable module, a spec without
 `servers[]` — are reported in the panel instead of being registered silently.
+A server that requires a token reports an empty error; the panel says so and
+points at the Authentication fields.
+
+Names that a model API would reject are flagged before registration. OpenAI and
+Anthropic accept `[A-Za-z0-9_-]` up to 64 characters, and Gemini additionally
+allows dots, so a name such as `fs/file_search_glob` — which an MCP server may
+advertise — is stored faithfully by the registry but makes a provider schema
+invalid. The preview lists the offending names, and a tool whose registered
+name is outside the strict set carries a `!` badge in the Tools table.
 
 ## Tool Management
 
