@@ -7,14 +7,20 @@ The built-in web UI provides a visual interface for managing your ToolRegistry.
 The panel is a console: a fixed header, a section rail down the left edge, and
 the selected section's content on the right.
 
-- **Tools**: lists registered tools with enable/disable toggles
-- **Namespaces**: namespaces with bulk enable/disable controls
-- **Sources**: where each tool came from
-- **Register**: connect a new OpenAPI, MCP or Python source and pick the tools to keep
+- **Tools**: every registered tool, grouped by namespace, with the overview
+  strip, the filters and the per-tool and per-namespace controls
+- **Sources**: where the tools came from, plus **Add source** — the form that
+  connects an OpenAPI, MCP or Python source and picks the tools to keep
 - **Logs**: execution history with filtering options
 - **Permissions**: the evaluated policy result per tool
 - **Schema**: the schemas published to models, plus the discover index
 - **State**: export/import and registry-wide settings
+
+There is no separate Namespaces page: a namespace is a grouping of tools, so it
+lives in the Tools list. Each group header carries the bulk controls (enable or
+disable everything under it, THINK and DEFER for all its tools), clicking the
+name collapses or expands the group, and the overview's namespace count
+collapses every group so the list reads as a namespace summary.
 
 The rail collapses to icons with the toggle at its foot (the choice is
 remembered), and below 900px it becomes a drawer opened by the header's menu
@@ -32,17 +38,15 @@ number is always a way into the list that explains it:
 
 | From | Click | Lands in |
 |---|---|---|
-| Overview cards | all / enabled / disabled | Tools, filtered by status |
-| Overview cards | namespaces | Namespaces |
-| Namespaces | name or count | Tools, filtered by namespace (and status for the enabled/disabled counts) |
-| Namespaces | source badge | Sources, filtered by that source type |
-| Tools | namespace header | Namespaces, with that row highlighted |
-| Tools | source badge | Sources, filtered by that source type |
+| Overview | total / enabled / disabled | Tools, filtered by status |
+| Overview | namespaces | Tools with every group collapsed — the namespace summary |
+| Overview | a namespace count, in a group | the group collapses or expands |
+| Tools | a source badge | Sources, filtered by that source type |
 | Sources | namespace name | Tools, filtered by namespace |
 | Sources | "Show N tools" | Tools, filtered by source and namespace |
-| Sources | "Register from this source" | Register, pre-filled with the kind, detail and namespace |
-| Register | a registered tool name | that tool's detail modal |
-| Register | "View registered tools" (after registering) | Tools, filtered by the namespace just used |
+| Sources | "Register from this source" | Add source, pre-filled with the kind, detail and namespace |
+| Add source | a previewed tool name | that tool's detail modal |
+| Add source | "View registered tools" (after registering) | Tools, filtered by the namespace just used |
 
 ## Themes
 
@@ -65,10 +69,10 @@ Adding a scheme means one structural block, one block per mode, a name in
 `SCHEMES` in `js/core/theme.js`, the option in the header select, and a label in
 both dictionaries. The contract test then covers it.
 
-### Registering tools
+### Adding a source
 
-The Register section connects to a source and lists what it offers **before
-anything is registered**:
+**Add source** in the Sources section connects to a source and lists what it
+offers **before anything is registered**:
 
 1. Pick the kind — **OpenAPI** (spec URL or path), **MCP** (server URL, or a
    stdio command) or **Python** (a module, optionally narrowed to a class or
