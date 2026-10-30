@@ -199,12 +199,16 @@ function renderTools(tools, filtersActive = false) {
         <tr class="ns-child-row" data-ns-group="${nsId}">
             <td></td>
             <td>
-                <span class="ns-child-name-link" onclick="event.stopPropagation(); showToolDetailModal('${escapeHtml(tool.name)}')">${escapeHtml(shortName)}</span>
-                ${nameWarning}
-                ${_overrideNames.has(tool.name) ? `<span class="badge-override">${t('override.badge')}</span>` : ''}
-                <span class="tool-badges">${tagBadges}</span>
-                ${sourceBadgeButton(tool.source, nsSources.length > 1)}
-                ${metaIcons}
+                <div class="tool-name-cell">
+                    <span class="ns-child-name-link" onclick="event.stopPropagation(); showToolDetailModal('${escapeHtml(tool.name)}')">${escapeHtml(shortName)}</span>
+                    ${nameWarning}
+                    <span class="tool-tags">
+                        ${_overrideNames.has(tool.name) ? `<span class="badge-override">${t('override.badge')}</span>` : ''}
+                        <span class="tool-badges">${tagBadges}</span>
+                        ${sourceBadgeButton(tool.source, nsSources.length > 1)}
+                        ${metaIcons}
+                    </span>
+                </div>
             </td>
             <td class="col-think" onclick="event.stopPropagation()">${renderMetaToggle(tool.name, 'think_augment', tool.think_augment, false)}</td>
             <td class="col-defer" onclick="event.stopPropagation()">${renderMetaToggle(tool.name, 'defer', tool.defer, false)}</td>
