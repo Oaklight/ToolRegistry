@@ -113,6 +113,7 @@ function renderRegisterForm() {
             </button>
             <span class="form-hint" data-i18n="register.previewHint">Nothing is registered until you pick tools and confirm.</span>
         </div>
+        <div id="register-result"></div>
         <div id="register-preview"></div>
     `;
     onAuthTypeChange();
@@ -212,8 +213,9 @@ function renderRegisterPreview(result) {
                 </label>
             </td>
             <td>
-                <div class="mono" style="font-size: 0.8125rem;">${escapeHtml(tool.name)}</div>
-                ${tool.registered ? '<span class="badge-source badge-source-native">registered</span>' : ''}
+                <button type="button" class="mono ns-link" style="font-size: 0.8125rem;"
+                        onclick="showToolDetailModal('${escapeJs(tool.name)}')">${escapeHtml(tool.name)}</button>
+                ${tool.registered ? `<span class="badge-source badge-source-native">${t('register.registered')}</span>` : ''}
             </td>
             <td class="text-muted" style="font-size: 0.75rem;">${escapeHtml((tool.description || '').slice(0, 160))}</td>
             <td style="text-align: right; font-variant-numeric: tabular-nums;">${tool.parameter_count ?? ''}</td>
@@ -315,9 +317,57 @@ async function confirmRegisterSelection() {
         refreshSources();
         // Re-preview so the "already registered" markers are accurate.
         previewRegisterSource();
+        renderRegisterResult(result);
     } catch (e) {
         showToast(e.message, 'error');
     } finally {
         if (button) button.disabled = false;
     }
+}
+
+
+// Reached from a Sources card: open the form for the same kind of source and
+// pre-fill what the registry already knows about it.  The card passes its data
+// through dataset attributes, so nothing needs quoting into an inline handler.
+function openRegisterFromSource(button) {
+    const kind = REGISTER_KINDS.includes(button.dataset.kind)
+        ? button.dataset.kind
+        : 'openapi';
+    _registerKind = kind;
+    _registerPreview = null;
+    switchTab('register');
+    renderRegisterForm();
+
+    const set = (id, value) => {
+        const el = document.getElementById(id);
+        if (el && value) el.value = value;
+    };
+    const detail = (button.dataset.detail || '').trim();
+    const namespace = button.dataset.namespace || '';
+    set('rf-namespace', namespace === 'default' ? '' : namespace);
+    if (kind === 'mcp') {
+        if (/^https?:\/\//i.test(detail)) set('rf-url', detail);
+        else if (detail.startsWith('stdio:')) set('rf-command', detail.slice('stdio:'.length).trim());
+    } else if (kind === 'openapi') {
+        set('rf-spec-url', detail);
+    }
+}
+
+
+// The result of a registration is a link into the tools list, filtered to the
+// namespace it was registered under: the panel's answer to "now what?".
+function renderRegisterResult(result) {
+    const box = document.getElementById('register-result');
+    if (!box) return;
+    if (!result || result.count === 0) {
+        box.innerHTML = '';
+        return;
+    }
+    const namespace = result.namespace || '';
+    box.innerHTML = `
+        <div class="register-result">
+            <span>${t('register.done', { count: result.count })}</span>
+            <button class="btn btn-secondary btn-sm" data-namespace="${escapeHtml(namespace)}"
+                    onclick="gotoTools({ namespace: this.dataset.namespace })">${t('register.viewRegistered')}</button>
+        </div>`;
 }

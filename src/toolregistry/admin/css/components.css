@@ -1743,3 +1743,110 @@ button.stat-card:focus-visible {
     cursor: help;
     vertical-align: middle;
 }
+
+/* The Namespaces panel's names and counts are links into the tool list. */
+.ns-link,
+.ns-count {
+    appearance: none;
+    border: 0;
+    background: none;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+}
+
+.ns-link {
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.ns-link:hover,
+.ns-count:hover {
+    color: var(--accent);
+    text-decoration-color: currentColor;
+}
+
+.ns-link:hover {
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 3px;
+}
+
+.ns-count {
+    font-variant-numeric: tabular-nums;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 3px;
+    text-decoration-color: var(--border-strong);
+}
+
+/* Cross-panel links: a source badge, the focused-source banner and the
+   per-card actions in the Sources panel. */
+.source-badge-link {
+    appearance: none;
+    border: 0;
+    padding: 1px 6px;
+    border-radius: 9999px;
+    font: inherit;
+    font-size: 0.625rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    background: color-mix(in srgb, var(--text-secondary) var(--tag-tint), transparent);
+    color: var(--text-secondary);
+    margin-right: 3px;
+}
+
+.source-badge-link:hover {
+    color: var(--accent);
+}
+
+.source-focus {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--bg-sunken);
+    font-size: 0.8125rem;
+}
+
+.source-card-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+}
+
+button.source-tool-chip {
+    appearance: none;
+    border: 1px solid transparent;
+    font: inherit;
+    cursor: pointer;
+}
+
+button.source-tool-chip:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* The row a jump from another panel landed on. */
+#namespaces-body tr.focused td {
+    background: color-mix(in srgb, var(--accent) var(--tag-tint), transparent);
+}
+
+.register-result {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 12px 0;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid color-mix(in srgb, var(--success) 35%, var(--border));
+    background: color-mix(in srgb, var(--success) var(--tag-tint), transparent);
+    font-size: 0.8125rem;
+}

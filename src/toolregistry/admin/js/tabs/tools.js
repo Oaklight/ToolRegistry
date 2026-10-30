@@ -46,6 +46,12 @@ function isProviderSafeName(name) {
     return /^[A-Za-z0-9_-]{1,64}$/.test(name || '');
 }
 
+function sourceBadgeButton(source, visible) {
+    if (!visible) return '';
+    return `<button type="button" class="source-badge-link" onclick="focusSources('${escapeJs(source)}')"
+        title="${t('source.showInPanel')}">${escapeHtml(source)}</button>`;
+}
+
 function renderSourceBadge(source) {
     if (!source) return '';
     const cls = 'badge-source badge-source-' + source;
@@ -152,8 +158,8 @@ function renderTools(tools, filtersActive = false) {
         <tr class="ns-row" onclick="toggleNsGroup('${nsId}')">
             <td><span class="ns-chevron">${SVG_CHEVRON}</span></td>
             <td>
-                <span style="font-weight: 500;">${escapeHtml(ns)}</span>
-                ${nsSourceBadge}
+                <button type="button" class="ns-link" onclick="event.stopPropagation(); openNamespaceInPanel('${escapeHtml(ns)}')" title="${t('ns.openInPanel')}">${escapeHtml(ns)}</button>
+                ${nsSourceBadge ? `<button type="button" class="source-badge-link" onclick="event.stopPropagation(); focusSources('${escapeJs(nsSources[0])}')" title="${t('source.showInPanel')}">${escapeHtml(nsSources[0])}</button>` : ''}
                 <span class="text-muted" style="margin-left: 8px; font-size: 0.6875rem;">${children.length > 1 ? t('misc.toolCountPlural', {count: children.length}) : t('misc.toolCount', {count: children.length})}</span>
             </td>
             <td class="col-think" onclick="event.stopPropagation()">
@@ -197,7 +203,7 @@ function renderTools(tools, filtersActive = false) {
                 ${nameWarning}
                 ${_overrideNames.has(tool.name) ? `<span class="badge-override">${t('override.badge')}</span>` : ''}
                 <span class="tool-badges">${tagBadges}</span>
-                ${sourceBadge}
+                ${sourceBadgeButton(tool.source, nsSources.length > 1)}
                 ${metaIcons}
             </td>
             <td class="col-think" onclick="event.stopPropagation()">${renderMetaToggle(tool.name, 'think_augment', tool.think_augment, false)}</td>
@@ -441,15 +447,40 @@ async function refreshStats() {
 }
 
 
-function showToolsByStatus(status) {
+// Every section links into this one through gotoTools: the overview cards,
+// the Namespaces counts, the Sources cards and the Register result all land
+// here with the filter that explains the number they came from.
+function setFilterValue(id, value, allowNewOption) {
+    const select = document.getElementById(id);
+    if (!select) return;
+    if (allowNewOption && value && value !== '') {
+        if (![...select.options].some((option) => option.value === value)) {
+            select.add(new Option(value, value));
+        }
+    }
+    select.value = value || '';
+}
+
+function gotoTools(filters = {}) {
     switchTab('tools');
-    const select = document.getElementById('status-filter');
-    if (select) select.value = status;
+    setFilterValue('namespace-filter', filters.namespace, true);
+    setFilterValue('source-filter', filters.source, true);
+    setFilterValue('status-filter', filters.status);
+    const search = document.getElementById('tool-search');
+    if (search) search.value = filters.search || '';
     filterTools();
+}
+
+function showToolsByStatus(status) {
+    gotoTools({ status });
 }
 
 function showNamespacesPanel() {
     switchTab('namespaces');
+}
+
+function showToolsForNamespace(namespace, status) {
+    gotoTools({ namespace, status });
 }
 
 
