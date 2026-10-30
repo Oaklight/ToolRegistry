@@ -209,7 +209,9 @@
 
 .btn-primary {
     background: var(--accent);
-    color: white;
+    /* Dark schemes use a light accent, where white text is unreadable; the
+       scheme decides what sits on top of its own accent. */
+    color: var(--on-accent);
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -228,7 +230,7 @@
 
 .btn-success {
     background: var(--success);
-    color: white;
+    color: var(--on-accent);
 }
 
 .btn-success:hover:not(:disabled) {
@@ -1600,7 +1602,10 @@ button.stat-card:focus-visible {
     display: inline-block;
     padding: 2px 8px;
     font-size: 0.6875rem;
-    background: var(--bg-primary);
+    /* A <button> does not inherit colour, and the UA default (black) is
+       invisible on a dark scheme — the chip states its own. */
+    color: var(--text-primary);
+    background: var(--bg-sunken);
     border-radius: 4px;
     border: 1px solid var(--border);
 }
@@ -1849,4 +1854,10 @@ button.source-tool-chip:hover {
     border: 1px solid color-mix(in srgb, var(--success) 35%, var(--border));
     background: color-mix(in srgb, var(--success) var(--tag-tint), transparent);
     font-size: 0.8125rem;
+}
+
+/* A placeholder dash in an empty cell: readable, but quieter than data. */
+.placeholder-dash {
+    color: var(--text-secondary);
+    opacity: 0.6;
 }

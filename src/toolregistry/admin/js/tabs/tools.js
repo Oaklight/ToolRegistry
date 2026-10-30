@@ -104,7 +104,7 @@ function renderMetaToggle(toolName, field, checked, disabled) {
 }
 
 function renderPermissionBadge(perm) {
-    if (!perm) return '<span style="color: var(--border);">&mdash;</span>';
+    if (!perm) return '<span class="placeholder-dash">&mdash;</span>';
     const cls = 'badge-' + perm.result;
     const basis = perm.rule_name ? `${perm.rule_name}: ${perm.reason}` : (perm.reason || '');
     // The API evaluates the policy with {} arguments, so parameter-
@@ -216,7 +216,7 @@ function renderTools(tools, filtersActive = false) {
                     <span class="toggle-slider"></span>
                 </label>
             </td>
-            <td class="col-reason"><span class="col-reason-text" title="${escapeHtml(tool.reason || '')}">${tool.reason ? escapeHtml(tool.reason) : '<span style="color: var(--border);">&mdash;</span>'}</span></td>
+            <td class="col-reason"><span class="col-reason-text" title="${escapeHtml(tool.reason || '')}">${tool.reason ? escapeHtml(tool.reason) : '<span class="placeholder-dash">&mdash;</span>'}</span></td>
         </tr>`;
         });
     });
