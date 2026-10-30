@@ -631,8 +631,6 @@ async function refreshDiscoveryCard() {
     if (!badge) return;
     const hint = document.getElementById('discovery-hint');
     const deferred = document.getElementById('discovery-deferred');
-    const enableBtn = document.getElementById('discovery-enable');
-    const disableBtn = document.getElementById('discovery-disable');
     hint.innerHTML = inlineIdentifiers(t('discovery.cardHint'));
     try {
         const data = await api.getDiscovery();
@@ -640,10 +638,29 @@ async function refreshDiscoveryCard() {
         badge.textContent = data.enabled ? t('discovery.stateOn') : t('discovery.stateOff');
         badge.className = 'badge ' + (data.enabled ? 'badge-success' : 'badge-neutral');
         deferred.textContent = t('discovery.deferredCount', { count: data.deferred_count ?? 0 });
-        enableBtn.style.display = data.enabled ? 'none' : '';
-        disableBtn.style.display = data.enabled ? '' : 'none';
+        document.querySelectorAll('#discovery-mode > div').forEach((el) => {
+            el.classList.toggle('active', el.dataset.mode === data.mode);
+        });
     } catch (e) {
         badge.textContent = '';
+    }
+}
+
+// The Settings card chooses the mode.  The notices in Tools and Schema keep
+// their one-click enable/disable, which pin the mode to on or off.
+async function setDiscoveryMode(mode) {
+    try {
+        const data = await api.setDiscoveryMode(mode);
+        setDiscoverEnabled(data.enabled);
+        await refreshTools();
+        refreshStats();
+        await refreshDiscoveryCard();
+        if (typeof _activeSchemaSubTab !== 'undefined' && _activeSchemaSubTab === 'discover') {
+            loadDiscover();
+        }
+    } catch (e) {
+        showToast(e.message, 'error');
+        refreshDiscoveryCard();
     }
 }
 

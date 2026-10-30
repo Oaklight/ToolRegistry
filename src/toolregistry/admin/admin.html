@@ -322,7 +322,6 @@
                 <div style="display:flex;gap:8px;align-items:center;">
                     <select id="name-sep-select" class="btn btn-secondary btn-sm" style="padding:4px 8px;cursor:pointer;">
                         <option value="-" data-i18n="config.sepHyphen">- (hyphen)</option>
-                        <option value="." data-i18n="config.sepDot">. (dot)</option>
                     </select>
                     <button class="btn btn-primary btn-sm" onclick="saveNameSep()" data-i18n="btn.apply">Apply</button>
                 </div>
@@ -338,10 +337,12 @@
             <div class="card-body">
                 <p class="text-muted mb-4" id="discovery-hint" style="font-size: var(--text-body);"></p>
                 <p class="text-muted" id="discovery-deferred" style="font-size: var(--text-small); margin-bottom: 16px;"></p>
-                <div style="display:flex;gap:8px;align-items:center;">
-                    <button class="btn btn-primary btn-sm" id="discovery-enable" onclick="enableToolDiscovery()" data-i18n="discovery.enable">Enable tool discovery</button>
-                    <button class="btn btn-secondary btn-sm" id="discovery-disable" onclick="disableToolDiscovery()" data-i18n="discovery.disable">Disable tool discovery</button>
+                <div class="seg-control" id="discovery-mode" role="radiogroup" data-i18n-aria-label="discovery.modeLabel">
+                    <div data-mode="auto" onclick="setDiscoveryMode('auto')" data-i18n="discovery.modeAuto">Auto</div>
+                    <div data-mode="on" onclick="setDiscoveryMode('on')" data-i18n="discovery.modeOn">On</div>
+                    <div data-mode="off" onclick="setDiscoveryMode('off')" data-i18n="discovery.modeOff">Off</div>
                 </div>
+                <p class="text-muted mt-2" style="font-size: var(--text-small);" data-i18n="discovery.modeHint">Auto follows the deferred set: discovery turns on while a tool is deferred and off when the last one is not.</p>
             </div>
         </div>
 

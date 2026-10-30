@@ -141,7 +141,16 @@ function renderRegistrySettings(info) {
     const card = document.getElementById('registry-settings-card');
     if (!card) return;
     _currentNameSep = info.name_sep || '-';
-    document.getElementById('name-sep-select').value = _currentNameSep;
+    const select = document.getElementById('name-sep-select');
+    // Only the hyphen is offered: OpenAI and Anthropic reject dots in tool
+    // names.  A registry already on "." keeps the value listed while it is
+    // live, so the operator can see why its tools are flagged and move off it.
+    const choices = [['-', t('config.sepHyphen')]];
+    if (_currentNameSep === '.') choices.push(['.', t('config.sepDotCurrent')]);
+    select.innerHTML = choices
+        .map(([value, label]) => `<option value="${value}">${escapeHtml(label)}</option>`)
+        .join('');
+    select.value = _currentNameSep;
     card.style.display = '';
 }
 
