@@ -9,6 +9,19 @@ async function refreshNamespaces() {
     }
 }
 
+let _focusedNamespace = null;
+
+// Reached from the Tools table: the row for that namespace is highlighted and
+// scrolled into view so the jump has a visible destination.
+function openNamespaceInPanel(name) {
+    _focusedNamespace = name;
+    switchTab('namespaces');
+    window.setTimeout(() => {
+        const row = document.querySelector('#namespaces-body tr.focused');
+        if (row) row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }, 150);
+}
+
 function renderNamespaces(namespaces) {
     const tbody = document.getElementById('namespaces-body');
 
@@ -31,14 +44,23 @@ function renderNamespaces(namespaces) {
 
     tbody.innerHTML = namespaces.map(ns => {
         const sources = nsSourceMap[ns.name] || new Set();
-        const sourceBadges = [...sources].map(s => renderSourceBadge(s)).join(' ');
+        const sourceBadges = [...sources]
+            .map(source => `<button type="button" class="source-badge-link" onclick="focusSources('${escapeJs(source)}')" title="${t('source.showInPanel')}">${escapeHtml(source)}</button>`)
+            .join(' ');
+        const nsArg = escapeJs(ns.name);
+        // Every count is a way into the tool list: the total shows the whole
+        // namespace, the enabled/disabled counts pre-filter by status.
+        const nameLink = `<button type="button" class="ns-link" onclick="showToolsForNamespace('${nsArg}', '')" title="${t('ns.showTools')}">${escapeHtml(ns.name)}</button>`;
+        const countLink = (value, status, extraClass) =>
+            `<button type="button" class="ns-count ${extraClass}" onclick="showToolsForNamespace('${nsArg}', '${status}')" title="${t('ns.showToolsStatus', { status: t(status === 'enabled' ? 'stat.enabled' : 'stat.disabled') })}">${value}</button>`;
+        const focused = ns.name === _focusedNamespace ? ' class="focused"' : '';
         return `
-        <tr>
-            <td><span style="font-weight: 500;">${escapeHtml(ns.name)}</span></td>
+        <tr${focused}>
+            <td>${nameLink}</td>
             <td>${sourceBadges || '<span class="text-muted" style="font-size: 0.75rem;">&mdash;</span>'}</td>
-            <td>${ns.tool_count}</td>
-            <td><span class="text-success">${ns.enabled_count}</span></td>
-            <td><span class="text-error">${ns.disabled_count}</span></td>
+            <td>${countLink(ns.tool_count, '')}</td>
+            <td>${countLink(ns.enabled_count, 'enabled', 'text-success')}</td>
+            <td>${countLink(ns.disabled_count, 'disabled', 'text-error')}</td>
             <td>${(ns.tags || []).length > 0 ? renderTagBadges(ns.tags) : '<span class="text-muted" style="font-size: 0.75rem;">&mdash;</span>'}</td>
             <td>
                 ${ns.name === 'default' ? '<span class="text-muted" style="font-size: 0.75rem;">&mdash;</span>' : `<div style="display: flex; gap: 6px; flex-wrap: wrap;">

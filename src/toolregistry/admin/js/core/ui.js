@@ -103,6 +103,16 @@ function switchTab(tabName) {
 }
 
 // ============== Utilities ==============
+// Values interpolated into an inline handler need JS escaping, not HTML
+// escaping: a namespace or tool name may contain a quote.
+function escapeJs(value) {
+    return String(value)
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/"/g, '\\"')
+        .replace(/\r?\n/g, '\\n');
+}
+
 function escapeHtml(str) {
     if (!str) return '';
     const div = document.createElement('div');
