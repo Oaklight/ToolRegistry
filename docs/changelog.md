@@ -17,6 +17,7 @@ hide:
 ## [未发布]
 
 ### 新增
+- **面板会解释"已被 deferred 却无法取回"的工具**：`discover_tools` 与 `call_deferred` 只在调用 `enable_tool_discovery()` 时注册，因此在未启用工具发现时把工具设为 deferred 会让它无法被调用。工具分区现在会在表格上方说明这一点，Schema 分区的 Discover Tools 子标签也不再隐藏，而是给出解释。顶栏 logo 改为锤子图标。
 - **全面接受规范的 API 格式名称**：`get_schema()`、`get_schemas()` 与 `GET /api/schema` 现在接受 llm-rosetta 的中立写法——`chat_completions`、`open_responses`、`messages`、`google_generate`、`google_interactions`、`rosetta_ir`——同时保留原有的 `openai-chat` / `anthropic` / `gemini` / `rosetta-ir`。管理面板的 Schema 选择器使用规范名称。
 - **面板由六个分区收敛为四个**：独立的命名空间页面并入工具列表——命名空间本就是分组，批量控制放在分组头、计数留在概览条——「注册」则成为「来源」分区里的 **添加来源**，与它产生的来源并列。刷新不再强制展开所有分组，操作者的折叠/展开选择得以保留。
 - **工具、命名空间、来源与注册四个分区互相连通**：概览卡片、命名空间面板的名称与计数、来源徽章、工具表中的命名空间标题以及来源卡片上的操作，都会跳转到解释该数字的分区并带好对应过滤条件。注册结束后会给出指向新工具的链接，来源卡片也能以已知的类型、地址与命名空间预填注册表单。

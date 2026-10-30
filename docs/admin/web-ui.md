@@ -24,6 +24,18 @@
 「工具」分区顶部的概览卡片即为入口：总数打开未过滤的列表，已启用/已禁用打开
 按该状态过滤的列表，命名空间数量则打开命名空间面板。
 
+## 工具发现与 deferred 工具
+
+`discover_tools` 与 `call_deferred` 并非默认内置：它们由
+`registry.enable_tool_discovery()` 注册（hub 服务器为其 MCP 端点启用了工具发现，
+而普通的 `ToolRegistry` 不会）。在调用之前它们并不存在，因此不会出现在工具列表中。
+
+这一点很重要，因为 `defer` 与工具发现是同一套机制：被标记为 deferred 的工具不会出现在
+模型看到的 schema 中，只有 `discover_tools` 才能把它取回。因此在未启用工具发现时，
+把工具设为 deferred 等于让它**不可达**，而不是"延迟"。工具分区会说明这一点：一旦有
+deferred 工具且未启用发现，表格上方会出现提示条；Schema 分区的 **Discover Tools**
+子标签也不再隐藏，而是给出同样的解释。
+
 ## Schema
 
 Schema 分区展示发布给模型的 schema。格式选择器使用 llm-rosetta 的规范、中立名称：
