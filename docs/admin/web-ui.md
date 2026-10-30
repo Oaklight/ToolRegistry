@@ -4,12 +4,61 @@ The built-in web UI provides a visual interface for managing your ToolRegistry.
 
 ## Interface Overview
 
-The web UI is organized into several sections:
+The panel is a console: a fixed header, a section rail down the left edge, and
+the selected section's content on the right.
 
-1. **Tools Panel**: Lists all registered tools with enable/disable toggles
-2. **Namespaces Panel**: Shows namespaces with bulk enable/disable controls
-3. **Logs Panel**: Displays execution history with filtering options
-4. **State Panel**: Provides export/import functionality
+- **Tools**: lists registered tools with enable/disable toggles
+- **Namespaces**: namespaces with bulk enable/disable controls
+- **Sources**: where each tool came from
+- **Register**: connect a new OpenAPI, MCP or Python source and pick the tools to keep
+- **Logs**: execution history with filtering options
+- **Permissions**: the evaluated policy result per tool
+- **Schema**: the schemas published to models, plus the discover index
+- **State**: export/import and registry-wide settings
+
+The rail collapses to icons with the toggle at its foot (the choice is
+remembered), and below 900px it becomes a drawer opened by the header's menu
+button. The header stays pinned to the top and shares the rail's surface, so
+the two read as one frame around the content.
+
+## Themes
+
+Two colour schemes ship with the panel — **Paper** (warm neutrals, brass
+accent) and **Slate** (cool neutrals, blue accent) — each in a light and a dark
+mode. Choose a scheme in the header and toggle the mode next to it; both are
+stored in `localStorage` and applied before the first paint, so a reload does
+not flash the default.
+
+The look is split in two, and the split is enforced by tests rather than left
+to review. A **scheme** declares values only: `css/base.css` holds one block per
+scheme and mode, and a block may contain nothing but custom properties. A
+**component** — `css/components.css` and the markup — decides where those
+values land: box model, layout, pointer behaviour. A scheme selector that names
+anything but the scheme and the mode (for example
+`[data-scheme="slate"] .card`) is rejected by `tests/test_admin_theme.py`, and
+so is a token one scheme declares but another omits.
+
+Adding a scheme means one structural block, one block per mode, a name in
+`SCHEMES` in `js/core/theme.js`, the option in the header select, and a label in
+both dictionaries. The contract test then covers it.
+
+### Registering tools
+
+The Register section connects to a source and lists what it offers **before
+anything is registered**:
+
+1. Pick the kind — **OpenAPI** (spec URL or path), **MCP** (server URL, or a
+   stdio command) or **Python** (a module, optionally narrowed to a class or
+   function).
+2. Optionally set a namespace; preview names include it, so what you tick is
+   exactly what gets registered.
+3. **Preview tools** lists every tool the source advertises, with the ones
+   already registered marked.
+4. Tick the tools to keep and press **Register selected**. Only the ticked
+   names are sent, so a source can never add a tool nobody asked for.
+
+Errors — an unreachable server, an unimportable module, a spec without
+`servers[]` — are reported in the panel instead of being registered silently.
 
 ## Tool Management
 
@@ -44,6 +93,15 @@ Clicking a tool name opens a detail modal with three sections:
 - **Schema**: Full JSON schema of the tool's parameters
 - **Metadata**: All `ToolMetadata` fields with interactive toggles for `think_augment` and `defer`
 - **Permissions**: Permission evaluation result showing applicable rules and decisions
+- **Override**: edit the tool's description, `ToolTag`s and custom tags
+
+An override installs an edited copy of the registered tool and keeps the
+displaced definition, so **Restore original** puts the source's own definition
+back. The registry keeps the same key and the same callable, which means calls,
+logs and permissions behave exactly as before; only the advertised metadata
+changes. Overridden tools are marked in the modal, and
+`GET /api/overrides` lists every override with its current and original
+definition.
 
 ## Namespace Management
 
