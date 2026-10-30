@@ -1,0 +1,235 @@
+/* ==========================================================================
+   Admin panel foundation: scheme tokens and element defaults.
+
+   A *scheme* declares values; components in ``components.css`` decide where
+   those values land.  The split is a contract, checked by
+   ``tests/test_admin_theme.py``:
+
+     1. A scheme selector appears only in this file, and is exactly
+        ``[data-scheme="<name>"]`` or ``[data-scheme="<name>"][data-mode="<mode>"]``.
+     2. A scheme block declares custom properties only — no ``color``,
+        ``padding`` or ``position`` may leak in.
+     3. A difference a value cannot express belongs to the component, keyed on
+        ``data-variant``, not to a wider scheme selector.
+
+   The active pair lives on ``<html data-scheme="…" data-mode="…">`` and is
+   applied before the first paint by the inline boot script in ``admin.html``.
+   ========================================================================== */
+
+/* ---------- Structural tokens: shared by every scheme and mode ---------- */
+:root {
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --transition: all 0.2s ease;
+    --header-height: 56px;
+    --console-width: 232px;
+    --console-width-collapsed: 64px;
+    --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
+    --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+/* ---------- Scheme: paper (warm neutrals, brass accent) ---------- */
+[data-scheme="paper"][data-mode="light"] {
+    --switch-track: #D4D2CE;
+    --switch-knob: #FFFFFF;
+    --on-accent: #FFFFFF;
+    --tag-green: #3D8B5F;
+    --tag-red: #C44141;
+    --tag-amber: #A67C1E;
+    --tag-blue: #2F6FD0;
+    --tag-violet: #6D4AC7;
+    --tag-teal: #0F766E;
+    --tag-tint: 12%;
+    --bg-primary: #FAF9F7;
+    --bg-secondary: #FFFFFF;
+    --bg-hover: #F1EEE8;
+    --bg-sunken: #F4F1EC;
+    --text-primary: #1B1B18;
+    --text-secondary: #6F6D67;
+    --text-inverse: #FFFFFF;
+    --accent: #C2922E;
+    --accent-hover: #A67C1E;
+    --accent-light: rgba(194, 146, 46, 0.08);
+    --border: #E8E5E0;
+    --border-strong: #D6D1C8;
+    --success: #3D8B5F;
+    --success-light: rgba(61, 139, 95, 0.1);
+    --error: #C44141;
+    --error-light: rgba(196, 65, 65, 0.1);
+    --warning: #C2922E;
+    --warning-light: rgba(194, 146, 46, 0.1);
+    --console-bg: #F4F1EC;
+    --console-border: #E8E5E0;
+    --console-item-fg: #5F5C55;
+    --console-item-hover-bg: #EAE5DC;
+    --console-item-active-bg: #FFFFFF;
+    --console-item-active-fg: #1B1B18;
+    --console-item-active-bar: #C2922E;
+
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
+    --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+[data-scheme="paper"][data-mode="dark"] {
+    --switch-track: #45423B;
+    --switch-knob: #F2EFE9;
+    --on-accent: #171614;
+    --tag-green: #63B784;
+    --tag-red: #E07979;
+    --tag-amber: #D9AE55;
+    --tag-blue: #74A9F0;
+    --tag-violet: #B49BF0;
+    --tag-teal: #3FC9BC;
+    --tag-tint: 18%;
+    --bg-primary: #171614;
+    --bg-secondary: #201F1C;
+    --bg-hover: #2A2824;
+    --bg-sunken: #131211;
+    --text-primary: #F2EFE9;
+    --text-secondary: #9C978C;
+    --text-inverse: #171614;
+    --accent: #D9AE55;
+    --accent-hover: #E7C377;
+    --accent-light: rgba(217, 174, 85, 0.14);
+    --border: #33312C;
+    --border-strong: #45423B;
+    --success: #57A876;
+    --success-light: rgba(87, 168, 118, 0.16);
+    --error: #D96767;
+    --error-light: rgba(217, 103, 103, 0.16);
+    --warning: #D9AE55;
+    --warning-light: rgba(217, 174, 85, 0.16);
+    --console-bg: #131211;
+    --console-border: #33312C;
+    --console-item-fg: #A8A296;
+    --console-item-hover-bg: #241F1A;
+    --console-item-active-bg: #2B2721;
+    --console-item-active-fg: #F2EFE9;
+    --console-item-active-bar: #D9AE55;
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.6);
+}
+
+/* ---------- Scheme: slate (cool neutrals, blue accent) ---------- */
+[data-scheme="slate"][data-mode="light"] {
+    --switch-track: #C2CBD4;
+    --switch-knob: #FFFFFF;
+    --on-accent: #FFFFFF;
+    --tag-green: #2C8C5A;
+    --tag-red: #C0392B;
+    --tag-amber: #9A6415;
+    --tag-blue: #2F6FD0;
+    --tag-violet: #6D4AC7;
+    --tag-teal: #0F766E;
+    --tag-tint: 12%;
+    --bg-primary: #F6F8FA;
+    --bg-secondary: #FFFFFF;
+    --bg-hover: #EEF2F6;
+    --bg-sunken: #EDF1F5;
+    --text-primary: #1C2128;
+    --text-secondary: #6E7781;
+    --text-inverse: #FFFFFF;
+    --accent: #2F6FD0;
+    --accent-hover: #255BB0;
+    --accent-light: rgba(47, 111, 208, 0.08);
+    --border: #D8DEE4;
+    --border-strong: #C2CBD4;
+    --success: #2C8C5A;
+    --success-light: rgba(44, 140, 90, 0.1);
+    --error: #C0392B;
+    --error-light: rgba(192, 57, 43, 0.1);
+    --warning: #B7791F;
+    --warning-light: rgba(183, 121, 31, 0.1);
+    --console-bg: #EEF2F6;
+    --console-border: #D8DEE4;
+    --console-item-fg: #57606A;
+    --console-item-hover-bg: #E3E9F0;
+    --console-item-active-bg: #FFFFFF;
+    --console-item-active-fg: #1C2128;
+    --console-item-active-bar: #2F6FD0;
+
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
+    --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+[data-scheme="slate"][data-mode="dark"] {
+    --switch-track: #3B4550;
+    --switch-knob: #E6EDF3;
+    --on-accent: #0E1116;
+    --tag-green: #4FBF8B;
+    --tag-red: #E06C6C;
+    --tag-amber: #E2B458;
+    --tag-blue: #6AA8F5;
+    --tag-violet: #A78BFA;
+    --tag-teal: #2DD4BF;
+    --tag-tint: 18%;
+    --bg-primary: #0E1116;
+    --bg-secondary: #161B22;
+    --bg-hover: #1E252E;
+    --bg-sunken: #0A0D11;
+    --text-primary: #E6EDF3;
+    --text-secondary: #8B949E;
+    --text-inverse: #0E1116;
+    --accent: #6AA8F5;
+    --accent-hover: #8CC0FF;
+    --accent-light: rgba(106, 168, 245, 0.14);
+    --border: #2A313A;
+    --border-strong: #3B4550;
+    --success: #4FBF8B;
+    --success-light: rgba(79, 191, 139, 0.16);
+    --error: #E06C6C;
+    --error-light: rgba(224, 108, 108, 0.16);
+    --warning: #E2B458;
+    --warning-light: rgba(226, 180, 88, 0.16);
+    --console-bg: #0A0D11;
+    --console-border: #2A313A;
+    --console-item-fg: #9BA6B2;
+    --console-item-hover-bg: #1A212A;
+    --console-item-active-bg: #212A34;
+    --console-item-active-fg: #E6EDF3;
+    --console-item-active-bar: #6AA8F5;
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.6);
+}
+
+/* ============== Reset & Base ============== */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html, body {
+    height: 100%;
+}
+
+body {
+    font-family: var(--font-sans);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.6;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+    color: var(--accent);
+}
+
+code, pre, .mono {
+    font-family: var(--font-mono);
+}
+
+:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
