@@ -940,6 +940,9 @@ class TestAdminUIAssets:
         assert "/override" in source
         # The detail modal only offers Restore when an override exists.
         assert "api.listOverrides()" in source
+        # The controls sit in the detail header, next to the name they change.
+        assert 'id="detail-actions"' in source
+        assert "getElementById('detail-actions')" in source
 
     def test_every_inline_handler_resolves_to_a_function(self) -> None:
         """An inline onclick/onchange must name a function the panel ships.

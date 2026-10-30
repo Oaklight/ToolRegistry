@@ -466,6 +466,9 @@
     <div class="detail-modal" onclick="event.stopPropagation()">
         <div class="modal-header">
             <h3 class="modal-title" id="detail-title" data-i18n="modal.toolDetail">Tool Details</h3>
+            <!-- Override actions sit next to the name: they change what the
+                 name advertises, so they belong where the operator looks first. -->
+            <div class="detail-actions" id="detail-actions"></div>
             <button class="modal-close" onclick="closeDetailModal()">&times;</button>
         </div>
         <div id="detail-body"></div>
