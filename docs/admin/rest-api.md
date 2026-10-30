@@ -22,6 +22,8 @@ curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8081/api/tools
 | `POST` | `/api/tools/{name}/disable` | Disable a tool |
 | `GET` | `/api/tools/{name}/permissions` | Evaluate permission policy for a tool |
 | `PATCH` | `/api/tools/{name}/metadata` | Update tool metadata (`think_augment`, `defer`) |
+| `POST` | `/api/tools/{name}/override` | Override description, title, tags and execution hints |
+| `DELETE` | `/api/tools/{name}/override` | Restore the original definition |
 
 ### Namespaces
 

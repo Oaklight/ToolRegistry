@@ -17,6 +17,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- **The override form covers everything the API accepts**: besides description, tags and custom
+  tags, the detail modal now edits `title` and the four execution hints
+  (`read_only_hint`, `destructive_hint`, `idempotent_hint`, `open_world_hint`). Hints are
+  tri-state, so **Default (derived)** leaves the field unset; `GET /api/tools/{name}` returns
+  the raw fields next to the resolved `execution_hints`.
 - **Tool discovery has three modes**: `tool_discovery_mode` and `set_tool_discovery_mode()` choose how the two discovery tools follow the registry. `auto` is the default and keeps discovery on exactly while at least one enabled tool is deferred — registering a deferred tool now makes `discover_tools` and `call_deferred` reachable instead of leaving it unreachable. `enable_tool_discovery()` and `disable_tool_discovery()` pin the mode to `on` and `off`, which later registrations do not override. `GET /api/discovery` reports the mode, `POST /api/discovery/mode` sets it, and the Settings section offers Auto / On / Off next to the state.
 - **The State section became Settings**: registry settings (including the tool-discovery switch), state export and import, and an **About** card now share one section. The About card reports the `toolregistry`, `toolregistry-server` and `toolregistry-hub` versions in use and links to the repository, PyPI and the documentation, replacing the header's version modal. The header keeps only the colour scheme, the light/dark toggle, the language switcher and the connection dot; the global refresh button is gone, because each section refreshes itself and the dot polls on its own.
 - **Tool discovery can be switched from the panel**: the Tools notice and the Schema section's Discover sub-tab now carry an *Enable tool discovery* action, and the sub-tab offers a confirmed *Disable* once it is on. The operation is a registry change (immediate, not persisted) and is also exposed as `GET /api/discovery`, `POST /api/discovery/enable` and `POST /api/discovery/disable`, which report how many deferred tools a disable would strand. `ToolRegistry.tool_discovery_enabled` exposes the state.
@@ -33,6 +38,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **The namespace toggle now disables its tools**: the group switch called
+  `enableNamespace` and `showDisableNamespaceModal`, neither of which the panel defined, so the
+  click raised a `ReferenceError` and left every tool enabled. The panel now sends
+  `POST /api/namespaces/{ns}/enable` and `/disable` with the optional reason, reports how many
+  tools changed, and a new test resolves every inline handler against the shipped scripts.
 - **Turning discovery off now tells the transports**: `disable_tool_discovery()` removed `discover_tools` and `call_deferred` without emitting a change event, so a route table built on the registry kept advertising them, and MCP clients never received `tools/list_changed`. One `UNREGISTER` event is now emitted per removed tool; the route table refreshes, the MCP adapter notifies its sessions, and the OpenAPI SSE stream reports the change. Pinned by `tests/test_discovery_refresh.py` in `toolregistry-server`.
 - **`call_deferred` cannot bypass the target's policy**: the proxy runs the target through the same access check as a direct call, with the target's own arguments, so a parameter-dependent rule decides the proxied call too, and both calls appear in the execution log. Pinned by `tests/test_tool_discovery_mode.py`.
 - **The name-separator picker offers only the hyphen**: dots are rejected by OpenAI's and Anthropic's tool-name rules, so the panel no longer offers `.`; a registry already on `.` still shows that value, marked as current, so it can be moved back. The library continues to accept both for existing configurations.

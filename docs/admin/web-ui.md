@@ -181,7 +181,9 @@ Clicking a tool name opens a detail modal with three sections:
 - **Schema**: Full JSON schema of the tool's parameters
 - **Metadata**: All `ToolMetadata` fields with interactive toggles for `think_augment` and `defer`
 - **Permissions**: Permission evaluation result showing applicable rules and decisions
-- **Override**: edit the tool's description, `ToolTag`s and custom tags
+- **Override**: edit the tool's description, title, `ToolTag`s, custom tags
+  and the four execution hints (`read_only_hint`, `destructive_hint`,
+  `idempotent_hint`, `open_world_hint`)
 
 An override installs an edited copy of the registered tool and keeps the
 displaced definition, so **Restore original** puts the source's own definition
@@ -190,6 +192,12 @@ logs and permissions behave exactly as before; only the advertised metadata
 changes. Overridden tools are marked in the modal, and
 `GET /api/overrides` lists every override with its current and original
 definition.
+
+Execution hints are tri-state. **Default (derived)** leaves the field unset,
+so the registry derives it from tags when it builds a schema. **Yes** and
+**No** pin the value and stop the derivation. `GET /api/tools/{name}`
+returns the raw tri-state fields next to the resolved `execution_hints`,
+so a form can show "unset" separately from an explicit value.
 
 ## Namespace Management
 
