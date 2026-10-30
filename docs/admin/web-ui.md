@@ -147,12 +147,18 @@ Schema 分区展示发布给模型的 schema。格式选择器使用 llm-rosetta
 - **Schema**：工具参数的完整 JSON Schema
 - **Metadata**：所有 `ToolMetadata` 字段，`think_augment` 和 `defer` 提供交互式开关
 - **Permissions**：权限评估结果，显示适用的规则和决策
-- **覆写**：编辑工具的描述、`ToolTag` 与自定义标签
+- **覆写**：编辑工具的描述、标题、`ToolTag`、自定义标签与四个执行提示
+  （`read_only_hint`、`destructive_hint`、`idempotent_hint`、`open_world_hint`）
 
 覆写会安装该工具的一份编辑副本，并保留被替换的定义，因此 **恢复原始定义**
 可以放回来源自身的定义。注册表沿用同一个键与同一个可调用对象，所以调用、日志与权限
 行为完全不变；只有对外展示的元数据发生变化。被覆写的工具会在弹窗中标记，
 `GET /api/overrides` 会列出每个覆写及其当前和原始定义。
+
+执行提示为三态。**默认（推导）** 表示该字段未设置，注册表在生成 schema 时
+由标签推导；**是** 与 **否** 会固定该值并停止推导。
+`GET /api/tools/{name}` 会在已解析的 `execution_hints` 旁返回原始三态字段，
+因此表单可以把“未设置”与显式取值分开显示。
 
 ## 命名空间管理
 

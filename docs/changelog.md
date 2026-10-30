@@ -17,6 +17,10 @@ hide:
 ## [未发布]
 
 ### 新增
+- **覆写表单覆盖接口接受的全部字段**：除描述、标签与自定义标签外，详情弹窗现在可编辑
+  `title` 与四个执行提示（`read_only_hint`、`destructive_hint`、`idempotent_hint`、
+  `open_world_hint`）。提示为三态，**默认（推导）** 表示字段未设置；
+  `GET /api/tools/{name}` 会在已解析的 `execution_hints` 旁返回原始字段。
 - **工具发现有三种模式**：`tool_discovery_mode` 与 `set_tool_discovery_mode()` 决定两个发现工具如何跟随注册表。默认的 `auto` 只在至少一个已启用工具被设为 deferred 时开启——注册 deferred 工具现在会同时让 `discover_tools` 与 `call_deferred` 可用，而不是让它不可达。`enable_tool_discovery()` 与 `disable_tool_discovery()` 会把模式固定为 `on` 与 `off`，之后的注册不会覆盖。`GET /api/discovery` 返回模式，`POST /api/discovery/mode` 设置模式，设置分区在状态旁提供 自动 / 开启 / 关闭。
 - **「状态」分区升级为「设置」**：注册表设置（含工具发现开关）、状态导出/导入与 **关于** 卡片合并到同一分区。「关于」卡片显示当前使用的 `toolregistry`、`toolregistry-server` 与 `toolregistry-hub` 版本，并链接到仓库、PyPI 与文档，取代了顶栏的版本弹窗。顶栏只保留配色方案、明暗切换、语言切换与连接状态点；全局刷新按钮已移除，因为各分区会自行刷新，连接状态点也会自行轮询。
 - **可在面板中开关工具发现**：工具页的提示条与 Schema 分区的 Discover 子标签都提供「启用工具发现」，启用后子标签提供带确认的「关闭」；该操作属于注册表级变更（立即生效、不持久化），同时以 `GET /api/discovery`、`POST /api/discovery/enable`、`POST /api/discovery/disable` 暴露，并会报告关闭后将有多少 deferred 工具失去可达性。`ToolRegistry.tool_discovery_enabled` 暴露当前状态。
@@ -33,6 +37,10 @@ hide:
 
 ### 修复
 
+- **命名空间开关现在会禁用其中的工具**：分组开关调用的是面板未定义的 `enableNamespace`
+  与 `showDisableNamespaceModal`，点击只抛出 `ReferenceError`，所有工具仍保持启用。
+  面板现在会调用 `POST /api/namespaces/{ns}/enable` 与 `/disable`（可带原因），
+  并报告受影响的工具数量；新增测试会校验每个行内处理器都能在随包脚本中找到定义。
 - **关闭工具发现现在会通知传输层**：`disable_tool_discovery()` 移除 `discover_tools` 与 `call_deferred` 时没有发出变更事件，导致基于注册表构建的路由表仍在广播它们，MCP 客户端也收不到 `tools/list_changed`。现在每个被移除的工具都会发出一个 `UNREGISTER` 事件；路由表随之刷新，MCP 适配器通知各会话，OpenAPI SSE 流也会报告该变化。由 `toolregistry-server` 中的 `tests/test_discovery_refresh.py` 固定。
 - **`call_deferred` 无法绕过目标工具的权限策略**：代理会用目标工具自身的参数，走与直接调用相同的访问检查，因此依赖参数的规则同样决定代理调用的结果；代理调用与被派发的调用都会出现在执行日志中。由 `tests/test_tool_discovery_mode.py` 固定。
 - **名称分隔符选择器只提供连字符**：OpenAI 与 Anthropic 的工具名规则拒绝点号，因此面板不再提供 `.`；已使用 `.` 的注册表仍会显示该值并标注为当前值，便于改回。库本身为兼容已有配置仍接受两者。

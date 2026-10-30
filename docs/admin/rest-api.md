@@ -22,6 +22,8 @@ curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8081/api/tools
 | `POST` | `/api/tools/{name}/disable` | 禁用工具 |
 | `GET` | `/api/tools/{name}/permissions` | 评估工具的权限策略 |
 | `PATCH` | `/api/tools/{name}/metadata` | 更新工具元数据（`think_augment`、`defer`） |
+| `POST` | `/api/tools/{name}/override` | 覆写描述、标题、标签与执行提示 |
+| `DELETE` | `/api/tools/{name}/override` | 恢复原始定义 |
 
 ### 命名空间
 
