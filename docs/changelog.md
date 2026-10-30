@@ -43,6 +43,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **A tool row keeps its tags together**: the name and the tag badges were one inline run, so a
+  narrow row could wrap a single badge under the name and leave the rest beside it. They are
+  two flex runs now: the badge group either sits beside the name or moves to the next line as
+  a whole, and below 900 px the row always stacks name over tags. A long unbroken name also
+  breaks inside the cell instead of pushing into the next column.
 - **The namespace toggle now disables its tools**: the group switch called
   `enableNamespace` and `showDisableNamespaceModal`, neither of which the panel defined, so the
   click raised a `ReferenceError` and left every tool enabled. The panel now sends
