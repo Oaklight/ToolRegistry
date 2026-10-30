@@ -393,7 +393,7 @@ th, td {
 }
 
 td {
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
 }
 
 th {
@@ -1264,7 +1264,7 @@ button.stat-card:focus-visible {
 
     th, td {
         padding: 8px 12px;
-        font-size: 0.75rem;
+        font-size: 0.8125rem;
     }
 
     .col-reason, .col-think, .col-defer {
