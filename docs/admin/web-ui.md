@@ -181,7 +181,8 @@ Clicking a tool name opens a detail modal with three sections:
 - **Schema**: Full JSON schema of the tool's parameters
 - **Metadata**: All `ToolMetadata` fields with interactive toggles for `think_augment` and `defer`
 - **Permissions**: Permission evaluation result showing applicable rules and decisions
-- **Override**: edit the tool's description, title, `ToolTag`s, custom tags
+- **Override**: the action sits in the modal header next to the tool name; it edits
+  the tool's description, title, `ToolTag`s, custom tags
   and the four execution hints (`read_only_hint`, `destructive_hint`,
   `idempotent_hint`, `open_world_hint`)
 

@@ -17,6 +17,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- **The override action moved to the tool name**: the detail modal used to end with an
+  *Override tool* section, so the one action an operator opens the modal for sat at the
+  bottom of a long scroll. The buttons (and the *overridden* badge) now sit in the modal
+  header beside the name. A long name ellipsizes first, so the actions never move off
+  screen, and the header stacks the actions onto their own row below 560 px.
 - **The override form covers everything the API accepts**: besides description, tags and custom
   tags, the detail modal now edits `title` and the four execution hints
   (`read_only_hint`, `destructive_hint`, `idempotent_hint`, `open_world_hint`). Hints are
