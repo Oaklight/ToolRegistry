@@ -72,6 +72,34 @@ You can also enable it at construction time:
 registry = ToolRegistry(tool_discovery=True)
 ```
 
+### Discovery modes
+
+Discovery follows the deferred set by default. `registry.tool_discovery_mode`
+is `"auto"`, which means:
+
+- registering a tool with `ToolMetadata(defer=True)` turns discovery on, so
+  `discover_tools` and `call_deferred` are registered in the same operation;
+- undoing the last deferral — unregistering the tool, un-deferring it, or
+  disabling it — turns discovery off again.
+
+`enable_tool_discovery()` and `disable_tool_discovery()` pin the mode to
+`"on"` and `"off"` instead. An explicit choice survives later registrations:
+a registry switched on stays on when its last deferred tool disappears, and
+one switched off stays off when a deferred tool is registered — those tools
+are then unreachable to a model until discovery is enabled. Choose the
+behaviour directly with:
+
+```python
+registry.set_tool_discovery_mode("auto")   # follow the deferred set (default)
+registry.set_tool_discovery_mode("on")     # always on
+registry.set_tool_discovery_mode("off")    # always off
+```
+
+Turning discovery off emits an `UNREGISTER` change event for each of the two
+tools, so anything that mirrors the registry — the route table behind the MCP
+server, the OpenAPI document — refreshes what it advertises instead of keeping
+a tool the registry no longer has.
+
 ### Standalone Usage
 
 If you prefer to use `ToolDiscoveryTool` directly without registering it:
@@ -220,6 +248,13 @@ The workflow is:
 2. LLM calls `call_deferred(_target_tool="search", query="hello")` → the registry executes the deferred tool through the full pipeline (permissions, execution backend, logging)
 
 `call_deferred` only accepts deferred tools — calling it with a non-deferred tool raises `ValueError`.
+
+`call_deferred` is a proxy, not a permission bypass: the registry resolves the
+target and runs the call through the same access check as a direct call, using
+the *target's* arguments. A policy that denies the target denies the proxy call
+too, including rules that depend on parameter values. Both the proxy call and
+the dispatched call appear in the execution log.
+
 
 Tool names are matched leniently. Both `discover_tools` and `call_deferred` resolve a name after collapsing `/` and `-` to `_` and folding case, so a name rewritten by an MCP client — `weather_get_current` for the registered `weather-get-current` — still reaches the right tool. An exact registered spelling always wins over a normalized match. When no tool matches, the error lists the closest registered names so the caller can self-correct in one turn.
 

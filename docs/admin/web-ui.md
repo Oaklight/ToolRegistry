@@ -57,8 +57,11 @@ Discovery can be turned on and off from the panel:
 - once enabled, the sub-tab shows the `discover_tools` description and a
   **Disable tool discovery** control, which asks for confirmation because every
   deferred tool becomes unreachable again;
-- the **Settings** section states the effective state and how many deferred
-  tools a switch would restore, with the same two controls.
+- the **Settings** section states the effective state, how many deferred tools
+  a switch would restore, and the mode: **Auto** follows the deferred set,
+  while **On** and **Off** are explicit choices that the notice's buttons also
+  set. A registry in **Auto** turns discovery on exactly while a tool is
+  deferred, so the notice only appears after an explicit **Off**.
 
 This is a registry change, not a configuration edit: it takes effect
 immediately and is not written to the config file, so a restart returns to
@@ -220,8 +223,11 @@ settings and the About card.
 
 ## Registry Settings
 
-The Settings section also controls the namespace separator (`-` or `.`). Applying a
-change **renames every namespaced tool immediately** — for example
+The Settings section also controls the namespace separator. Only the hyphen is
+offered: it is the one separator every model API accepts, while OpenAI and
+Anthropic reject dots in tool names. A registry already configured with `.`
+keeps that value listed, marked as the current one, so it can be moved to `-`.
+Applying a change **renames every namespaced tool immediately** — for example
 `math_utils-square` becomes `math_utils.square`. Calls that still use the old
 names pass no longer resolve, and existing log entries keep the old names. The
 UI asks for confirmation before applying the change and refreshes every tab
