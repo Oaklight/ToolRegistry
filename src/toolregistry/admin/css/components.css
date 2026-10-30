@@ -157,6 +157,14 @@
     overflow: hidden;
 }
 
+/* Spacing normally comes from .grid's gap.  A stack states its own, and a
+   hidden card (the add-source form) leaves no gap behind. */
+.card-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
 .card-header {
     padding: 18px 24px;
     border-bottom: 1px solid var(--border);
