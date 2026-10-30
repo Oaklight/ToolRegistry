@@ -411,11 +411,12 @@
                 <h2 class="card-title" data-i18n="tab.schema">Schema</h2>
                 <div style="display:flex;gap:8px;align-items:center;">
                     <select id="schema-format-select" class="btn btn-secondary btn-sm" style="padding:4px 8px;cursor:pointer;" onchange="loadSchema(this.value)">
-                        <option value="openai-chat">openai-chat</option>
-                        <option value="openai-responses">openai-responses</option>
-                        <option value="anthropic">anthropic</option>
-                        <option value="gemini">gemini</option>
-                        <option value="rosetta-ir">rosetta-ir</option>
+                        <option value="chat_completions">chat_completions</option>
+                        <option value="open_responses">open_responses</option>
+                        <option value="messages">messages</option>
+                        <option value="google_generate">google_generate</option>
+                        <option value="google_interactions">google_interactions</option>
+                        <option value="rosetta_ir">rosetta_ir</option>
                     </select>
                     <button class="btn btn-secondary btn-sm" onclick="loadSchema(document.getElementById('schema-format-select').value)" data-i18n="btn.refresh">Refresh</button>
                     <button class="btn btn-secondary btn-sm" onclick="copySchemaContent('schema-content')" data-i18n="btn.copy">Copy</button>

@@ -1135,7 +1135,22 @@ def _get_schema(request: Request) -> Response:
     # --- LLM schema formats ---
     from ..llm.tool_calls import API_FORMATS
 
-    valid = {"openai-chat", "openai-responses", "anthropic", "gemini", "rosetta-ir"}
+    valid = {
+        "openai-chat",
+        "openai-responses",
+        "anthropic",
+        "gemini",
+        "google-interactions",
+        "rosetta-ir",
+        # Canonical names, accepted so the panel and the API speak the same
+        # vocabulary; _normalize_api_format maps them internally.
+        "chat_completions",
+        "open_responses",
+        "messages",
+        "google_generate",
+        "google_interactions",
+        "rosetta_ir",
+    }
     if fmt_str not in valid:
         return _error_response(
             400,

@@ -6,6 +6,7 @@ build_assistant_messages(), and build_tool_result_messages().
 
 import json
 
+import pytest
 
 from toolregistry import Tool
 from toolregistry.llm.tool_calls import (
@@ -512,3 +513,28 @@ class TestGoogleInteractionsRoundTrip:
         assert step["id"] == original["id"]
         assert step["name"] == original["name"]
         assert step["arguments"] == original["arguments"]
+
+
+class TestCanonicalFormatNames:
+    """llm-rosetta's vendor-neutral names are accepted alongside the legacy ones."""
+
+    @pytest.mark.parametrize(
+        ("canonical", "legacy"),
+        [
+            ("chat_completions", "openai-chat"),
+            ("open_responses", "openai-responses"),
+            ("messages", "anthropic"),
+            ("google_generate", "gemini"),
+            ("google_interactions", "google-interactions"),
+            ("rosetta_ir", "rosetta-ir"),
+        ],
+    )
+    def test_canonical_name_produces_the_legacy_schema(
+        self, canonical: str, legacy: str
+    ) -> None:
+        def echo(value: str) -> str:
+            """Echo a value."""
+            return value
+
+        tool = Tool.from_function(echo)
+        assert tool.get_schema(canonical) == tool.get_schema(legacy)
