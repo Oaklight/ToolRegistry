@@ -606,6 +606,22 @@ tr:hover td {
     color: var(--text-primary);
 }
 
+/* One execution-hint control per row: label left, tri-state picker right. */
+.hint-grid-row {
+    display: grid;
+    grid-template-columns: 1fr 180px;
+    gap: 12px;
+    align-items: center;
+}
+
+.hint-grid-row .form-label {
+    margin-bottom: 0;
+}
+
+.hint-grid-row + .hint-grid-row {
+    margin-top: 8px;
+}
+
 /* ============== Search & Filters ============== */
 .search-bar {
     display: flex;

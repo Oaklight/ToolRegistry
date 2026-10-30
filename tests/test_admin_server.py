@@ -5,6 +5,7 @@ This module tests the AdminServer, TokenAuth, and REST API endpoints.
 
 import asyncio
 import json
+import re
 import shutil
 import ssl
 import subprocess
@@ -305,6 +306,34 @@ class TestAdminServerAPI:
         # Verify tools are enabled
         status, data = self._request(f"{info.url}/api/tools/{tool_name}")
         assert data["enabled"] is True
+
+    def test_override_accepts_title_and_hints(self, server_with_tools) -> None:
+        """The override API exposes title and raw execution hints."""
+        server, info = server_with_tools
+        tool_name = "math-add"
+
+        status, data = self._request(
+            f"{info.url}/api/tools/{tool_name}/override",
+            method="POST",
+            data={"title": "Add", "read_only_hint": False, "open_world_hint": True},
+        )
+        assert status == 200
+
+        status, data = self._request(f"{info.url}/api/tools/{tool_name}")
+        metadata = data["metadata"]
+        assert metadata["title"] == "Add"
+        # Raw tri-state values stay separate from the resolved hints.
+        assert metadata["read_only_hint"] is False
+        assert metadata["open_world_hint"] is True
+        assert metadata["idempotent_hint"] is None
+        assert metadata["execution_hints"]["open_world_hint"] is True
+
+        status, data = self._request(
+            f"{info.url}/api/tools/{tool_name}/override", method="DELETE"
+        )
+        assert status == 200
+        status, data = self._request(f"{info.url}/api/tools/{tool_name}")
+        assert data["metadata"]["title"] is None
 
     def test_export_state(self, server_with_tools) -> None:
         """Test GET /api/state endpoint."""
@@ -911,6 +940,27 @@ class TestAdminUIAssets:
         assert "/override" in source
         # The detail modal only offers Restore when an override exists.
         assert "api.listOverrides()" in source
+
+    def test_every_inline_handler_resolves_to_a_function(self) -> None:
+        """An inline onclick/onchange must name a function the panel ships.
+
+        The namespace toggle once called ``enableNamespace`` and
+        ``showDisableNamespaceModal``, neither of which existed.  The control
+        did nothing, and only the browser console said why.
+        """
+        source = _ui_source()
+        used = set(
+            re.findall(
+                r'on(?:click|change|input|submit)="\s*([A-Za-z_$][\w$]*)\s*\(',
+                source,
+            )
+        )
+        defined = set(re.findall(r"(?:async\s+)?function\s+([A-Za-z_$][\w$]*)", source))
+        defined |= set(
+            re.findall(r"(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=", source)
+        )
+        builtins = {"event", "this", "window", "document", "return", "if"}
+        assert sorted(used - defined - builtins) == []
 
 
 class TestToolRegistryAdminIntegration:
