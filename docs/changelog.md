@@ -17,6 +17,7 @@ hide:
 ## [未发布]
 
 ### 新增
+- **可在面板中开关工具发现**：工具页的提示条与 Schema 分区的 Discover 子标签都提供「启用工具发现」，启用后子标签提供带确认的「关闭」；该操作属于注册表级变更（立即生效、不持久化），同时以 `GET /api/discovery`、`POST /api/discovery/enable`、`POST /api/discovery/disable` 暴露，并会报告关闭后将有多少 deferred 工具失去可达性。`ToolRegistry.tool_discovery_enabled` 暴露当前状态。
 - **面板会解释"已被 deferred 却无法取回"的工具**：`discover_tools` 与 `call_deferred` 只在调用 `enable_tool_discovery()` 时注册，因此在未启用工具发现时把工具设为 deferred 会让它无法被调用。工具分区现在会在表格上方说明这一点，Schema 分区的 Discover Tools 子标签也不再隐藏，而是给出解释。顶栏 logo 改为锤子图标。
 - **全面接受规范的 API 格式名称**：`get_schema()`、`get_schemas()` 与 `GET /api/schema` 现在接受 llm-rosetta 的中立写法——`chat_completions`、`open_responses`、`messages`、`google_generate`、`google_interactions`、`rosetta_ir`——同时保留原有的 `openai-chat` / `anthropic` / `gemini` / `rosetta-ir`。管理面板的 Schema 选择器使用规范名称。
 - **面板由六个分区收敛为四个**：独立的命名空间页面并入工具列表——命名空间本就是分组，批量控制放在分组头、计数留在概览条——「注册」则成为「来源」分区里的 **添加来源**，与它产生的来源并列。刷新不再强制展开所有分组，操作者的折叠/展开选择得以保留。

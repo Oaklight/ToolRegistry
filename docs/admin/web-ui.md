@@ -36,6 +36,16 @@
 deferred 工具且未启用发现，表格上方会出现提示条；Schema 分区的 **Discover Tools**
 子标签也不再隐藏，而是给出同样的解释。
 
+工具发现可以直接在面板中开关：
+
+- 表格上方的提示条，以及未启用时的 **Discover Tools** 子标签，都带 **启用工具发现** 按钮；
+- 启用后子标签会显示 `discover_tools` 的描述与 **关闭工具发现** 控件，关闭前会要求确认，
+  因为所有 deferred 工具会再次变得不可达。
+
+这是注册表级变更而非配置修改：立即生效、不会写入配置文件，重启后回到进程启动时的配置。
+同样的三个操作也以 `GET /api/discovery`、`POST /api/discovery/enable`、
+`POST /api/discovery/disable` 暴露。
+
 ## Schema
 
 Schema 分区展示发布给模型的 schema。格式选择器使用 llm-rosetta 的规范、中立名称：
