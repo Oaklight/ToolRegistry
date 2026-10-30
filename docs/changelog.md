@@ -17,6 +17,7 @@ hide:
 ## [未发布]
 
 ### 新增
+- **工具发现有三种模式**：`tool_discovery_mode` 与 `set_tool_discovery_mode()` 决定两个发现工具如何跟随注册表。默认的 `auto` 只在至少一个已启用工具被设为 deferred 时开启——注册 deferred 工具现在会同时让 `discover_tools` 与 `call_deferred` 可用，而不是让它不可达。`enable_tool_discovery()` 与 `disable_tool_discovery()` 会把模式固定为 `on` 与 `off`，之后的注册不会覆盖。`GET /api/discovery` 返回模式，`POST /api/discovery/mode` 设置模式，设置分区在状态旁提供 自动 / 开启 / 关闭。
 - **「状态」分区升级为「设置」**：注册表设置（含工具发现开关）、状态导出/导入与 **关于** 卡片合并到同一分区。「关于」卡片显示当前使用的 `toolregistry`、`toolregistry-server` 与 `toolregistry-hub` 版本，并链接到仓库、PyPI 与文档，取代了顶栏的版本弹窗。顶栏只保留配色方案、明暗切换、语言切换与连接状态点；全局刷新按钮已移除，因为各分区会自行刷新，连接状态点也会自行轮询。
 - **可在面板中开关工具发现**：工具页的提示条与 Schema 分区的 Discover 子标签都提供「启用工具发现」，启用后子标签提供带确认的「关闭」；该操作属于注册表级变更（立即生效、不持久化），同时以 `GET /api/discovery`、`POST /api/discovery/enable`、`POST /api/discovery/disable` 暴露，并会报告关闭后将有多少 deferred 工具失去可达性。`ToolRegistry.tool_discovery_enabled` 暴露当前状态。
 - **面板会解释"已被 deferred 却无法取回"的工具**：`discover_tools` 与 `call_deferred` 只在调用 `enable_tool_discovery()` 时注册，因此在未启用工具发现时把工具设为 deferred 会让它无法被调用。工具分区现在会在表格上方说明这一点，Schema 分区的 Discover Tools 子标签也不再隐藏，而是给出解释。顶栏 logo 改为锤子图标。
@@ -31,6 +32,10 @@ hide:
 - **`Tool.with_parameters()`**（#356）：一步替换工具的参数字段并重新计算 `metadata.schema_hash`。旧参数校验模型默认被丢弃，因为它描述的是旧 schema，并会发出 `UserWarning`；当新 schema 等价时可传入 `parameters_model=` 保留。没有模型时，`validate_parameters()` 变为直通：它不检查类型、`required` 字段与未知键，因此违反已发布 schema 的参数也会被接受。
 
 ### 修复
+
+- **关闭工具发现现在会通知传输层**：`disable_tool_discovery()` 移除 `discover_tools` 与 `call_deferred` 时没有发出变更事件，导致基于注册表构建的路由表仍在广播它们，MCP 客户端也收不到 `tools/list_changed`。现在每个被移除的工具都会发出一个 `UNREGISTER` 事件；路由表随之刷新，MCP 适配器通知各会话，OpenAPI SSE 流也会报告该变化。由 `toolregistry-server` 中的 `tests/test_discovery_refresh.py` 固定。
+- **`call_deferred` 无法绕过目标工具的权限策略**：代理会用目标工具自身的参数，走与直接调用相同的访问检查，因此依赖参数的规则同样决定代理调用的结果；代理调用与被派发的调用都会出现在执行日志中。由 `tests/test_tool_discovery_mode.py` 固定。
+- **名称分隔符选择器只提供连字符**：OpenAI 与 Anthropic 的工具名规则拒绝点号，因此面板不再提供 `.`；已使用 `.` 的注册表仍会显示该值并标注为当前值，便于改回。库本身为兼容已有配置仍接受两者。
 
 - **Discover 子标签的说明合并为一个区块**：启用按钮与说明原本是两个元素，按钮会压在提示文字上。现在说明、按钮与长描述警告都是 `.notice` 区块，正文中提到的工具名（`discover_tools`、`call_deferred`）也改为行内代码。
 - **面板字号统一为四档**：display、body、small、micro 四档字号只在 `css/base.css` 中声明一次，所有组件与内联样式都引用它们，各分区不再大小不一——标题、卡片操作与日志行都与相邻内容对齐。`tests/test_admin_typography.py` 防止硬编码字号再次混入。

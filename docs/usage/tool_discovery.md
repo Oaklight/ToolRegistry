@@ -72,6 +72,29 @@ schemas = registry.get_schemas(include_deferred=False)
 registry = ToolRegistry(tool_discovery=True)
 ```
 
+### 发现模式
+
+默认情况下，工具发现会跟随 deferred 集合。`registry.tool_discovery_mode` 为
+`"auto"` 时：
+
+- 注册一个 `ToolMetadata(defer=True)` 的工具会在同一次操作中开启工具发现，
+  `discover_tools` 与 `call_deferred` 随之注册；
+- 撤销最后一个 deferred 状态——注销该工具、取消 defer，或禁用它——工具发现会再次关闭。
+
+`enable_tool_discovery()` 与 `disable_tool_discovery()` 则会把模式固定为 `"on"` 与
+`"off"`。显式选择不会被之后的注册覆盖：开启的注册表在最后一个 deferred 工具消失后仍保持开启；
+关闭的注册表在注册 deferred 工具后仍保持关闭——在重新启用之前，这些工具对模型不可达。
+也可以直接选择：
+
+```python
+registry.set_tool_discovery_mode("auto")   # 跟随 deferred 集合（默认）
+registry.set_tool_discovery_mode("on")     # 始终开启
+registry.set_tool_discovery_mode("off")    # 始终关闭
+```
+
+关闭工具发现会为这两个工具各发出一个 `UNREGISTER` 变更事件，因此任何镜像注册表的组件——
+MCP 服务器背后的路由表、OpenAPI 文档——都会刷新它所公布的内容，而不会保留注册表中已不存在的工具。
+
 ### 独立使用
 
 如果你更想直接使用 `ToolDiscoveryTool` 而不将其注册到 registry 中：
@@ -220,6 +243,10 @@ for s in summaries:
 2. LLM 调用 `call_deferred(_target_tool="search", query="hello")` → 注册表通过完整管线（权限、执行后端、日志）执行延迟工具
 
 `call_deferred` 仅接受延迟工具——对非延迟工具调用会抛出 `ValueError`。
+
+`call_deferred` 是代理，而不是权限旁路：注册表先解析目标，再使用**目标工具的**参数走与直接调用相同的访问检查。
+拒绝目标的策略同样会拒绝代理调用，包括依赖参数取值的规则。代理调用与被派发的调用都会出现在执行日志中。
+
 
 工具名的匹配是宽松的。`discover_tools` 与 `call_deferred` 都会在把 `/` 和 `-` 折叠为 `_`、并忽略大小写之后解析名称，因此被 MCP 客户端改写过的名字（注册名为 `weather-get-current`，实际传入 `weather_get_current`）同样能命中正确的工具。精确的注册拼写优先于归一化匹配。没有工具匹配时，错误信息会列出最接近的注册名，便于调用方一次自我纠正。
 
