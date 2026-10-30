@@ -165,6 +165,18 @@ class AdminAPI {
         });
     }
 
+    async getDiscovery() {
+        return this.request('/api/discovery');
+    }
+
+    async enableDiscovery() {
+        return this.request('/api/discovery/enable', { method: 'POST' });
+    }
+
+    async disableDiscovery() {
+        return this.request('/api/discovery/disable', { method: 'POST' });
+    }
+
     async listOverrides() {
         return this.request('/api/overrides');
     }

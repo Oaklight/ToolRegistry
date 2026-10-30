@@ -487,6 +487,16 @@ class ToolRegistry(
         self._tool_discovery = discoverer
         return discoverer
 
+    @property
+    def tool_discovery_enabled(self) -> bool:
+        """Whether tool discovery is enabled.
+
+        ``True`` once :meth:`enable_tool_discovery` has registered
+        ``discover_tools`` and ``call_deferred``, until
+        :meth:`disable_tool_discovery` removes them again.
+        """
+        return self._tool_discovery is not None
+
     def disable_tool_discovery(self) -> None:
         """Disable tool discovery and unregister the discovery tool."""
         if self._tool_discovery is None:

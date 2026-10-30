@@ -49,6 +49,7 @@ async function loadDiscover() {
     if (!_discoverEnabled) {
         pre.textContent = t('discovery.notEnabled');
         meta.textContent = '';
+        warnDiv.innerHTML = `<button class="btn btn-primary btn-sm" onclick="enableToolDiscovery()">${t('discovery.enable')}</button>`;
         return;
     }
     try {
@@ -58,6 +59,8 @@ async function loadDiscover() {
             deferred: data.deferred_count ?? 0,
             disabled: data.disabled_count ?? 0,
         });
+        meta.innerHTML += ` <button class="btn btn-secondary btn-sm" style="margin-left:8px;"
+            onclick="disableToolDiscovery()">${t('discovery.disable')}</button>`;
         // Warning banner for long-description tools without search_hint
         const warnings = (data.tools || []).filter(w => w.long && !w.has_search_hint);
         if (warnings.length > 0) {

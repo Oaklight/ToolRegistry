@@ -618,7 +618,48 @@ function renderDeferredWarning(deferredCount) {
     }
     box.style.display = '';
     box.innerHTML = `<strong>${t('discovery.offTitle', { count: deferredCount })}</strong>
-        <span>${t('discovery.offHint')}</span>`;
+        <span>${t('discovery.offHint')}</span>
+        <button class="btn btn-secondary btn-sm" style="margin-left:auto;"
+                onclick="enableToolDiscovery()">${t('discovery.enable')}</button>`;
+}
+
+// Enabling is a registry change, not a config edit: it registers
+// discover_tools and call_deferred immediately and builds the index lazily.
+async function enableToolDiscovery() {
+    try {
+        const result = await api.enableDiscovery();
+        showToast(t('discovery.enabled', { count: result.registered?.length ?? 2 }), 'success');
+        _discoverEnabled = true;
+        await refreshTools();
+        refreshStats();
+        if (typeof _activeSchemaSubTab !== 'undefined' && _activeSchemaSubTab === 'discover') {
+            loadDiscover();
+        }
+    } catch (e) {
+        showToast(e.message, 'error');
+    }
+}
+
+async function disableToolDiscovery() {
+    const proceed = confirm(t('discovery.disableConfirm'));
+    if (!proceed) return;
+    try {
+        const result = await api.disableDiscovery();
+        _discoverEnabled = false;
+        showToast(
+            result.unreachable
+                ? t('discovery.disabledWithDeferred', { count: result.unreachable })
+                : t('discovery.disabled'),
+            result.unreachable ? 'warning' : 'success',
+        );
+        await refreshTools();
+        refreshStats();
+        if (typeof _activeSchemaSubTab !== 'undefined' && _activeSchemaSubTab === 'discover') {
+            loadDiscover();
+        }
+    } catch (e) {
+        showToast(e.message, 'error');
+    }
 }
 
 // ============== Tool override ==============
