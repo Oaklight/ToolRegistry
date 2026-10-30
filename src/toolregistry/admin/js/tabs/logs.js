@@ -74,7 +74,7 @@ function renderLogs(entries) {
 
         const warningCount = (entry.warnings || []).length;
         const warningBadge = warningCount > 0
-            ? `<span class="badge badge-warn" title="${warningCount} warning${warningCount > 1 ? 's' : ''}">⚠ ${warningCount}</span>`
+            ? `<span class="badge badge-warn" title="${t('log.warningsCount', {count: warningCount})}">⚠ ${warningCount}</span>`
             : '';
 
         return `
