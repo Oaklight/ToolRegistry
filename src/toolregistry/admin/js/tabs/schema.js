@@ -68,7 +68,7 @@ async function loadDiscover() {
                 const safeId = 'sh-' + w.name.replace(/[^a-zA-Z0-9]/g, '_');
                 return `<div style="display:flex;align-items:center;gap:6px;margin:4px 0;flex-wrap:wrap;">
                     <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(w.description)}">
-                        <strong>${escapeHtml(w.name)}</strong> <span style="opacity:0.7;">(${w.description.length} chars)</span>
+                        <strong class="ident">${escapeHtml(w.name)}</strong> <span style="opacity:0.7;">(${w.description.length} chars)</span>
                     </span>
                     <input type="text" id="${safeId}" placeholder="${t('schema.hintPlaceholder')}"
                         style="flex:1;min-width:160px;padding:2px 6px;font-size:0.8rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-secondary);color:var(--text-primary);"
