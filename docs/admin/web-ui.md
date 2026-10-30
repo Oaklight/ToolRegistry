@@ -14,7 +14,8 @@ the selected section's content on the right.
 - **Logs**: execution history with filtering options
 - **Permissions**: the evaluated policy result per tool
 - **Schema**: the schemas published to models, plus the discover index
-- **State**: export/import and registry-wide settings
+- **Settings**: registry-wide settings, state export/import, and an **About**
+  card with the package versions and links to the repository, PyPI and the docs
 
 There is no separate Namespaces page: a namespace is a grouping of tools, so it
 lives in the Tools list. Each group header carries the bulk controls (enable or
@@ -25,7 +26,10 @@ collapses every group so the list reads as a namespace summary.
 The rail collapses to icons with the toggle at its foot (the choice is
 remembered), and below 900px it becomes a drawer opened by the header's menu
 button. The header stays pinned to the top and shares the rail's surface, so
-the two read as one frame around the content.
+the two read as one frame around the content. It carries only the colour
+scheme, the light/dark toggle, the language switcher and a connection dot:
+versions and package links live in Settings, and each section refreshes itself
+(the connection dot polls on its own).
 
 The overview cards at the top of the Tools section are links: the total opens
 the unfiltered list, enabled and disabled open it filtered to that status, and
@@ -201,6 +205,9 @@ definition.
 
 ## State Import/Export
 
+State export and import live in the **Settings** section alongside the registry
+settings and the About card.
+
 - Export current disabled state as JSON
 - Import previously exported state
 - Invalid files are rejected before the confirmation dialog, and a malformed
@@ -211,7 +218,7 @@ definition.
 
 ## Registry Settings
 
-The State panel also controls the namespace separator (`-` or `.`). Applying a
+The Settings section also controls the namespace separator (`-` or `.`). Applying a
 change **renames every namespaced tool immediately** — for example
 `math_utils-square` becomes `math_utils.square`. Calls that still use the old
 names pass no longer resolve, and existing log entries keep the old names. The
