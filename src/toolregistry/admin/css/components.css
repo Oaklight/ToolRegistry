@@ -1869,3 +1869,22 @@ button.source-tool-chip:hover {
     color: var(--text-secondary);
     opacity: 0.6;
 }
+
+/* A notice that explains a state the operator can fix from the API. */
+.notice {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 0 24px 12px;
+    padding: 9px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid color-mix(in srgb, var(--warning) 35%, var(--border));
+    background: color-mix(in srgb, var(--warning) var(--tag-tint), transparent);
+    color: var(--text-primary);
+    font-size: 0.8125rem;
+}
+
+.schema-subtab.disabled {
+    opacity: 0.6;
+}

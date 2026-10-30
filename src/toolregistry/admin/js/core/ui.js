@@ -1,4 +1,13 @@
 // ============== UI Helpers ==============
+// Whether the registry has tool discovery enabled.  It decides whether a
+// deferred tool is retrievable at all, so the Tools and Schema sections both
+// read it; ui.js owns the value.
+let _discoverEnabled = false;
+
+function setDiscoverEnabled(enabled) {
+    _discoverEnabled = !!enabled;
+}
+
 function updateConnectionStatus(connected) {
     const dot = document.getElementById('status-dot');
     const indicator = document.getElementById('status-indicator');
@@ -90,9 +99,15 @@ function switchTab(tabName) {
     } else if (tabName === 'schema') {
         api.getInfo().then(info => {
             const enabled = !!info.discover_enabled;
+            // The sub-tab stays visible when discovery is off: hiding it is
+            // what made "where are discover_tools and call_deferred?" hard to
+            // answer.  It opens with the explanation instead.
             const discoverBtn = document.getElementById('schema-subtab-discover');
-            if (discoverBtn) discoverBtn.style.display = enabled ? '' : 'none';
-            if (!enabled && _activeSchemaSubTab === 'discover') _activeSchemaSubTab = 'global';
+            if (discoverBtn) {
+                discoverBtn.classList.toggle('disabled', !enabled);
+                discoverBtn.title = enabled ? '' : t('discovery.offHint');
+            }
+            setDiscoverEnabled(enabled);
             switchSchemaSubTab(_activeSchemaSubTab);
         }).catch(() => switchSchemaSubTab(_activeSchemaSubTab));
     }
