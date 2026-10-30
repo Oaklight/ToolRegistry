@@ -54,6 +54,40 @@ function registerFieldsTemplate(kind) {
     `;
 }
 
+function registerAuthTemplate(kind) {
+    if (kind === 'python') return '';
+    return `
+        <label class="form-label" data-i18n="register.auth">Authentication</label>
+        <select class="input" id="rf-auth-type" onchange="onAuthTypeChange()">
+            <option value="none" data-i18n="register.authNone">None</option>
+            <option value="bearer" data-i18n="register.authBearer">Bearer token</option>
+            <option value="basic" data-i18n="register.authBasic">Basic auth</option>
+        </select>
+        <div id="rf-auth-bearer" style="display:none;">
+            <label class="form-label" data-i18n="register.token">Token</label>
+            <input class="input" id="rf-token" type="password" autocomplete="off" placeholder="sk-...">
+        </div>
+        <div id="rf-auth-basic" style="display:none;">
+            <label class="form-label" data-i18n="register.username">Username</label>
+            <input class="input" id="rf-username" autocomplete="off">
+            <label class="form-label" data-i18n="register.password">Password</label>
+            <input class="input" id="rf-password" type="password" autocomplete="off">
+        </div>
+        <label class="form-label" data-i18n="register.headers">Extra headers</label>
+        <textarea class="input" id="rf-headers" rows="2"
+                  placeholder="X-Api-Key: ..."></textarea>
+        <div class="form-hint" data-i18n="register.headersHint">One per line as Name: value. An Authorization header here wins over the fields above.</div>
+    `;
+}
+
+function onAuthTypeChange() {
+    const type = document.getElementById('rf-auth-type')?.value || 'none';
+    const bearer = document.getElementById('rf-auth-bearer');
+    const basic = document.getElementById('rf-auth-basic');
+    if (bearer) bearer.style.display = type === 'bearer' ? '' : 'none';
+    if (basic) basic.style.display = type === 'basic' ? '' : 'none';
+}
+
 function renderRegisterForm() {
     const body = document.getElementById('register-body');
     if (!body) return;
@@ -69,6 +103,7 @@ function renderRegisterForm() {
         <div class="seg-control" role="radiogroup" aria-label="Source kind">${seg}</div>
         <div class="register-form">
             ${registerFieldsTemplate(kind)}
+            ${registerAuthTemplate(kind)}
             <label class="form-label" data-i18n="register.namespace">Namespace (optional)</label>
             <input class="input" id="rf-namespace" placeholder="pets">
         </div>
@@ -80,6 +115,19 @@ function renderRegisterForm() {
         </div>
         <div id="register-preview"></div>
     `;
+    onAuthTypeChange();
+}
+
+function parseHeaderLines(text) {
+    const headers = {};
+    (text || '').split('\n').forEach((line) => {
+        const trimmed = line.trim();
+        if (!trimmed) return;
+        const separator = trimmed.indexOf(':');
+        if (separator <= 0) return;
+        headers[trimmed.slice(0, separator).trim()] = trimmed.slice(separator + 1).trim();
+    });
+    return headers;
 }
 
 function readRegisterPayload() {
@@ -89,6 +137,21 @@ function readRegisterPayload() {
 
     const namespace = value('rf-namespace');
     if (namespace) payload.namespace = namespace;
+
+    if (kind !== 'python') {
+        const authType = value('rf-auth-type') || 'none';
+        if (authType === 'bearer') {
+            payload.auth = { type: 'bearer', token: value('rf-token') };
+        } else if (authType === 'basic') {
+            payload.auth = {
+                type: 'basic',
+                username: value('rf-username'),
+                password: document.getElementById('rf-password')?.value || '',
+            };
+        }
+        const headers = parseHeaderLines(document.getElementById('rf-headers')?.value);
+        if (Object.keys(headers).length > 0) payload.headers = headers;
+    }
 
     if (kind === 'mcp') {
         const url = value('rf-url');
@@ -163,8 +226,11 @@ function renderRegisterPreview(result) {
             <span class="register-summary-actions">
                 <button class="btn btn-secondary btn-sm" onclick="setAllRegisterPicks(true)" data-i18n="register.selectAll">Select all</button>
                 <button class="btn btn-secondary btn-sm" onclick="setAllRegisterPicks(false)" data-i18n="register.selectNone">Select none</button>
+                <button class="btn btn-secondary btn-sm" onclick="invertRegisterPicks()" data-i18n="register.invert">Invert</button>
+                <button class="btn btn-secondary btn-sm" onclick="previewRegisterSource()" data-i18n="btn.refresh">Refresh</button>
             </span>
         </div>
+        ${invalidNameBanner(result.invalid_names)}
         <div class="table-container">
             <table>
                 <thead><tr>
@@ -190,9 +256,30 @@ function renderRegisterPreview(result) {
     updateRegisterSelectionCount();
 }
 
+// Server-provided names may use characters that OpenAI/Anthropic reject
+// (an MCP server often groups tools as ``fs/read``).  The registry stores the
+// name faithfully, so the mismatch is surfaced here, where the operator can
+// still choose a different source, namespace or subset.
+function invalidNameBanner(names) {
+    if (!names || names.length === 0) return '';
+    const shown = names.slice(0, 5).map(escapeHtml).join(', ');
+    const more = names.length > 5 ? ` +${names.length - 5}` : '';
+    return `<div class="register-warning">
+        <span>${t('register.nameWarning', { count: names.length })}</span>
+        <span class="mono">${shown}${more}</span>
+    </div>`;
+}
+
 function setAllRegisterPicks(checked) {
     document.querySelectorAll('.register-pick').forEach((box) => {
         box.checked = checked;
+    });
+    updateRegisterSelectionCount();
+}
+
+function invertRegisterPicks() {
+    document.querySelectorAll('.register-pick').forEach((box) => {
+        box.checked = !box.checked;
     });
     updateRegisterSelectionCount();
 }
@@ -221,6 +308,9 @@ async function confirmRegisterSelection() {
         payload.selected = selected;
         const result = await api.registerSource(payload);
         showToast(t('register.done', { count: result.count }), 'success');
+        if (result.invalid_names && result.invalid_names.length > 0) {
+            showToast(t('register.nameWarning', { count: result.invalid_names.length }), 'warning');
+        }
         refreshTools();
         refreshSources();
         // Re-preview so the "already registered" markers are accurate.

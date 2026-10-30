@@ -23,8 +23,10 @@ operator did not tick.
 
 from __future__ import annotations
 
+import base64
 import importlib
 import inspect
+import re
 from typing import TYPE_CHECKING, Any
 
 from ..utils import HttpClientConfig
@@ -42,6 +44,23 @@ class SourceError(ValueError):
     The message is shown to the operator, so it names what is wrong rather
     than where in the code it was noticed.
     """
+
+
+#: The character set OpenAI and Anthropic accept for a function/tool name.
+#: Gemini is looser (dots are allowed) but a name that passes this passes all
+#: three, so the panel reports against the strictest rule it knows.
+_STRICT_NAME = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
+
+def invalid_tool_names(names: list[str]) -> list[str]:
+    """Return the names some model APIs would reject.
+
+    Server-provided names may contain ``/`` (an MCP server often groups tools
+    as ``fs/read``).  ToolRegistry stores such a name faithfully; the provider
+    schemas built from it are then rejected at call time, far from the source.
+    The panel surfaces the mismatch when the tools are still being chosen.
+    """
+    return sorted(name for name in names if not _STRICT_NAME.match(name))
 
 
 def _require_mapping(payload: Any) -> dict[str, Any]:
@@ -62,6 +81,52 @@ def _namespace(payload: dict[str, Any]) -> str | None:
 # --------------------------------------------------------------------------
 # OpenAPI
 # --------------------------------------------------------------------------
+
+
+def _request_headers(payload: dict[str, Any]) -> dict[str, str] | None:
+    """Build request headers from ``headers`` and the ``auth`` block.
+
+    ``auth`` is the panel's flattened way of saying "this source needs a
+    credential": ``{"type": "bearer", "token": ...}`` or ``{"type": "basic",
+    "username": ..., "password": ...}``.  An explicit ``Authorization`` header
+    wins over ``auth`` so an operator can send a scheme the panel does not
+    model.  Returns ``None`` when the source needs no headers at all.
+    """
+    raw_headers = payload.get("headers") or {}
+    if not isinstance(raw_headers, dict) or not all(
+        isinstance(key, str) and isinstance(value, str)
+        for key, value in raw_headers.items()
+    ):
+        raise SourceError("'headers' must be an object of string values")
+    headers = dict(raw_headers)
+
+    auth = payload.get("auth")
+    if auth is None:
+        return headers or None
+    if not isinstance(auth, dict):
+        raise SourceError("'auth' must be an object")
+    auth_type = auth.get("type", "none")
+    if auth_type in (None, "none", ""):
+        return headers or None
+
+    if any(key.lower() == "authorization" for key in headers):
+        return headers
+
+    if auth_type == "bearer":
+        token = auth.get("token")
+        if not isinstance(token, str) or not token:
+            raise SourceError("Bearer authentication needs a 'token'")
+        headers["Authorization"] = f"Bearer {token}"
+    elif auth_type == "basic":
+        username = auth.get("username")
+        password = auth.get("password")
+        if not isinstance(username, str) or not isinstance(password, str):
+            raise SourceError("Basic authentication needs 'username' and 'password'")
+        encoded = base64.b64encode(f"{username}:{password}".encode()).decode()
+        headers["Authorization"] = f"Basic {encoded}"
+    else:
+        raise SourceError(f"Unsupported auth type '{auth_type}'")
+    return headers or None
 
 
 def _load_openapi(payload: dict[str, Any]) -> tuple[dict[str, Any], str, str | None]:
@@ -97,11 +162,7 @@ def _openapi_entries(
     from ..integrations.openapi.integration import OpenAPITool
 
     spec, base_url, spec_url = _load_openapi(payload)
-    headers = payload.get("headers") or None
-    if headers is not None and not isinstance(headers, dict):
-        raise SourceError("'headers' must be an object of string values")
-
-    client = HttpClientConfig(base_url=base_url, headers=headers)
+    client = HttpClientConfig(base_url=base_url, headers=_request_headers(payload))
     namespace = _namespace(payload)
     entries: list[dict[str, Any]] = []
     for path, operations in spec.get("paths", {}).items():
@@ -182,9 +243,7 @@ def _mcp_entries(
     from .._names import qualified_tool_name
 
     transport = _mcp_transport(payload)
-    headers = payload.get("headers") or None
-    if headers is not None and not isinstance(headers, dict):
-        raise SourceError("'headers' must be an object of string values")
+    headers = _request_headers(payload)
     namespace = _namespace(payload)
 
     async def _list() -> Any:
@@ -196,7 +255,12 @@ def _mcp_entries(
     except asyncio.CancelledError:  # pragma: no cover - defensive
         raise
     except Exception as exc:  # noqa: BLE001 - surfaced to the operator
-        raise SourceError(f"Could not reach the MCP server: {exc}") from exc
+        detail = str(exc).strip() or type(exc).__name__
+        hint = ""
+        if isinstance(transport, str) and transport.startswith(("http://", "https://")):
+            # A 401 from an HTTP transport often arrives without a message.
+            hint = " (an HTTP server that requires a token reports this way; set Authentication)"
+        raise SourceError(f"Could not reach the MCP server: {detail}{hint}") from exc
 
     entries = []
     for spec in tools:
@@ -340,6 +404,7 @@ def preview_source(registry: ToolRegistry, kind: str, payload: Any) -> dict[str,
         "tools": entries,
         "count": len(entries),
         "already_registered": sum(1 for e in entries if e["registered"]),
+        "invalid_names": invalid_tool_names([e["name"] for e in entries]),
         "info": info,
     }
 
@@ -362,8 +427,7 @@ def _register_openapi_source(
     namespace: str | None,
 ) -> None:
     spec, base_url, spec_url = _load_openapi(data)
-    headers = data.get("headers") or None
-    client = HttpClientConfig(base_url=base_url, headers=headers)
+    client = HttpClientConfig(base_url=base_url, headers=_request_headers(data))
     kwargs: dict[str, Any] = {
         "source": "openapi",
         "openapi_spec": spec,
@@ -382,8 +446,9 @@ def _register_mcp_source(
     namespace: str | None,
 ) -> None:
     kwargs: dict[str, Any] = {"source": "mcp", "namespace": namespace or False}
-    if data.get("headers"):
-        kwargs["headers"] = data["headers"]
+    headers = _request_headers(data)
+    if headers:
+        kwargs["headers"] = headers
     if selected is not None:
         kwargs["include"] = selected
     registry.register(_mcp_transport(data), **kwargs)
@@ -451,4 +516,5 @@ def register_tools(registry: ToolRegistry, kind: str, payload: Any) -> dict[str,
         "registered": added,
         "count": len(added),
         "namespace": namespace,
+        "invalid_names": invalid_tool_names(added),
     }

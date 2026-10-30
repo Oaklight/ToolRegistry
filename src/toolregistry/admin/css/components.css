@@ -395,8 +395,11 @@ tr:last-child td {
     border-bottom: none;
 }
 
+/* Hovering tints the row by mixing the text colour into the card surface:
+   the wash follows the scheme (darker on a light table, lighter on a dark
+   one), and at 8% it is visible without competing with the text. */
 tr:hover td {
-    background: rgba(250, 249, 247, 0.5);
+    background: color-mix(in srgb, var(--text-primary) 8%, var(--bg-secondary));
 }
 
 /* Tools table column widths */
@@ -648,6 +651,25 @@ tr:hover td {
     position: relative;
 }
 
+/* The cards double as navigation: clicking one opens the section that
+   explains the number.  Styled as a button so it is focusable and reachable
+   from the keyboard, reset back to the card's look. */
+button.stat-card {
+    appearance: none;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: background 0.15s ease;
+}
+
+button.stat-card:hover,
+button.stat-card:focus-visible {
+    background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+}
+
 .stat-card + .stat-card::before {
     content: "";
     position: absolute;
@@ -865,7 +887,7 @@ tr:hover td {
 }
 
 .log-row:hover td {
-    background: rgba(250, 249, 247, 0.5);
+    background: color-mix(in srgb, var(--text-primary) 8%, var(--bg-secondary));
 }
 
 .expand-icon {
@@ -1688,4 +1710,36 @@ tr:hover td {
     border-radius: 9999px;
     background: color-mix(in srgb, var(--accent) var(--tag-tint), transparent);
     color: var(--accent);
+}
+
+/* A warning that sits inside the Register panel, above the pick table. */
+.register-warning {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 12px 0;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid color-mix(in srgb, var(--warning) 35%, var(--border));
+    background: color-mix(in srgb, var(--warning) var(--tag-tint), transparent);
+    color: var(--text-primary);
+    font-size: 0.8125rem;
+}
+
+/* Marks a tool whose name a model API will reject. */
+.badge-name-warning {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    margin-left: 4px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--warning) 20%, transparent);
+    color: var(--warning);
+    font-size: 0.625rem;
+    font-weight: 700;
+    cursor: help;
+    vertical-align: middle;
 }

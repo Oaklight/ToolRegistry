@@ -255,6 +255,82 @@ class TestSourceRegistration:
         assert "'selected' must be a list" in data["message"]
 
 
+class TestRequestHeaders:
+    """Auth is flattened by the panel, so the mapping is worth pinning."""
+
+    def test_bearer_token_becomes_an_authorization_header(self) -> None:
+        from toolregistry.admin.registration import _request_headers
+
+        headers = _request_headers({"auth": {"type": "bearer", "token": "abc"}})
+        assert headers == {"Authorization": "Bearer abc"}
+
+    def test_basic_auth_is_base64_encoded(self) -> None:
+        from toolregistry.admin.registration import _request_headers
+
+        headers = _request_headers(
+            {"auth": {"type": "basic", "username": "u", "password": "p"}}
+        )
+        assert headers == {"Authorization": "Basic dTpw"}
+
+    def test_explicit_authorization_header_wins(self) -> None:
+        from toolregistry.admin.registration import _request_headers
+
+        headers = _request_headers(
+            {
+                "headers": {"Authorization": "Token xyz"},
+                "auth": {"type": "bearer", "token": "abc"},
+            }
+        )
+        assert headers == {"Authorization": "Token xyz"}
+
+    def test_extra_headers_are_kept_alongside_auth(self) -> None:
+        from toolregistry.admin.registration import _request_headers
+
+        headers = _request_headers(
+            {
+                "headers": {"X-Trace": "panel"},
+                "auth": {"type": "bearer", "token": "abc"},
+            }
+        )
+        assert headers == {"X-Trace": "panel", "Authorization": "Bearer abc"}
+
+    def test_no_headers_means_none(self) -> None:
+        from toolregistry.admin.registration import _request_headers
+
+        assert _request_headers({}) is None
+        assert _request_headers({"auth": {"type": "none"}}) is None
+
+    def test_bearer_without_a_token_is_rejected(self) -> None:
+        from toolregistry.admin.registration import SourceError, _request_headers
+
+        with pytest.raises(SourceError, match="needs a 'token'"):
+            _request_headers({"auth": {"type": "bearer"}})
+
+
+class TestProviderSafeNames:
+    def test_slashes_and_overlong_names_are_reported(self) -> None:
+        from toolregistry.admin.registration import invalid_tool_names
+
+        bad = invalid_tool_names(["ok_name", "fs/read", "x" * 65, "dotted.name"])
+        assert bad == ["dotted.name", "fs/read", "x" * 65]
+
+    def test_preview_reports_invalid_names_for_openapi(self, server) -> None:
+        spec = {
+            "openapi": "3.0.0",
+            "servers": [{"url": "https://api.example"}],
+            "paths": {"/a": {"get": {"operationId": "listItems"}}},
+        }
+        status, data = server.request(
+            "/api/sources/preview",
+            "POST",
+            {"kind": "openapi", "spec": spec, "namespace": "fs/x"},
+        )
+
+        assert status == 200
+        assert data["invalid_names"], data
+        assert all("/" in name for name in data["invalid_names"])
+
+
 class TestToolOverrides:
     def _register(self, server: _Server) -> None:
         def add(a: int, b: int) -> int:
