@@ -167,6 +167,8 @@ const I18N = {
     'source.clearFocus':'Show all sources',
     'source.noneFocused':'No registered tool comes from this source type.',
     'register.open':'Register tools',
+    'source.add':'Add source',
+    'ns.toggleGroup':'Collapse or expand this namespace',
     'register.registered':'registered',
     'register.viewRegistered':'View registered tools',
     'schema.subGlobal':'Schema',
@@ -353,6 +355,8 @@ const I18N = {
     'source.clearFocus':'\u663e\u793a\u5168\u90e8\u6765\u6e90',
     'source.noneFocused':'\u6ca1\u6709\u5df2\u6ce8\u518c\u7684\u5de5\u5177\u6765\u81ea\u8be5\u7c7b\u578b\u6765\u6e90\u3002',
     'register.open':'\u6ce8\u518c\u5de5\u5177',
+    'source.add':'\u6dfb\u52a0\u6765\u6e90',
+    'ns.toggleGroup':'\u6298\u53e0\u6216\u5c55\u5f00\u8be5\u547d\u540d\u7a7a\u95f4',
     'register.registered':'\u5df2\u6ce8\u518c',
     'register.viewRegistered':'\u67e5\u770b\u5df2\u6ce8\u518c\u5de5\u5177',
     'schema.subGlobal':'Schema',
@@ -406,9 +410,9 @@ function applyI18n() {
         el.title = t(el.dataset.i18nTitle);
     });
     // Re-render dynamic content for the active tab
-    const activeTab = document.querySelector('.tab.active')?.dataset.tab;
+    const activeTab = document.querySelector('.console-item.active')?.dataset.tab;
     if (activeTab === 'tools') { refreshTools(); refreshStats(); }
-    else if (activeTab === 'namespaces') { refreshNamespaces(); }
+    else if (activeTab === 'sources') { refreshSources(); }
     else if (activeTab === 'logs') { refreshLogs(); refreshLogStats(); }
     else if (activeTab === 'permissions') { refreshPermissions(); }
     else if (activeTab === 'schema') { switchSchemaSubTab(_activeSchemaSubTab); }

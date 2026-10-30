@@ -12,6 +12,19 @@ function currentRegisterKind() {
     return REGISTER_KINDS.includes(_registerKind) ? _registerKind : 'openapi';
 }
 
+function openAddSource() {
+    switchTab('sources');
+    const card = document.getElementById('add-source-card');
+    if (card) card.style.display = '';
+    refreshRegisterPanel();
+    document.getElementById('register-body')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
+
+function closeAddSource() {
+    const card = document.getElementById('add-source-card');
+    if (card) card.style.display = 'none';
+}
+
 function refreshRegisterPanel() {
     // Re-render only when the panel is empty: switching away and back must
     // not discard a spec URL or the preview that was just loaded.
@@ -335,7 +348,7 @@ function openRegisterFromSource(button) {
         : 'openapi';
     _registerKind = kind;
     _registerPreview = null;
-    switchTab('register');
+    openAddSource();
     renderRegisterForm();
 
     const set = (id, value) => {

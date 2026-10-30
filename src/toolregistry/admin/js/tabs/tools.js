@@ -158,7 +158,7 @@ function renderTools(tools, filtersActive = false) {
         <tr class="ns-row" onclick="toggleNsGroup('${nsId}')">
             <td><span class="ns-chevron">${SVG_CHEVRON}</span></td>
             <td>
-                <button type="button" class="ns-link" onclick="event.stopPropagation(); openNamespaceInPanel('${escapeHtml(ns)}')" title="${t('ns.openInPanel')}">${escapeHtml(ns)}</button>
+                <button type="button" class="ns-link" onclick="event.stopPropagation(); toggleNsGroup('${nsId}')" title="${t('ns.toggleGroup')}">${escapeHtml(ns)}</button>
                 ${nsSourceBadge ? `<button type="button" class="source-badge-link" onclick="event.stopPropagation(); focusSources('${escapeJs(nsSources[0])}')" title="${t('source.showInPanel')}">${escapeHtml(nsSources[0])}</button>` : ''}
                 <span class="text-muted" style="margin-left: 8px; font-size: 0.6875rem;">${children.length > 1 ? t('misc.toolCountPlural', {count: children.length}) : t('misc.toolCount', {count: children.length})}</span>
             </td>
@@ -227,8 +227,10 @@ function renderTools(tools, filtersActive = false) {
     tbody.querySelectorAll('input[data-indeterminate="true"]').forEach(cb => {
         cb.indeterminate = true;
     });
-    // Expand all groups by default
-    expandAllGroups();
+    // Keep whatever expand/collapse state the operator chose; a refresh used
+    // to force every group open again.
+    if (_allExpanded) expandAllGroups();
+    else collapseAllGroups();
 }
 
 function toggleNsGroup(nsId) {
@@ -435,7 +437,7 @@ async function refreshStats() {
                 <div class="stat-value text-error">${disabled}</div>
                 <div class="stat-label">${t('stat.disabled')}</div>
             </button>
-            <button type="button" class="stat-card" onclick="showNamespacesPanel()" title="${t('stat.showNamespaces')}">
+            <button type="button" class="stat-card" onclick="showNamespaceSummary()" title="${t('stat.showNamespaces')}">
                 <div class="stat-value">${namespaces}</div>
                 <div class="stat-label">${t('stat.namespaces')}</div>
             </button>
@@ -475,8 +477,17 @@ function showToolsByStatus(status) {
     gotoTools({ status });
 }
 
-function showNamespacesPanel() {
-    switchTab('namespaces');
+// The overview's namespace card is the namespace view now that the panel has
+// folded into this list: it collapses every group, leaving the namespace rows
+// as the summary.
+function showNamespaceSummary() {
+    switchTab('tools');
+    setFilterValue('namespace-filter', '');
+    setFilterValue('status-filter', '');
+    const search = document.getElementById('tool-search');
+    if (search) search.value = '';
+    _allExpanded = false;
+    filterTools();
 }
 
 function showToolsForNamespace(namespace, status) {

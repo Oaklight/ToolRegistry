@@ -102,17 +102,9 @@
                         <span class="console-item-label" data-i18n="tab.tools">Tools</span>
                         <span class="console-count" id="console-tools-count"></span>
                     </button>
-                    <button class="console-item" data-tab="namespaces" onclick="switchTab('namespaces')" title="Namespaces">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
-                        <span class="console-item-label" data-i18n="tab.namespaces">Namespaces</span>
-                    </button>
                     <button class="console-item" data-tab="sources" onclick="switchTab('sources')" title="Sources">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v6M12 16v6M2 12h6M16 12h6"></path><circle cx="12" cy="12" r="3"></circle></svg>
                         <span class="console-item-label" data-i18n="tab.sources">Sources</span>
-                    </button>
-                    <button class="console-item" data-tab="register" onclick="switchTab('register')" title="Register tools">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"></path></svg>
-                        <span class="console-item-label" data-i18n="tab.register">Register</span>
                     </button>
                 </div>
 
@@ -172,7 +164,7 @@
                     <button class="btn btn-secondary btn-sm" id="toggle-expand-btn" onclick="toggleAllGroups()" title="Expand all" style="width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center;">
                         <svg id="toggle-expand-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3l4 4 4-4"/><path d="M4 9l4 4 4-4"/></svg>
                     </button>
-                    <button class="btn btn-primary btn-sm" onclick="switchTab('register')" data-i18n="register.open">Register tools</button>
+                    <button class="btn btn-primary btn-sm" onclick="openAddSource()" data-i18n="source.add">Add source</button>
                     <button class="btn btn-secondary btn-sm" onclick="refreshTools()" data-i18n="btn.refresh">Refresh</button>
                 </div>
             </div>
@@ -236,41 +228,25 @@
 </div>
 
 <!-- Namespaces Tab -->
-<div id="tab-namespaces" class="tab-content" style="display: none;">
-    <div class="card">
-        <div class="card-header">
-            <h2 class="card-title" data-i18n="tab.namespaces">Namespaces</h2>
-            <button class="btn btn-secondary btn-sm" onclick="refreshNamespaces()" data-i18n="btn.refresh">Refresh</button>
-        </div>
-        <div class="card-body no-padding">
-            <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th data-i18n="col.namespace">Namespace</th>
-                            <th data-i18n="col.source">Source</th>
-                            <th data-i18n="col.totalTools">Total Tools</th>
-                            <th data-i18n="col.enabled">Enabled</th>
-                            <th data-i18n="col.disabled">Disabled</th>
-                            <th data-i18n="col.tags">Tags</th>
-                            <th data-i18n="col.actions">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="namespaces-body">
-                        <tr><td colspan="7" class="loading"><div class="spinner"></div><span data-i18n="misc.loading">Loading...</span></td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Sources Tab -->
+<!-- Sources Tab: where tools come from, and where a new source is added -->
 <div id="tab-sources" class="tab-content" style="display: none;">
+    <div class="card" id="add-source-card" style="display: none;">
+        <div class="card-header">
+            <div>
+                <h2 data-i18n="register.title">Add a source</h2>
+                <p class="card-desc" data-i18n="register.desc">Connect a source, choose which of its tools to keep, then register them.</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="closeAddSource()" data-i18n="btn.close">Close</button>
+        </div>
+        <div class="card-body" id="register-body"></div>
+    </div>
     <div class="card">
         <div class="card-header">
             <h2 class="card-title" data-i18n="tab.sources">Sources</h2>
-            <button class="btn btn-secondary btn-sm" onclick="refreshSources()" data-i18n="btn.refresh">Refresh</button>
+            <div class="flex gap-2">
+                <button class="btn btn-primary btn-sm" id="add-source-btn" onclick="openAddSource()" data-i18n="source.add">Add source</button>
+                <button class="btn btn-secondary btn-sm" onclick="refreshSources()" data-i18n="btn.refresh">Refresh</button>
+            </div>
         </div>
         <div class="card-body" id="sources-body">
             <div class="loading"><div class="spinner"></div><span data-i18n="misc.loading">Loading...</span></div>
@@ -469,18 +445,6 @@
 
             </div>
 
-                <!-- Register Tab -->
-                <div id="tab-register" class="tab-content" style="display: none;">
-                    <div class="card">
-                        <div class="card-header">
-                            <div>
-                                <h2 data-i18n="register.title">Register tools</h2>
-                                <p class="card-desc" data-i18n="register.desc">Connect a source, choose which of its tools to keep, then register them.</p>
-                            </div>
-                        </div>
-                        <div class="card-body" id="register-body"></div>
-                    </div>
-                </div>
             </main>
         </div>
     </div>
@@ -537,7 +501,6 @@
     <script src="assets/js/core/ui.js"></script>
     <script src="assets/js/core/theme.js"></script>
     <script src="assets/js/tabs/tools.js"></script>
-    <script src="assets/js/tabs/namespaces.js"></script>
     <script src="assets/js/tabs/logs.js"></script>
     <script src="assets/js/tabs/state.js"></script>
     <script src="assets/js/tabs/permissions.js"></script>

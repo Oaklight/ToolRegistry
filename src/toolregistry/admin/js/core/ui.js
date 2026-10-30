@@ -77,8 +77,6 @@ function switchTab(tabName) {
     if (tabName === 'tools') {
         refreshTools();
         refreshStats();
-    } else if (tabName === 'namespaces') {
-        refreshNamespaces();
     } else if (tabName === 'logs') {
         refreshLogs();
         refreshLogStats();
@@ -86,8 +84,6 @@ function switchTab(tabName) {
         refreshSources();
     } else if (tabName === 'permissions') {
         refreshPermissions();
-    } else if (tabName === 'register') {
-        if (typeof refreshRegisterPanel === 'function') refreshRegisterPanel();
     } else if (tabName === 'state') {
         refreshConfig();
         refreshRegistrySettings();
