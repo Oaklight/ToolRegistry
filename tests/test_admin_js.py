@@ -1,7 +1,7 @@
 """Behavioural tests for the admin panel's JavaScript auth client.
 
-The panel keeps its JavaScript inline in ``admin.html``.  These tests extract
-the API client and run it under Node with stubbed ``fetch``, ``prompt`` and
+The API client lives in ``js/core/api.js`` and is loaded as a plain script.
+These tests run it under Node with stubbed ``fetch``, ``prompt`` and
 ``localStorage`` so the auth retry can be exercised without a browser.  They
 skip when Node is unavailable; GitHub-hosted runners ship it.
 """
@@ -15,7 +15,11 @@ from pathlib import Path
 
 import pytest
 
-from toolregistry.admin.static import ADMIN_HTML
+from importlib.resources import files
+
+ADMIN_API_JS = (
+    files("toolregistry.admin").joinpath("js/core/api.js").read_text(encoding="utf-8")
+)
 
 NODE = shutil.which("node")
 pytestmark = pytest.mark.skipif(NODE is None, reason="Node.js is required")
@@ -123,12 +127,12 @@ def _find_matching_brace(source: str, open_index: int) -> int:
 
 
 def _auth_client_source() -> str:
-    """Extract ``promptForAdminToken`` and ``AdminAPI`` from the admin UI."""
-    start = ADMIN_HTML.index(_START)
-    class_open = ADMIN_HTML.index("class AdminAPI {", start)
-    brace = ADMIN_HTML.index("{", class_open)
-    end = _find_matching_brace(ADMIN_HTML, brace)
-    return ADMIN_HTML[start : end + 1] + "\nglobalThis.__AdminAPI = AdminAPI;\n"
+    """Return the auth client module with ``AdminAPI`` exported for the harness."""
+    start = ADMIN_API_JS.index(_START)
+    class_open = ADMIN_API_JS.index("class AdminAPI {", start)
+    brace = ADMIN_API_JS.index("{", class_open)
+    end = _find_matching_brace(ADMIN_API_JS, brace)
+    return ADMIN_API_JS[start : end + 1] + "\nglobalThis.__AdminAPI = AdminAPI;\n"
 
 
 @pytest.mark.parametrize(

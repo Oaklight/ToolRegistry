@@ -551,6 +551,70 @@ class TestAdminServerAuth:
         finally:
             server.stop()
 
+    def test_assets_are_public_and_content_typed(self) -> None:
+        """The shell's stylesheets and scripts load without credentials."""
+        registry = ToolRegistry()
+        server = AdminServer(registry, port=18112, auth_token="secret123")
+
+        try:
+            info = server.start()
+            time.sleep(0.1)
+
+            for path, content_type in (
+                ("/assets/css/base.css", "text/css"),
+                ("/assets/js/core/theme.js", "javascript"),
+            ):
+                with urllib.request.urlopen(f"{info.url}{path}", timeout=5) as response:
+                    assert response.status == 200
+                    assert content_type in response.headers.get("Content-Type", "")
+                    assert response.headers.get("Cache-Control") == "no-cache"
+
+            # API routes stay protected even though assets are public.
+            try:
+                urllib.request.urlopen(f"{info.url}/api/tools", timeout=5)
+                pytest.fail("Should have raised HTTPError")
+            except urllib.error.HTTPError as e:
+                assert e.code == 401
+
+        finally:
+            server.stop()
+
+    def test_asset_route_refuses_traversal_and_unknown_files(self) -> None:
+        """Only shipped css/ and js/ files are reachable under /assets/."""
+        registry = ToolRegistry()
+        server = AdminServer(registry, port=18113)
+
+        try:
+            info = server.start()
+            time.sleep(0.1)
+
+            for path in (
+                "/assets/js/missing.js",
+                "/assets/css/../../handlers.py",
+                "/assets/handlers.py",
+                "/assets/css/base.txt",
+            ):
+                try:
+                    urllib.request.urlopen(f"{info.url}{path}", timeout=5)
+                    pytest.fail(f"Should have raised HTTPError: {path}")
+                except urllib.error.HTTPError as e:
+                    assert e.code == 404
+
+        finally:
+            server.stop()
+
+    def test_every_asset_referenced_by_the_shell_exists(self) -> None:
+        """A renamed file would otherwise surface as a broken panel in a browser."""
+        import re
+
+        from toolregistry.admin.static import read_asset
+
+        shell = _ui_source()
+        referenced = re.findall(r'(?:href|src)="assets/([^"]+)"', shell)
+        assert referenced, "the shell must reference its assets"
+        for name in referenced:
+            assert read_asset(name) is not None, f"missing asset: {name}"
+
     def test_api_index_is_protected_when_ui_is_disabled(self) -> None:
         """With serve_ui=False, "/" is an API index and requires a token."""
         registry = ToolRegistry()
@@ -625,6 +689,24 @@ class TestAdminCORS:
             assert response.headers.get("Access-Control-Allow-Origin") is None
 
 
+def _ui_source() -> str:
+    """Return the shell and every shipped asset as one searchable string.
+
+    The panel is split into a shell plus css/ and js/ assets; a guard that
+    greps only admin.html would silently stop covering a behaviour that moved
+    into an asset.
+    """
+    from importlib.resources import files
+
+    root = files("toolregistry.admin")
+    parts = [root.joinpath("admin.html").read_text(encoding="utf-8")]
+    for sub in ("css", "js", "js/core", "js/tabs"):
+        for entry in root.joinpath(sub).iterdir():
+            if entry.is_file():
+                parts.append(entry.read_text(encoding="utf-8"))
+    return "\n".join(parts)
+
+
 class TestAdminUIAssets:
     """Regression guards for behaviour implemented only in admin.html."""
 
@@ -641,54 +723,74 @@ class TestAdminUIAssets:
         assert "admin.html" in source
 
     def test_log_details_render_arguments_and_traceback(self) -> None:
-        from toolregistry.admin.static import ADMIN_HTML
+        source = _ui_source()
 
-        assert "JSON.stringify(entry.arguments" in ADMIN_HTML
-        assert "entry.traceback" in ADMIN_HTML
+        assert "JSON.stringify(entry.arguments" in source
+        assert "entry.traceback" in source
 
     def test_timeout_status_is_filterable(self) -> None:
-        from toolregistry.admin.static import ADMIN_HTML
+        source = _ui_source()
 
-        assert 'value="timeout"' in ADMIN_HTML
-        assert "by_status?.timeout" in ADMIN_HTML
+        assert 'value="timeout"' in source
+        assert "by_status?.timeout" in source
 
     def test_tool_filters_survive_refresh_with_a_clear_action(self) -> None:
-        from toolregistry.admin.static import ADMIN_HTML
+        source = _ui_source()
 
-        assert "renderTools(filtered, filtersActive)" in ADMIN_HTML
-        assert "function clearToolFilters" in ADMIN_HTML
-        assert "empty.filteredTools" in ADMIN_HTML
+        assert "renderTools(filtered, filtersActive)" in source
+        assert "function clearToolFilters" in source
+        assert "empty.filteredTools" in source
 
     def test_name_separator_change_is_confirmed(self) -> None:
-        from toolregistry.admin.static import ADMIN_HTML
+        source = _ui_source()
 
-        assert "modal.changeNameSep" in ADMIN_HTML
-        assert "let _currentNameSep" in ADMIN_HTML
-        assert "renames every namespaced tool immediately" in ADMIN_HTML
+        assert "modal.changeNameSep" in source
+        assert "let _currentNameSep" in source
+        assert "renames every namespaced tool immediately" in source
 
     def test_concurrent_auth_requests_reuse_a_fresh_token(self) -> None:
-        from toolregistry.admin.static import ADMIN_HTML
+        source = _ui_source()
 
         # A request that got 401 while another request was prompting must
         # reuse the token that prompt produced instead of prompting again.
-        assert "const requestToken = this.token;" in ADMIN_HTML
-        assert "token === requestToken" in ADMIN_HTML
+        assert "const requestToken = this.token;" in source
+        assert "token === requestToken" in source
 
     def test_ui_polish_regressions(self) -> None:
-        from toolregistry.admin.static import ADMIN_HTML
+        source = _ui_source()
 
         # Favicon is inlined so the page does not request /favicon.ico.
-        assert 'rel="icon"' in ADMIN_HTML
+        assert 'rel="icon"' in source
         # Escape closes every modal, including Version Info.
-        assert "closeVersionModal();" in ADMIN_HTML
+        assert "closeVersionModal();" in source
         # The log filter applies on Enter as well as the Apply button.
-        assert "event.key==='Enter'" in ADMIN_HTML
+        assert "event.key==='Enter'" in source
         # Namespace THINK/DEFER boxes show a partial state.
-        assert "data-indeterminate" in ADMIN_HTML
+        assert "data-indeterminate" in source
         # A cheap poll keeps the status dot honest while idle.
-        assert "checkConnection" in ADMIN_HTML
+        assert "checkConnection" in source
         # Permission badges explain that they were evaluated with {}.
-        assert "perm.emptyArgsNote" in ADMIN_HTML
+        assert "perm.emptyArgsNote" in source
+
+    def test_register_panel_previews_before_registering(self) -> None:
+        """The panel must never register what it has only previewed."""
+        source = _ui_source()
+
+        assert 'data-tab="register"' in source
+        assert "function refreshRegisterPanel" in source
+        assert "/api/sources/preview" in source
+        assert "/api/sources/register" in source
+        # Registration sends the picked names, not "everything".
+        assert "selectedRegisterNames" in source
+
+    def test_override_controls_are_wired_to_the_override_api(self) -> None:
+        source = _ui_source()
+
+        assert "openOverrideModal" in source
+        assert "restoreToolOverride" in source
+        assert "/override" in source
+        # The detail modal only offers Restore when an override exists.
+        assert "api.listOverrides()" in source
 
 
 class TestToolRegistryAdminIntegration:

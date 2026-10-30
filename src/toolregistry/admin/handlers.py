@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any, cast
 from .._vendor.httpserver import HTTPException, Request, Response
 from ..utils import ToolResultJSONEncoder
 
-from .static import ADMIN_HTML
+from .static import read_asset, read_shell
 
 if TYPE_CHECKING:
     from toolregistry import ToolRegistry
@@ -212,6 +212,16 @@ def _auth_check(request: Request) -> Response | None:
     if request.method in ("GET", "HEAD") and request.path == "/" and app.serve_ui:
         return None
 
+    # The shell is useless without its stylesheets and scripts, and the browser
+    # requests them without credentials.  ``read_asset`` serves only the css/
+    # and js/ files shipped in the package, so this exposes no registry data.
+    if (
+        request.method in ("GET", "HEAD")
+        and request.path.startswith("/assets/")
+        and app.serve_ui
+    ):
+        return None
+
     session = app.session
     auth_header = request.headers.get("authorization", "")
 
@@ -287,7 +297,7 @@ def _handle_root(request: Request) -> Response:
     """Serve UI or API documentation."""
     if _app(request).serve_ui:
         return Response(
-            body=ADMIN_HTML,
+            body=read_shell(),
             status_code=200,
             content_type="text/html; charset=utf-8",
         )
@@ -317,6 +327,22 @@ def _handle_root(request: Request) -> Response:
                 "PUT /api/config",
             ],
         }
+    )
+
+
+def _serve_asset(request: Request, name: str) -> Response:
+    """Serve one shipped stylesheet or script from ``/assets/<name>``."""
+    if not _app(request).serve_ui:
+        raise HTTPException(404, "Not Found")
+    asset = read_asset(name)
+    if asset is None:
+        raise HTTPException(404, "Not Found")
+    body, content_type = asset
+    return Response(
+        body=body,
+        status_code=200,
+        content_type=content_type,
+        headers={"Cache-Control": "no-cache"},
     )
 
 
@@ -1133,6 +1159,196 @@ def _get_schema(request: Request) -> Response:
 # ============== Route Setup ==============
 
 
+def _source_body(request: Request) -> dict[str, Any] | Response:
+    """Parse a source request body, or return the error response."""
+    if not request.body:
+        return _error_response(400, "Bad Request", "Request body is required")
+    try:
+        data = request.json()
+    except (json.JSONDecodeError, ValueError) as e:
+        return _error_response(400, "Bad Request", f"Invalid JSON: {e}")
+    if not isinstance(data, dict):
+        return _error_response(400, "Bad Request", "Body must be a JSON object")
+    return data
+
+
+def _preview_source(request: Request) -> Response:
+    """List the tools a source offers without registering any of them."""
+    from .registration import SourceError, preview_source
+
+    data = _source_body(request)
+    if isinstance(data, Response):
+        return data
+    kind = data.get("kind")
+    if not isinstance(kind, str):
+        return _error_response(400, "Bad Request", "'kind' is required")
+
+    try:
+        result = preview_source(_app(request).registry, kind, data)
+    except SourceError as e:
+        return _error_response(400, "Bad Request", str(e))
+    return _json_response(result)
+
+
+def _register_source(request: Request) -> Response:
+    """Register the selected tools of a source."""
+    from .registration import SourceError, register_tools
+
+    data = _source_body(request)
+    if isinstance(data, Response):
+        return data
+    kind = data.get("kind")
+    if not isinstance(kind, str):
+        return _error_response(400, "Bad Request", "'kind' is required")
+
+    try:
+        result = register_tools(_app(request).registry, kind, data)
+    except SourceError as e:
+        return _error_response(400, "Bad Request", str(e))
+    return _json_response(result)
+
+
+def _override_summary(tool: Any) -> dict[str, Any]:
+    """Return the fields an override can change, for display and diffing."""
+    metadata = tool.metadata
+    return {
+        "name": tool.name,
+        "description": tool.description,
+        "namespace": tool.namespace,
+        "tags": sorted(getattr(tag, "value", str(tag)) for tag in metadata.tags),
+        "custom_tags": sorted(metadata.custom_tags),
+        "title": getattr(metadata, "title", ""),
+        "read_only_hint": metadata.read_only_hint,
+        "destructive_hint": metadata.destructive_hint,
+        "idempotent_hint": metadata.idempotent_hint,
+        "open_world_hint": metadata.open_world_hint,
+    }
+
+
+def _list_overrides(request: Request) -> Response:
+    """List overridden tools with their current and original definitions."""
+    registry = _app(request).registry
+    entries = []
+    for name in sorted(registry.list_overrides()):
+        current = registry.get_tool(name)
+        original = (
+            registry._overrides.get(name) if hasattr(registry, "_overrides") else None
+        )
+        if current is None:
+            continue
+        entries.append(
+            {
+                "name": name,
+                "current": _override_summary(current),
+                "original": _override_summary(original)
+                if original is not None
+                else None,
+            }
+        )
+    return _json_response({"overrides": entries, "count": len(entries)})
+
+
+_OVERRIDE_METADATA_FIELDS = (
+    "title",
+    "read_only_hint",
+    "destructive_hint",
+    "idempotent_hint",
+    "open_world_hint",
+)
+
+
+def _override_tool(request: Request, name: str) -> Response:
+    """Override a tool's description, tags or hints, recording the original."""
+    from dataclasses import replace
+
+    registry = _app(request).registry
+    name = urllib.parse.unquote(name)
+    tool = registry.get_tool(name)
+    if tool is None:
+        return _error_response(404, "Not Found", f"Tool not found: {name}")
+
+    data = _source_body(request)
+    if isinstance(data, Response):
+        return data
+
+    # Validate everything before touching the registry: a rejected field must
+    # not leave the tool half-overridden.
+    unknown = sorted(
+        set(data)
+        - {"description", "tags", "custom_tags"}
+        - set(_OVERRIDE_METADATA_FIELDS)
+    )
+    if unknown:
+        return _error_response(
+            400, "Bad Request", "Unknown override field(s): " + ", ".join(unknown)
+        )
+
+    description = data.get("description", tool.description)
+    if not isinstance(description, str):
+        return _error_response(400, "Bad Request", "'description' must be a string")
+
+    from ..tool import ToolTag
+
+    tags = tool.metadata.tags
+    if "tags" in data:
+        raw_tags = data["tags"]
+        if not isinstance(raw_tags, list) or not all(
+            isinstance(t, str) for t in raw_tags
+        ):
+            return _error_response(
+                400, "Bad Request", "'tags' must be a list of strings"
+            )
+        try:
+            tags = {ToolTag(value) for value in raw_tags}
+        except ValueError as e:
+            return _error_response(400, "Bad Request", f"Unknown tag: {e}")
+
+    custom_tags = tool.metadata.custom_tags
+    if "custom_tags" in data:
+        raw_custom = data["custom_tags"]
+        if not isinstance(raw_custom, list) or not all(
+            isinstance(tag, str) for tag in raw_custom
+        ):
+            return _error_response(
+                400, "Bad Request", "'custom_tags' must be a list of strings"
+            )
+        custom_tags = set(raw_custom)
+
+    meta_updates: dict[str, Any] = {"tags": tags, "custom_tags": custom_tags}
+    for field in _OVERRIDE_METADATA_FIELDS:
+        if field in data:
+            meta_updates[field] = data[field]
+
+    new_metadata = replace(tool.metadata, **meta_updates)
+    new_tool = replace(tool, description=description, metadata=new_metadata)
+    registry.override(name, new_tool)
+
+    original = (
+        registry._overrides.get(name) if hasattr(registry, "_overrides") else None
+    )
+    return _json_response(
+        {
+            "success": True,
+            "name": name,
+            "current": _override_summary(registry.get_tool(name)),
+            "original": _override_summary(original) if original is not None else None,
+        }
+    )
+
+
+def _restore_tool_override(request: Request, name: str) -> Response:
+    """Drop an override and restore the tool that was registered first."""
+    registry = _app(request).registry
+    name = urllib.parse.unquote(name)
+    try:
+        restored = registry.restore_override(name)
+    except KeyError:
+        return _error_response(404, "Not Found", f"No override recorded for: {name}")
+    return _json_response(
+        {"success": True, "name": name, "restored": _override_summary(restored)}
+    )
+
+
 def setup_routes(app: "AdminApp") -> None:
     """Register all middleware and routes on the app.
 
@@ -1150,6 +1366,12 @@ def setup_routes(app: "AdminApp") -> None:
 
     # Routes
     app.get("/")(_handle_root)
+    app.get("/assets/<path:name>")(_serve_asset)
+    app.post("/api/sources/preview")(_preview_source)
+    app.post("/api/sources/register")(_register_source)
+    app.get("/api/overrides")(_list_overrides)
+    app.post("/api/tools/<path:name>/override")(_override_tool)
+    app.delete("/api/tools/<path:name>/override")(_restore_tool_override)
     app.get("/api/tools")(_get_tools)
     app.get("/api/tools/<path:name>")(_get_tool)
     app.post("/api/tools/<path:name>/enable")(_enable_tool)
