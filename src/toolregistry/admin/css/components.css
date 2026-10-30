@@ -784,12 +784,52 @@ button.stat-card:focus-visible {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 12px;
 }
 
 .modal-title {
     font-size: var(--text-body);
     font-weight: 600;
     letter-spacing: -0.01em;
+    /* Tool names can be long and contain no breakable space.  The name gives
+       way first; the header actions must stay reachable. */
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Override controls in the tool detail header, next to the name they change. */
+.detail-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    flex: 0 0 auto;
+}
+
+.detail-actions:empty {
+    display: none;
+}
+
+.detail-actions .btn {
+    white-space: nowrap;
+}
+
+/* A narrow header stacks: the name keeps its line, the actions take the next
+   one instead of squeezing the name to an unreadable stub. */
+@media (max-width: 560px) {
+    .detail-modal .modal-header {
+        align-items: flex-start;
+    }
+
+    .detail-actions {
+        order: 3;
+        flex-basis: 100%;
+        margin-left: 0;
+    }
 }
 
 .modal-close {

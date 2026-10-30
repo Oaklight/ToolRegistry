@@ -562,7 +562,10 @@ function showToolsForNamespace(namespace, status) {
 async function showToolDetailModal(toolName) {
     try {
         const tool = await api.getTool(toolName);
-        document.getElementById('detail-title').textContent = tool.name;
+        const titleEl = document.getElementById('detail-title');
+        titleEl.textContent = tool.name;
+        // The header ellipsizes a long name; the tooltip keeps it readable.
+        titleEl.title = tool.name;
 
         // The override record is not part of the tool payload; ask for it so
         // the modal can offer Restore only when there is something to restore.
@@ -636,15 +639,16 @@ async function showToolDetailModal(toolName) {
             </div>
         </div>`;
 
-        html += `<div class="detail-section">
-            <div class="detail-section-title">${t('override.title')}
-                ${overridden ? `<span class="badge-tag-slow" style="margin-left: 6px;">${t('override.badge')}</span>` : ''}
-            </div>
-            <div class="register-actions">
+        // The override controls sit in the modal header, next to the name they
+        // change.  They used to be a section at the bottom, which buried the
+        // one action an operator opens the modal for.
+        const actions = document.getElementById('detail-actions');
+        if (actions) {
+            actions.innerHTML = `
+                ${overridden ? `<span class="badge-tag-slow">${t('override.badge')}</span>` : ''}
                 <button class="btn btn-secondary btn-sm" onclick="openOverrideModal('${escapeHtml(tool.name)}')">${t('override.edit')}</button>
-                ${overridden ? `<button class="btn btn-danger btn-sm" onclick="restoreToolOverride('${escapeHtml(tool.name)}')">${t('override.restore')}</button>` : ''}
-            </div>
-        </div>`;
+                ${overridden ? `<button class="btn btn-danger btn-sm" onclick="restoreToolOverride('${escapeHtml(tool.name)}')">${t('override.restore')}</button>` : ''}`;
+        }
 
         document.getElementById('detail-body').innerHTML = html;
         document.getElementById('detail-overlay').classList.add('active');
