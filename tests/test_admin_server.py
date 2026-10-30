@@ -776,7 +776,9 @@ class TestAdminUIAssets:
         """The panel must never register what it has only previewed."""
         source = _ui_source()
 
-        assert 'data-tab="register"' in source
+        # The form lives inside the Sources section, opened by an action.
+        assert 'id="add-source-card"' in source
+        assert "function openAddSource" in source
         assert "function refreshRegisterPanel" in source
         assert "/api/sources/preview" in source
         assert "/api/sources/register" in source
