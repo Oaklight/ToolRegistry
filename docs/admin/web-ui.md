@@ -31,6 +31,21 @@ The overview cards at the top of the Tools section are links: the total opens
 the unfiltered list, enabled and disabled open it filtered to that status, and
 the namespace count opens the Namespaces panel.
 
+## Tool discovery and deferred tools
+
+`discover_tools` and `call_deferred` are not built in by default: they are
+registered by `registry.enable_tool_discovery()` (the hub server enables
+discovery for its MCP endpoint, a plain `ToolRegistry` does not). Until that
+runs they do not exist, so they never appear in the Tools list.
+
+That matters because `defer` and discovery are one mechanism, not two. A tool
+marked deferred is left out of the schema the model sees, and only
+`discover_tools` can bring it back. With discovery off, deferring a tool
+therefore makes it *unreachable* rather than deferred. The Tools section says
+so: when any tool is deferred and discovery is off, a notice above the table
+states how many and why, and the Schema section's **Discover Tools** sub-tab
+stays visible with the same explanation instead of disappearing.
+
 ## Schema
 
 The Schema section renders the schemas published to models. The format picker
