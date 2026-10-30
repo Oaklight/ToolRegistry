@@ -24,6 +24,13 @@
 「工具」分区顶部的概览卡片即为入口：总数打开未过滤的列表，已启用/已禁用打开
 按该状态过滤的列表，命名空间数量则打开命名空间面板。
 
+## Schema
+
+Schema 分区展示发布给模型的 schema。格式选择器使用 llm-rosetta 的规范、中立名称：
+`chat_completions`、`open_responses`、`messages`、`google_generate`、
+`google_interactions` 与 `rosetta_ir`；`GET /api/schema?format=…` 同时接受这些名称与
+旧写法（`openai-chat`、`anthropic` 等），旧写法继续有效。
+
 ## 分区之间互相跳转
 
 描述工具来源的四个分区已经连通，任何一个数字都是进入对应列表的入口：
