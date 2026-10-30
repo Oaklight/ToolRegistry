@@ -24,6 +24,14 @@ API_FORMATS = Literal[
     "gemini",
     "google-interactions",
     "rosetta-ir",
+    # Canonical, vendor-neutral names from llm-rosetta.  They resolve to the
+    # spellings above, which stay the values used internally.
+    "chat_completions",
+    "open_responses",
+    "messages",
+    "google_generate",
+    "google_interactions",
+    "rosetta_ir",
 ]
 
 _DEPRECATED_API_FORMATS: dict[str, API_FORMATS] = {
@@ -35,6 +43,15 @@ _DEPRECATED_API_FORMATS: dict[str, API_FORMATS] = {
 
 _API_FORMAT_ALIASES: dict[str, API_FORMATS] = {
     "open-responses": "openai-responses",
+    # llm-rosetta's canonical names, silent aliases rather than deprecated
+    # spellings: both vocabularies are current, and the canonical one is what
+    # the ecosystem is moving to.
+    "chat_completions": "openai-chat",
+    "open_responses": "openai-responses",
+    "messages": "anthropic",
+    "google_generate": "gemini",
+    "google_interactions": "google-interactions",
+    "rosetta_ir": "rosetta-ir",
 }
 
 

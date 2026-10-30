@@ -446,6 +446,37 @@ class TestAdminServerAPI:
         assert status == 404
         assert "Not Found" in data["error"]
 
+    @pytest.mark.parametrize(
+        "format_name",
+        [
+            "chat_completions",
+            "open_responses",
+            "messages",
+            "google_generate",
+            "google_interactions",
+            "rosetta_ir",
+        ],
+    )
+    def test_schema_endpoint_accepts_canonical_formats(
+        self, server_with_tools, format_name: str
+    ) -> None:
+        """The panel's format picker speaks llm-rosetta's canonical names."""
+        server, info = server_with_tools
+
+        status, data = self._request(f"{info.url}/api/schema?format={format_name}")
+
+        assert status == 200
+        assert data["format"] == format_name
+        assert data["count"] == 2
+
+    def test_schema_endpoint_rejects_an_unknown_format(self, server_with_tools) -> None:
+        server, info = server_with_tools
+
+        status, data = self._request(f"{info.url}/api/schema?format=nonsense")
+
+        assert status == 400
+        assert "Invalid format" in data["message"]
+
 
 class TestAdminServerAuth:
     """Tests for authentication."""
