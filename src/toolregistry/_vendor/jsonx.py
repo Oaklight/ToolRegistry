@@ -1,5 +1,5 @@
 # /// zerodep
-# version = "1.0.2"
+# version = "2.0.0"
 # deps = []
 # tier = "simple"
 # category = "serialization"
@@ -316,7 +316,7 @@ def dumps(
     skipkeys: bool = False,
     ensure_ascii: bool = True,
     check_circular: bool = True,
-    allow_nan: bool = True,
+    allow_nan: bool = False,
     cls: type[json.JSONEncoder] | None = None,
     indent: int | str | None = None,
     separators: tuple[str, str] | None = None,
@@ -333,7 +333,11 @@ def dumps(
         skipkeys: Skip keys that are not basic types.
         ensure_ascii: Escape non-ASCII characters.
         check_circular: Check for circular references.
-        allow_nan: Allow ``NaN``, ``Infinity``, ``-Infinity``.
+        allow_nan: Emit ``NaN``, ``Infinity`` and ``-Infinity`` as the bare
+            constants. These are not valid JSON: ``JSON.parse``, Go's
+            ``encoding/json`` and a strict parser reject the document. The
+            default refuses them with :class:`ValueError`; opt in only when
+            the consumer is known to accept Python's constants.
         cls: Custom JSON encoder class.
         indent: Indentation level for pretty-printing.
         separators: Item and key separators.
@@ -366,7 +370,7 @@ def dump(
     skipkeys: bool = False,
     ensure_ascii: bool = True,
     check_circular: bool = True,
-    allow_nan: bool = True,
+    allow_nan: bool = False,
     cls: type[json.JSONEncoder] | None = None,
     indent: int | str | None = None,
     separators: tuple[str, str] | None = None,
@@ -384,7 +388,11 @@ def dump(
         skipkeys: Skip keys that are not basic types.
         ensure_ascii: Escape non-ASCII characters.
         check_circular: Check for circular references.
-        allow_nan: Allow ``NaN``, ``Infinity``, ``-Infinity``.
+        allow_nan: Emit ``NaN``, ``Infinity`` and ``-Infinity`` as the bare
+            constants. These are not valid JSON: ``JSON.parse``, Go's
+            ``encoding/json`` and a strict parser reject the document. The
+            default refuses them with :class:`ValueError`; opt in only when
+            the consumer is known to accept Python's constants.
         cls: Custom JSON encoder class.
         indent: Indentation level for pretty-printing.
         separators: Item and key separators.
@@ -521,6 +529,9 @@ def dumps_lines(
     No trailing newline is emitted (consistent with ``"\\n".join(...)``
     semantics).
 
+    Non-finite floats are refused, matching :func:`dumps`; pass
+    ``allow_nan=True`` to emit Python's constants.
+
     Args:
         objects: Iterable of Python objects to serialize.
         **kwargs: Keyword arguments forwarded to :func:`json.dumps`.
@@ -528,6 +539,7 @@ def dumps_lines(
     Returns:
         JSONL string (one JSON value per line).
     """
+    kwargs.setdefault("allow_nan", False)
     return "\n".join(json.dumps(obj, **kwargs) for obj in objects)
 
 
