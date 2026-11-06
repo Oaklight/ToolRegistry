@@ -46,6 +46,12 @@ _SECURITY_HEADERS = {
 }
 """Frame protections applied to every admin response."""
 
+#: Methods that change server state, and therefore must be JSON and same-origin.
+_UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+#: The only media type a state-changing request may use.
+_JSON_MEDIA_TYPE = "application/json"
+
 
 # ============== Request Helpers ==============
 
@@ -112,7 +118,7 @@ def _same_origin(request: Request) -> str | None:
     if not origin or not host:
         return None
     parts = urllib.parse.urlsplit(origin)
-    if parts.scheme in ("http", "https") and parts.netloc == host:
+    if parts.scheme in ("http", "https") and parts.netloc.lower() == host.lower():
         return origin
     return None
 
@@ -186,6 +192,53 @@ def _cors_preflight(request: Request) -> Response | None:
     """Handle CORS preflight requests."""
     if request.method == "OPTIONS":
         return _add_cors(request, Response(status_code=204))
+    return None
+
+
+def _request_media_type(request: Request) -> str:
+    """Return the request's media type without parameters, lower-cased."""
+    return request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+
+
+def _reject_cross_site(request: Request) -> Response | None:
+    """Reject state-changing API requests a browser sent from another site.
+
+    A cross-origin ``POST`` is the entry point for CSRF: the panel trusts its
+    own origin, so a foreign page must not be able to drive an endpoint that
+    changes state.  ``Origin`` is checked first; ``Sec-Fetch-Site`` covers the
+    newer metadata header.  The same rule forces a JSON body, because a form
+    submission can only choose ``text/plain``, ``application/x-www-form-urlencoded``
+    or ``multipart/form-data`` without triggering a preflight.
+
+    Only ``/api/`` is guarded.  The UI shell and its assets are static
+    documents with no registry data, and reads stay available so the existing
+    same-origin CORS behaviour is unchanged.
+    """
+    if not request.path.startswith("/api/") or request.method not in _UNSAFE_METHODS:
+        return None
+
+    origin = request.headers.get("origin")
+    if origin is not None and _same_origin(request) is None:
+        return _add_cors(
+            request,
+            _error_response(403, "Forbidden", "Cross-origin request rejected"),
+        )
+
+    if request.headers.get("sec-fetch-site", "").strip().lower() == "cross-site":
+        return _add_cors(
+            request,
+            _error_response(403, "Forbidden", "Cross-site request rejected"),
+        )
+
+    if _request_media_type(request) != _JSON_MEDIA_TYPE:
+        return _add_cors(
+            request,
+            _error_response(
+                415,
+                "Unsupported Media Type",
+                "State-changing requests must use Content-Type: application/json",
+            ),
+        )
     return None
 
 
@@ -1194,6 +1247,39 @@ def _source_body(request: Request) -> dict[str, Any] | Response:
     return data
 
 
+def _refuse_local_command(request: Request, data: dict[str, Any]) -> Response | None:
+    """Refuse a request that would start a local process without authentication.
+
+    Preview and registration run the command of a stdio MCP source.  The panel
+    serves its UI to anyone who can reach the port and runs without a token by
+    default on localhost, so an anonymous request must not be able to spawn a
+    process.  Configuring an authentication token is the operator's explicit
+    opt-in for that authority.
+    """
+    from .registration import SourceError, transport_spawns_process
+
+    if data.get("kind") != "mcp" or _app(request).auth is not None:
+        return None
+    try:
+        spawns = transport_spawns_process(data)
+    except SourceError:
+        # A missing or malformed transport is reported by the source handler
+        # with its own message; there is no command to run yet.
+        return None
+    if not spawns:
+        return None
+    return _add_cors(
+        request,
+        _error_response(
+            403,
+            "Forbidden",
+            "Refusing to execute a local command from an unauthenticated admin "
+            "panel; start the server with auth_token=... to allow stdio MCP "
+            "sources.",
+        ),
+    )
+
+
 def _preview_source(request: Request) -> Response:
     """List the tools a source offers without registering any of them."""
     from .registration import SourceError, preview_source
@@ -1204,6 +1290,10 @@ def _preview_source(request: Request) -> Response:
     kind = data.get("kind")
     if not isinstance(kind, str):
         return _error_response(400, "Bad Request", "'kind' is required")
+
+    refusal = _refuse_local_command(request, data)
+    if refusal is not None:
+        return refusal
 
     try:
         result = preview_source(_app(request).registry, kind, data)
@@ -1222,6 +1312,10 @@ def _register_source(request: Request) -> Response:
     kind = data.get("kind")
     if not isinstance(kind, str):
         return _error_response(400, "Bad Request", "'kind' is required")
+
+    refusal = _refuse_local_command(request, data)
+    if refusal is not None:
+        return refusal
 
     try:
         result = register_tools(_app(request).registry, kind, data)
@@ -1483,6 +1577,7 @@ def setup_routes(app: "AdminApp") -> None:
             and ``serve_ui`` attributes.
     """
     # Middleware
+    app.before_request(_reject_cross_site)
     app.before_request(_cors_preflight)
     app.before_request(_auth_check)
     app.after_request(_set_session_cookie)

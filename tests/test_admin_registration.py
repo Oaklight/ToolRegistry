@@ -72,13 +72,21 @@ class _Server:
         self.server.stop()
 
     def request(
-        self, path: str, method: str = "GET", data: dict | None = None
+        self,
+        path: str,
+        method: str = "GET",
+        data: dict | None = None,
+        content_type: str | None = "application/json",
+        extra_headers: dict[str, str] | None = None,
     ) -> tuple[int, dict]:
         body = json.dumps(data).encode() if data is not None else None
+        headers = dict(extra_headers or {})
+        if content_type is not None:
+            headers["Content-Type"] = content_type
         req = urllib.request.Request(
             f"{self.info.url}{path}",
             data=body,
-            headers={"Content-Type": "application/json"},
+            headers=headers,
             method=method,
         )
         try:
@@ -172,6 +180,91 @@ class TestSourcePreview:
 
         assert status == 400
         assert "MCP 'url'" in data["message"]
+
+
+class TestStateChangingGuards:
+    """Cross-site and content-type guards on state-changing API calls."""
+
+    @staticmethod
+    def _spawn_payload(marker) -> dict:
+        """An MCP source that would create *marker* if it were ever started."""
+        return {"kind": "mcp", "command": "sh", "args": ["-c", f"touch {marker}"]}
+
+    def test_cross_origin_text_plain_preview_is_refused_without_spawning(
+        self, server, tmp_path
+    ) -> None:
+        marker = tmp_path / "spawned"
+        status, data = server.request(
+            "/api/sources/preview",
+            "POST",
+            self._spawn_payload(marker),
+            content_type="text/plain",
+            extra_headers={"Origin": "https://evil.example"},
+        )
+
+        assert status == 403
+        assert data["error"] == "Forbidden"
+        assert not marker.exists()
+
+    def test_cross_site_fetch_metadata_is_refused(self, server, tmp_path) -> None:
+        marker = tmp_path / "spawned"
+        status, _ = server.request(
+            "/api/sources/preview",
+            "POST",
+            self._spawn_payload(marker),
+            extra_headers={"Sec-Fetch-Site": "cross-site"},
+        )
+
+        assert status == 403
+        assert not marker.exists()
+
+    def test_state_changing_request_must_be_json(self, server, tmp_path) -> None:
+        marker = tmp_path / "spawned"
+        status, data = server.request(
+            "/api/sources/preview",
+            "POST",
+            self._spawn_payload(marker),
+            content_type="text/plain",
+        )
+
+        assert status == 415
+        assert "application/json" in data["message"]
+        assert not marker.exists()
+
+    def test_reads_are_not_guarded(self, server) -> None:
+        status, _ = server.request(
+            "/api/tools", extra_headers={"Origin": "https://evil.example"}
+        )
+
+        assert status == 200
+
+    def test_same_origin_json_request_passes_the_guard(self, server) -> None:
+        status, _ = server.request(
+            "/api/sources/preview",
+            "POST",
+            {"kind": "openapi", "spec": _SPEC},
+            extra_headers={"Origin": server.info.url},
+        )
+
+        assert status == 200
+
+    def test_stdio_source_is_refused_without_auth_token(self, server, tmp_path) -> None:
+        marker = tmp_path / "spawned"
+        status, data = server.request(
+            "/api/sources/preview", "POST", self._spawn_payload(marker)
+        )
+
+        assert status == 403
+        assert "auth_token" in data["message"]
+        assert not marker.exists()
+
+    def test_transport_spawn_detection(self) -> None:
+        from toolregistry.admin.registration import transport_spawns_process
+
+        assert transport_spawns_process({"url": "https://mcp.example/sse"}) is False
+        assert transport_spawns_process({"command": "sh"}) is True
+        assert transport_spawns_process({"transport": {"command": "sh"}}) is True
+        assert transport_spawns_process({"url": "./server.py"}) is True
 
 
 class TestSourceRegistration:
@@ -423,3 +516,25 @@ class TestToolOverrides:
         )
 
         assert status == 404
+
+    def test_reregistering_the_source_keeps_the_override(self, server) -> None:
+        source = {"kind": "openapi", "spec": _SPEC, "selected": ["list_pets"]}
+        status, _ = server.request("/api/sources/register", "POST", source)
+        assert status == 200
+        original = server.registry.get_tool("list_pets").description
+
+        server.request(
+            "/api/tools/list_pets/override", "POST", {"description": "Mine."}
+        )
+
+        status, data = server.request("/api/sources/register", "POST", source)
+
+        assert status == 200
+        assert data["preserved_overrides"] == ["list_pets"]
+        assert server.registry.get_tool("list_pets").description == "Mine."
+        assert "list_pets" in server.registry.list_overrides()
+
+        status, _ = server.request("/api/tools/list_pets/override", "DELETE")
+        assert status == 200
+        assert server.registry.get_tool("list_pets").description == original
+        assert server.registry.list_overrides() == {}
