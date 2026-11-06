@@ -233,6 +233,31 @@ def _mcp_transport(payload: dict[str, Any]) -> str | dict[str, Any]:
     raise SourceError("Provide an MCP 'url', or a 'command' with optional 'args'")
 
 
+def transport_spawns_process(payload: dict[str, Any]) -> bool:
+    """Return whether an MCP source description starts a local process.
+
+    A transport is local unless it is an ``http://`` or ``https://`` URL: the
+    MCP client treats every other value — a command dict, a bare script path,
+    or a string naming an executable — as a stdio server and runs it.  The HTTP
+    layer uses this to require an authenticated operator before executing
+    anything the request supplied.
+
+    Args:
+        payload: Source description as received from the panel.
+
+    Returns:
+        ``True`` when executing the source would spawn a process.
+
+    Raises:
+        SourceError: When the payload names no usable transport.  Callers that
+            only need the boolean should let the normal handler report it.
+    """
+    transport = _mcp_transport(payload)
+    if isinstance(transport, str):
+        return not transport.startswith(("http://", "https://"))
+    return True
+
+
 def _mcp_entries(
     payload: dict[str, Any], registry: ToolRegistry
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
@@ -487,7 +512,10 @@ def register_tools(registry: ToolRegistry, kind: str, payload: Any) -> dict[str,
             and an optional ``namespace``.
 
     Returns:
-        ``{"kind", "registered", "count", "namespace"}``.
+        ``{"kind", "registered", "count", "namespace", "preserved_overrides"}``.
+        ``preserved_overrides`` names the tools whose local override survived
+        the re-registration, so the panel can say so instead of silently
+        changing what the operator sees.
 
     Raises:
         SourceError: When the source cannot be reached, the description is
@@ -502,6 +530,16 @@ def register_tools(registry: ToolRegistry, kind: str, payload: Any) -> dict[str,
     selected = _validated_selection(data)
     namespace = _namespace(data)
     before = set(registry.list_tools(include_disabled=True))
+    # A source is registered as a whole, so its tools go through ``register()``,
+    # which treats each incoming tool as the new definition and drops the
+    # override record.  Snapshot the replacement in force for every overridden
+    # name first and put it back afterwards: an override the operator set must
+    # outlive a re-registration, exactly as it outlives a remote refresh.
+    overrides_before = {
+        name: replacement
+        for name in registry.list_overrides()
+        if (replacement := registry.get_tool(name)) is not None
+    }
 
     if kind == "openapi":
         _register_openapi_source(registry, data, selected, namespace)
@@ -510,6 +548,11 @@ def register_tools(registry: ToolRegistry, kind: str, payload: Any) -> dict[str,
     else:
         _register_python_source(registry, data, selected, namespace)
 
+    preserved = sorted(
+        name
+        for name, override_tool in overrides_before.items()
+        if registry._reinstate_override(name, override_tool)
+    )
     added = sorted(set(registry.list_tools(include_disabled=True)) - before)
     return {
         "kind": kind,
@@ -517,4 +560,5 @@ def register_tools(registry: ToolRegistry, kind: str, payload: Any) -> dict[str,
         "count": len(added),
         "namespace": namespace,
         "invalid_names": invalid_tool_names(added),
+        "preserved_overrides": preserved,
     }
