@@ -49,6 +49,9 @@ function registerFieldsTemplate(kind) {
             <div class="form-hint" data-i18n="register.orCommand">or start a local server</div>
             <label class="form-label" data-i18n="register.command">Command</label>
             <input class="input" id="rf-command" placeholder="npx -y @modelcontextprotocol/server-filesystem /tmp">
+            <div class="register-warning" id="register-stdio-hint" style="display:none;">
+                <span data-i18n="register.stdioNeedsAuth"></span>
+            </div>
         `;
     }
     if (kind === 'python') {
@@ -101,6 +104,16 @@ function onAuthTypeChange() {
     if (basic) basic.style.display = type === 'basic' ? '' : 'none';
 }
 
+// The server refuses to start a local command from a panel that has no
+// authentication token; say so before the operator fills the form.  The API
+// client reports this from an actual response, so stay quiet while unknown
+// (``null``) rather than warn about a server that may be protected.
+function updateStdioHint() {
+    const hint = document.getElementById('register-stdio-hint');
+    if (!hint) return;
+    hint.style.display = api.authRequired === false ? '' : 'none';
+}
+
 function renderRegisterForm() {
     const body = document.getElementById('register-body');
     if (!body) return;
@@ -131,6 +144,7 @@ function renderRegisterForm() {
     `;
     onAuthTypeChange();
     applyI18n(document.getElementById('register-body'));
+    updateStdioHint();
 }
 
 function parseHeaderLines(text) {
@@ -206,6 +220,7 @@ async function previewRegisterSource() {
         registerError(e.message);
     } finally {
         if (button) button.disabled = false;
+        updateStdioHint();
     }
 }
 
@@ -336,6 +351,7 @@ async function confirmRegisterSelection() {
         showToast(e.message, 'error');
     } finally {
         if (button) button.disabled = false;
+        updateStdioHint();
     }
 }
 
@@ -373,15 +389,22 @@ function openRegisterFromSource(button) {
 function renderRegisterResult(result) {
     const box = document.getElementById('register-result');
     if (!box) return;
-    if (!result || result.count === 0) {
+    const preserved = (result && result.preserved_overrides) || [];
+    // A re-registration of an already-registered source adds no tools but can
+    // still preserve overrides, so the result is worth showing when either
+    // count is non-zero.
+    if (!result || (result.count === 0 && preserved.length === 0)) {
         box.innerHTML = '';
         return;
     }
     const namespace = result.namespace || '';
-    box.innerHTML = `
-        <div class="register-result">
-            <span>${t('register.done', { count: result.count })}</span>
-            <button class="btn btn-secondary btn-sm" data-namespace="${escapeHtml(namespace)}"
-                    onclick="gotoTools({ namespace: this.dataset.namespace })">${t('register.viewRegistered')}</button>
-        </div>`;
+    const added = result.count > 0
+        ? `<span>${t('register.done', { count: result.count })}</span>
+           <button class="btn btn-secondary btn-sm" data-namespace="${escapeHtml(namespace)}"
+                   onclick="gotoTools({ namespace: this.dataset.namespace })">${t('register.viewRegistered')}</button>`
+        : '';
+    const kept = preserved.length > 0
+        ? `<span class="text-muted">${t('register.overridesKept', { count: preserved.length })}</span>`
+        : '';
+    box.innerHTML = `<div class="register-result">${added}${kept}</div>`;
 }

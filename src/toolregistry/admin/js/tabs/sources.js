@@ -30,6 +30,9 @@ async function refreshSources() {
         document.getElementById('sources-body').innerHTML =
             `<div class="empty-state"><div class="text-error">${e.message}</div></div>`;
     }
+    // The response told the API client whether this panel requires a token;
+    // the register form uses that to explain why a local command is refused.
+    if (typeof updateStdioHint === 'function') updateStdioHint();
 }
 
 function renderSources(sources) {
