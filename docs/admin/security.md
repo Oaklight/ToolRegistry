@@ -33,6 +33,24 @@ Non-browser clients are unaffected: CORS is a browser enforcement mechanism.
 To embed the panel in another origin, serve both through one origin with a
 reverse proxy rather than loosening the panel's CORS policy.
 
+State-changing requests are refused in middleware, not merely hidden by the
+response header: every `/api/` `POST`, `PUT`, `PATCH` and `DELETE` whose
+`Origin` is not this server, or whose `Sec-Fetch-Site` is `cross-site`, gets
+403 before routing. These methods must also send
+`Content-Type: application/json`; any other media type gets 415. This closes
+the form-submission path, which a page can use with `text/plain` and no
+preflight.
+
+## Local Commands
+
+An MCP source can be a stdio command, a script path, or any transport that is
+not an `http(s)://` URL. Preview and registration execute such a transport, so
+`POST /api/sources/preview` and `POST /api/sources/register` answer 403 while
+the panel has no authentication token. Configure `auth_token=...`, or run with
+`remote=True` (which generates one), before using a local command source. HTTP
+MCP sources, OpenAPI sources and Python modules are not affected by this
+guard.
+
 ## Frame Protection
 
 Every admin response carries `X-Frame-Options: DENY` and

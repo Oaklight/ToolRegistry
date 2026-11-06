@@ -41,8 +41,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **`declared_execution_hints` separates policy tags from wire claims** (#353): `ToolMetadata.declared_execution_hints` (and the `Tool` proxy) returns only hints that were explicitly declared, plus the `destructive_hint=False` complement implied by an explicit `read_only_hint=True`. `execution_hints` is unchanged for compatibility, but it derives values from `ToolTag.READ_ONLY` / `ToolTag.DESTRUCTIVE`, which also drive the built-in permission rules; publishing that resolved mapping let a tag chosen for local policy become a client-facing auto-approve claim. Transports should publish the declared mapping and treat an empty result as "no claim".
 - **`Tool.with_parameters()`** (#356): replaces a tool's parameter schema and recomputes `metadata.schema_hash` in one step. The old validation model is dropped by default, because it describes the old schema, and a `UserWarning` says so; pass `parameters_model=` when the schema is equivalent. Without a model, `validate_parameters()` is a pass-through — it does not check types, `required` fields, or unknown keys, so payloads that violate the published schema are accepted.
 
+### Security
+
+- **A cross-site request cannot change admin state** (#366): every `/api/` `POST`, `PUT`, `PATCH` and `DELETE` now requires a same-origin `Origin`, rejects `Sec-Fetch-Site: cross-site` with 403, and must carry `Content-Type: application/json` (otherwise 415). A `text/plain` POST is exactly what a cross-site form can send without a preflight, and `POST /api/sources/preview` used to run the stdio command it carried. The guard lives in the middleware, so every state-changing endpoint inherits it.
+- **A panel without a token does not run local commands** (#366): `POST /api/sources/preview` and `POST /api/sources/register` answer 403 for a stdio MCP source — a command, a script path, or any transport that is not an `http(s)://` URL — while the server has no authentication token. Start the server with `auth_token=...` (or `remote=True`) to allow local commands; the Register form says so before the request.
+
 ### Fixed
 
+- **Re-registering a source keeps its overrides** (#366): the bulk registration path called `register()` for every tool, and a plain registration discards the override record, so an operator's description edit vanished and `restore_override` stopped working. Re-registration now reinstates the override and records the freshly served definition, so restore reverts to what the source serves now; the response names the kept tools in `preserved_overrides` and the panel reports the count.
 - **A tool row keeps its tags together**: the name and the tag badges were one inline run, so a
   narrow row could wrap a single badge under the name and leave the rest beside it. They are
   two flex runs now: the badge group either sits beside the name or moves to the next line as
