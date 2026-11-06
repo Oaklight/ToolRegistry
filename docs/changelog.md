@@ -38,8 +38,24 @@ hide:
 - **`declared_execution_hints` 将策略标签与线上声明分开**（#353）：`ToolMetadata.declared_execution_hints`（以及 `Tool` 上的同名代理）只返回显式声明的提示，并补上显式 `read_only_hint=True` 所蕴含的 `destructive_hint=False`。`execution_hints` 为兼容性保持不变，但它会从 `ToolTag.READ_ONLY` / `ToolTag.DESTRUCTIVE` 推导值，而这两个标签同时驱动内置权限规则；发布推导结果会让一个为本地策略选择的标签变成面向客户端的自动批准声明。传输层应发布 declared 映射，并把空结果视为“不作声明”。
 - **`Tool.with_parameters()`**（#356）：一步替换工具的参数字段并重新计算 `metadata.schema_hash`。旧参数校验模型默认被丢弃，因为它描述的是旧 schema，并会发出 `UserWarning`；当新 schema 等价时可传入 `parameters_model=` 保留。没有模型时，`validate_parameters()` 变为直通：它不检查类型、`required` 字段与未知键，因此违反已发布 schema 的参数也会被接受。
 
+### 安全
+
+- **跨站请求无法改变管理状态**（#366）：所有 `/api/` 下的 `POST`、`PUT`、`PATCH` 与 `DELETE`
+  现在要求 `Origin` 同源，并对 `Sec-Fetch-Site: cross-site` 返回 403；这些方法还必须携带
+  `Content-Type: application/json`，否则返回 415。`text/plain` POST 正是跨站表单无需预检即可
+  发出的请求，而 `POST /api/sources/preview` 过去会执行其中的 stdio 命令。守卫位于中间件，
+  因此所有状态改变接口都会继承。
+- **未配置令牌的面板不会运行本地命令**（#366）：当服务器没有认证令牌时，
+  `POST /api/sources/preview` 与 `POST /api/sources/register` 对 stdio MCP 来源——命令、
+  脚本路径或任何非 `http(s)://` 传输——返回 403。请用 `auth_token=...`（或 `remote=True`）
+  启动服务器以允许本地命令；注册表单会在请求前说明这一点。
+
 ### 修复
 
+- **重新注册来源会保留已有覆写**（#366）：批量注册路径对每个工具调用 `register()`，而普通注册
+  会丢弃覆写记录，导致操作者编辑的描述消失、`restore_override` 失效。现在重注册会恢复覆写并
+  记录来源当前提供的定义，因此恢复操作回到来源当前的定义；响应通过 `preserved_overrides`
+  列出保留的工具，面板会报告数量。
 - **工具行的标签不再被拆开**：名称与标签原本是同一段行内内容，窄行可能把单个标签换到名称下方，
   其余标签仍留在同行。现在分为两个弹性区块：标签组要么与名称同行，要么整体换到下一行；
   宽度小于 900 px 时固定为名称在上、标签在下。超长且无空格的名称会在单元格内换行，

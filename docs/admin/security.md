@@ -29,6 +29,20 @@ Web UI 外壳（`GET /`）是唯一的例外：浏览器无法在顶层导航中
 限制机制。若要把面板嵌入其他来源，应通过反向代理让两者处于同一来源，而不是
 放宽面板的 CORS 策略。
 
+状态改变请求会在中间件中被拒绝，而不只是被响应头挡住：所有 `/api/` 下的
+`POST`、`PUT`、`PATCH` 与 `DELETE`，只要 `Origin` 不是本服务器，或
+`Sec-Fetch-Site` 为 `cross-site`，都会在路由前返回 403。这些方法还必须发送
+`Content-Type: application/json`，其他媒体类型返回 415。这堵住了表单提交路径：
+页面可以用 `text/plain` 发送请求而无需预检。
+
+## 本地命令
+
+MCP 来源可以是 stdio 命令、脚本路径，或任何不是 `http(s)://` 的传输。预览与注册
+会执行这类传输，因此当面板没有认证令牌时，`POST /api/sources/preview` 与
+`POST /api/sources/register` 返回 403。在使用本地命令来源前，请配置
+`auth_token=...`，或以 `remote=True` 启动（该模式会自动生成令牌）。HTTP MCP
+来源、OpenAPI 来源与 Python 模块不受此限制。
+
 ## 框架保护
 
 所有管理响应都带有 `X-Frame-Options: DENY` 与
