@@ -1,5 +1,5 @@
 # /// zerodep
-# version = "0.6.2"
+# version = "0.6.4"
 # deps = []
 # tier = "subsystem"
 # category = "network"
@@ -2023,11 +2023,73 @@ def _should_attempt_digest(
     )
 
 
+# Contexts are safe to share between connections; a fresh SSLObject is
+# created per connection.  The key includes the CA path and the file's
+# identity, so a bundle rotated in place is picked up on the next call.
+_SSLContextKey = tuple[bool, str, str, str, str, int, int, int, int]
+_SSL_CONTEXT_CACHE: dict[_SSLContextKey, ssl.SSLContext] = {}
+_SSL_CONTEXT_LOCK = threading.Lock()
+
+
+def _path_state(path: str) -> tuple[int, int]:
+    """Return ``(mtime_ns, size)`` for a CA file or directory.
+
+    ``SSL_CERT_DIR`` is a path list on OpenSSL, so every entry is
+    combined.  A missing path contributes zeros.
+    """
+    if not path:
+        return (0, 0)
+    mtimes: list[int] = []
+    total_size = 0
+    for entry in path.split(os.pathsep):
+        try:
+            state = os.stat(entry)
+        except OSError:
+            continue
+        mtimes.append(state.st_mtime_ns)
+        total_size += state.st_size
+    return (max(mtimes) if mtimes else 0, total_size)
+
+
+def _ssl_context_key(verify: bool) -> _SSLContextKey:
+    """Return the cache key for an SSL context.
+
+    The CA path is resolved the same way ``ssl.create_default_context()``
+    resolves it.  The mtime and size of the resolved file or directory are
+    part of the key, so a bundle rotated in place invalidates the cache.
+    """
+    env_file = os.environ.get("SSL_CERT_FILE", "")
+    env_dir = os.environ.get("SSL_CERT_DIR", "")
+    defaults = ssl.get_default_verify_paths()
+    cert_file = defaults.cafile or env_file
+    cert_dir = defaults.capath or env_dir
+    file_mtime, file_size = _path_state(cert_file)
+    dir_mtime, dir_size = _path_state(cert_dir)
+    return (
+        verify,
+        env_file,
+        env_dir,
+        cert_file,
+        cert_dir,
+        file_mtime,
+        file_size,
+        dir_mtime,
+        dir_size,
+    )
+
+
 def _make_ssl_context(verify: bool) -> ssl.SSLContext:
-    """Create an SSL context based on verification setting."""
-    if verify:
-        return ssl.create_default_context()
-    return ssl._create_unverified_context()
+    """Return a cached SSL context for the verification setting."""
+    key = _ssl_context_key(verify)
+    with _SSL_CONTEXT_LOCK:
+        context = _SSL_CONTEXT_CACHE.get(key)
+        if context is None:
+            if verify:
+                context = ssl.create_default_context()
+            else:
+                context = ssl._create_unverified_context()
+            _SSL_CONTEXT_CACHE[key] = context
+        return context
 
 
 # -- Sync transport helpers --
