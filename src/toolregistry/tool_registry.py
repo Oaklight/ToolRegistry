@@ -2,6 +2,7 @@ import json
 import logging
 import random
 import string
+import threading
 import time
 import traceback as tb_module
 import warnings
@@ -52,6 +53,21 @@ from ._mixins import (
 )
 
 logger = logging.getLogger(__name__)
+
+#: Change events that can move a tool in or out of the deferred set, and so
+#: may change whether tool discovery has anything to retrieve.
+_DISCOVERY_SYNC_EVENTS = frozenset(
+    {
+        ChangeEventType.REGISTER,
+        ChangeEventType.UNREGISTER,
+        ChangeEventType.REPLACE,
+        ChangeEventType.OVERRIDE,
+        ChangeEventType.ENABLE,
+        ChangeEventType.DISABLE,
+        ChangeEventType.METADATA_UPDATE,
+        ChangeEventType.REFRESH_ALL,
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -198,7 +214,13 @@ class ToolRegistry(
         self._think_augment = think_augment
         self._name_sep: Literal["-", "."] = name_sep
         self._tool_discovery: ToolDiscoveryTool | None = None
+        self._tool_discovery_mode: Literal["auto", "on", "off"] = "auto"
+        self._tool_discovery_sync_lock = threading.Lock()
         self._ptc = PtcController(self)
+
+        # In auto mode discovery follows the deferred set, so it has to hear
+        # about every change that can move a tool in or out of it.
+        self.on_change(self._sync_tool_discovery)
 
         if tool_discovery:
             self.enable_tool_discovery()
@@ -396,6 +418,50 @@ class ToolRegistry(
         self._think_augment = False
 
     # ============== Tool discovery toggle ==============
+    @property
+    def tool_discovery_mode(self) -> Literal["auto", "on", "off"]:
+        """How tool discovery tracks the registry.
+
+        ``"auto"`` (the default) keeps discovery on exactly while at least one
+        enabled tool is deferred, so a model can always retrieve a tool the
+        schema hides.  ``"on"`` and ``"off"`` are explicit choices that later
+        registrations do not override; :meth:`enable_tool_discovery` and
+        :meth:`disable_tool_discovery` set them.
+        """
+        return self._tool_discovery_mode
+
+    def set_tool_discovery_mode(
+        self, mode: Literal["auto", "on", "off"]
+    ) -> ToolDiscoveryTool | None:
+        """Choose how discovery is controlled and apply the choice at once.
+
+        Args:
+            mode: ``"auto"`` follows the deferred set, ``"on"`` keeps
+                discovery enabled, ``"off"`` keeps it disabled.
+
+        Returns:
+            The :class:`ToolDiscoveryTool` when discovery is on afterwards,
+            otherwise ``None``.
+
+        Raises:
+            ValueError: If *mode* is not ``"auto"``, ``"on"`` or ``"off"``.
+
+        Example:
+            ```python
+            registry.set_tool_discovery_mode("auto")
+            ```
+        """
+        if mode not in ("auto", "on", "off"):
+            raise ValueError("tool discovery mode must be 'auto', 'on' or 'off'")
+        self._tool_discovery_mode = mode
+        if mode == "on":
+            return self._start_discovery()
+        if mode == "off":
+            self._stop_discovery()
+            return None
+        self._sync_tool_discovery()
+        return self._tool_discovery
+
     def enable_tool_discovery(
         self,
         field_weights: dict[str, float] | None = None,
@@ -418,6 +484,11 @@ class ToolRegistry(
         reported with a :class:`UserWarning`.  Call
         :meth:`disable_tool_discovery` first to reconfigure.
 
+        The call also pins :attr:`tool_discovery_mode` to ``"on"``: an
+        operator who asked for discovery keeps it even when the last
+        deferred tool goes away.  Use :meth:`set_tool_discovery_mode` with
+        ``"auto"`` to follow the deferred set again.
+
         Args:
             field_weights: Optional per-field BM25F boost weights.
             min_score_ratio: Drop fuzzy hits scoring below this fraction of
@@ -432,6 +503,16 @@ class ToolRegistry(
         Returns:
             The :class:`ToolDiscoveryTool` instance.
         """
+        self._tool_discovery_mode = "on"
+        return self._start_discovery(field_weights, min_score_ratio, max_df_ratio)
+
+    def _start_discovery(
+        self,
+        field_weights: dict[str, float] | None = None,
+        min_score_ratio: float | None = None,
+        max_df_ratio: float | None = None,
+    ) -> ToolDiscoveryTool:
+        """Register the two discovery tools and start following changes."""
         from .tool import Tool, ToolMetadata
 
         if self._tool_discovery is not None:
@@ -487,18 +568,79 @@ class ToolRegistry(
         self._tool_discovery = discoverer
         return discoverer
 
+    @property
+    def tool_discovery_enabled(self) -> bool:
+        """Whether tool discovery is enabled.
+
+        ``True`` once ``discover_tools`` and ``call_deferred`` are
+        registered, until :meth:`disable_tool_discovery` removes them again.
+        """
+        return self._tool_discovery is not None
+
     def disable_tool_discovery(self) -> None:
-        """Disable tool discovery and unregister the discovery tool."""
+        """Disable tool discovery and unregister the discovery tools.
+
+        The mode is pinned to ``"off"``, so registering a deferred tool does
+        not bring discovery back.  One ``UNREGISTER`` change event is emitted
+        per removed tool: transports listen for it to refresh what they
+        advertise (an MCP client receives ``tools/list_changed``).
+        """
+        self._tool_discovery_mode = "off"
+        self._stop_discovery()
+
+    def _stop_discovery(self) -> None:
+        """Remove the discovery tools and stop following registry changes."""
         if self._tool_discovery is None:
             return
 
-        # Remove infrastructure tools from registry
-        self._tools.pop(TOOL_DISCOVERY_NAME, None)
-        self._tools.pop(TOOL_CALL_DEFERRED_NAME, None)
-
-        # Stop following registry changes
+        # Close first: the discoverer listens to registry changes and must
+        # not react to the removals below.
         self._tool_discovery.close()
         self._tool_discovery = None
+
+        for name in (TOOL_DISCOVERY_NAME, TOOL_CALL_DEFERRED_NAME):
+            if self._tools.pop(name, None) is not None:
+                self._emit_change(
+                    ChangeEvent(
+                        event_type=ChangeEventType.UNREGISTER,
+                        tool_name=name,
+                        metadata={"source": "tool_discovery"},
+                    )
+                )
+
+    def _has_enabled_deferred_tools(self) -> bool:
+        """Whether any enabled tool is deferred."""
+        for name, tool in self._tools.items():
+            if name in (TOOL_DISCOVERY_NAME, TOOL_CALL_DEFERRED_NAME):
+                continue
+            metadata = tool.metadata
+            if metadata is not None and metadata.defer and self.is_enabled(name):
+                return True
+        return False
+
+    def _sync_tool_discovery(self, event: ChangeEvent | None = None) -> None:
+        """Reconcile discovery with the deferred set in ``auto`` mode.
+
+        Runs as a change callback.  Starting or stopping discovery registers
+        or removes tools, which emits further change events; those re-enter
+        here while the lock is held and return immediately.
+        """
+        if self._tool_discovery_mode != "auto":
+            return
+        if event is not None and event.event_type not in _DISCOVERY_SYNC_EVENTS:
+            return
+        if not self._tool_discovery_sync_lock.acquire(blocking=False):
+            return
+        try:
+            if self._has_enabled_deferred_tools():
+                if self._tool_discovery is None:
+                    self._start_discovery()
+            elif self._tool_discovery is not None:
+                self._stop_discovery()
+        except Exception:  # noqa: BLE001 - never break a registry mutation
+            logger.warning("tool discovery auto-sync failed", exc_info=True)
+        finally:
+            self._tool_discovery_sync_lock.release()
 
     # ============== PTC (Programmatic Tool Calling) ==============
     @property

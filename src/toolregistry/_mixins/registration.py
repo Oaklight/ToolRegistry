@@ -615,6 +615,32 @@ class RegistrationMixin:
         if name in self._overrides:
             self._overrides[name] = tool
 
+    def _reinstate_override(self, name: str, override_tool: Tool) -> bool:
+        """Keep a local override in force after a bulk re-registration.
+
+        :meth:`register` treats every incoming tool as the new definition and
+        drops the override record, which is right for a single explicit
+        registration.  A source that re-registers all of its tools on the
+        operator's behalf must not discard an override the operator set, so the
+        caller reinstates the replacement here and records the freshly
+        registered tool as the definition :meth:`restore_override` returns.
+
+        Args:
+            name: Registered name that carried an override before the
+                re-registration.
+            override_tool: The replacement ``Tool`` that was in force.
+
+        Returns:
+            ``True`` when the override was reinstated; ``False`` when the source
+            did not register *name* in this pass, so there is nothing to repair.
+        """
+        served = self._tools.get(name)
+        if served is None or served is override_tool:
+            return False
+        self._overrides[name] = served
+        self._tools[name] = override_tool
+        return True
+
     def _coerce_override_tool(self, name: str, tool: Tool | Callable) -> Tool:
         """Normalise an override target into a ``Tool`` keyed by *name*.
 

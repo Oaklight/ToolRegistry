@@ -5,6 +5,7 @@ This module tests the AdminServer, TokenAuth, and REST API endpoints.
 
 import asyncio
 import json
+import re
 import shutil
 import ssl
 import subprocess
@@ -306,6 +307,34 @@ class TestAdminServerAPI:
         status, data = self._request(f"{info.url}/api/tools/{tool_name}")
         assert data["enabled"] is True
 
+    def test_override_accepts_title_and_hints(self, server_with_tools) -> None:
+        """The override API exposes title and raw execution hints."""
+        server, info = server_with_tools
+        tool_name = "math-add"
+
+        status, data = self._request(
+            f"{info.url}/api/tools/{tool_name}/override",
+            method="POST",
+            data={"title": "Add", "read_only_hint": False, "open_world_hint": True},
+        )
+        assert status == 200
+
+        status, data = self._request(f"{info.url}/api/tools/{tool_name}")
+        metadata = data["metadata"]
+        assert metadata["title"] == "Add"
+        # Raw tri-state values stay separate from the resolved hints.
+        assert metadata["read_only_hint"] is False
+        assert metadata["open_world_hint"] is True
+        assert metadata["idempotent_hint"] is None
+        assert metadata["execution_hints"]["open_world_hint"] is True
+
+        status, data = self._request(
+            f"{info.url}/api/tools/{tool_name}/override", method="DELETE"
+        )
+        assert status == 200
+        status, data = self._request(f"{info.url}/api/tools/{tool_name}")
+        assert data["metadata"]["title"] is None
+
     def test_export_state(self, server_with_tools) -> None:
         """Test GET /api/state endpoint."""
         server, info = server_with_tools
@@ -446,6 +475,119 @@ class TestAdminServerAPI:
         assert status == 404
         assert "Not Found" in data["error"]
 
+    def test_discovery_can_be_enabled_and_disabled(self, server_with_tools) -> None:
+        """The panel can turn discovery on, and reports what it unregisters."""
+        server, info = server_with_tools
+
+        status, data = self._request(f"{info.url}/api/discovery")
+        assert status == 200
+        assert data["enabled"] is False
+
+        status, data = self._request(f"{info.url}/api/discovery/enable", "POST")
+        assert status == 200
+        assert data["registered"] == ["discover_tools", "call_deferred"]
+
+        status, data = self._request(f"{info.url}/api/discovery")
+        assert data["enabled"] is True
+
+        status, data = self._request(f"{info.url}/api/tools")
+        names = [tool["name"] for tool in data["tools"]]
+        assert "discover_tools" in names
+        assert "call_deferred" in names
+
+        status, data = self._request(f"{info.url}/api/discovery/disable", "POST")
+        assert status == 200
+        assert data["enabled"] is False
+
+        status, data = self._request(f"{info.url}/api/tools")
+        names = [tool["name"] for tool in data["tools"]]
+        assert "discover_tools" not in names
+
+    def test_disabling_discovery_reports_unreachable_deferred_tools(
+        self, server_with_tools
+    ) -> None:
+        server, info = server_with_tools
+        self._request(f"{info.url}/api/discovery/enable", "POST")
+        self._request(
+            f"{info.url}/api/tools/math-add/metadata", "PATCH", {"defer": True}
+        )
+
+        status, data = self._request(f"{info.url}/api/discovery")
+        assert data["deferred_count"] == 1
+        assert data["deferred_tools"] == ["math-add"]
+
+        status, data = self._request(f"{info.url}/api/discovery/disable", "POST")
+        assert data["unreachable"] == 1
+        assert data["deferred_tools"] == ["math-add"]
+
+    def test_discovery_mode_controls_are_exposed(self, server_with_tools) -> None:
+        """``auto`` follows the deferred set; ``off`` wins over it."""
+        server, info = server_with_tools
+
+        status, data = self._request(f"{info.url}/api/discovery")
+        assert status == 200
+        assert data["mode"] == "auto"
+
+        status, data = self._request(
+            f"{info.url}/api/discovery/mode", "POST", {"mode": "off"}
+        )
+        assert status == 200
+        assert data["mode"] == "off"
+        assert data["enabled"] is False
+
+        # An explicit off is not overridden by a deferred tool.
+        self._request(
+            f"{info.url}/api/tools/math-add/metadata", "PATCH", {"defer": True}
+        )
+        status, data = self._request(f"{info.url}/api/discovery")
+        assert data["enabled"] is False
+        assert data["mode"] == "off"
+
+        # Auto turns it back on because a deferred tool now exists.
+        status, data = self._request(
+            f"{info.url}/api/discovery/mode", "POST", {"mode": "auto"}
+        )
+        assert status == 200
+        assert data["mode"] == "auto"
+        assert data["enabled"] is True
+        assert data["deferred_count"] == 1
+
+        status, data = self._request(
+            f"{info.url}/api/discovery/mode", "POST", {"mode": "sometimes"}
+        )
+        assert status == 400
+
+    @pytest.mark.parametrize(
+        "format_name",
+        [
+            "chat_completions",
+            "open_responses",
+            "messages",
+            "google_generate",
+            "google_interactions",
+            "rosetta_ir",
+        ],
+    )
+    def test_schema_endpoint_accepts_canonical_formats(
+        self, server_with_tools, format_name: str
+    ) -> None:
+        """The panel's format picker speaks llm-rosetta's canonical names."""
+        server, info = server_with_tools
+
+        status, data = self._request(f"{info.url}/api/schema?format={format_name}")
+
+        assert status == 200
+        assert data["format"] == format_name
+        assert data["count"] == 2
+
+    def test_schema_endpoint_rejects_an_unknown_format(self, server_with_tools) -> None:
+        server, info = server_with_tools
+
+        status, data = self._request(f"{info.url}/api/schema?format=nonsense")
+
+        assert status == 400
+        assert "Invalid format" in data["message"]
+
 
 class TestAdminServerAuth:
     """Tests for authentication."""
@@ -551,6 +693,70 @@ class TestAdminServerAuth:
         finally:
             server.stop()
 
+    def test_assets_are_public_and_content_typed(self) -> None:
+        """The shell's stylesheets and scripts load without credentials."""
+        registry = ToolRegistry()
+        server = AdminServer(registry, port=18112, auth_token="secret123")
+
+        try:
+            info = server.start()
+            time.sleep(0.1)
+
+            for path, content_type in (
+                ("/assets/css/base.css", "text/css"),
+                ("/assets/js/core/theme.js", "javascript"),
+            ):
+                with urllib.request.urlopen(f"{info.url}{path}", timeout=5) as response:
+                    assert response.status == 200
+                    assert content_type in response.headers.get("Content-Type", "")
+                    assert response.headers.get("Cache-Control") == "no-cache"
+
+            # API routes stay protected even though assets are public.
+            try:
+                urllib.request.urlopen(f"{info.url}/api/tools", timeout=5)
+                pytest.fail("Should have raised HTTPError")
+            except urllib.error.HTTPError as e:
+                assert e.code == 401
+
+        finally:
+            server.stop()
+
+    def test_asset_route_refuses_traversal_and_unknown_files(self) -> None:
+        """Only shipped css/ and js/ files are reachable under /assets/."""
+        registry = ToolRegistry()
+        server = AdminServer(registry, port=18113)
+
+        try:
+            info = server.start()
+            time.sleep(0.1)
+
+            for path in (
+                "/assets/js/missing.js",
+                "/assets/css/../../handlers.py",
+                "/assets/handlers.py",
+                "/assets/css/base.txt",
+            ):
+                try:
+                    urllib.request.urlopen(f"{info.url}{path}", timeout=5)
+                    pytest.fail(f"Should have raised HTTPError: {path}")
+                except urllib.error.HTTPError as e:
+                    assert e.code == 404
+
+        finally:
+            server.stop()
+
+    def test_every_asset_referenced_by_the_shell_exists(self) -> None:
+        """A renamed file would otherwise surface as a broken panel in a browser."""
+        import re
+
+        from toolregistry.admin.static import read_asset
+
+        shell = _ui_source()
+        referenced = re.findall(r'(?:href|src)="assets/([^"]+)"', shell)
+        assert referenced, "the shell must reference its assets"
+        for name in referenced:
+            assert read_asset(name) is not None, f"missing asset: {name}"
+
     def test_api_index_is_protected_when_ui_is_disabled(self) -> None:
         """With serve_ui=False, "/" is an API index and requires a token."""
         registry = ToolRegistry()
@@ -625,6 +831,24 @@ class TestAdminCORS:
             assert response.headers.get("Access-Control-Allow-Origin") is None
 
 
+def _ui_source() -> str:
+    """Return the shell and every shipped asset as one searchable string.
+
+    The panel is split into a shell plus css/ and js/ assets; a guard that
+    greps only admin.html would silently stop covering a behaviour that moved
+    into an asset.
+    """
+    from importlib.resources import files
+
+    root = files("toolregistry.admin")
+    parts = [root.joinpath("admin.html").read_text(encoding="utf-8")]
+    for sub in ("css", "js", "js/core", "js/tabs"):
+        for entry in root.joinpath(sub).iterdir():
+            if entry.is_file():
+                parts.append(entry.read_text(encoding="utf-8"))
+    return "\n".join(parts)
+
+
 class TestAdminUIAssets:
     """Regression guards for behaviour implemented only in admin.html."""
 
@@ -641,54 +865,105 @@ class TestAdminUIAssets:
         assert "admin.html" in source
 
     def test_log_details_render_arguments_and_traceback(self) -> None:
-        from toolregistry.admin.static import ADMIN_HTML
+        source = _ui_source()
 
-        assert "JSON.stringify(entry.arguments" in ADMIN_HTML
-        assert "entry.traceback" in ADMIN_HTML
+        assert "JSON.stringify(entry.arguments" in source
+        assert "entry.traceback" in source
 
     def test_timeout_status_is_filterable(self) -> None:
-        from toolregistry.admin.static import ADMIN_HTML
+        source = _ui_source()
 
-        assert 'value="timeout"' in ADMIN_HTML
-        assert "by_status?.timeout" in ADMIN_HTML
+        assert 'value="timeout"' in source
+        assert "by_status?.timeout" in source
 
     def test_tool_filters_survive_refresh_with_a_clear_action(self) -> None:
-        from toolregistry.admin.static import ADMIN_HTML
+        source = _ui_source()
 
-        assert "renderTools(filtered, filtersActive)" in ADMIN_HTML
-        assert "function clearToolFilters" in ADMIN_HTML
-        assert "empty.filteredTools" in ADMIN_HTML
+        assert "renderTools(filtered, filtersActive)" in source
+        assert "function clearToolFilters" in source
+        assert "empty.filteredTools" in source
 
     def test_name_separator_change_is_confirmed(self) -> None:
-        from toolregistry.admin.static import ADMIN_HTML
+        source = _ui_source()
 
-        assert "modal.changeNameSep" in ADMIN_HTML
-        assert "let _currentNameSep" in ADMIN_HTML
-        assert "renames every namespaced tool immediately" in ADMIN_HTML
+        assert "modal.changeNameSep" in source
+        assert "let _currentNameSep" in source
+        assert "renames every namespaced tool immediately" in source
 
     def test_concurrent_auth_requests_reuse_a_fresh_token(self) -> None:
-        from toolregistry.admin.static import ADMIN_HTML
+        source = _ui_source()
 
         # A request that got 401 while another request was prompting must
         # reuse the token that prompt produced instead of prompting again.
-        assert "const requestToken = this.token;" in ADMIN_HTML
-        assert "token === requestToken" in ADMIN_HTML
+        assert "const requestToken = this.token;" in source
+        assert "token === requestToken" in source
 
     def test_ui_polish_regressions(self) -> None:
-        from toolregistry.admin.static import ADMIN_HTML
+        source = _ui_source()
 
         # Favicon is inlined so the page does not request /favicon.ico.
-        assert 'rel="icon"' in ADMIN_HTML
-        # Escape closes every modal, including Version Info.
-        assert "closeVersionModal();" in ADMIN_HTML
+        assert 'rel="icon"' in source
+        # Version info is a Settings card with the package links, not a
+        # header modal; Escape still closes the two modals that remain.
+        assert 'id="about-card"' in source
+        assert "function renderAbout" in source
+        assert "pypi.org/project/toolregistry" in source
+        assert "closeModal();" in source
+        assert "closeDetailModal();" in source
         # The log filter applies on Enter as well as the Apply button.
-        assert "event.key==='Enter'" in ADMIN_HTML
+        assert "event.key==='Enter'" in source
         # Namespace THINK/DEFER boxes show a partial state.
-        assert "data-indeterminate" in ADMIN_HTML
+        assert "data-indeterminate" in source
         # A cheap poll keeps the status dot honest while idle.
-        assert "checkConnection" in ADMIN_HTML
+        assert "checkConnection" in source
         # Permission badges explain that they were evaluated with {}.
-        assert "perm.emptyArgsNote" in ADMIN_HTML
+        assert "perm.emptyArgsNote" in source
+
+    def test_register_panel_previews_before_registering(self) -> None:
+        """The panel must never register what it has only previewed."""
+        source = _ui_source()
+
+        # The form lives inside the Sources section, opened by an action.
+        assert 'id="add-source-card"' in source
+        assert "function openAddSource" in source
+        assert "function refreshRegisterPanel" in source
+        assert "/api/sources/preview" in source
+        assert "/api/sources/register" in source
+        # Registration sends the picked names, not "everything".
+        assert "selectedRegisterNames" in source
+
+    def test_override_controls_are_wired_to_the_override_api(self) -> None:
+        source = _ui_source()
+
+        assert "openOverrideModal" in source
+        assert "restoreToolOverride" in source
+        assert "/override" in source
+        # The detail modal only offers Restore when an override exists.
+        assert "api.listOverrides()" in source
+        # The controls sit in the detail header, next to the name they change.
+        assert 'id="detail-actions"' in source
+        assert "getElementById('detail-actions')" in source
+
+    def test_every_inline_handler_resolves_to_a_function(self) -> None:
+        """An inline onclick/onchange must name a function the panel ships.
+
+        The namespace toggle once called ``enableNamespace`` and
+        ``showDisableNamespaceModal``, neither of which existed.  The control
+        did nothing, and only the browser console said why.
+        """
+        source = _ui_source()
+        used = set(
+            re.findall(
+                r'on(?:click|change|input|submit)="\s*([A-Za-z_$][\w$]*)\s*\(',
+                source,
+            )
+        )
+        defined = set(re.findall(r"(?:async\s+)?function\s+([A-Za-z_$][\w$]*)", source))
+        defined |= set(
+            re.findall(r"(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=", source)
+        )
+        builtins = {"event", "this", "window", "document", "return", "if"}
+        assert sorted(used - defined - builtins) == []
 
 
 class TestToolRegistryAdminIntegration:

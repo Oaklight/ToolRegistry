@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any, cast
 from .._vendor.httpserver import HTTPException, Request, Response
 from ..utils import ToolResultJSONEncoder
 
-from .static import ADMIN_HTML
+from .static import read_asset, read_shell
 
 if TYPE_CHECKING:
     from toolregistry import ToolRegistry
@@ -45,6 +45,12 @@ _SECURITY_HEADERS = {
     "Content-Security-Policy": "frame-ancestors 'none'",
 }
 """Frame protections applied to every admin response."""
+
+#: Methods that change server state, and therefore must be JSON and same-origin.
+_UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+#: The only media type a state-changing request may use.
+_JSON_MEDIA_TYPE = "application/json"
 
 
 # ============== Request Helpers ==============
@@ -112,7 +118,7 @@ def _same_origin(request: Request) -> str | None:
     if not origin or not host:
         return None
     parts = urllib.parse.urlsplit(origin)
-    if parts.scheme in ("http", "https") and parts.netloc == host:
+    if parts.scheme in ("http", "https") and parts.netloc.lower() == host.lower():
         return origin
     return None
 
@@ -189,6 +195,53 @@ def _cors_preflight(request: Request) -> Response | None:
     return None
 
 
+def _request_media_type(request: Request) -> str:
+    """Return the request's media type without parameters, lower-cased."""
+    return request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+
+
+def _reject_cross_site(request: Request) -> Response | None:
+    """Reject state-changing API requests a browser sent from another site.
+
+    A cross-origin ``POST`` is the entry point for CSRF: the panel trusts its
+    own origin, so a foreign page must not be able to drive an endpoint that
+    changes state.  ``Origin`` is checked first; ``Sec-Fetch-Site`` covers the
+    newer metadata header.  The same rule forces a JSON body, because a form
+    submission can only choose ``text/plain``, ``application/x-www-form-urlencoded``
+    or ``multipart/form-data`` without triggering a preflight.
+
+    Only ``/api/`` is guarded.  The UI shell and its assets are static
+    documents with no registry data, and reads stay available so the existing
+    same-origin CORS behaviour is unchanged.
+    """
+    if not request.path.startswith("/api/") or request.method not in _UNSAFE_METHODS:
+        return None
+
+    origin = request.headers.get("origin")
+    if origin is not None and _same_origin(request) is None:
+        return _add_cors(
+            request,
+            _error_response(403, "Forbidden", "Cross-origin request rejected"),
+        )
+
+    if request.headers.get("sec-fetch-site", "").strip().lower() == "cross-site":
+        return _add_cors(
+            request,
+            _error_response(403, "Forbidden", "Cross-site request rejected"),
+        )
+
+    if _request_media_type(request) != _JSON_MEDIA_TYPE:
+        return _add_cors(
+            request,
+            _error_response(
+                415,
+                "Unsupported Media Type",
+                "State-changing requests must use Content-Type: application/json",
+            ),
+        )
+    return None
+
+
 def _auth_check(request: Request) -> Response | None:
     """Check authentication via Bearer token or session cookie.
 
@@ -210,6 +263,16 @@ def _auth_check(request: Request) -> Response | None:
     # stays protected.  HEAD mirrors GET (the server strips the body) so a
     # health check agrees with a browser.
     if request.method in ("GET", "HEAD") and request.path == "/" and app.serve_ui:
+        return None
+
+    # The shell is useless without its stylesheets and scripts, and the browser
+    # requests them without credentials.  ``read_asset`` serves only the css/
+    # and js/ files shipped in the package, so this exposes no registry data.
+    if (
+        request.method in ("GET", "HEAD")
+        and request.path.startswith("/assets/")
+        and app.serve_ui
+    ):
         return None
 
     session = app.session
@@ -287,7 +350,7 @@ def _handle_root(request: Request) -> Response:
     """Serve UI or API documentation."""
     if _app(request).serve_ui:
         return Response(
-            body=ADMIN_HTML,
+            body=read_shell(),
             status_code=200,
             content_type="text/html; charset=utf-8",
         )
@@ -317,6 +380,22 @@ def _handle_root(request: Request) -> Response:
                 "PUT /api/config",
             ],
         }
+    )
+
+
+def _serve_asset(request: Request, name: str) -> Response:
+    """Serve one shipped stylesheet or script from ``/assets/<name>``."""
+    if not _app(request).serve_ui:
+        raise HTTPException(404, "Not Found")
+    asset = read_asset(name)
+    if asset is None:
+        raise HTTPException(404, "Not Found")
+    body, content_type = asset
+    return Response(
+        body=body,
+        status_code=200,
+        content_type=content_type,
+        headers={"Cache-Control": "no-cache"},
     )
 
 
@@ -365,6 +444,13 @@ def _get_tool(request: Request, name: str) -> Response:
             "search_hint": tool.metadata.search_hint,
             "title": tool.metadata.title,
             "think_augment": tool.metadata.think_augment,
+            # Raw tri-state values, not the resolved ``execution_hints``: the
+            # override form must show "unset" separately from an explicit
+            # value, because unset lets the registry derive the hint.
+            "read_only_hint": tool.metadata.read_only_hint,
+            "destructive_hint": tool.metadata.destructive_hint,
+            "idempotent_hint": tool.metadata.idempotent_hint,
+            "open_world_hint": tool.metadata.open_world_hint,
             "execution_hints": tool.metadata.execution_hints,
             "extra": tool.metadata.extra,
         },
@@ -1109,7 +1195,22 @@ def _get_schema(request: Request) -> Response:
     # --- LLM schema formats ---
     from ..llm.tool_calls import API_FORMATS
 
-    valid = {"openai-chat", "openai-responses", "anthropic", "gemini", "rosetta-ir"}
+    valid = {
+        "openai-chat",
+        "openai-responses",
+        "anthropic",
+        "gemini",
+        "google-interactions",
+        "rosetta-ir",
+        # Canonical names, accepted so the panel and the API speak the same
+        # vocabulary; _normalize_api_format maps them internally.
+        "chat_completions",
+        "open_responses",
+        "messages",
+        "google_generate",
+        "google_interactions",
+        "rosetta_ir",
+    }
     if fmt_str not in valid:
         return _error_response(
             400,
@@ -1133,6 +1234,341 @@ def _get_schema(request: Request) -> Response:
 # ============== Route Setup ==============
 
 
+def _source_body(request: Request) -> dict[str, Any] | Response:
+    """Parse a source request body, or return the error response."""
+    if not request.body:
+        return _error_response(400, "Bad Request", "Request body is required")
+    try:
+        data = request.json()
+    except (json.JSONDecodeError, ValueError) as e:
+        return _error_response(400, "Bad Request", f"Invalid JSON: {e}")
+    if not isinstance(data, dict):
+        return _error_response(400, "Bad Request", "Body must be a JSON object")
+    return data
+
+
+def _refuse_local_command(request: Request, data: dict[str, Any]) -> Response | None:
+    """Refuse a request that would start a local process without authentication.
+
+    Preview and registration run the command of a stdio MCP source.  The panel
+    serves its UI to anyone who can reach the port and runs without a token by
+    default on localhost, so an anonymous request must not be able to spawn a
+    process.  Configuring an authentication token is the operator's explicit
+    opt-in for that authority.
+    """
+    from .registration import SourceError, transport_spawns_process
+
+    if data.get("kind") != "mcp" or _app(request).auth is not None:
+        return None
+    try:
+        spawns = transport_spawns_process(data)
+    except SourceError:
+        # A missing or malformed transport is reported by the source handler
+        # with its own message; there is no command to run yet.
+        return None
+    if not spawns:
+        return None
+    return _add_cors(
+        request,
+        _error_response(
+            403,
+            "Forbidden",
+            "Refusing to execute a local command from an unauthenticated admin "
+            "panel; start the server with auth_token=... to allow stdio MCP "
+            "sources.",
+        ),
+    )
+
+
+def _preview_source(request: Request) -> Response:
+    """List the tools a source offers without registering any of them."""
+    from .registration import SourceError, preview_source
+
+    data = _source_body(request)
+    if isinstance(data, Response):
+        return data
+    kind = data.get("kind")
+    if not isinstance(kind, str):
+        return _error_response(400, "Bad Request", "'kind' is required")
+
+    refusal = _refuse_local_command(request, data)
+    if refusal is not None:
+        return refusal
+
+    try:
+        result = preview_source(_app(request).registry, kind, data)
+    except SourceError as e:
+        return _error_response(400, "Bad Request", str(e))
+    return _json_response(result)
+
+
+def _register_source(request: Request) -> Response:
+    """Register the selected tools of a source."""
+    from .registration import SourceError, register_tools
+
+    data = _source_body(request)
+    if isinstance(data, Response):
+        return data
+    kind = data.get("kind")
+    if not isinstance(kind, str):
+        return _error_response(400, "Bad Request", "'kind' is required")
+
+    refusal = _refuse_local_command(request, data)
+    if refusal is not None:
+        return refusal
+
+    try:
+        result = register_tools(_app(request).registry, kind, data)
+    except SourceError as e:
+        return _error_response(400, "Bad Request", str(e))
+    return _json_response(result)
+
+
+def _override_summary(tool: Any) -> dict[str, Any]:
+    """Return the fields an override can change, for display and diffing."""
+    metadata = tool.metadata
+    return {
+        "name": tool.name,
+        "description": tool.description,
+        "namespace": tool.namespace,
+        "tags": sorted(getattr(tag, "value", str(tag)) for tag in metadata.tags),
+        "custom_tags": sorted(metadata.custom_tags),
+        "title": getattr(metadata, "title", ""),
+        "read_only_hint": metadata.read_only_hint,
+        "destructive_hint": metadata.destructive_hint,
+        "idempotent_hint": metadata.idempotent_hint,
+        "open_world_hint": metadata.open_world_hint,
+    }
+
+
+def _list_overrides(request: Request) -> Response:
+    """List overridden tools with their current and original definitions."""
+    registry = _app(request).registry
+    entries = []
+    for name in sorted(registry.list_overrides()):
+        current = registry.get_tool(name)
+        original = (
+            registry._overrides.get(name) if hasattr(registry, "_overrides") else None
+        )
+        if current is None:
+            continue
+        entries.append(
+            {
+                "name": name,
+                "current": _override_summary(current),
+                "original": _override_summary(original)
+                if original is not None
+                else None,
+            }
+        )
+    return _json_response({"overrides": entries, "count": len(entries)})
+
+
+_OVERRIDE_METADATA_FIELDS = (
+    "title",
+    "read_only_hint",
+    "destructive_hint",
+    "idempotent_hint",
+    "open_world_hint",
+)
+
+
+def _override_tool(request: Request, name: str) -> Response:
+    """Override a tool's description, tags or hints, recording the original."""
+    from dataclasses import replace
+
+    registry = _app(request).registry
+    name = urllib.parse.unquote(name)
+    tool = registry.get_tool(name)
+    if tool is None:
+        return _error_response(404, "Not Found", f"Tool not found: {name}")
+
+    data = _source_body(request)
+    if isinstance(data, Response):
+        return data
+
+    # Validate everything before touching the registry: a rejected field must
+    # not leave the tool half-overridden.
+    unknown = sorted(
+        set(data)
+        - {"description", "tags", "custom_tags"}
+        - set(_OVERRIDE_METADATA_FIELDS)
+    )
+    if unknown:
+        return _error_response(
+            400, "Bad Request", "Unknown override field(s): " + ", ".join(unknown)
+        )
+
+    description = data.get("description", tool.description)
+    if not isinstance(description, str):
+        return _error_response(400, "Bad Request", "'description' must be a string")
+
+    from ..tool import ToolTag
+
+    tags = tool.metadata.tags
+    if "tags" in data:
+        raw_tags = data["tags"]
+        if not isinstance(raw_tags, list) or not all(
+            isinstance(t, str) for t in raw_tags
+        ):
+            return _error_response(
+                400, "Bad Request", "'tags' must be a list of strings"
+            )
+        try:
+            tags = {ToolTag(value) for value in raw_tags}
+        except ValueError as e:
+            return _error_response(400, "Bad Request", f"Unknown tag: {e}")
+
+    custom_tags = tool.metadata.custom_tags
+    if "custom_tags" in data:
+        raw_custom = data["custom_tags"]
+        if not isinstance(raw_custom, list) or not all(
+            isinstance(tag, str) for tag in raw_custom
+        ):
+            return _error_response(
+                400, "Bad Request", "'custom_tags' must be a list of strings"
+            )
+        custom_tags = set(raw_custom)
+
+    meta_updates: dict[str, Any] = {"tags": tags, "custom_tags": custom_tags}
+    for field in _OVERRIDE_METADATA_FIELDS:
+        if field in data:
+            meta_updates[field] = data[field]
+
+    new_metadata = replace(tool.metadata, **meta_updates)
+    new_tool = replace(tool, description=description, metadata=new_metadata)
+    registry.override(name, new_tool)
+
+    original = (
+        registry._overrides.get(name) if hasattr(registry, "_overrides") else None
+    )
+    return _json_response(
+        {
+            "success": True,
+            "name": name,
+            "current": _override_summary(registry.get_tool(name)),
+            "original": _override_summary(original) if original is not None else None,
+        }
+    )
+
+
+def _restore_tool_override(request: Request, name: str) -> Response:
+    """Drop an override and restore the tool that was registered first."""
+    registry = _app(request).registry
+    name = urllib.parse.unquote(name)
+    try:
+        restored = registry.restore_override(name)
+    except KeyError:
+        return _error_response(404, "Not Found", f"No override recorded for: {name}")
+    return _json_response(
+        {"success": True, "name": name, "restored": _override_summary(restored)}
+    )
+
+
+def _deferred_tools(registry: Any) -> list[str]:
+    """Names of tools marked deferred, in registry order."""
+    names: list[str] = []
+    for name in registry.list_tools(include_disabled=True):
+        tool = registry.get_tool(name)
+        if tool is not None and getattr(tool.metadata, "defer", False):
+            names.append(name)
+    return names
+
+
+def _get_discovery(request: Request) -> Response:
+    """Report whether tool discovery is enabled and what it would restore."""
+    registry = _app(request).registry
+    deferred = _deferred_tools(registry)
+    return _json_response(
+        {
+            "enabled": bool(registry.tool_discovery_enabled),
+            "mode": registry.tool_discovery_mode,
+            "deferred_count": len(deferred),
+            "deferred_tools": deferred,
+        }
+    )
+
+
+def _enable_tool_discovery(request: Request) -> Response:
+    """Register ``discover_tools`` and ``call_deferred``.
+
+    Enabling is safe to repeat: the registry keeps its existing discoverer
+    and reports the options it was built with.
+    """
+    registry = _app(request).registry
+    try:
+        registry.enable_tool_discovery()
+    except Exception as e:  # noqa: BLE001 - reported to the operator
+        return _error_response(400, "Bad Request", str(e))
+    return _json_response(
+        {
+            "success": True,
+            "enabled": True,
+            "mode": registry.tool_discovery_mode,
+            "registered": [
+                name
+                for name in ("discover_tools", "call_deferred")
+                if name in registry.list_tools(include_disabled=True)
+            ],
+            "deferred_count": len(_deferred_tools(registry)),
+        }
+    )
+
+
+def _disable_tool_discovery(request: Request) -> Response:
+    """Unregister ``discover_tools`` and ``call_deferred``.
+
+    Deferred tools stay registered but become unreachable to a model, so the
+    response reports how many are in that state.
+    """
+    registry = _app(request).registry
+    deferred = _deferred_tools(registry)
+    registry.disable_tool_discovery()
+    return _json_response(
+        {
+            "success": True,
+            "enabled": False,
+            "mode": registry.tool_discovery_mode,
+            "unreachable": len(deferred),
+            "deferred_tools": deferred,
+        }
+    )
+
+
+def _set_tool_discovery_mode(request: Request) -> Response:
+    """Choose how tool discovery is controlled.
+
+    ``auto`` follows the deferred set, so marking a tool deferred enables
+    discovery and undoing the last deferral disables it.  ``on`` and ``off``
+    are explicit choices that later registrations do not override.
+    """
+    registry = _app(request).registry
+    if not request.body:
+        return _error_response(400, "Bad Request", "Request body is required")
+    try:
+        data = request.json()
+    except (json.JSONDecodeError, ValueError) as e:
+        return _error_response(400, "Bad Request", f"Invalid JSON: {e}")
+    if not isinstance(data, dict):
+        return _error_response(400, "Bad Request", "Body must be a JSON object")
+
+    try:
+        registry.set_tool_discovery_mode(data.get("mode"))
+    except ValueError as e:
+        return _error_response(400, "Bad Request", str(e))
+
+    deferred = _deferred_tools(registry)
+    return _json_response(
+        {
+            "success": True,
+            "mode": registry.tool_discovery_mode,
+            "enabled": bool(registry.tool_discovery_enabled),
+            "deferred_count": len(deferred),
+            "deferred_tools": deferred,
+        }
+    )
+
+
 def setup_routes(app: "AdminApp") -> None:
     """Register all middleware and routes on the app.
 
@@ -1141,6 +1577,7 @@ def setup_routes(app: "AdminApp") -> None:
             and ``serve_ui`` attributes.
     """
     # Middleware
+    app.before_request(_reject_cross_site)
     app.before_request(_cors_preflight)
     app.before_request(_auth_check)
     app.after_request(_set_session_cookie)
@@ -1150,6 +1587,16 @@ def setup_routes(app: "AdminApp") -> None:
 
     # Routes
     app.get("/")(_handle_root)
+    app.get("/assets/<path:name>")(_serve_asset)
+    app.post("/api/sources/preview")(_preview_source)
+    app.post("/api/sources/register")(_register_source)
+    app.get("/api/overrides")(_list_overrides)
+    app.get("/api/discovery")(_get_discovery)
+    app.post("/api/discovery/enable")(_enable_tool_discovery)
+    app.post("/api/discovery/disable")(_disable_tool_discovery)
+    app.post("/api/discovery/mode")(_set_tool_discovery_mode)
+    app.post("/api/tools/<path:name>/override")(_override_tool)
+    app.delete("/api/tools/<path:name>/override")(_restore_tool_override)
     app.get("/api/tools")(_get_tools)
     app.get("/api/tools/<path:name>")(_get_tool)
     app.post("/api/tools/<path:name>/enable")(_enable_tool)
