@@ -1,22 +1,22 @@
 {
-  "generated_by": "zerodep 2026.10.23.1",
+  "generated_by": "zerodep 2026.11.4",
   "lock_version": 1,
   "modules": {
     "httpclient": {
       "files": {
-        "httpclient.py": "5cdbed98fec7900cd793610cf5d6a9848b60a777ecfd7c2d42140745225d81b3"
+        "httpclient.py": "4071ede8ef2e6d28c642ea2f5590109ce48dd6d359d93320b150752a2dbc7c00"
       },
       "requested": true,
-      "upstream_hash": "05cc27e73a15c1f2ad6f0ebc57f3d862aa72e26601644b1f7a7cf1cd934a67e3",
-      "version": "0.6.2"
+      "upstream_hash": "3966c84bb7f6305da7a7dfefdc2de6800ebc8498618e7255ae78c183949c7855",
+      "version": "0.6.4"
     },
     "httpserver": {
       "files": {
-        "httpserver.py": "a9a7d64bdd4a599ee582764466779db72f5cc3e1e7f21e03d27bedf0281f2d3e"
+        "httpserver.py": "a5847681db363c9911840510a44774072231b178924f91dd4d5f2f989779cd21"
       },
       "requested": true,
-      "upstream_hash": "83f6f376fb6bb4ee3d05eeeb9a4039807c9d30339a75cbfcd6053f2fdc0fbf98",
-      "version": "0.7.0"
+      "upstream_hash": "4e85831e0fb21fcbe0293bfa2755fafbe1b61a8075a48bcdcffa0a8941d47c73",
+      "version": "0.7.1"
     },
     "jsonschema": {
       "files": {
@@ -68,7 +68,7 @@
     }
   },
   "source": {
-    "ref": "v2026.10.25",
+    "ref": "v2026.11.4",
     "repo": "Oaklight/zerodep"
   }
 }
