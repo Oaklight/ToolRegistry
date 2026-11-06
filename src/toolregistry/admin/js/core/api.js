@@ -15,6 +15,10 @@ class AdminAPI {
     constructor(baseUrl, token) {
         this.baseUrl = baseUrl;
         this.token = token;
+        // Whether the server demands credentials.  ``null`` until a response
+        // says so: a request that succeeds without a token proves the panel
+        // is unauthenticated, a 401 proves it is protected.
+        this.authRequired = null;
     }
 
     getHeaders() {
@@ -27,6 +31,7 @@ class AdminAPI {
 
     async request(path, options = {}, authRetried = false) {
         const requestToken = this.token;
+        const sentToken = !!this.token;
         // Build headers per attempt and let the current token win:
         // spreading the caller's headers last would re-send the token
         // the server just rejected.  The caller's options are not
@@ -38,6 +43,7 @@ class AdminAPI {
         try {
             const response = await fetch(this.baseUrl + path, requestOptions);
             if (response.status === 401) {
+                this.authRequired = true;
                 // A stored or freshly entered token that still gets 401
                 // is final: never loop the prompt forever on a typo.
                 if (authRetried) throw new Error(t('error.unauthorized'));
@@ -53,11 +59,11 @@ class AdminAPI {
                 }
                 return this.request(path, options, true);
             }
-            const data = await response.json();
+            if (response.ok && !sentToken) this.authRequired = false;
             if (!response.ok) {
-                throw new Error(data.message || t('error.requestFailed'));
+                throw new Error(await this.errorMessage(response));
             }
-            return data;
+            return await response.json();
         } catch (error) {
             if (error.name === 'TypeError') {
                 updateConnectionStatus(false);
@@ -65,6 +71,21 @@ class AdminAPI {
             }
             throw error;
         }
+    }
+
+    async errorMessage(response) {
+        // The server answers its own errors with JSON (403, 415, 400 ...),
+        // but a proxy may return an HTML page.  Show the server's message
+        // when there is one and fall back to the status line, rather than
+        // surfacing a JSON parse error in place of the reason.
+        try {
+            const data = await response.json();
+            if (data && data.message) return data.message;
+        } catch (e) {
+            // Not a JSON body; use the status line below.
+        }
+        return `${response.status} ${response.statusText || ''}`.trim()
+            || t('error.requestFailed');
     }
 
     async getTools() {
