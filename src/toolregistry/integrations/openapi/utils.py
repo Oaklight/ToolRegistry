@@ -165,71 +165,6 @@ def check_spec_servers(
 _SPEC_URL_SCHEMES = frozenset({"http", "https"})
 
 
-#: Added to a redacted ``$ref`` when redaction would leave a local pointer.
-#: Only a ``#/`` pointer reaches the vendored resolver's lookup, so this
-#: prefix keeps the value unresolvable, as the original pointer was.
-_REDACTED_REF_PREFIX = "redacted:"
-
-
-def _redact_dropped_refs(node: Any) -> None:
-    """Strip userinfo from every ``$ref`` the resolver will drop, in place.
-
-    ``_vendor.jsonschema`` warns with the raw ``$ref`` text when it drops a
-    pointer.  A pointer that is not a local ``#/`` reference is always
-    dropped, so rewriting it before resolution changes only that warning;
-    the pointer itself never reaches the returned document.
-
-    A local ``#/`` pointer is left byte for byte intact, because its exact
-    text decides what resolves.
-
-    Redaction can turn an external pointer into a local one: the bare form
-    ``user:pass@#/definitions/X`` loses ``user:pass@`` and becomes
-    ``#/definitions/X``, which the resolver would look up and could resolve.
-    Such a value gets :data:`_REDACTED_REF_PREFIX`, so it stays unresolvable.
-    """
-    if isinstance(node, dict):
-        ref = node.get("$ref")
-        if isinstance(ref, str) and not ref.startswith("#/"):
-            redacted = redact_url_userinfo(ref)
-            if redacted.startswith("#/"):
-                redacted = _REDACTED_REF_PREFIX + redacted
-            node["$ref"] = redacted
-        for value in node.values():
-            _redact_dropped_refs(value)
-    elif isinstance(node, list):
-        for item in node:
-            _redact_dropped_refs(item)
-
-
-def resolve_refs_redacted(schema: dict[str, Any]) -> dict[str, Any]:
-    """Resolve local ``$ref`` pointers without leaking userinfo in warnings.
-
-    The vendored resolver reports a dropped ``$ref`` by quoting it verbatim.
-    An external ``$ref`` is always dropped, and its text comes from the
-    document, which may be attacker controlled and may carry URL userinfo.
-    ``_vendor/`` must not be edited in place, so every pointer that is going
-    to be dropped is rewritten with :func:`redact_url_userinfo` applied
-    before resolution starts.  Only the warning text changes: dropped
-    pointers never appear in the result.
-
-    This deliberately does not use ``warnings.catch_warnings``: that context
-    manager changes process-wide state and would capture warnings raised by
-    other threads.  Rewriting the input needs no global state.
-
-    ``schema`` is modified in place.  Both spec loaders pass a document they
-    just parsed, so no caller observes the rewritten pointers.
-
-    Args:
-        schema: A parsed OpenAPI or JSON Schema document.
-
-    Returns:
-        The resolved document, exactly as
-        :func:`toolregistry._vendor.jsonschema.resolve_refs` returns it.
-    """
-    _redact_dropped_refs(schema)
-    return resolve_refs(schema)
-
-
 def _declared_length(headers: Any) -> int | None:
     """Return the response's declared body length when it is a valid integer."""
     value = headers.get("content-length")
@@ -303,7 +238,7 @@ def _parse_and_resolve(content: str, max_depth: int) -> dict[str, Any]:
     try:
         document = _parse_spec_content(content)
         _check_depth(document, max_depth)
-        resolved = resolve_refs_redacted(document)
+        resolved = resolve_refs(document)
     except RecursionError as exc:
         raise SpecTooDeepError(
             "OpenAPI document is nested too deeply to process"

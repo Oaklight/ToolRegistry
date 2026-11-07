@@ -1098,8 +1098,12 @@ class TestUserinfoRedaction:
         assert result.source_detail == "https://api.example.com/openapi.json"
 
     def test_unresolvable_ref_warning_is_redacted(self):
-        """A dropped external ``$ref`` is reported without its userinfo."""
-        from toolregistry.integrations.openapi.utils import resolve_refs_redacted
+        """A dropped external ``$ref`` is reported without its userinfo.
+
+        The vendored resolver applies the redaction itself, so this guards
+        the version the loader relies on rather than a local wrapper.
+        """
+        from toolregistry._vendor.jsonschema import resolve_refs
 
         schema = {
             "type": "object",
@@ -1110,26 +1114,13 @@ class TestUserinfoRedaction:
 
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            result = resolve_refs_redacted(schema)
+            result = resolve_refs(schema)
 
         assert result["properties"]["a"] == {}
         messages = [str(item.message) for item in caught]
         assert messages, "the dropped ref must still be reported"
         assert all("secret" not in message for message in messages)
         assert any("Unresolvable $ref" in message for message in messages)
-
-    def test_resolution_output_matches_the_vendor_resolver(self):
-        """Redaction changes the warning text only, never the document."""
-        from toolregistry._vendor.jsonschema import resolve_refs
-        from toolregistry.integrations.openapi.utils import resolve_refs_redacted
-
-        schema = {
-            "$defs": {"Name": {"type": "string"}},
-            "type": "object",
-            "properties": {"name": {"$ref": "#/$defs/Name"}},
-        }
-
-        assert resolve_refs_redacted(schema) == resolve_refs(schema)
 
     def test_redaction_covers_protocol_relative_and_bare_userinfo(self):
         """``//user:pass@`` and scheme-less ``user:pass@`` are removed too."""
@@ -1142,9 +1133,13 @@ class TestUserinfoRedaction:
             "contact user@example.com"
         )
 
-    def test_redaction_cannot_make_an_external_ref_resolve(self):
-        """``user:pass@#/definitions/X`` must stay dropped after redaction."""
-        from toolregistry.integrations.openapi.utils import resolve_refs_redacted
+    def test_bare_userinfo_ref_is_dropped_and_redacted(self):
+        """``user:pass@#/definitions/X`` stays unresolvable after redaction.
+
+        Redaction applies to the warning text only, so it cannot turn the
+        pointer into a local ``#/`` reference the resolver would follow.
+        """
+        from toolregistry._vendor.jsonschema import resolve_refs
 
         schema = {
             "definitions": {"X": {"type": "string"}},
@@ -1153,7 +1148,7 @@ class TestUserinfoRedaction:
 
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            result = resolve_refs_redacted(schema)
+            result = resolve_refs(schema)
 
         # The vendored resolver drops the original pointer, so nothing is
         # inlined and the definition map is stripped from the result.
