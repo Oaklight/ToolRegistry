@@ -31,6 +31,31 @@ def _operation_id(spec: dict[str, Any], path: str, method: str) -> str:
     return spec.get("operationId", f"{method}_{path.replace('/', '_')}")
 
 
+def _validate_operation_path(path: str) -> str:
+    """Return *path* when it is a relative OpenAPI operation path.
+
+    A ``paths`` key must start with a single ``/``.  An absolute URL — or a
+    scheme-relative ``//host`` reference — would make the HTTP client send
+    the request, with its configured credentials, to another origin.  The
+    document is untrusted input, so refuse it before a tool is built.
+
+    Args:
+        path: The ``paths`` key from the OpenAPI document.
+
+    Returns:
+        *path*, unchanged.
+
+    Raises:
+        ValueError: If *path* is not a string rooted at a single ``/``.
+    """
+    if not isinstance(path, str) or not path.startswith("/") or path.startswith("//"):
+        raise ValueError(
+            "OpenAPI operation path must be a relative path starting with a "
+            f"single '/', got {path!r}"
+        )
+    return path
+
+
 class OpenAPIToolWrapper(BaseToolWrapper):
     """Wrapper class that provides both synchronous and asynchronous methods for OpenAPI tool calls.
 
@@ -168,6 +193,7 @@ class OpenAPITool(Tool):
         Returns:
             OpenAPITool: An instance of OpenAPITool configured for the specified operation.
         """
+        path = _validate_operation_path(path)
         operation_id = _operation_id(spec, path, method)
         func_name = normalize_tool_name(operation_id)
 
