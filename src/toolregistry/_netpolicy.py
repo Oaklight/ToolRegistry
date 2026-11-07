@@ -19,6 +19,7 @@ import ipaddress
 import socket
 import threading
 import time
+from collections.abc import Sequence
 from typing import Any
 from urllib.parse import urlparse
 
@@ -56,7 +57,22 @@ class PrivateAddressError(UnsafeAddressError):
 
     The distinction matters to callers that can offer an opt-in: a private
     address has a switch, while a name that does not resolve does not.
+
+    The message does not name the resolved address.  Exception text escapes
+    to clients, logs and downstream adapters, and a resolved address is
+    internal network topology; callers that need it read :attr:`addresses`.
+
+    Attributes:
+        addresses: Every address the resolver returned, in order.
     """
+
+    def __init__(
+        self,
+        message: str,
+        addresses: Sequence[str] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.addresses: tuple[str, ...] = tuple(addresses or ())
 
 
 def clear_address_cache() -> None:
@@ -140,9 +156,10 @@ def _check(host: str, addresses: list[str]) -> None:
     for address in addresses:
         if not _is_public(address):
             raise PrivateAddressError(
-                f"Refusing to contact '{host}': it resolves to {address}, "
-                "which is not a public address. Pass allow_private_hosts=True "
-                "to allow loopback, link-local and private hosts."
+                f"Refusing to contact '{host}': the host resolves to a "
+                "non-public address. Pass allow_private_hosts=True to allow "
+                "loopback, link-local and private hosts.",
+                addresses,
             )
 
 
