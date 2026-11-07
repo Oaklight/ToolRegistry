@@ -451,6 +451,36 @@ def determine_urls(
     return {"found": False, "base_api_url": base_url}
 
 
+async def _read_spec_source(uri: str, *, is_local: bool, max_bytes: int) -> bytes:
+    """Read an OpenAPI document from a local path or an HTTP(S) URL.
+
+    The caller has already applied the local-file policy and validated the
+    byte budget.
+    """
+    if is_local:
+        parsed = urlparse(uri)
+        file_path = parsed.path if parsed.scheme == "file" else uri
+        with open(file_path, "rb") as file:
+            content = file.read(max_bytes + 1)
+        if len(content) > max_bytes:
+            raise _too_large(uri, max_bytes)
+        return content
+
+    # First attempt to determine schema URL and fallback base URL
+    loop = asyncio.get_event_loop()
+    results = await loop.run_in_executor(
+        None, lambda: determine_urls(uri, max_bytes=max_bytes)
+    )
+    resolved_uri = results["schema_url"] if results["found"] else uri
+
+    # timeout for network requests (e.g., 10 seconds)
+    async with AsyncClient(timeout=10) as client:
+        response = await client.get(resolved_uri, stream=True)
+        async with response:
+            response.raise_for_status()
+            return await _read_body_capped(response, max_bytes, resolved_uri)
+
+
 async def load_openapi_spec_async(
     uri: str,
     *,
@@ -504,28 +534,9 @@ async def load_openapi_spec_async(
         )
 
     try:
-        if is_local:  # Handle file paths
-            file_path = parsed_uri.path if parsed_uri.scheme == "file" else uri
-            with open(file_path, "rb") as file:
-                openapi_spec_content = file.read(max_bytes + 1)
-            if len(openapi_spec_content) > max_bytes:
-                raise _too_large(uri, max_bytes)
-        else:  # Handle URLs
-            # First attempt to determine schema URL and fallback base URL
-            loop = asyncio.get_event_loop()
-            results = await loop.run_in_executor(
-                None, lambda: determine_urls(uri, max_bytes=max_bytes)
-            )
-            uri = results["schema_url"] if results["found"] else uri
-
-            # timeout for network requests (e.g., 10 seconds)
-            async with AsyncClient(timeout=10) as client:
-                response = await client.get(uri, stream=True)
-                async with response:
-                    response.raise_for_status()
-                    openapi_spec_content = await _read_body_capped(
-                        response, max_bytes, uri
-                    )
+        openapi_spec_content = await _read_spec_source(
+            uri, is_local=is_local, max_bytes=max_bytes
+        )
 
         # Parse and resolve off the event loop (CPU-bound operation)
         loop = asyncio.get_event_loop()
