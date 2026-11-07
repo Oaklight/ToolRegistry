@@ -49,6 +49,19 @@ curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8081/api/tools
 | `GET` | `/api/state` | Export current state |
 | `POST` | `/api/state` | Import/restore state |
 
+### Configuration
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/config` | Get the loaded configuration, with source secrets masked |
+| `PUT` | `/api/config` | Update `mode`, `disabled` or `enabled`, persist it, and return the masked result |
+
+Source secrets are never returned in full. In both responses, every `env`,
+`headers` and `kwargs` value is `***`, URL userinfo is removed, and a stdio
+`command` keeps only its executable — `["mcp-server", "***", "***"]`. Writing
+the configuration still stores the real values. A `name_sep` update applies to
+the running registry only and returns `{"name_sep": ..., "saved": false}`.
+
 ## API Examples
 
 === "List Tools"

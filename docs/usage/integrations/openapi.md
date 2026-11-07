@@ -120,13 +120,13 @@ client_config = HttpClientConfig(
 When using the functions `load_openapi_spec` or `load_openapi_spec_async`, the following behaviors apply:
 
 1. **Base URL provided**: If you specify only a base URL (e.g., `http://localhost:8000`), the loader will attempt "best effort" auto-discovery to locate the OpenAPI specification file. It checks endpoints such as `http://<base_url>/openapi.json`, `http://<base_url>/swagger.json`, etc. If auto-discovery fails, ensure the base URL is accurate and the specification is accessible.
-2. **File path provided**: If you provide a file path (e.g., `./openapi_spec.json`), the function will load the OpenAPI specification directly from the file. Unlike simple direct load, the functionality includes unwinding `$ref` blocks commonly found in OpenAPI specifications. This ensures that any schema references are fully resolved within the returned dictionary.
+2. **File path provided**: If you provide a file path (e.g., `./openapi_spec.json`), the function will load the OpenAPI specification directly from the file. A local path or a `file://` URI is refused unless you pass `allow_local_files=True`; the default is `False`, because a location supplied by someone else could otherwise read an arbitrary local file. Enable the flag only when the path comes from a trusted local source. Unlike simple direct load, the functionality includes unwinding `$ref` blocks commonly found in OpenAPI specifications. This ensures that any schema references are fully resolved within the returned dictionary.
 3. **Size and nesting budgets**: the loader streams the document and reads at most 10 MiB by default (`DEFAULT_MAX_SPEC_BYTES`), and rejects a document nested deeper than 100 containers (`DEFAULT_MAX_SPEC_DEPTH`). Pass `max_bytes=` or `max_depth=` to change either budget. A document over the byte budget raises `SpecTooLargeError`; one over the depth budget raises `SpecTooDeepError`; both are subclasses of `ValueError`. A declared `Content-Length` over the budget is refused before the body is read, an unbounded stream is cut off at the limit, and auto-discovery probes read headers only.
 
 ```python
 from toolregistry.integrations.openapi import load_openapi_spec
 
-openapi_spec = load_openapi_spec("./openapi_spec.json") # Load from file
+openapi_spec = load_openapi_spec("./openapi_spec.json", allow_local_files=True) # Load from file
 openapi_spec = load_openapi_spec("http://localhost:8000") # auto-discovery with URL to service root
 openapi_spec = load_openapi_spec("http://localhost:8000/openapi.json") # load from specification URL
 ```

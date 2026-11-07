@@ -120,7 +120,8 @@ both dictionaries. The contract test then covers it.
 **Add source** in the Sources section connects to a source and lists what it
 offers **before anything is registered**:
 
-1. Pick the kind — **OpenAPI** (spec URL or path), **MCP** (server URL, or a
+1. Pick the kind — **OpenAPI** (an `http(s)` spec URL; local paths are read
+   only from operator configuration, not this form), **MCP** (server URL, or a
    stdio command) or **Python** (a module, optionally narrowed to a class or
    function).
 2. Optionally set a namespace; preview names include it, so what you tick is
