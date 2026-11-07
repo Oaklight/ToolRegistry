@@ -341,9 +341,14 @@ class TestSpecUrlScheme:
         def allow(url, *, allow_private_hosts=False):
             return url
 
+        async def allow_async(url, *, allow_private_hosts=False, timeout=0):
+            return url
+
         monkeypatch.setattr(_netpolicy, "validate_outbound_url", allow)
+        monkeypatch.setattr(_netpolicy, "validate_outbound_url_async", allow_async)
         monkeypatch.setattr(core_utils, "validate_outbound_url", allow)
         monkeypatch.setattr(openapi_utils, "validate_outbound_url", allow)
+        monkeypatch.setattr(openapi_utils, "validate_outbound_url_async", allow_async)
 
         with _serve_spec() as base_url:
             url = f"{scheme}://{base_url.split('://', 1)[1]}/openapi.json"
