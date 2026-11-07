@@ -257,6 +257,15 @@ class TestOpenAPIRefresh:
         with pytest.raises(ValueError, match="Cannot refresh"):
             integration.refresh()
 
+    def test_refresh_refuses_a_non_http_spec_url(self):
+        """A stored URL is validated again on refresh, not only at registration."""
+        registry = ToolRegistry()
+        self._register(registry, spec_url="file:///etc/hostname")
+        integration = registry._openapi_integrations[0]
+
+        with pytest.raises(ValueError, match="only http and https"):
+            integration.refresh()
+
     def test_refresh_uses_stored_spec(self):
         registry = ToolRegistry()
         self._register(registry)

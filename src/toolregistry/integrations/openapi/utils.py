@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 from typing import Any
 from urllib.parse import urlparse
 
@@ -69,6 +70,68 @@ def extract_base_url_from_specs(openapi_spec: dict[str, Any]) -> str | None:
             return server_url.rstrip("/")
 
     return None
+
+
+#: The only schemes an HTTP fetch path accepts.  ``load_openapi_spec`` treats
+#: every other scheme — and a URI with no scheme — as a local file path.
+_SPEC_URL_SCHEMES = frozenset({"http", "https"})
+
+#: ``scheme://user:password@`` in a URL, inside arbitrary text.
+_URL_USERINFO = re.compile(r"\b([A-Za-z][A-Za-z0-9+.\-]*://)[^/@\s]+@")
+
+
+def redact_url_userinfo(text: str) -> str:
+    """Remove ``user:password@`` userinfo from every URL in *text*.
+
+    Error messages may quote a URL that a caller supplied.  A URL can carry
+    credentials in its userinfo component, so strip them before the message
+    reaches the caller or a log.
+
+    Args:
+        text: Arbitrary text, such as an exception message.
+
+    Returns:
+        *text* with each URL's userinfo removed.
+    """
+    return _URL_USERINFO.sub(r"\1", text)
+
+
+def validate_spec_url(uri: str) -> str:
+    """Return *uri* unchanged when it is an HTTP(S) URL that names a host.
+
+    ``load_openapi_spec`` reads a URI with no scheme, or with ``file``, as a
+    local path, while ``load_openapi_spec_conditional_async`` can only fetch
+    over HTTP(S).  Callers that accept a URL from an untrusted source use this
+    to refuse anything else before any I/O starts.
+
+    Args:
+        uri: A candidate specification URL.
+
+    Returns:
+        *uri*, unchanged.
+
+    Raises:
+        ValueError: If the URL cannot be parsed, its scheme is not
+            ``http``/``https``, or it names no host.
+    """
+    try:
+        parsed = urlparse(uri)
+        host = parsed.hostname
+    except ValueError as exc:  # malformed IPv6, invalid port, ...
+        detail = redact_url_userinfo(str(exc))
+        raise ValueError(f"'spec_url' is not a valid URL: {detail}") from exc
+    scheme = parsed.scheme.lower()
+    if scheme not in _SPEC_URL_SCHEMES:
+        raise ValueError(
+            f"Unsupported 'spec_url' scheme '{scheme or '(none)'}': "
+            "only http and https URLs are allowed"
+        )
+    if not host:
+        raise ValueError(
+            "'spec_url' must include a host, for example "
+            "https://example.com/openapi.json"
+        )
+    return uri
 
 
 def determine_urls(url: str) -> dict[str, Any]:
@@ -166,13 +229,17 @@ async def load_openapi_spec_async(uri: str) -> dict[str, Any]:
     except YAMLError as e:
         raise ValueError(f"Failed to parse OpenAPI content: {e}")
     except HTTPError as e:
-        raise ValueError(f"HTTP error: {e.status_code} for {e.url}")
+        raise ValueError(
+            f"HTTP error: {e.status_code} for {redact_url_userinfo(str(e.url))}"
+        )
     except HttpClientError as e:
-        raise ValueError(f"Network error when fetching URI: {e}")
+        raise ValueError(
+            f"Network error when fetching URI: {redact_url_userinfo(str(e))}"
+        )
     except FileNotFoundError as e:
         raise FileNotFoundError(f"Invalid file path: {e}")
     except Exception as e:
-        raise ValueError(f"Unexpected error: {e}")
+        raise ValueError(f"Unexpected error: {redact_url_userinfo(str(e))}")
 
 
 def load_openapi_spec(uri: str) -> dict[str, Any]:
@@ -241,11 +308,15 @@ async def load_openapi_spec_conditional_async(
     except YAMLError as e:
         raise ValueError(f"Failed to parse OpenAPI content: {e}")
     except HTTPError as e:
-        raise ValueError(f"HTTP error: {e.status_code} for {e.url}")
+        raise ValueError(
+            f"HTTP error: {e.status_code} for {redact_url_userinfo(str(e.url))}"
+        )
     except HttpClientError as e:
-        raise ValueError(f"Network error when fetching URI: {e}")
+        raise ValueError(
+            f"Network error when fetching URI: {redact_url_userinfo(str(e))}"
+        )
     except Exception as e:
-        raise ValueError(f"Unexpected error: {e}")
+        raise ValueError(f"Unexpected error: {redact_url_userinfo(str(e))}")
 
 
 def load_openapi_spec_conditional(
