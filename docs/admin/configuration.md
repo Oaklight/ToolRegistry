@@ -9,6 +9,7 @@
 | `serve_ui` | `bool` | `True` | 是否在根路径提供 Web UI |
 | `remote` | `bool` | `False` | 是否允许远程连接 |
 | `auth_token` | `str \| None` | `None` | API 访问的认证令牌 |
+| `allow_private_hosts` | `bool` | `False` | 允许面板从回环、链路本地或私有地址拉取 OpenAPI 规范并注册其工具 |
 
 ## 配置示例
 
@@ -44,6 +45,14 @@
     ```python
     # 禁用 Web UI，仅提供 API
     info = registry.enable_admin(serve_ui=False)
+    ```
+
+=== "本地 API 源"
+
+    ```python
+    # 面板默认拒绝回环、链路本地与私有地址（#370）。
+    # 需要从本机 API 注册工具时显式开启：
+    info = registry.enable_admin(allow_private_hosts=True)
     ```
 
 ## AdminInfo 对象
