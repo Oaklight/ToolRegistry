@@ -49,6 +49,18 @@ curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8081/api/tools
 | `GET` | `/api/state` | 导出当前状态 |
 | `POST` | `/api/state` | 导入/恢复状态 |
 
+### 配置
+
+| 方法 | 端点 | 描述 |
+|------|------|------|
+| `GET` | `/api/config` | 获取已加载的配置，来源凭据已脱敏 |
+| `PUT` | `/api/config` | 更新 `mode`、`disabled` 或 `enabled` 并持久化，返回脱敏后的结果 |
+
+来源凭据不会完整返回。两个响应中，`env`、`headers` 与 `kwargs` 的每个值都是
+`***`，URL userinfo 会被移除，stdio `command` 只保留可执行文件——
+`["mcp-server", "***", "***"]`。写入配置时仍保存真实值。`name_sep` 更新只作用于
+运行中的注册表，并返回 `{"name_sep": ..., "saved": false}`。
+
 ## API 示例
 
 === "列出工具"

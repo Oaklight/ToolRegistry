@@ -163,7 +163,7 @@ toolregistry/
 | `search_hint` | 额外关键词，提升 BM25 可发现性 |
 | `think_augment` | 单工具级别是否暴露 `toolcall_reason` 理由字段的覆盖开关 |
 | `source` | 工具来源：`"native"`、`"mcp"`、`"openapi"` 或 `"langchain"`（由集成层自动设置） |
-| `source_detail` | 集成层特定的来源信息（传输方式、URL、类名） |
+| `source_detail` | 脱敏后的来源信息：传输方式与 URL（已去除 userinfo），stdio 仅程序名，或类名 |
 | `extra` | 应用自定义的任意键值对 |
 
 标签驱动权限系统 — 你编写基于标签匹配的规则，而不是工具名称。

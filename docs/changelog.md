@@ -75,6 +75,8 @@ hide:
 - **规范 URL 中的凭据不再进入工具元数据或警告**（#378）：`ToolMetadata.source_detail` 过去直接由 `HttpClientConfig.base_url` 以及刷新时的已存 spec URL 拼接，因此 `servers[].url` 或 spec URL 形如 `https://user:secret@api.example.com` 时，密码会出现在管理接口返回的工具列表中。现在 `source_detail` 会经过 `redact_url_userinfo()`。`$ref` 解析器的警告会原样回显被丢弃的 `$ref`；现在重发时会去掉其中的 userinfo，解析结果本身不变。
 - **OpenAPI 操作路径不能离开 base origin**（#375）：`paths` 的 key 过去会原样交给 HTTP 客户端，因此文档把某个操作命名为 `http://attacker.example/...` 时，每次调用都会把配置的 `Authorization` 头或 Basic 凭据发往该 origin。`OpenAPITool.from_openapi_spec()` 现在要求路径是以单个 `/` 开头的相对路径；`_BaseUrlClient` / `_BaseUrlAsyncClient` 只把这类路径拼到 `base_url`，并校验结果中的 scheme 与 netloc。注册前会先检查整个文档，因此坏 key 不会留下半注册的来源。
 - **MCP 的 `source_detail` 不再携带凭据**（#394）：HTTP/SSE 传输地址形如 `https://user:secret@mcp.example.com/sse` 时，密码会进入 `ToolMetadata.source_detail`，而管理接口会返回该字段；现在地址会经过 `redact_url_userinfo()`。stdio 传输过去会拼接全部参数，因此以 `--api-key secret` 传入的密钥同样会被保存。现在无论注册还是刷新，该值只保留程序名——`stdio:uvx`，比原来的 `stdio:uvx my-server` 更短。`redact_url_userinfo()` 已移到 `toolregistry.utils`，并由 OpenAPI 模块重新导出。
+- **管理凭据不再进入日志、配置响应或导入**（#390）：`AdminServer.start()` 过去会以 INFO 级别记录 Bearer 令牌；现在只记录已启用认证，令牌仍通过 `AdminInfo` 返回给调用方。`GET /api/config` 与 `PUT` 响应会把 MCP 的 `env`、`headers`、Python 的 `kwargs` 以及 URL userinfo 全部显示为 `***`；`save_config` 仍写入真实值。`python` 来源的预览与注册现在也要求令牌，因为 `importlib.import_module` 会执行模块的顶层代码。
+- **stdio 命令参数不再出现在配置响应中**（#396）：`GET /api/config` 与 `PUT` 响应过去原样返回 stdio MCP 的 `command` 列表，因此以 `--api-key secret` 传入的密钥可见。现在可执行文件之后的每个参数都显示为 `***`——`["mcp-server", "***", "***"]`——`argv[0]` 仍然可见，因为它用于标识来源。`save_config` 仍写入真实参数。
 
 ### 修复
 

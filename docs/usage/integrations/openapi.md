@@ -120,13 +120,13 @@ client_config = HttpClientConfig(
 使用 `load_openapi_spec` 或 `load_openapi_spec_async` 函数时，适用以下行为：
 
 1. **提供基础 URL**：如果你只指定一个基础 URL（例如 `http://localhost:8000`），加载器将尝试"尽力"自动发现 OpenAPI 规范文件。它会检查诸如 `http://<base_url>/openapi.json`、`http://<base_url>/swagger.json` 等端点。如果自动发现失败，请确保基础 URL 正确且规范文件可访问。
-2. **提供文件路径**：如果你提供文件路径（例如 `./openapi_spec.json`），函数将直接从文件加载 OpenAPI 规范。与简单的直接加载不同，该功能包括展开 OpenAPI 规范中常见的 `$ref` 块。这确保了返回的字典中所有模式引用都已完全解析。
+2. **提供文件路径**：如果你提供文件路径（例如 `./openapi_spec.json`），函数将直接从文件加载 OpenAPI 规范。本地路径或 `file://` URI 默认被拒绝，必须显式传入 `allow_local_files=True`；默认值为 `False`，因为由他人提供的位置可能被用来读取任意本地文件。仅当路径来自可信的本地来源时才开启该标志。与简单的直接加载不同，该功能包括展开 OpenAPI 规范中常见的 `$ref` 块。这确保了返回的字典中所有模式引用都已完全解析。
 3. **大小与嵌套预算**：加载器以流式读取文档，默认最多读取 10 MiB（`DEFAULT_MAX_SPEC_BYTES`），并拒绝嵌套超过 100 层的文档（`DEFAULT_MAX_SPEC_DEPTH`）。传入 `max_bytes=` 或 `max_depth=` 可调整预算。超过字节预算会抛出 `SpecTooLargeError`；超过深度预算会抛出 `SpecTooDeepError`；两者都是 `ValueError` 的子类。声明的 `Content-Length` 超限时会在读取正文前拒绝，无上限的流会在达到限制时中止，自动发现探测只读取响应头。
 
 ```python
 from toolregistry.integrations.openapi import load_openapi_spec
 
-openapi_spec = load_openapi_spec("./openapi_spec.json") # Load from file
+openapi_spec = load_openapi_spec("./openapi_spec.json", allow_local_files=True) # Load from file
 openapi_spec = load_openapi_spec("http://localhost:8000") # auto-discovery with URL to service root
 openapi_spec = load_openapi_spec("http://localhost:8000/openapi.json") # load from specification URL
 ```
