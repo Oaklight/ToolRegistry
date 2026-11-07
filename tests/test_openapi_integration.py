@@ -1004,6 +1004,11 @@ class TestLoadOpenapiSpec:
         with pytest.raises(ValueError, match="allow_local_files=True"):
             load_openapi_spec("/nonexistent/path/spec.json")
 
+    def test_malformed_uri_keeps_the_error_wrapping(self):
+        """A URI the parser rejects still reports through the loader's wrapper."""
+        with pytest.raises(ValueError, match="Unexpected error"):
+            load_openapi_spec("http://[::1")
+
     @pytest.mark.asyncio
     async def test_load_pretty_printed_json_with_bom_url(self):
         """A UTF-8 BOM must not hide a multi-line JSON spec fetched by URL."""

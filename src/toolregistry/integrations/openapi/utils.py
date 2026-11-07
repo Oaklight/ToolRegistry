@@ -210,7 +210,12 @@ async def load_openapi_spec_async(
         ValueError: If URI retrieval, parsing, or decoding fails, or if *uri*
             names a local file while *allow_local_files* is false.
     """
-    parsed_uri = urlparse(uri)
+    try:
+        parsed_uri = urlparse(uri)
+    except Exception as exc:  # noqa: BLE001 - same wrapping as the request path
+        # A malformed authority (an unterminated IPv6 literal, for example)
+        # keeps the loader's error wrapping and redaction.
+        raise ValueError(f"Unexpected error: {redact_url_userinfo(str(exc))}") from exc
     is_local = parsed_uri.scheme in ("", "file")
     if is_local and not allow_local_files:
         raise ValueError(
