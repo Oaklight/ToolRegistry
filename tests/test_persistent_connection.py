@@ -162,7 +162,11 @@ class TestMCPConnectionManagerHttp:
     async def test_persistent_connection_http(self, http_server):
         port, _ = http_server
         await _wait_for_port(port)
-        mgr = MCPConnectionManager(f"http://127.0.0.1:{port}/mcp", persistent=True)
+        mgr = MCPConnectionManager(
+            f"http://127.0.0.1:{port}/mcp",
+            persistent=True,
+            allow_private_hosts=True,
+        )
         try:
             r1 = await mgr.call_tool("add", {"a": 10, "b": 20})
             assert mgr.is_connected
@@ -344,14 +348,52 @@ class TestMCPConnectionManagerSyncLoop:
         assert not mgr.is_connected
 
     def test_pickling_preserves_config(self):
-        """Pickle round-trip should preserve config and drop connection state."""
+        """Pickle round-trip preserves config fields and drops state."""
         import pickle
 
-        mgr = MCPConnectionManager("http://localhost:9999/mcp")
-        data = pickle.dumps(mgr)
-        restored = pickle.loads(data)
+        mgr = MCPConnectionManager(
+            "http://localhost:9999/mcp",
+            headers={"Authorization": "Bearer t"},
+            persistent=False,
+            allow_private_hosts=True,
+        )
+        restored = pickle.loads(pickle.dumps(mgr))
         assert restored._transport == "http://localhost:9999/mcp"
+        assert restored._headers == {"Authorization": "Bearer t"}
+        assert restored._persistent is False
+        assert restored._allow_private_hosts is True
         assert restored._client is None
+
+    @pytest.mark.asyncio
+    async def test_pickled_manager_reconnects_with_the_opt_in(self, monkeypatch):
+        """A restored manager reconnects instead of raising AttributeError."""
+        import pickle
+
+        captured: dict[str, object] = {}
+
+        class _FakeClient:
+            is_connected = True
+
+            def __init__(self, transport, headers=None, allow_private_hosts=False):
+                captured["allow_private_hosts"] = allow_private_hosts
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
+        monkeypatch.setattr(
+            "toolregistry.integrations.mcp.connection.MCPClient", _FakeClient
+        )
+        mgr = MCPConnectionManager(
+            "http://localhost:9999/mcp", allow_private_hosts=True
+        )
+        restored = pickle.loads(pickle.dumps(mgr))
+
+        await restored._connect()
+
+        assert captured["allow_private_hosts"] is True
 
 
 class TestToolRegistrySyncMCPIntegration:

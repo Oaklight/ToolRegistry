@@ -324,6 +324,7 @@ class MCPIntegration:
         self._resolved_ns: str | None = None
         self._persistent: bool = True
         self._headers: dict[str, str] | None = None
+        self._allow_private_hosts: bool = False
         self._filter: ToolNameFilter = ToolNameFilter()
         self._allow_replace: bool = False
         self._refresh_lock = threading.Lock()
@@ -352,6 +353,7 @@ class MCPIntegration:
         include: str | list[str] | None = None,
         exclude: str | list[str] | None = None,
         allow_replace: bool = False,
+        allow_private_hosts: bool = False,
     ) -> None:
         """Async implementation to register all tools from an MCP server.
 
@@ -364,6 +366,8 @@ class MCPIntegration:
             persistent: If True (default), keep the connection open across
                 tool calls.
             headers: HTTP headers for SSE or streamable-http transports.
+            allow_private_hosts: Allow URL transports to reach loopback,
+                link-local or private addresses.
             include: A name, glob pattern, or list of them to keep.
                 Matched against the raw MCP tool name, the post-namespace
                 name, and the snake_case form of each; see
@@ -381,6 +385,7 @@ class MCPIntegration:
         self._transport = transport
         self._persistent = persistent
         self._headers = headers
+        self._allow_private_hosts = allow_private_hosts
         self._filter = ToolNameFilter(include, exclude)
         self._allow_replace = allow_replace
 
@@ -388,10 +393,15 @@ class MCPIntegration:
             transport=transport,
             persistent=persistent,
             headers=headers,
+            allow_private_hosts=allow_private_hosts,
         )
         self._connections.append(connection)
 
-        async with MCPClient(transport, headers=headers) as client:
+        async with MCPClient(
+            transport,
+            headers=headers,
+            allow_private_hosts=allow_private_hosts,
+        ) as client:
             server_info: Implementation | None = client.server_info
 
             if isinstance(namespace, str):
@@ -442,6 +452,7 @@ class MCPIntegration:
         include: str | list[str] | None = None,
         exclude: str | list[str] | None = None,
         allow_replace: bool = False,
+        allow_private_hosts: bool = False,
     ) -> None:
         """Register all tools from an MCP server (synchronous entry point).
 
@@ -452,6 +463,8 @@ class MCPIntegration:
             persistent: If True (default), keep the connection open across
                 tool calls.
             headers: HTTP headers for SSE or streamable-http transports.
+            allow_private_hosts: Allow URL transports to reach loopback,
+                link-local or private addresses.
             include: A name, glob pattern, or list of them to keep.
             exclude: A name, glob pattern, or list of them to drop.
             allow_replace: Acknowledge replacing an already-registered tool
@@ -468,6 +481,7 @@ class MCPIntegration:
                 include=include,
                 exclude=exclude,
                 allow_replace=allow_replace,
+                allow_private_hosts=allow_private_hosts,
             )
         )
 
@@ -605,7 +619,11 @@ class MCPIntegration:
         # Build source_detail for the result
         source_detail = _source_detail(self._transport)
 
-        async with MCPClient(self._transport, headers=self._headers) as client:
+        async with MCPClient(
+            self._transport,
+            headers=self._headers,
+            allow_private_hosts=self._allow_private_hosts,
+        ) as client:
             tools_response: list[ToolSpec] = await client.list_tools()
 
         sep = self.registry.name_sep

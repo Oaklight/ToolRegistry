@@ -48,6 +48,7 @@ _SOURCE_KEYS: dict[str, frozenset[str]] = {
         "url",
         "headers",
         "persistent",
+        "allow_private_hosts",
         "include",
         "exclude",
     },
@@ -554,6 +555,14 @@ def _build_mcp_source(
         )
     tags = tuple(str(t) for t in raw_tags)
 
+    allow_private_hosts = entry.get("allow_private_hosts", False)
+    if not isinstance(allow_private_hosts, bool):
+        raise ConfigError(
+            f"Tool entry at index {index} (type=mcp): "
+            f"'allow_private_hosts' must be a boolean, "
+            f"got {type(allow_private_hosts).__name__}."
+        )
+
     include, exclude = _parse_name_patterns(entry, index, "mcp")
 
     if transport == "stdio":
@@ -572,6 +581,7 @@ def _build_mcp_source(
             command=tuple(command),
             env=entry.get("env"),
             persistent=entry.get("persistent", True),
+            allow_private_hosts=allow_private_hosts,
             tags=tags,
             include=include,
             exclude=exclude,
@@ -591,6 +601,7 @@ def _build_mcp_source(
         url=url,
         headers=entry.get("headers"),
         persistent=entry.get("persistent", True),
+        allow_private_hosts=allow_private_hosts,
         tags=tags,
         include=include,
         exclude=exclude,

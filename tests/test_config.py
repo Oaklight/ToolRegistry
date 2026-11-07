@@ -376,6 +376,38 @@ tools:
         assert src.transport == "sse"
         assert src.url == "http://localhost:8080/sse"
 
+    def test_allow_private_hosts(self, tmp_path: Path) -> None:
+        p = _write(
+            tmp_path,
+            "cfg.yaml",
+            """\
+tools:
+  - type: mcp
+    transport: sse
+    url: http://127.0.0.1:8080/sse
+    allow_private_hosts: true
+""",
+        )
+        cfg = load_config(p)
+        src = cfg.tools[0]
+        assert isinstance(src, MCPSource)
+        assert src.allow_private_hosts is True
+
+    def test_allow_private_hosts_must_be_boolean(self, tmp_path: Path) -> None:
+        p = _write(
+            tmp_path,
+            "cfg.yaml",
+            """\
+tools:
+  - type: mcp
+    transport: sse
+    url: http://127.0.0.1:8080/sse
+    allow_private_hosts: "yes"
+""",
+        )
+        with pytest.raises(ConfigError, match="allow_private_hosts"):
+            load_config(p)
+
     def test_http_alias(self, tmp_path: Path) -> None:
         p = _write(
             tmp_path,
@@ -992,6 +1024,19 @@ class TestToDict:
         assert d["url"] == "http://localhost:8080/sse"
         assert d["persistent"] is False
         assert "command" not in d
+
+    def test_mcp_source_allow_private_hosts(self) -> None:
+        """The opt-in is serialized only when set."""
+        src = MCPSource(
+            transport="sse",
+            url="http://127.0.0.1/sse",
+            allow_private_hosts=True,
+        )
+        assert src.to_dict()["allow_private_hosts"] is True
+        assert (
+            "allow_private_hosts"
+            not in MCPSource(transport="sse", url="http://127.0.0.1/sse").to_dict()
+        )
 
     def test_openapi_source_basic(self) -> None:
         """OpenAPISource serializes url and optional fields."""

@@ -6,6 +6,7 @@ client-side operations.
 """
 
 from contextlib import asynccontextmanager
+import inspect
 from pathlib import Path
 import sys
 from typing import Any
@@ -17,11 +18,69 @@ from mcp.client.stdio import stdio_client
 from mcp.types import CallToolResult
 from mcp.types import Tool as ToolSpec
 
+from ..._netpolicy import (
+    PrivateAddressError,
+    UnsafeAddressError,
+    validate_outbound_url_async,
+)
 from ._compat import (
+    MCP_VERSION,
     get_streamable_http_client,
     get_websocket_client,
     make_async_http_client,
 )
+
+#: URL schemes that reach the network and therefore pass the address policy.
+_URL_SCHEMES = ("http://", "https://", "ws://", "wss://")
+
+#: ``_netpolicy`` accepts only HTTP(S), while ``ws``/``wss`` use the same host
+#: and default ports. Map them for the check; see #407 for teaching the policy
+#: the WS schemes so this mapping can be removed.
+_POLICY_SCHEMES = {"ws": "http", "wss": "https"}
+
+
+def _policy_url(url: str) -> str:
+    """Return the HTTP(S) spelling the outbound policy can evaluate."""
+    parsed = urlparse(url)
+    scheme = _POLICY_SCHEMES.get(parsed.scheme.lower())
+    if scheme is None:
+        return url
+    return parsed._replace(scheme=scheme).geturl()
+
+
+def _resolution_error(url: str) -> UnsafeAddressError:
+    """Build a refusal for an unresolvable name without exposing DNS detail."""
+    try:
+        host = urlparse(url).hostname or "(unknown host)"
+    except ValueError:
+        host = "(unknown host)"
+    return UnsafeAddressError(
+        f"Refusing to contact '{host}': the host name could not be resolved."
+    )
+
+
+def _http_timeout() -> Any:
+    """Return the MCP transports' recommended HTTP timeout."""
+    if MCP_VERSION >= 2:
+        import httpx2  # type: ignore[import-untyped]
+
+        return httpx2.Timeout(30.0, read=300.0)
+    import httpx
+
+    return httpx.Timeout(30.0, read=300.0)
+
+
+def _http_client(**kwargs: Any) -> Any:
+    """Create the MCP HTTP client with redirects disabled.
+
+    mcp v1's default client enables redirects, so a public endpoint could
+    redirect a request to a private host. mcp v2 enforces its own same-origin
+    redirect rule and does not consult ``follow_redirects``; the flag is
+    harmless there and keeps both versions explicit.
+    """
+    kwargs.setdefault("follow_redirects", False)
+    kwargs.setdefault("timeout", _http_timeout())
+    return make_async_http_client(**kwargs)
 
 
 class MCPClient:
@@ -37,6 +96,7 @@ class MCPClient:
         self,
         source: str | dict | Path,
         headers: dict[str, str] | None = None,
+        allow_private_hosts: bool = False,
     ) -> None:
         """Initialize MCPClient.
 
@@ -49,9 +109,13 @@ class MCPClient:
             headers: Optional HTTP headers to send with SSE or streamable-http
                 requests (e.g. for authentication). Ignored for stdio and
                 websocket transports.
+            allow_private_hosts: Allow a URL transport to reach loopback,
+                link-local or private addresses. The default refuses them
+                before any connection is opened.
         """
         self._source = source
         self._headers = headers
+        self._allow_private_hosts = allow_private_hosts
         self._session: ClientSession | None = None
         self._cm = None  # transport context manager
         self._session_cm = None  # session context manager
@@ -60,26 +124,64 @@ class MCPClient:
     async def _open_transport(self):
         """Open the appropriate transport based on the source type.
 
+        Every URL transport passes the outbound address policy before a
+        connection is opened. ``ws``/``wss`` are checked as ``http``/``https``
+        because the policy accepts only the latter; both use the same host and
+        default ports (see #407).
+
         Yields:
             Tuple of (read_stream, write_stream) for ClientSession.
         """
         src = self._source
+        if isinstance(src, str) and src.startswith(_URL_SCHEMES):
+            try:
+                await validate_outbound_url_async(
+                    _policy_url(src),
+                    allow_private_hosts=self._allow_private_hosts,
+                )
+            except PrivateAddressError:
+                # The policy already names the switch and omits the resolved
+                # address; keep its type and ``addresses`` attribute.
+                raise
+            except UnsafeAddressError:
+                # A resolution failure carries resolver text; replace it with
+                # a message that exposes no lookup detail and does not suggest
+                # the private-host switch, which cannot help a failed lookup.
+                raise _resolution_error(src) from None
+
         if isinstance(src, str) and src.startswith(("http://", "https://")):
             parsed = urlparse(src)
             if parsed.path.rstrip("/").endswith("/sse"):
-                async with sse_client(src, headers=self._headers) as (r, w):
+                async with sse_client(
+                    src,
+                    headers=self._headers,
+                    httpx_client_factory=_http_client,
+                ) as (r, w):
                     yield r, w
             else:
-                http_client = (
-                    make_async_http_client(headers=self._headers)
-                    if self._headers
-                    else None
-                )
                 _streamable_http = get_streamable_http_client()
-                # v1 yields (read, write, get_session_id); v2 yields (read, write)
-                async with _streamable_http(src, http_client=http_client) as streams:
-                    r, w = streams[0], streams[1]
-                    yield r, w
+                # mcp >= 1.24's ``streamable_http_client`` (also the v2 name)
+                # takes a ready client; the older v1 transport takes headers
+                # and a factory. Inspect the signature instead of the version:
+                # mcp 1.24-1.29 reports version 1 for both names.
+                if "http_client" in inspect.signature(_streamable_http).parameters:
+                    http_client = _http_client(headers=self._headers)
+                    try:
+                        async with _streamable_http(
+                            src, http_client=http_client
+                        ) as streams:
+                            r, w = streams[0], streams[1]
+                            yield r, w
+                    finally:
+                        await http_client.aclose()
+                else:
+                    async with _streamable_http(
+                        src,
+                        headers=self._headers,
+                        httpx_client_factory=_http_client,
+                    ) as streams:
+                        r, w = streams[0], streams[1]
+                        yield r, w
         elif isinstance(src, str) and src.startswith(("ws://", "wss://")):
             ws_client = get_websocket_client()
             async with ws_client(src) as (r, w):

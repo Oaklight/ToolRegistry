@@ -12,9 +12,13 @@ import socket
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
+import toolregistry._netpolicy as netpolicy
+import toolregistry.integrations.mcp.client as mcp_client
+from toolregistry._netpolicy import UnsafeAddressError, clear_address_cache
 from toolregistry.integrations.mcp.client import MCPClient, _to_stdio_params
 
 # Path to the lightweight test MCP server script
@@ -247,7 +251,9 @@ class TestStreamableHttpTransport:
     async def test_list_tools(self, http_server):
         port, _ = http_server
         await _wait_for_port(port)
-        async with MCPClient(f"http://127.0.0.1:{port}/mcp") as client:
+        async with MCPClient(
+            f"http://127.0.0.1:{port}/mcp", allow_private_hosts=True
+        ) as client:
             tools = await client.list_tools()
             names = {t.name for t in tools}
             assert "add" in names
@@ -258,7 +264,9 @@ class TestStreamableHttpTransport:
     async def test_call_tool_add(self, http_server):
         port, _ = http_server
         await _wait_for_port(port)
-        async with MCPClient(f"http://127.0.0.1:{port}/mcp") as client:
+        async with MCPClient(
+            f"http://127.0.0.1:{port}/mcp", allow_private_hosts=True
+        ) as client:
             result = await client.call_tool("add", {"a": 10, "b": 20})
             text = result.content[0].text
             assert json.loads(text) == {"result": 30}
@@ -267,7 +275,9 @@ class TestStreamableHttpTransport:
     async def test_call_tool_echo(self, http_server):
         port, _ = http_server
         await _wait_for_port(port)
-        async with MCPClient(f"http://127.0.0.1:{port}/mcp") as client:
+        async with MCPClient(
+            f"http://127.0.0.1:{port}/mcp", allow_private_hosts=True
+        ) as client:
             result = await client.call_tool("echo", {"message": "http-test"})
             assert result.content[0].text == "http-test"
 
@@ -277,7 +287,11 @@ class TestStreamableHttpTransport:
         port, _ = http_server
         await _wait_for_port(port)
         headers = {"X-Custom-Header": "test-value"}
-        async with MCPClient(f"http://127.0.0.1:{port}/mcp", headers=headers) as client:
+        async with MCPClient(
+            f"http://127.0.0.1:{port}/mcp",
+            headers=headers,
+            allow_private_hosts=True,
+        ) as client:
             tools = await client.list_tools()
             assert len(tools) == 4
 
@@ -320,7 +334,9 @@ class TestSseTransport:
     async def test_list_tools(self, sse_server):
         port, _ = sse_server
         await _wait_for_port(port)
-        async with MCPClient(f"http://127.0.0.1:{port}/sse") as client:
+        async with MCPClient(
+            f"http://127.0.0.1:{port}/sse", allow_private_hosts=True
+        ) as client:
             tools = await client.list_tools()
             names = {t.name for t in tools}
             assert "add" in names
@@ -331,7 +347,9 @@ class TestSseTransport:
     async def test_call_tool_add(self, sse_server):
         port, _ = sse_server
         await _wait_for_port(port)
-        async with MCPClient(f"http://127.0.0.1:{port}/sse") as client:
+        async with MCPClient(
+            f"http://127.0.0.1:{port}/sse", allow_private_hosts=True
+        ) as client:
             result = await client.call_tool("add", {"a": 100, "b": 200})
             text = result.content[0].text
             assert json.loads(text) == {"result": 300}
@@ -340,7 +358,9 @@ class TestSseTransport:
     async def test_call_tool_greet(self, sse_server):
         port, _ = sse_server
         await _wait_for_port(port)
-        async with MCPClient(f"http://127.0.0.1:{port}/sse") as client:
+        async with MCPClient(
+            f"http://127.0.0.1:{port}/sse", allow_private_hosts=True
+        ) as client:
             result = await client.call_tool("greet", {"name": "SSE"})
             assert result.content[0].text == "Hello, SSE!"
 
@@ -350,7 +370,11 @@ class TestSseTransport:
         port, _ = sse_server
         await _wait_for_port(port)
         headers = {"Authorization": "Bearer test-token"}
-        async with MCPClient(f"http://127.0.0.1:{port}/sse", headers=headers) as client:
+        async with MCPClient(
+            f"http://127.0.0.1:{port}/sse",
+            headers=headers,
+            allow_private_hosts=True,
+        ) as client:
             tools = await client.list_tools()
             assert len(tools) == 4
 
@@ -388,3 +412,222 @@ class TestMCPClientAPI:
         headers = {"Authorization": "Bearer token123"}
         client = MCPClient("http://localhost:9999/mcp", headers=headers)
         assert client._headers == headers
+
+
+class _FakeStreams:
+    """Async context manager that records the transport it stands for."""
+
+    def __init__(self, calls: list[str], label: str) -> None:
+        self._calls = calls
+        self._label = label
+
+    async def __aenter__(self):
+        self._calls.append(self._label)
+        return (object(), object())
+
+    async def __aexit__(self, *exc):
+        return False
+
+
+def _stub_transport(calls: list[str], label: str):
+    def factory(*args, **kwargs):
+        return _FakeStreams(calls, label)
+
+    return factory
+
+
+class TestOutboundAddressPolicy:
+    """URL transports refuse non-public hosts before opening a connection."""
+
+    @pytest.mark.asyncio
+    async def test_streamable_http_refuses_loopback_by_default(self, monkeypatch):
+        calls: list[str] = []
+        monkeypatch.setattr(
+            mcp_client,
+            "get_streamable_http_client",
+            lambda: _stub_transport(calls, "streamable"),
+        )
+
+        client = MCPClient("http://127.0.0.1:9/mcp")
+        with pytest.raises(UnsafeAddressError):
+            async with client._open_transport():
+                pass
+        assert calls == []
+
+    @pytest.mark.asyncio
+    async def test_sse_refuses_loopback_by_default(self, monkeypatch):
+        calls: list[str] = []
+        monkeypatch.setattr(mcp_client, "sse_client", _stub_transport(calls, "sse"))
+
+        client = MCPClient("http://127.0.0.1:9/sse")
+        with pytest.raises(UnsafeAddressError):
+            async with client._open_transport():
+                pass
+        assert calls == []
+
+    @pytest.mark.asyncio
+    async def test_websocket_refuses_loopback_by_default(self, monkeypatch):
+        calls: list[str] = []
+        monkeypatch.setattr(
+            mcp_client,
+            "get_websocket_client",
+            lambda: _stub_transport(calls, "websocket"),
+        )
+
+        client = MCPClient("ws://127.0.0.1:9/ws")
+        with pytest.raises(UnsafeAddressError):
+            async with client._open_transport():
+                pass
+        assert calls == []
+
+    @pytest.mark.asyncio
+    async def test_private_host_opt_in_reaches_the_transport(self, monkeypatch):
+        calls: list[str] = []
+        monkeypatch.setattr(
+            mcp_client,
+            "get_streamable_http_client",
+            lambda: _stub_transport(calls, "streamable"),
+        )
+
+        client = MCPClient("http://127.0.0.1:9/mcp", allow_private_hosts=True)
+        async with client._open_transport():
+            pass
+        assert calls == ["streamable"]
+
+    @pytest.mark.asyncio
+    async def test_public_host_reaches_the_transport(self, monkeypatch):
+        calls: list[str] = []
+        monkeypatch.setattr(
+            mcp_client,
+            "get_streamable_http_client",
+            lambda: _stub_transport(calls, "streamable"),
+        )
+
+        async def resolve(host, port, timeout=5.0):
+            return ["93.184.216.34"]
+
+        monkeypatch.setattr(netpolicy, "_resolve_async", resolve)
+        clear_address_cache()
+        try:
+            client = MCPClient("https://mcp.example/mcp")
+            async with client._open_transport():
+                pass
+        finally:
+            clear_address_cache()
+        assert calls == ["streamable"]
+
+    @pytest.mark.asyncio
+    async def test_refusal_names_the_switch_without_the_resolved_address(
+        self, monkeypatch
+    ):
+        async def resolve(host, port, timeout=5.0):
+            return ["127.0.0.1"]
+
+        monkeypatch.setattr(netpolicy, "_resolve_async", resolve)
+        clear_address_cache()
+        try:
+            client = MCPClient("http://localhost:9/mcp")
+            with pytest.raises(UnsafeAddressError) as excinfo:
+                async with client._open_transport():
+                    pass
+        finally:
+            clear_address_cache()
+
+        message = str(excinfo.value)
+        assert "allow_private_hosts" in message
+        assert "127.0.0.1" not in message
+        assert "localhost" in message
+
+    @pytest.mark.asyncio
+    async def test_resolution_failure_is_refused_without_detail(self, monkeypatch):
+        async def resolve(host, port, timeout=5.0):
+            raise OSError("resolver detail")
+
+        monkeypatch.setattr(netpolicy, "_resolve_async", resolve)
+        clear_address_cache()
+
+        client = MCPClient("http://unresolvable.example/mcp")
+        with pytest.raises(UnsafeAddressError) as excinfo:
+            async with client._open_transport():
+                pass
+
+        message = str(excinfo.value)
+        assert "allow_private_hosts" not in message
+        assert "resolver detail" not in message
+        assert "could not be resolved" in message
+
+    def test_ws_urls_are_checked_as_http(self):
+        assert mcp_client._policy_url("ws://example.com/ws") == "http://example.com/ws"
+        assert (
+            mcp_client._policy_url("wss://example.com:8443/ws")
+            == "https://example.com:8443/ws"
+        )
+
+    @pytest.mark.asyncio
+    async def test_sse_uses_a_no_redirect_client(self, monkeypatch):
+        captured: dict[str, Any] = {}
+        made: dict[str, Any] = {}
+
+        def make_client(**kwargs):
+            made.update(kwargs)
+            return object()
+
+        def fake_sse(url, **kwargs):
+            captured["factory"] = kwargs["httpx_client_factory"]
+            return _FakeStreams([], "sse")
+
+        monkeypatch.setattr(mcp_client, "make_async_http_client", make_client)
+        monkeypatch.setattr(mcp_client, "sse_client", fake_sse)
+
+        client = MCPClient("http://127.0.0.1:9/sse", allow_private_hosts=True)
+        async with client._open_transport():
+            pass
+
+        factory = captured["factory"]
+        assert callable(factory)
+        factory(headers=None)
+        assert made["follow_redirects"] is False
+
+    @pytest.mark.asyncio
+    async def test_streamable_old_style_uses_a_no_redirect_client(self, monkeypatch):
+        captured: dict[str, Any] = {}
+        made: dict[str, Any] = {}
+
+        def make_client(**kwargs):
+            made.update(kwargs)
+            return object()
+
+        def fake_streamable(url, *, headers=None, httpx_client_factory=None):
+            captured["factory"] = httpx_client_factory
+            return _FakeStreams([], "streamable")
+
+        monkeypatch.setattr(mcp_client, "make_async_http_client", make_client)
+        monkeypatch.setattr(
+            mcp_client, "get_streamable_http_client", lambda: fake_streamable
+        )
+
+        client = MCPClient("http://127.0.0.1:9/mcp", allow_private_hosts=True)
+        async with client._open_transport():
+            pass
+
+        factory = captured["factory"]
+        factory(headers=None)
+        assert made["follow_redirects"] is False
+
+    @pytest.mark.asyncio
+    async def test_streamable_new_style_uses_a_no_redirect_client(self, monkeypatch):
+        captured: dict[str, Any] = {}
+
+        def fake_streamable(url, *, http_client=None, terminate_on_close=True):
+            captured["client"] = http_client
+            return _FakeStreams([], "streamable")
+
+        monkeypatch.setattr(
+            mcp_client, "get_streamable_http_client", lambda: fake_streamable
+        )
+
+        client = MCPClient("http://127.0.0.1:9/mcp", allow_private_hosts=True)
+        async with client._open_transport():
+            pass
+
+        assert captured["client"].follow_redirects is False

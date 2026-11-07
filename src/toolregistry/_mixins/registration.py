@@ -192,7 +192,8 @@ class RegistrationMixin:
                 discarded either way; the flag only acknowledges that.
             **kwargs: Additional keyword arguments forwarded to the
                 underlying integration (e.g. ``persistent``, ``headers``,
-                ``traverse_mro``, ``constructor_kwargs``, ``openapi_spec``,
+                ``allow_private_hosts``, ``traverse_mro``,
+                ``constructor_kwargs``, ``openapi_spec``,
                 ``spec_url``, ``include``, ``exclude``).
                 ``include`` / ``exclude`` are accepted by the ``"mcp"``,
                 ``"openapi"``, and ``"langchain"`` sources.  Each is a name,
@@ -704,6 +705,7 @@ class RegistrationMixin:
     def _register_mcp(self, transport, *, namespace, **kwargs):
         persistent = kwargs.pop("persistent", True)
         headers = kwargs.pop("headers", None)
+        allow_private_hosts = kwargs.pop("allow_private_hosts", False)
         filter_kwargs = _pop_filter_kwargs(kwargs)
         replace_kwargs = _forward_allow_replace(kwargs.pop("allow_replace", False))
         MCPIntegration = _import_mcp_integration()
@@ -713,6 +715,7 @@ class RegistrationMixin:
             namespace,
             persistent,
             headers=headers,
+            allow_private_hosts=allow_private_hosts,
             **filter_kwargs,
             **replace_kwargs,
         )
@@ -722,6 +725,7 @@ class RegistrationMixin:
     async def _register_mcp_async(self, transport, *, namespace, **kwargs):
         persistent = kwargs.pop("persistent", True)
         headers = kwargs.pop("headers", None)
+        allow_private_hosts = kwargs.pop("allow_private_hosts", False)
         filter_kwargs = _pop_filter_kwargs(kwargs)
         replace_kwargs = _forward_allow_replace(kwargs.pop("allow_replace", False))
         MCPIntegration = _import_mcp_integration()
@@ -731,6 +735,7 @@ class RegistrationMixin:
             namespace,
             persistent,
             headers=headers,
+            allow_private_hosts=allow_private_hosts,
             **filter_kwargs,
             **replace_kwargs,
         )

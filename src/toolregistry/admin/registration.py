@@ -400,7 +400,11 @@ def _mcp_entries(
     namespace = _namespace(payload)
 
     async def _list() -> Any:
-        async with MCPClient(transport, headers=headers) as client:
+        async with MCPClient(
+            transport,
+            headers=headers,
+            allow_private_hosts=payload.get("allow_private_hosts") is True,
+        ) as client:
             return await client.list_tools()
 
     try:
@@ -630,6 +634,8 @@ def _register_mcp_source(
     namespace: str | None,
 ) -> None:
     kwargs: dict[str, Any] = {"source": "mcp", "namespace": namespace or False}
+    if data.get("allow_private_hosts") is True:
+        kwargs["allow_private_hosts"] = True
     headers = _request_headers(data)
     if headers:
         kwargs["headers"] = headers

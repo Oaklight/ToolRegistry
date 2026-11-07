@@ -185,6 +185,7 @@ class TestMCPSource:
             False,
             True,
             headers={"Authorization": "Bearer tok"},
+            allow_private_hosts=False,
         )
         assert mock_instance in reg._mcp_integrations
 
