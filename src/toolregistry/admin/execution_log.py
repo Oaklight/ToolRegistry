@@ -4,16 +4,17 @@ This module provides data structures and utilities for logging tool executions,
 including a thread-safe ring buffer implementation for efficient storage.
 """
 
+import json
 import logging
 import threading
 import uuid
 from collections import deque
+from collections.abc import Generator
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from enum import Enum
 from typing import Any
-from collections.abc import Generator
 
 
 class ExecutionStatus(str, Enum):
@@ -23,6 +24,185 @@ class ExecutionStatus(str, Enum):
     ERROR = "error"
     TIMEOUT = "timeout"
     DISABLED = "disabled"
+
+
+#: Replacement used for a value whose key names a credential.
+_REDACTED = "***REDACTED***"
+
+#: Longest JSON encoding kept for ``arguments`` or ``result`` before the
+#: payload is replaced by a bounded preview.
+DEFAULT_MAX_FIELD_CHARS = 2000
+
+#: Largest nesting depth a logged value is walked.  Deeper values are
+#: replaced instead of traversed, which also bounds work on cyclic input.
+_MAX_REDACT_DEPTH = 8
+
+#: Exact normalised key names that always carry a credential.
+_SENSITIVE_KEY_NAMES = frozenset(
+    {
+        "access_key",
+        "access_token",
+        "api_key",
+        "apikey",
+        "auth",
+        "authorization",
+        "client_secret",
+        "cookie",
+        "credential",
+        "credentials",
+        "id_token",
+        "passwd",
+        "password",
+        "private_key",
+        "pwd",
+        "refresh_token",
+        "secret",
+        "secret_key",
+        "session",
+        "session_id",
+        "session_token",
+        "set_cookie",
+        "token",
+        "x_api_key",
+    }
+)
+
+#: Suffixes that mark a compound key as credential-bearing.  ``_key`` alone
+#: is omitted on purpose: an ordinary mapping argument often uses it.
+_SENSITIVE_KEY_SUFFIXES = (
+    "_access_key",
+    "_access_token",
+    "_api_key",
+    "_apikey",
+    "_authorization",
+    "_client_secret",
+    "_credential",
+    "_credentials",
+    "_passwd",
+    "_password",
+    "_private_key",
+    "_pwd",
+    "_refresh_token",
+    "_secret",
+    "_secret_key",
+    "_session",
+    "_session_id",
+    "_session_token",
+    "_token",
+)
+
+
+def _is_sensitive_key(key: object) -> bool:
+    """Return whether *key* names a credential that must not be logged.
+
+    Args:
+        key: A mapping key, which is normalised before matching.
+
+    Returns:
+        True when the key matches a known credential name or suffix.
+    """
+    normalized = str(key).strip().lower().replace("-", "_").replace(" ", "_")
+    return normalized in _SENSITIVE_KEY_NAMES or normalized.endswith(
+        _SENSITIVE_KEY_SUFFIXES
+    )
+
+
+def _redact(value: Any, *, depth: int = 0, seen: set[int] | None = None) -> Any:
+    """Return a copy of *value* with credential-bearing keys masked.
+
+    Traversal is depth-limited and cycle-safe.  Containers keep their shape;
+    only values under a sensitive key are replaced.
+
+    Args:
+        value: The value to copy.
+        depth: Current recursion depth.
+        seen: Ids of containers already visited on this branch.
+
+    Returns:
+        A redacted copy, or a marker for an over-deep or cyclic value.
+    """
+    if depth > _MAX_REDACT_DEPTH:
+        return "<max-depth>"
+    if isinstance(value, dict):
+        if seen is None:
+            seen = set()
+        if id(value) in seen:
+            return "<cycle>"
+        seen = seen | {id(value)}
+        return {
+            key: (
+                _REDACTED
+                if _is_sensitive_key(key)
+                else _redact(item, depth=depth + 1, seen=seen)
+            )
+            for key, item in value.items()
+        }
+    if isinstance(value, (list, tuple)):
+        if seen is None:
+            seen = set()
+        if id(value) in seen:
+            return "<cycle>"
+        seen = seen | {id(value)}
+        return [_redact(item, depth=depth + 1, seen=seen) for item in value]
+    return value
+
+
+def _bounded_payload(value: Any, max_chars: int) -> Any:
+    """Redact *value*, then bound its JSON encoding to *max_chars*.
+
+    A value that already fits is returned as the redacted structure, so the
+    panel keeps rendering JSON.  A larger value becomes a small marker with a
+    truncated preview, which caps both the memory kept per entry and the
+    response size.
+
+    Args:
+        value: The argument mapping or result to sanitise.
+        max_chars: Maximum JSON length to keep.
+
+    Returns:
+        The redacted value, or a preview marker when it is too large.
+    """
+    redacted = _redact(value)
+    try:
+        encoded = json.dumps(redacted, default=str, ensure_ascii=False)
+    except (TypeError, ValueError):
+        return {"truncated": True, "preview": "<unserializable>"}
+    if len(encoded) <= max_chars:
+        return redacted
+    return {
+        "truncated": True,
+        "size": len(encoded),
+        "preview": encoded[:max_chars],
+    }
+
+
+def _bounded_text(text: str | None, max_chars: int) -> str | None:
+    """Truncate *text* to *max_chars*, marking the cut."""
+    if text is None or len(text) <= max_chars:
+        return text
+    return text[:max_chars] + "...<truncated>"
+
+
+def _sanitize_entry(entry: "ExecutionLogEntry", max_chars: int) -> "ExecutionLogEntry":
+    """Return *entry* with payloads redacted, bounded, and traceback dropped.
+
+    The exception type and message stay: together they describe the failure
+    without the local paths and library versions a full traceback exposes.
+
+    Args:
+        entry: The entry to sanitise.
+        max_chars: Maximum JSON length kept for arguments and result.
+
+    Returns:
+        A sanitised copy of *entry*.
+    """
+    return replace(
+        entry,
+        arguments=_bounded_payload(entry.arguments, max_chars),
+        result=_bounded_payload(entry.result, max_chars),
+        error=_bounded_text(entry.error, max_chars),
+        traceback=None,
+    )
 
 
 @dataclass(frozen=True)
@@ -136,20 +316,39 @@ class ExecutionLog:
         1
     """
 
-    def __init__(self, max_entries: int = 1000) -> None:
+    def __init__(
+        self,
+        max_entries: int = 1000,
+        *,
+        full_record: bool = False,
+        max_field_chars: int = DEFAULT_MAX_FIELD_CHARS,
+    ) -> None:
         """Initialize with maximum entries limit.
 
         Args:
             max_entries: Maximum number of log entries to retain.
                 When this limit is exceeded, oldest entries are removed.
                 Defaults to 1000.
+            full_record: Store arguments, results and tracebacks verbatim.
+                Defaults to False, which masks credential-bearing keys,
+                replaces payloads larger than *max_field_chars* with a
+                preview, and drops the traceback in favour of
+                ``exception_type`` and ``error``.  Enable this only when the
+                log is not reachable by untrusted callers.
+            max_field_chars: Maximum JSON length kept for ``arguments`` and
+                ``result`` when *full_record* is False.  Defaults to
+                :data:`DEFAULT_MAX_FIELD_CHARS`.
 
         Raises:
-            ValueError: If max_entries is less than 1.
+            ValueError: If max_entries or max_field_chars is less than 1.
         """
         if max_entries < 1:
             raise ValueError("max_entries must be at least 1")
+        if max_field_chars < 1:
+            raise ValueError("max_field_chars must be at least 1")
         self._max_entries = max_entries
+        self._full_record = full_record
+        self._max_field_chars = max_field_chars
         self._entries: deque[ExecutionLogEntry] = deque(maxlen=max_entries)
         self._lock = threading.Lock()
         self._total_added: int = 0
@@ -159,16 +358,31 @@ class ExecutionLog:
         """Return the maximum number of entries this log can hold."""
         return self._max_entries
 
+    @property
+    def full_record(self) -> bool:
+        """Return whether entries keep unredacted payloads and tracebacks."""
+        return self._full_record
+
+    @property
+    def max_field_chars(self) -> int:
+        """Return the maximum JSON length kept per payload by default."""
+        return self._max_field_chars
+
     def add(self, entry: ExecutionLogEntry) -> None:
         """Add a new log entry (thread-safe).
 
         If the log is at capacity, the oldest entry is automatically
-        removed to make room for the new entry.
+        removed to make room for the new entry.  Unless the log was opened
+        with ``full_record=True``, the entry is sanitised first: known
+        credential keys are masked, oversized payloads are replaced by a
+        preview, and the traceback is dropped.
 
         Args:
             entry: The execution log entry to add.
         """
         with self._lock:
+            if not self._full_record:
+                entry = _sanitize_entry(entry, self._max_field_chars)
             self._entries.append(entry)
             self._total_added += 1
 

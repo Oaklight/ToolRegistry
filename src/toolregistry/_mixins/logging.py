@@ -15,16 +15,28 @@ class ExecutionLoggingMixin:
         super().__init__(**kwargs)
         self._execution_log: ExecutionLog | None = None
 
-    def enable_logging(self, max_entries: int = 1000) -> ExecutionLog:
+    def enable_logging(
+        self, max_entries: int = 1000, *, full_record: bool = False
+    ) -> ExecutionLog:
         """Enable execution logging with a ring buffer.
 
         Creates an ExecutionLog instance that records tool execution details
         including timing, arguments, results, and errors.
 
+        By default the log is safe to expose: known credential keys
+        (``password``, ``token``, ``authorization``, ...) are masked,
+        arguments and results longer than 2000 JSON characters are replaced
+        by a preview, and tracebacks are dropped while ``exception_type``
+        and ``error`` are kept.  Pass ``full_record=True`` to keep the raw
+        payloads and tracebacks; only do that when the log is not reachable
+        by untrusted callers.
+
         Args:
             max_entries: Maximum number of log entries to retain.
                 When this limit is exceeded, oldest entries are removed.
                 Defaults to 1000.
+            full_record: Store arguments, results and tracebacks verbatim.
+                Defaults to False.
 
         Returns:
             The ExecutionLog instance for querying logged executions.
@@ -39,7 +51,9 @@ class ExecutionLoggingMixin:
         """
         from ..admin import ExecutionLog
 
-        self._execution_log = ExecutionLog(max_entries=max_entries)
+        self._execution_log = ExecutionLog(
+            max_entries=max_entries, full_record=full_record
+        )
         return self._execution_log
 
     def disable_logging(self) -> None:
