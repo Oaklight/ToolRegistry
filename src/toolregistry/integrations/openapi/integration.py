@@ -2,6 +2,7 @@ import logging
 import threading
 from typing import Any
 
+from ...errors import ResponseTooLargeError
 from ...events import ChangeEvent, ChangeEventType, RefreshResult
 from ...schema_diff import SchemaChangeKind, classify_tool_change
 
@@ -124,11 +125,31 @@ class OpenAPIToolWrapper(BaseToolWrapper):
                 return self._do_sync_request(client, kwargs)
 
     def _do_sync_request(self, client: Any, kwargs: dict[str, Any]) -> Any:
-        """Execute the sync HTTP request."""
-        if self.method == "get":
-            response = client.get(self.path, params=kwargs)
-        else:
-            response = client.request(self.method, self.path, json=kwargs)
+        """Execute the sync HTTP request.
+
+        The response body is capped through the configured
+        ``max_response_size``.  An over-limit response raises
+        :class:`~toolregistry.errors.ResponseTooLargeError` with the URL
+        userinfo redacted, so a caller that logs the tool error does not
+        leak credentials embedded in the base URL.
+        """
+        try:
+            if self.method == "get":
+                response = client.get(
+                    self.path,
+                    params=kwargs,
+                    max_response_size=self.client_config.max_response_size,
+                )
+            else:
+                response = client.request(
+                    self.method,
+                    self.path,
+                    json=kwargs,
+                    max_response_size=self.client_config.max_response_size,
+                )
+        except ResponseTooLargeError as exc:
+            # ``from None``: a chained cause would print the unredacted URL.
+            raise _redact_size_error(exc) from None
         response.raise_for_status()
         return response.json()
 
@@ -162,13 +183,39 @@ class OpenAPIToolWrapper(BaseToolWrapper):
                 return await self._do_async_request(client, kwargs)
 
     async def _do_async_request(self, client: Any, kwargs: dict[str, Any]) -> Any:
-        """Execute the async HTTP request."""
-        if self.method == "get":
-            response = await client.get(self.path, params=kwargs)
-        else:
-            response = await client.request(self.method, self.path, json=kwargs)
+        """Execute the async HTTP request.
+
+        See :meth:`_do_sync_request` for the size cap and URL redaction.
+        """
+        try:
+            if self.method == "get":
+                response = await client.get(
+                    self.path,
+                    params=kwargs,
+                    max_response_size=self.client_config.max_response_size,
+                )
+            else:
+                response = await client.request(
+                    self.method,
+                    self.path,
+                    json=kwargs,
+                    max_response_size=self.client_config.max_response_size,
+                )
+        except ResponseTooLargeError as exc:
+            # ``from None``: a chained cause would print the unredacted URL.
+            raise _redact_size_error(exc) from None
         response.raise_for_status()
         return response.json()
+
+
+def _redact_size_error(exc: ResponseTooLargeError) -> ResponseTooLargeError:
+    """Return the same size error with the URL's userinfo removed."""
+    return ResponseTooLargeError(
+        redact_url_userinfo(exc.url),
+        exc.max_size,
+        declared=exc.declared,
+        received=exc.received,
+    )
 
 
 def _copy_json_schema(schema: dict[str, Any], description: str = "") -> dict[str, Any]:

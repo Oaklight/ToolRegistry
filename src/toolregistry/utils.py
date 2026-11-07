@@ -246,6 +246,14 @@ class _BaseUrlAsyncClient:
         await self.aclose()
 
 
+#: Default cap on a buffered tool-call response, in bytes.  It matches the
+#: OpenAPI document-download budget (``DEFAULT_MAX_SPEC_BYTES``): a tool that
+#: answers with more than 10 MiB is almost always a misconfiguration, and the
+#: whole body would otherwise be buffered in memory.  Callers that legitimately
+#: need more raise this value; ``None`` disables the cap.
+DEFAULT_MAX_TOOL_RESPONSE_BYTES = 10 * 1024 * 1024
+
+
 class HttpClientConfig:
     """Container for HTTP client configuration.
 
@@ -264,11 +272,20 @@ class HttpClientConfig:
         allow_private_hosts: Permit *base_url* to resolve to a loopback,
             link-local or private address.  Defaults to ``False``; set it for
             an API that runs on the same host or on a private network.
-        **extra_options: Additional client parameters (e.g. verify, proxy, pool_size).
+        **extra_options: Additional client parameters (e.g. verify, proxy,
+            pool_size, max_response_size).  ``max_response_size`` defaults to
+            :data:`DEFAULT_MAX_TOOL_RESPONSE_BYTES` (10 MiB); pass ``None`` to
+            disable the cap.
     """
 
     # Known parameters that map directly to Client/AsyncClient constructor
-    _KNOWN_CLIENT_PARAMS = {"verify", "proxy", "pool_size", "max_redirects"}
+    _KNOWN_CLIENT_PARAMS = {
+        "verify",
+        "proxy",
+        "pool_size",
+        "max_redirects",
+        "max_response_size",
+    }
 
     def __init__(
         self,
@@ -286,6 +303,12 @@ class HttpClientConfig:
         self.auth = auth
         self.cookies = cookies
         self.allow_private_hosts = allow_private_hosts
+        # A buffered tool response is capped by default; ``None`` disables it.
+        # Keep extra_options untouched: it is part of the public state (and
+        # pickled with the config), so the default is resolved here instead.
+        self.max_response_size = extra_options.get(
+            "max_response_size", DEFAULT_MAX_TOOL_RESPONSE_BYTES
+        )
         self.extra_options = extra_options
         self._sync_client: _BaseUrlClient | None = None
         self._async_client: _BaseUrlAsyncClient | None = None
@@ -297,6 +320,7 @@ class HttpClientConfig:
             "timeout": self.timeout,
             "auth": self.auth,
             "cookies": self.cookies,
+            "max_response_size": self.max_response_size,
         }
         for key in self._KNOWN_CLIENT_PARAMS:
             if key in self.extra_options:
@@ -443,6 +467,7 @@ class HttpClientConfig:
             "auth": self.auth,
             "cookies": self.cookies,
             "allow_private_hosts": self.allow_private_hosts,
+            "max_response_size": self.max_response_size,
             "extra_options": self.extra_options,
         }
 
@@ -454,6 +479,10 @@ class HttpClientConfig:
         self.auth = state["auth"]
         self.cookies = state.get("cookies")
         self.allow_private_hosts = state.get("allow_private_hosts", False)
+        # Default for a config pickled before the cap existed.
+        self.max_response_size = state.get(
+            "max_response_size", DEFAULT_MAX_TOOL_RESPONSE_BYTES
+        )
         self.extra_options = state["extra_options"]
         self._sync_client = None
         self._async_client = None
