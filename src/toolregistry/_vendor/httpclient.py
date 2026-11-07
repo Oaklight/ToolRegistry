@@ -1,5 +1,5 @@
 # /// zerodep
-# version = "0.6.4"
+# version = "0.6.5"
 # deps = []
 # tier = "subsystem"
 # category = "network"
@@ -31,6 +31,15 @@ Session usage::
 
     async with AsyncClient() as client:
         r = await client.get("https://httpbin.org/get")
+
+Redirects:
+    ``Authorization``, ``Proxy-Authorization`` and ``Cookie`` are bound to
+    the origin that received them.  A redirect to a different scheme, host
+    or port -- including an ``https`` → ``http`` downgrade -- drops them
+    before the next hop.  They stay dropped if a later hop returns to the
+    original origin, because the redirect chain keeps one header set.
+    Digest auth is disabled at the same time, so a 401 challenge from a new
+    origin cannot harvest the configured username and password.
 """
 
 # ── Imports ──
@@ -56,7 +65,7 @@ import weakref
 import zlib
 from collections.abc import AsyncIterator, Callable, Iterator
 from typing import IO, Any
-from urllib.parse import quote, urlencode, urlparse
+from urllib.parse import quote, urlencode, urljoin, urlparse
 
 __all__ = [
     # Constants
@@ -112,6 +121,19 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT = 30.0
 DEFAULT_MAX_REDIRECTS = 10
+
+#: Request headers that are scoped to the origin that received them.
+#: A cross-origin redirect drops these before the next hop, so a caller's
+#: bearer token, basic credentials, or session cookie cannot be replayed to
+#: a different scheme, host or port (including an ``https`` → ``http``
+#: downgrade).  The names are lower-case because header lookups are
+#: case-insensitive.
+_REDIRECT_CREDENTIAL_HEADERS = (
+    "authorization",
+    "proxy-authorization",
+    "cookie",
+)
+
 DEFAULT_USER_AGENT = "zerodep-http/0.1"
 DEFAULT_POOL_SIZE = 10
 DEFAULT_POOL_IDLE_TIMEOUT = 60.0
@@ -1964,11 +1986,50 @@ def _prepare_request(
     return url, body, req_headers, auth_obj
 
 
+def _origin(url: str) -> tuple[str, str, int]:
+    """Return the ``(scheme, host, port)`` origin of *url*.
+
+    A URL without a scheme or host produces an empty origin, which never
+    equals a real one.  An unparseable redirect target therefore counts as
+    cross-origin and loses its credentials instead of forwarding them.
+
+    Args:
+        url: Absolute or relative URL.
+
+    Returns:
+        A comparable origin tuple.  Default ports are normalised by
+        :func:`_parse_url`.
+    """
+    scheme, host, port, _, _ = _parse_url(url)
+    return scheme.lower(), host.lower(), port
+
+
+def _strip_redirect_credentials(
+    req_headers: CaseInsensitiveDict, source_url: str, target_url: str
+) -> None:
+    """Drop credential headers when a redirect changes origin.
+
+    ``Authorization``, ``Proxy-Authorization`` and ``Cookie`` are scoped to
+    the origin that received them.  Sending them to a different scheme,
+    host or port leaks the caller's credentials, so the next hop starts
+    without them.
+
+    Args:
+        req_headers: Headers for the redirect chain; mutated in place.
+        source_url: URL of the request that produced the redirect.
+        target_url: Resolved redirect target.
+    """
+    if _origin(source_url) == _origin(target_url):
+        return
+    for name in _REDIRECT_CREDENTIAL_HEADERS:
+        req_headers.pop(name, None)
+
+
 def _compute_redirect(
     status: int,
     method: str,
     body: bytes | None,
-    req_headers: dict[str, str],
+    req_headers: CaseInsensitiveDict,
     resp_headers: dict[str, str],
     scheme: str,
     host: str,
@@ -1977,22 +2038,31 @@ def _compute_redirect(
     redirects: int,
     max_redirects: int,
 ) -> tuple[str, str, bytes | None]:
-    """Compute redirect target and adjust method/body.
+    """Compute the redirect target and adjust method, body and headers.
+
+    Resolves relative ``Location`` values, converts the method for 303 and
+    POST-on-301/302 redirects, and removes credential headers when the
+    target origin differs from the current one.
 
     Raises:
         TooManyRedirects: If redirect limit exceeded.
 
     Returns:
-        (new_url, new_method, new_body).
+        (new_url, new_method, new_body).  *req_headers* is modified in
+        place.
     """
     redirects_now = redirects + 1
     if redirects_now > max_redirects:
         raise TooManyRedirects(url, max_redirects)
     location = resp_headers["location"]
-    if location.startswith("/"):
+    if location.startswith("//"):
+        # Scheme-relative: keep the current scheme, replace the authority.
+        new_url = f"{scheme}:{location}"
+    elif location.startswith("/"):
         new_url = f"{scheme}://{host}:{port}{location}"
     else:
-        new_url = location
+        # Absolute URL, relative path, or query-only target.
+        new_url = urljoin(url, location)
     new_method = method
     new_body = body
     if status == 303 or (status in (301, 302) and method == "POST"):
@@ -2000,6 +2070,7 @@ def _compute_redirect(
         new_body = None
         req_headers.pop("Content-Type", None)
         req_headers.pop("Content-Length", None)
+    _strip_redirect_credentials(req_headers, url, new_url)
     return new_url, new_method, new_body
 
 
@@ -2013,10 +2084,24 @@ def _should_attempt_digest(
     status: int,
     resp_headers: dict[str, str],
     digest_attempted: bool,
+    same_origin: bool,
 ) -> bool:
-    """Return True if a Digest auth retry should be attempted."""
+    """Return True if a Digest auth retry should be attempted.
+
+    Args:
+        auth_obj: Configured auth object.
+        status: Response status code.
+        resp_headers: Response headers.
+        digest_attempted: Whether this request already answered a Digest
+            challenge.
+        same_origin: Whether the request still targets the origin the
+            credentials were configured for.  A cross-origin redirect clears
+            this for the rest of the chain, so the new origin cannot harvest
+            the credentials with a 401 challenge.
+    """
     return (
-        isinstance(auth_obj, DigestAuth)
+        same_origin
+        and isinstance(auth_obj, DigestAuth)
         and status == 401
         and not digest_attempted
         and resp_headers.get("www-authenticate", "").lower().startswith("digest")
@@ -2411,6 +2496,8 @@ def _sync_request(
         method, url, headers, data, json, files, params, auth, cookies
     )
 
+    credential_origin = _origin(url)
+    same_origin = True
     redirects = 0
     _digest_attempted = False
     retried = False
@@ -2488,11 +2575,12 @@ def _sync_request(
                         redirects,
                         max_redirects,
                     )
+                    same_origin = same_origin and _origin(url) == credential_origin
                     redirects += 1
                     continue
 
                 if _should_attempt_digest(
-                    auth_obj, status, resp_headers, _digest_attempted
+                    auth_obj, status, resp_headers, _digest_attempted, same_origin
                 ):
                     resp.read()
                     www_auth = resp_headers["www-authenticate"]
@@ -2976,6 +3064,8 @@ async def _async_request(
         method, url, headers, data, json, files, params, auth, cookies
     )
 
+    credential_origin = _origin(url)
+    same_origin = True
     redirects = 0
     _digest_attempted = False
     retried = False
@@ -3056,11 +3146,12 @@ async def _async_request(
                     redirects,
                     max_redirects,
                 )
+                same_origin = same_origin and _origin(url) == credential_origin
                 redirects += 1
                 continue
 
             if _should_attempt_digest(
-                auth_obj, status, resp_headers, _digest_attempted
+                auth_obj, status, resp_headers, _digest_attempted, same_origin
             ):
                 await _async_read_body(reader, resp_headers, timeout)
                 www_auth = resp_headers["www-authenticate"]
