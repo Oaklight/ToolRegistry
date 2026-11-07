@@ -41,6 +41,19 @@ hide:
 ### 变更
 
 - **读取本地 OpenAPI 规范文件需要显式开启**（**破坏性变更**）（#376）：`load_openapi_spec()` 与 `load_openapi_spec_async()` 过去会把任何无 scheme 或 `file` scheme 的 URI 当作本地路径读取，因此把别人提供的位置传进来的调用方可能被诱导读取任意本地文件。现在两者对本地路径与 `file://` URI 一律抛出 `ValueError`，除非调用方传入 `allow_local_files=True`；检查发生在任何文件 I/O 之前。需要读取本地规范的代码显式传入该参数：`load_openapi_spec(path, allow_local_files=True)`。管理面板不受影响——它的 `spec_url` 此前已限定为 http(s)（#373）。
+- **出站请求默认拒绝非公网主机**（**破坏性变更**）（#370）：OpenAPI 文档的 `servers[].url`、`spec_url` 以及每次工具调用，都会在建立连接前解析主机，并拒绝回环、链路本地、私有、组播与保留地址。检查先于任何 I/O，解析失败即拒绝；成功结果缓存 60 秒，失败不缓存。`validate_spec_url()`、`load_openapi_spec*()`、`extract_base_url_from_specs()`、`HttpClientConfig` 与 base URL 客户端都接受 `allow_private_hosts: bool = False`，`OpenAPISource` 同样支持该键。本机或内网 API 必须显式开启：
+
+  ```python
+  # 之前：主机原样使用
+  config = HttpClientConfig(base_url="http://localhost:11434")
+  spec = load_openapi_spec("http://127.0.0.1:8000/openapi.json")
+
+  # 之后：非公网主机会抛 UnsafeAddressError
+  config = HttpClientConfig(base_url="http://localhost:11434", allow_private_hosts=True)
+  spec = load_openapi_spec("http://127.0.0.1:8000/openapi.json", allow_private_hosts=True)
+  ```
+
+  `load_openapi_spec*()` 还接受 `follow_redirects=False`：此时重定向会被拒绝，而不是被跟随到策略未检查的地址。DNS rebinding 与跨 origin 重定向的凭据问题见 #399；MCP 的 HTTP/SSE 传输见 #398。
 
 ### 安全
 
