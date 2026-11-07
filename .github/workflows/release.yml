@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       ref:
-        description: "Commit or branch to release from (defaults to the branch this workflow runs on)"
+        description: "Commit SHA, branch, or tag to release from (defaults to the dispatched commit). Use a full 40-character SHA; a short SHA is treated as a ref name and fails to fetch."
         required: false
         type: string
 
@@ -20,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref || github.ref }}
+          ref: ${{ inputs.ref || github.sha }}
 
       - uses: actions/setup-python@v5
         with:
@@ -28,7 +28,7 @@ jobs:
 
       - name: Verify version matches package
         env:
-          RELEASE_REF: ${{ inputs.ref || github.ref }}
+          RELEASE_REF: ${{ inputs.ref || github.sha }}
         run: |
           echo "Releasing from ref: $RELEASE_REF"
           PKG_VER=$(python -c "import re; m=re.search(r'__version__\s*=\s*\"(.+?)\"', open('src/toolregistry/__init__.py').read()); print(m.group(1))")
