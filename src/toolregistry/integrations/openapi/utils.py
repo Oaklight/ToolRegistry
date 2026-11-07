@@ -1,6 +1,8 @@
 import asyncio
 import json
 import re
+import threading
+import warnings
 from typing import Any
 from urllib.parse import urlparse
 
@@ -97,6 +99,41 @@ def redact_url_userinfo(text: str) -> str:
         *text* with each URL's userinfo removed.
     """
     return _URL_USERINFO.sub(r"\1", text)
+
+
+#: Serialises the change to the process-wide warnings state below.
+_REF_WARNING_LOCK = threading.Lock()
+
+
+def resolve_refs_redacted(schema: dict[str, Any]) -> dict[str, Any]:
+    """Resolve local ``$ref`` pointers, re-emitting each warning redacted.
+
+    The vendored resolver reports a dropped ``$ref`` by quoting it verbatim.
+    An external ``$ref`` is always dropped, and its text comes from the
+    document, which may be attacker controlled and may carry URL userinfo.
+    ``_vendor/`` must not be edited in place, so the resolver's warnings are
+    captured here and re-emitted through :func:`redact_url_userinfo`.
+
+    ``warnings.catch_warnings`` changes process-wide state.  The shared lock
+    keeps two concurrent resolutions from capturing each other's warnings.
+
+    Args:
+        schema: A parsed OpenAPI or JSON Schema document.
+
+    Returns:
+        The resolved document, exactly as
+        :func:`toolregistry._vendor.jsonschema.resolve_refs` returns it.
+    """
+    with _REF_WARNING_LOCK, warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        resolved = resolve_refs(schema)
+    for item in caught:
+        warnings.warn(
+            redact_url_userinfo(str(item.message)),
+            item.category,
+            stacklevel=2,
+        )
+    return resolved
 
 
 def validate_spec_url(uri: str) -> str:
@@ -222,7 +259,7 @@ async def load_openapi_spec_async(uri: str) -> dict[str, Any]:
         loop = asyncio.get_event_loop()
         openapi_spec_dict = await loop.run_in_executor(
             None,
-            lambda: resolve_refs(
+            lambda: resolve_refs_redacted(
                 _parse_spec_content(openapi_spec_content.decode("utf-8-sig"))
             ),
         )
@@ -302,7 +339,7 @@ async def load_openapi_spec_conditional_async(
         loop = asyncio.get_running_loop()
         openapi_spec_dict = await loop.run_in_executor(
             None,
-            lambda: resolve_refs(
+            lambda: resolve_refs_redacted(
                 _parse_spec_content(openapi_spec_content.decode("utf-8-sig"))
             ),
         )

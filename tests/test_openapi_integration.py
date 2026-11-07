@@ -1,6 +1,7 @@
 """Tests for OpenAPI integration module."""
 
 import json
+import warnings
 from urllib.parse import urlparse
 
 import pytest
@@ -1002,3 +1003,71 @@ class TestLoadOpenapiSpec:
             )
         assert result["info"]["title"] == "Petstore"
         assert set(result["paths"]) == set(PETSTORE_SPEC["paths"])
+
+
+# ---------------------------------------------------------------------------
+# Userinfo redaction (issue #378)
+# ---------------------------------------------------------------------------
+
+
+class TestUserinfoRedaction:
+    """Credentials in a spec URL must not reach metadata or warnings."""
+
+    def test_source_detail_drops_userinfo(self):
+        """A ``servers[].url`` with userinfo does not reach the tool metadata."""
+        client = HttpClientConfig(base_url="https://user:secret@api.example.com")
+        tool = OpenAPITool.from_openapi_spec(
+            client_config=client,
+            path="/items",
+            method="get",
+            spec={"operationId": "listItems", "parameters": []},
+        )
+        assert tool.metadata.source_detail == "https://api.example.com/items"
+
+    def test_refresh_source_detail_drops_userinfo(self):
+        """The refresh result reports the spec URL without its userinfo."""
+        registry = ToolRegistry()
+        integration = OpenAPIIntegration(registry)
+        integration.register_openapi_tools(
+            HttpClientConfig(base_url="https://api.example.com"),
+            PETSTORE_SPEC,
+            spec_url="https://user:secret@api.example.com/openapi.json",
+        )
+
+        result = integration.refresh(openapi_spec=PETSTORE_SPEC)
+
+        assert result.source_detail == "https://api.example.com/openapi.json"
+
+    def test_unresolvable_ref_warning_is_redacted(self):
+        """A dropped external ``$ref`` is reported without its userinfo."""
+        from toolregistry.integrations.openapi.utils import resolve_refs_redacted
+
+        schema = {
+            "type": "object",
+            "properties": {
+                "a": {"$ref": "https://user:secret@example.com/schema.json"},
+            },
+        }
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = resolve_refs_redacted(schema)
+
+        assert result["properties"]["a"] == {}
+        messages = [str(item.message) for item in caught]
+        assert messages, "the dropped ref must still be reported"
+        assert all("secret" not in message for message in messages)
+        assert any("Unresolvable $ref" in message for message in messages)
+
+    def test_resolution_output_matches_the_vendor_resolver(self):
+        """Redaction changes the warning text only, never the document."""
+        from toolregistry._vendor.jsonschema import resolve_refs
+        from toolregistry.integrations.openapi.utils import resolve_refs_redacted
+
+        schema = {
+            "$defs": {"Name": {"type": "string"}},
+            "type": "object",
+            "properties": {"name": {"$ref": "#/$defs/Name"}},
+        }
+
+        assert resolve_refs_redacted(schema) == resolve_refs(schema)
