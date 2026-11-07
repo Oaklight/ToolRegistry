@@ -639,6 +639,14 @@ class RegistrationMixin:
             return False
         self._overrides[name] = served
         self._tools[name] = override_tool
+        # Listeners cache the ``Tool`` they were told about.  The REGISTER
+        # event from the bulk registration pointed them at the source's
+        # definition, so the reinstatement must be announced as an override;
+        # otherwise a RouteTable (and every MCP/OpenAPI client built from it)
+        # keeps serving the tool this call just replaced.
+        self._emit_change(
+            ChangeEvent(event_type=ChangeEventType.OVERRIDE, tool_name=name)
+        )
         return True
 
     def _coerce_override_tool(self, name: str, tool: Tool | Callable) -> Tool:

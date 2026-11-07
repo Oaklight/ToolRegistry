@@ -185,6 +185,35 @@ class TestOverrideEvents:
         assert override_events[0].tool_name == "add"
         assert override_events[0].metadata.get("restored") is True
 
+    def test_reinstate_emits_override_event(self):
+        """Putting an override back after re-registration must be announced."""
+        registry = ToolRegistry()
+        registry.register(add)
+        replacement = registry.override("add", multiply)
+
+        # A source re-registration replaces every tool and drops the record.
+        with pytest.warns(UserWarning, match="recorded override was also discarded"):
+            registry.register(add_offset, name="add")
+        assert registry.list_overrides() == {}
+
+        events = []
+        registry.on_change(events.append)
+
+        assert registry._reinstate_override("add", replacement) is True
+
+        override_events = [
+            e for e in events if e.event_type == ChangeEventType.OVERRIDE
+        ]
+        assert len(override_events) == 1
+        assert override_events[0].tool_name == "add"
+        assert registry.get_tool("add") is replacement
+        # restore_override now reverts to what the source serves, not to the
+        # definition displaced by the original override.
+        assert (
+            registry.list_overrides()["add"].description
+            == "Add two integers with an offset."
+        )
+
 
 # ---------------------------------------------------------------------------
 # MCP refresh durability
