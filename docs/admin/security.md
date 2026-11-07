@@ -90,4 +90,10 @@ handle /admin/openapi* {
 }
 ```
 
+The same-origin check compares the `Origin` netloc with the `Host` header, so
+the proxy must forward the client's `Host` unchanged (nginx:
+`proxy_set_header Host $host;`). A proxy that rewrites `Host` to an internal
+address makes every state-changing request look cross-origin, and it is
+refused with 403.
+
 The admin panel itself does not enforce authentication when `remote=False` — use the reverse proxy's auth mechanism (e.g. `basic_auth` in Caddy) to protect access.
