@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, cast
 from .._vendor.httpserver import HTTPException, Request, Response
 from ..utils import ToolResultJSONEncoder
 
+from .server import _host_name
 from .static import read_asset, read_shell
 
 if TYPE_CHECKING:
@@ -111,7 +112,9 @@ def _same_origin(request: Request) -> str | None:
 
     Compares the Origin's netloc with the Host header, which covers the
     browser's same-origin requests and reverse-proxy deployments where the
-    proxy preserves Host.
+    proxy preserves Host.  This is only a decision about echoing CORS
+    headers; :func:`_reject_untrusted_host` independently pins the Host
+    header so a DNS-rebinding page cannot make the two agree.
     """
     origin = request.headers.get("origin", "")
     host = request.headers.get("host", "")
@@ -121,6 +124,32 @@ def _same_origin(request: Request) -> str | None:
     if parts.scheme in ("http", "https") and parts.netloc.lower() == host.lower():
         return origin
     return None
+
+
+def _reject_untrusted_host(request: Request) -> Response | None:
+    """Refuse requests whose Host header is not a name this panel serves.
+
+    The Origin check in :func:`_same_origin` cannot stop DNS rebinding: a
+    page on ``rebind.attacker`` that resolves to 127.0.0.1 sends a matching
+    Origin and Host, so the browser reports a same-origin request.  Pinning
+    the Host header to the loopback names (or the configured bind name)
+    closes that gap for every path, including the unauthenticated reads that
+    would otherwise leak configuration and logs.
+
+    An empty allowlist means the server binds a wildcard address; in that
+    deployment remote access requires a token, which the rebinding page does
+    not have.
+    """
+    allowed = _app(request).allowed_hosts
+    if not allowed:
+        return None
+    name = _host_name(request.headers.get("host", ""))
+    if name is not None and name in allowed:
+        return None
+    return _add_cors(
+        request,
+        _error_response(403, "Forbidden", "Untrusted Host header"),
+    )
 
 
 def _add_cors(request: Request, response: Response) -> Response:
@@ -1577,6 +1606,9 @@ def setup_routes(app: "AdminApp") -> None:
             and ``serve_ui`` attributes.
     """
     # Middleware
+    # The Host check runs first: a DNS-rebinding request must be refused
+    # before CORS or auth can echo anything back to the attacker's origin.
+    app.before_request(_reject_untrusted_host)
     app.before_request(_reject_cross_site)
     app.before_request(_cors_preflight)
     app.before_request(_auth_check)
