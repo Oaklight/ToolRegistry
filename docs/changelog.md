@@ -38,6 +38,10 @@ hide:
 - **`declared_execution_hints` 将策略标签与线上声明分开**（#353）：`ToolMetadata.declared_execution_hints`（以及 `Tool` 上的同名代理）只返回显式声明的提示，并补上显式 `read_only_hint=True` 所蕴含的 `destructive_hint=False`。`execution_hints` 为兼容性保持不变，但它会从 `ToolTag.READ_ONLY` / `ToolTag.DESTRUCTIVE` 推导值，而这两个标签同时驱动内置权限规则；发布推导结果会让一个为本地策略选择的标签变成面向客户端的自动批准声明。传输层应发布 declared 映射，并把空结果视为“不作声明”。
 - **`Tool.with_parameters()`**（#356）：一步替换工具的参数字段并重新计算 `metadata.schema_hash`。旧参数校验模型默认被丢弃，因为它描述的是旧 schema，并会发出 `UserWarning`；当新 schema 等价时可传入 `parameters_model=` 保留。没有模型时，`validate_parameters()` 变为直通：它不检查类型、`required` 字段与未知键，因此违反已发布 schema 的参数也会被接受。
 
+### 变更
+
+- **读取本地 OpenAPI 规范文件需要显式开启**（**破坏性变更**）（#376）：`load_openapi_spec()` 与 `load_openapi_spec_async()` 过去会把任何无 scheme 或 `file` scheme 的 URI 当作本地路径读取，因此把别人提供的位置传进来的调用方可能被诱导读取任意本地文件。现在两者对本地路径与 `file://` URI 一律抛出 `ValueError`，除非调用方传入 `allow_local_files=True`；检查发生在任何文件 I/O 之前。需要读取本地规范的代码显式传入该参数：`load_openapi_spec(path, allow_local_files=True)`。管理面板不受影响——它的 `spec_url` 此前已限定为 http(s)（#373）。
+
 ### 安全
 
 - **跨站请求无法改变管理状态**（#366）：所有 `/api/` 下的 `POST`、`PUT`、`PATCH` 与 `DELETE`
@@ -55,6 +59,7 @@ hide:
   （`DEFAULT_MAX_SPEC_DEPTH`）；解析器递归溢出会抛出 `SpecTooDeepError`，而不是通用的
   `ValueError`。自动发现探测现在只读取响应头。两个预算都可分别通过 `max_bytes=` 与
   `max_depth=` 配置。
+- **规范 URL 中的凭据不再进入工具元数据或警告**（#378）：`ToolMetadata.source_detail` 过去直接由 `HttpClientConfig.base_url` 以及刷新时的已存 spec URL 拼接，因此 `servers[].url` 或 spec URL 形如 `https://user:secret@api.example.com` 时，密码会出现在管理接口返回的工具列表中。现在 `source_detail` 会经过 `redact_url_userinfo()`。`$ref` 解析器的警告会原样回显被丢弃的 `$ref`；现在重发时会去掉其中的 userinfo，解析结果本身不变。
 
 ### 修复
 
