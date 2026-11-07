@@ -113,6 +113,12 @@ def redact_url_userinfo(text: str) -> str:
     return _URL_USERINFO_BARE.sub("", text)
 
 
+#: Added to a redacted ``$ref`` when redaction would leave a local pointer.
+#: Only a ``#/`` pointer reaches the vendored resolver's lookup, so this
+#: prefix keeps the value unresolvable, as the original pointer was.
+_REDACTED_REF_PREFIX = "redacted:"
+
+
 def _redact_dropped_refs(node: Any) -> None:
     """Strip userinfo from every ``$ref`` the resolver will drop, in place.
 
@@ -123,11 +129,19 @@ def _redact_dropped_refs(node: Any) -> None:
 
     A local ``#/`` pointer is left byte for byte intact, because its exact
     text decides what resolves.
+
+    Redaction can turn an external pointer into a local one: the bare form
+    ``user:pass@#/definitions/X`` loses ``user:pass@`` and becomes
+    ``#/definitions/X``, which the resolver would look up and could resolve.
+    Such a value gets :data:`_REDACTED_REF_PREFIX`, so it stays unresolvable.
     """
     if isinstance(node, dict):
         ref = node.get("$ref")
         if isinstance(ref, str) and not ref.startswith("#/"):
-            node["$ref"] = redact_url_userinfo(ref)
+            redacted = redact_url_userinfo(ref)
+            if redacted.startswith("#/"):
+                redacted = _REDACTED_REF_PREFIX + redacted
+            node["$ref"] = redacted
         for value in node.values():
             _redact_dropped_refs(value)
     elif isinstance(node, list):
