@@ -13,8 +13,24 @@ from ..._vendor.httpclient import (
     Client,
     HttpClientError,
     HTTPError,
-    Response,
 )
+
+#: Default cap on the number of bytes read from an OpenAPI document.  A
+#: normal spec is a few hundred KiB; 10 MiB leaves room for large documents
+#: while bounding one preview or registration.
+DEFAULT_MAX_SPEC_BYTES = 10 * 1024 * 1024
+
+#: Default cap on container nesting.  ``resolve_refs`` walks the document
+#: recursively, so an unbounded depth is a CPU and stack risk.
+DEFAULT_MAX_SPEC_DEPTH = 100
+
+
+class SpecTooLargeError(ValueError):
+    """A downloaded OpenAPI document exceeds the configured byte budget."""
+
+
+class SpecTooDeepError(ValueError):
+    """An OpenAPI document nests deeper than the configured depth budget."""
 
 
 def _parse_spec_content(content: str) -> Any:
@@ -178,6 +194,125 @@ def resolve_refs_redacted(schema: dict[str, Any]) -> dict[str, Any]:
     return resolve_refs(schema)
 
 
+def _declared_length(headers: Any) -> int | None:
+    """Return the response's declared body length when it is a valid integer."""
+    value = headers.get("content-length")
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _too_large(uri: str, max_bytes: int) -> SpecTooLargeError:
+    """Build the error for a document over *max_bytes*."""
+    return SpecTooLargeError(
+        f"OpenAPI document at {redact_url_userinfo(uri)} exceeds the "
+        f"{max_bytes}-byte limit"
+    )
+
+
+def _check_depth(document: Any, max_depth: int) -> None:
+    """Refuse a document whose containers nest deeper than *max_depth*.
+
+    The walk is iterative so the check itself cannot overflow the stack on
+    the input it is meant to reject.
+
+    Args:
+        document: The parsed OpenAPI document.
+        max_depth: Maximum number of nested containers.
+
+    Raises:
+        SpecTooDeepError: If the nesting exceeds *max_depth*.
+    """
+    stack: list[tuple[Any, int]] = [(document, 1)]
+    while stack:
+        node, depth = stack.pop()
+        if isinstance(node, dict):
+            children: Any = node.values()
+        elif isinstance(node, list):
+            children = node
+        else:
+            continue
+        if depth > max_depth:
+            raise SpecTooDeepError(
+                f"OpenAPI document is nested deeper than the {max_depth}-level limit"
+            )
+        stack.extend((child, depth + 1) for child in children)
+
+
+def _parse_and_resolve(content: str, max_depth: int) -> dict[str, Any]:
+    """Parse a document, bound its nesting, then resolve references.
+
+    Args:
+        content: Decoded OpenAPI document text.
+        max_depth: Maximum number of nested containers.
+
+    Returns:
+        The parsed and resolved document.
+
+    Raises:
+        SpecTooDeepError: If parsing or resolving exceeds the interpreter's
+            recursion limit, or the parsed document nests deeper than
+            *max_depth*.
+        ValueError: If the text is not a mapping.
+    """
+    try:
+        document = _parse_spec_content(content)
+        _check_depth(document, max_depth)
+        resolved = resolve_refs_redacted(document)
+    except RecursionError as exc:
+        raise SpecTooDeepError(
+            "OpenAPI document is nested too deeply to process"
+        ) from exc
+    if not isinstance(resolved, dict):
+        raise ValueError("OpenAPI spec must be a dictionary")
+    return dict(resolved)
+
+
+async def _read_body_capped(response: Any, max_bytes: int, uri: str) -> bytes:
+    """Read a response body, refusing to buffer more than *max_bytes*.
+
+    A declared ``Content-Length`` is checked before any body byte is read.
+    A chunked or unbounded stream is charged as it arrives, so a server
+    cannot make the process buffer an arbitrary amount.
+
+    Args:
+        response: A streaming or buffered HTTP response.
+        max_bytes: Maximum number of body bytes to keep.
+        uri: The document URL, used in the error message.
+
+    Returns:
+        The body bytes.
+
+    Raises:
+        SpecTooLargeError: If the declared length or the bytes read exceed
+            *max_bytes*.
+    """
+    declared = _declared_length(response.headers)
+    if declared is not None and declared > max_bytes:
+        raise _too_large(uri, max_bytes)
+
+    # A buffered response only appears when a caller supplies its own client
+    # (the vendored client honours ``stream=True``).  Apply the same cap so
+    # such a client cannot bypass the budget.
+    if not hasattr(response, "aiter_bytes"):
+        content = response.content
+        if len(content) > max_bytes:
+            raise _too_large(uri, max_bytes)
+        return content
+
+    chunks: list[bytes] = []
+    total = 0
+    async for chunk in response.aiter_bytes():
+        total += len(chunk)
+        if total > max_bytes:
+            raise _too_large(uri, max_bytes)
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 def validate_spec_url(uri: str) -> str:
     """Return *uri* unchanged when it is an HTTP(S) URL that names a host.
 
@@ -220,12 +355,55 @@ def validate_spec_url(uri: str) -> str:
     return uri
 
 
-def determine_urls(url: str) -> dict[str, Any]:
+def _probe_spec_url(
+    client: Client, base_url: str, endpoint: str, max_bytes: int
+) -> str | None:
+    """Return the full URL when *endpoint* serves a JSON or YAML document.
+
+    The response is opened as a stream and closed after the headers are
+    inspected, so a candidate body is never buffered.  A candidate whose
+    declared ``Content-Length`` exceeds *max_bytes* is skipped.
+
+    Args:
+        client: An open synchronous HTTP client.
+        base_url: The base URL, without a trailing slash.
+        endpoint: The candidate path, for example ``/openapi.json``.
+        max_bytes: Maximum declared body size a candidate may have.
+
+    Returns:
+        The full URL when the endpoint looks like a specification, else
+        ``None``.
+    """
+    full_url = f"{base_url}{endpoint}"
+    try:
+        response = client.get(full_url, stream=True)
+        with response:
+            if response.status_code != 200:
+                return None
+            declared = _declared_length(response.headers)
+            if declared is not None and declared > max_bytes:
+                return None
+            content_type = (response.headers.get("content-type") or "").lower()
+            if "json" in content_type or "yaml" in content_type:
+                return full_url
+    except HttpClientError:
+        return None
+    return None
+
+
+def determine_urls(
+    url: str, *, max_bytes: int = DEFAULT_MAX_SPEC_BYTES
+) -> dict[str, Any]:
     """
     Determine whether the given URL or its common endpoints contain an OpenAPI schema.
 
+    The probe requests are opened as streams and closed after the headers are
+    inspected, so the probe phase never buffers a body.  A candidate whose
+    declared ``Content-Length`` exceeds *max_bytes* is skipped.
+
     Args:
         url (str): Base URL or schema URL.
+        max_bytes: Maximum declared body size a candidate may have.
 
     Returns:
         Dict[str, Any]: Contains "found" (bool), "schema_url" (str) if valid or None, and "base_api_url" (str).
@@ -249,25 +427,23 @@ def determine_urls(url: str) -> dict[str, Any]:
     # Test appending endpoints to base URL
     with Client(timeout=5.0) as client:
         for endpoint in common_endpoints:
-            full_url = f"{base_url}{endpoint}"
-            try:
-                response = client.get(full_url)
-                if response.status_code == 200:
-                    content_type = (response.headers.get("content-type") or "").lower()
-                    if "json" in content_type or "yaml" in content_type:
-                        return {
-                            "found": True,
-                            "schema_url": full_url,
-                            "base_api_url": base_url,
-                        }
-            except HttpClientError:
-                continue
+            found_url = _probe_spec_url(client, base_url, endpoint, max_bytes)
+            if found_url is not None:
+                return {
+                    "found": True,
+                    "schema_url": found_url,
+                    "base_api_url": base_url,
+                }
 
     return {"found": False, "base_api_url": base_url}
 
 
 async def load_openapi_spec_async(
-    uri: str, *, allow_local_files: bool = False
+    uri: str,
+    *,
+    allow_local_files: bool = False,
+    max_bytes: int = DEFAULT_MAX_SPEC_BYTES,
+    max_depth: int = DEFAULT_MAX_SPEC_DEPTH,
 ) -> dict[str, Any]:
     """Async version of load_openapi_spec using AsyncClient.
 
@@ -277,15 +453,25 @@ async def load_openapi_spec_async(
     caller that really means to read a local file passes
     ``allow_local_files=True``.
 
+    The document is streamed and charged against *max_bytes* as it arrives.
+    A declared ``Content-Length`` above the budget is refused before any body
+    byte is read.  Nesting is bounded by *max_depth* before references are
+    resolved.
+
     Args:
         uri (str): URL or file path pointing to an OpenAPI specification.
         allow_local_files: Read *uri* from the local file system when it names
             a path or a ``file://`` URI.  Defaults to ``False``.
+        max_bytes: Maximum number of bytes to read from the document.
+        max_depth: Maximum number of nested containers.
 
     Returns:
         Dict[str, Any]: A dictionary containing the parsed OpenAPI specification.
 
     Raises:
+        SpecTooLargeError: If the document exceeds *max_bytes*.
+        SpecTooDeepError: If the document nests deeper than *max_depth* or
+            exceeds the interpreter's recursion limit.
         ValueError: If URI retrieval, parsing, or decoding fails, or if *uri*
             names a local file while *allow_local_files* is false.
     """
@@ -306,33 +492,35 @@ async def load_openapi_spec_async(
         if is_local:  # Handle file paths
             file_path = parsed_uri.path if parsed_uri.scheme == "file" else uri
             with open(file_path, "rb") as file:
-                openapi_spec_content = file.read()
+                openapi_spec_content = file.read(max_bytes + 1)
+            if len(openapi_spec_content) > max_bytes:
+                raise _too_large(uri, max_bytes)
         else:  # Handle URLs
             # First attempt to determine schema URL and fallback base URL
             loop = asyncio.get_event_loop()
-            results = await loop.run_in_executor(None, determine_urls, uri)
+            results = await loop.run_in_executor(
+                None, lambda: determine_urls(uri, max_bytes=max_bytes)
+            )
             uri = results["schema_url"] if results["found"] else uri
 
             # timeout for network requests (e.g., 10 seconds)
             async with AsyncClient(timeout=10) as client:
-                response = await client.get(uri)
-                assert isinstance(response, Response)
-                response.raise_for_status()
-                openapi_spec_content = response.content
+                response = await client.get(uri, stream=True)
+                async with response:
+                    response.raise_for_status()
+                    openapi_spec_content = await _read_body_capped(
+                        response, max_bytes, uri
+                    )
 
-        # Load and parse OpenAPI spec (CPU-bound operation)
+        # Parse and resolve off the event loop (CPU-bound operation)
         loop = asyncio.get_event_loop()
         openapi_spec_dict = await loop.run_in_executor(
             None,
-            lambda: resolve_refs_redacted(
-                _parse_spec_content(openapi_spec_content.decode("utf-8-sig"))
+            lambda: _parse_and_resolve(
+                openapi_spec_content.decode("utf-8-sig"), max_depth
             ),
         )
-
-        # Ensure return type matches Dict[str, Any]
-        if not isinstance(openapi_spec_dict, dict):
-            raise ValueError("OpenAPI spec must be a dictionary")
-        return dict(openapi_spec_dict)  # Explicit type conversion
+        return openapi_spec_dict
 
     except YAMLError as e:
         raise ValueError(f"Failed to parse OpenAPI content: {e}")
@@ -346,27 +534,49 @@ async def load_openapi_spec_async(
         )
     except FileNotFoundError as e:
         raise FileNotFoundError(f"Invalid file path: {e}")
+    except (SpecTooLargeError, SpecTooDeepError):
+        raise
+    except RecursionError as e:
+        raise SpecTooDeepError(
+            "OpenAPI document is nested too deeply to process"
+        ) from e
     except Exception as e:
         raise ValueError(f"Unexpected error: {redact_url_userinfo(str(e))}")
 
 
-def load_openapi_spec(uri: str, *, allow_local_files: bool = False) -> dict[str, Any]:
+def load_openapi_spec(
+    uri: str,
+    *,
+    allow_local_files: bool = False,
+    max_bytes: int = DEFAULT_MAX_SPEC_BYTES,
+    max_depth: int = DEFAULT_MAX_SPEC_DEPTH,
+) -> dict[str, Any]:
     """Sync version that calls the async implementation.
 
     Args:
         uri (str): URL or file path pointing to an OpenAPI specification.
         allow_local_files: Read *uri* from the local file system when it names
             a path or a ``file://`` URI.  Defaults to ``False``.
+        max_bytes: Maximum number of bytes to read from the document.
+        max_depth: Maximum number of nested containers.
 
     Returns:
         Dict[str, Any]: A dictionary containing the parsed OpenAPI specification.
 
     Raises:
+        SpecTooLargeError: If the document exceeds *max_bytes*.
+        SpecTooDeepError: If the document nests deeper than *max_depth* or
+            exceeds the interpreter's recursion limit.
         ValueError: If URI retrieval, parsing, or decoding fails, or if *uri*
             names a local file while *allow_local_files* is false.
     """
     return asyncio.run(
-        load_openapi_spec_async(uri, allow_local_files=allow_local_files)
+        load_openapi_spec_async(
+            uri,
+            allow_local_files=allow_local_files,
+            max_bytes=max_bytes,
+            max_depth=max_depth,
+        )
     )
 
 
@@ -374,21 +584,32 @@ async def load_openapi_spec_conditional_async(
     uri: str,
     etag: str | None = None,
     headers: dict[str, str] | None = None,
+    *,
+    max_bytes: int = DEFAULT_MAX_SPEC_BYTES,
+    max_depth: int = DEFAULT_MAX_SPEC_DEPTH,
 ) -> tuple[dict[str, Any] | None, str | None]:
     """Fetch an OpenAPI spec with ETag-based conditional request support.
 
     When *etag* is provided, an ``If-None-Match`` header is sent.  If the
     server responds with ``304 Not Modified`` the spec is unchanged and
-    ``(None, etag)`` is returned, avoiding re-parsing.
+    ``(None, etag)`` is returned, avoiding re-parsing.  The body is streamed
+    and charged against *max_bytes*; nesting is bounded by *max_depth*.
 
     Args:
         uri: URL pointing to an OpenAPI specification.
         etag: ETag value from a previous fetch.  ``None`` for the first request.
         headers: Extra HTTP headers to include in the request.
+        max_bytes: Maximum number of bytes to read from the document.
+        max_depth: Maximum number of nested containers.
 
     Returns:
         A ``(spec_dict, new_etag)`` tuple.  ``spec_dict`` is ``None`` when the
         server returned 304.
+
+    Raises:
+        SpecTooLargeError: If the document exceeds *max_bytes*.
+        SpecTooDeepError: If the document nests deeper than *max_depth* or
+            exceeds the interpreter's recursion limit.
     """
     try:
         req_headers: dict[str, str] = dict(headers or {})
@@ -396,28 +617,24 @@ async def load_openapi_spec_conditional_async(
             req_headers["If-None-Match"] = etag
 
         async with AsyncClient(timeout=10) as client:
-            response = await client.get(uri, headers=req_headers)
-            assert isinstance(response, Response)
+            response = await client.get(uri, headers=req_headers, stream=True)
+            async with response:
+                if response.status_code == 304:
+                    return None, etag
 
-            if response.status_code == 304:
-                return None, etag
+                response.raise_for_status()
 
-            response.raise_for_status()
-
-            new_etag = response.headers.get("ETag") or response.headers.get("etag")
-            openapi_spec_content = response.content
+                new_etag = response.headers.get("ETag") or response.headers.get("etag")
+                openapi_spec_content = await _read_body_capped(response, max_bytes, uri)
 
         loop = asyncio.get_running_loop()
         openapi_spec_dict = await loop.run_in_executor(
             None,
-            lambda: resolve_refs_redacted(
-                _parse_spec_content(openapi_spec_content.decode("utf-8-sig"))
+            lambda: _parse_and_resolve(
+                openapi_spec_content.decode("utf-8-sig"), max_depth
             ),
         )
-
-        if not isinstance(openapi_spec_dict, dict):
-            raise ValueError("OpenAPI spec must be a dictionary")
-        return dict(openapi_spec_dict), new_etag
+        return openapi_spec_dict, new_etag
 
     except YAMLError as e:
         raise ValueError(f"Failed to parse OpenAPI content: {e}")
@@ -429,6 +646,12 @@ async def load_openapi_spec_conditional_async(
         raise ValueError(
             f"Network error when fetching URI: {redact_url_userinfo(str(e))}"
         )
+    except (SpecTooLargeError, SpecTooDeepError):
+        raise
+    except RecursionError as e:
+        raise SpecTooDeepError(
+            "OpenAPI document is nested too deeply to process"
+        ) from e
     except Exception as e:
         raise ValueError(f"Unexpected error: {redact_url_userinfo(str(e))}")
 
@@ -437,6 +660,17 @@ def load_openapi_spec_conditional(
     uri: str,
     etag: str | None = None,
     headers: dict[str, str] | None = None,
+    *,
+    max_bytes: int = DEFAULT_MAX_SPEC_BYTES,
+    max_depth: int = DEFAULT_MAX_SPEC_DEPTH,
 ) -> tuple[dict[str, Any] | None, str | None]:
     """Sync version of :func:`load_openapi_spec_conditional_async`."""
-    return asyncio.run(load_openapi_spec_conditional_async(uri, etag, headers))
+    return asyncio.run(
+        load_openapi_spec_conditional_async(
+            uri,
+            etag,
+            headers,
+            max_bytes=max_bytes,
+            max_depth=max_depth,
+        )
+    )

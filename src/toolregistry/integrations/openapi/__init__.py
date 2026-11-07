@@ -1,6 +1,10 @@
 from ...utils import HttpClientConfig, HttpxClientConfig
 from .integration import OpenAPIIntegration, OpenAPITool, OpenAPIToolWrapper
 from .utils import (
+    DEFAULT_MAX_SPEC_BYTES,
+    DEFAULT_MAX_SPEC_DEPTH,
+    SpecTooDeepError,
+    SpecTooLargeError,
     load_openapi_spec,
     load_openapi_spec_async,
     load_openapi_spec_conditional,
@@ -14,6 +18,10 @@ __all__ = [
     # Helpers and utilities for OpenAPI integration.
     "HttpClientConfig",
     "HttpxClientConfig",  # deprecated alias
+    "DEFAULT_MAX_SPEC_BYTES",
+    "DEFAULT_MAX_SPEC_DEPTH",
+    "SpecTooDeepError",
+    "SpecTooLargeError",
     "load_openapi_spec",
     "load_openapi_spec_async",
     "load_openapi_spec_conditional",
