@@ -4,9 +4,9 @@ from toolregistry.integrations.openapi import HttpClientConfig, load_openapi_spe
 from toolregistry.tool_registry import ToolRegistry
 
 base_url = "http://localhost:8000"
-openapi_spec = load_openapi_spec(base_url)
+openapi_spec = load_openapi_spec(base_url, allow_private_hosts=True)
 
-client_config = HttpClientConfig(base_url=base_url)
+client_config = HttpClientConfig(base_url=base_url, allow_private_hosts=True)
 
 # Initialize the ToolRegistry and register OpenAPI tools synchronously
 registry = ToolRegistry()

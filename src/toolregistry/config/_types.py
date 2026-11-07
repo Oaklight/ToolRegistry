@@ -245,6 +245,10 @@ class OpenAPISource:
             matches nothing.  Mutually exclusive with *exclude*.
         exclude: Names or glob patterns to drop.  Mutually exclusive with
             *include*.
+        allow_private_hosts: Permit the spec URL, the server URL and every
+            request to resolve to a loopback, link-local or private address.
+            Defaults to ``False``; set it for an API on the local host or a
+            private network.
     """
 
     url: str
@@ -255,6 +259,7 @@ class OpenAPISource:
     tags: tuple[str, ...] = ()
     include: tuple[str, ...] | None = None
     exclude: tuple[str, ...] | None = None
+    allow_private_hosts: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a config-file-compatible dict.
@@ -276,6 +281,8 @@ class OpenAPISource:
             d["include"] = list(self.include)
         if self.exclude is not None:
             d["exclude"] = list(self.exclude)
+        if self.allow_private_hosts:
+            d["allow_private_hosts"] = True
         return d
 
 

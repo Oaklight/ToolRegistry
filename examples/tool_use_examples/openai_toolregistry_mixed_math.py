@@ -22,8 +22,12 @@ print("================ OpenAPI ================")
 
 
 async def async_register():
-    client_config = HttpClientConfig(base_url=openapi_spec_url)
-    openapi_spec = await load_openapi_spec_async(openapi_spec_url)
+    client_config = HttpClientConfig(
+        base_url=openapi_spec_url, allow_private_hosts=True
+    )
+    openapi_spec = await load_openapi_spec_async(
+        openapi_spec_url, allow_private_hosts=True
+    )
 
     await openapi_registry.register_async(
         client_config, source="openapi", openapi_spec=openapi_spec, namespace=True

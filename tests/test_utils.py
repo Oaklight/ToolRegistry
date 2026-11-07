@@ -378,3 +378,50 @@ class TestNormalizeToolName:
         for input_name, expected in test_cases:
             result = normalize_tool_name(input_name)
             assert result == expected
+
+
+class TestOutboundAddressPolicy:
+    """The base URL is checked when a request URL is built (#370)."""
+
+    def test_private_base_url_is_refused(self):
+        from toolregistry._netpolicy import UnsafeAddressError
+
+        config = HttpClientConfig(base_url="http://127.0.0.1:11434")
+        client = config.to_client(use_async=False)
+        try:
+            with pytest.raises(UnsafeAddressError, match="not a public address"):
+                client._url("/v1/models")
+        finally:
+            client.close()
+
+    def test_allow_private_hosts_permits_a_private_base_url(self):
+        config = HttpClientConfig(
+            base_url="http://127.0.0.1:11434",
+            allow_private_hosts=True,
+        )
+        client = config.to_client(use_async=False)
+        try:
+            assert client._url("/v1/models") == "http://127.0.0.1:11434/v1/models"
+        finally:
+            client.close()
+
+    def test_the_flag_survives_pickling(self):
+        import pickle
+
+        config = HttpClientConfig(
+            base_url="http://127.0.0.1:11434",
+            allow_private_hosts=True,
+        )
+        restored = pickle.loads(pickle.dumps(config))
+        assert restored.allow_private_hosts is True
+
+    def test_async_validation_uses_the_loop(self):
+        import asyncio
+
+        from toolregistry._netpolicy import (
+            UnsafeAddressError,
+            validate_outbound_url_async,
+        )
+
+        with pytest.raises(UnsafeAddressError):
+            asyncio.run(validate_outbound_url_async("http://127.0.0.1:11434"))

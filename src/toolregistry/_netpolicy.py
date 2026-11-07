@@ -150,6 +150,25 @@ def _addresses(infos: Any) -> list[str]:
     return [str(info[4][0]) for info in infos]
 
 
+def _resolve(host: str, port: int) -> list[str]:
+    """Resolve *host* on the calling thread."""
+    return _addresses(socket.getaddrinfo(host, port, type=socket.SOCK_STREAM))
+
+
+async def _resolve_async(
+    host: str,
+    port: int,
+    timeout: float = RESOLVE_TIMEOUT_SECONDS,
+) -> list[str]:
+    """Resolve *host* through the event loop, bounded by *timeout*."""
+    loop = asyncio.get_running_loop()
+    infos = await asyncio.wait_for(
+        loop.getaddrinfo(host, port, type=socket.SOCK_STREAM),
+        timeout=timeout,
+    )
+    return _addresses(infos)
+
+
 def _cache_get(scheme: str, host: str, port: int) -> bool:
     key = (scheme, host.lower(), port)
     with _cache_lock:
@@ -192,10 +211,10 @@ def validate_outbound_url(url: str, *, allow_private_hosts: bool = False) -> str
     if _cache_get(scheme, host, port):
         return url
     try:
-        infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+        addresses = _resolve(host, port)
     except OSError as exc:
         raise UnsafeAddressError(f"Could not resolve '{host}': {exc}") from exc
-    _check(host, _addresses(infos))
+    _check(host, addresses)
     _cache_put(scheme, host, port)
     return url
 
@@ -235,14 +254,10 @@ async def validate_outbound_url_async(
         return url
     if _cache_get(scheme, host, port):
         return url
-    loop = asyncio.get_running_loop()
     try:
-        infos = await asyncio.wait_for(
-            loop.getaddrinfo(host, port, type=socket.SOCK_STREAM),
-            timeout=timeout,
-        )
+        addresses = await _resolve_async(host, port, timeout)
     except (OSError, asyncio.TimeoutError) as exc:
         raise UnsafeAddressError(f"Could not resolve '{host}': {exc}") from exc
-    _check(host, _addresses(infos))
+    _check(host, addresses)
     _cache_put(scheme, host, port)
     return url

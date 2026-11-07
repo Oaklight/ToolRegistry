@@ -112,6 +112,10 @@ class OpenAPIToolWrapper(BaseToolWrapper):
         if not self.name:
             raise ValueError("Tool name must be set before calling")
 
+        # The base URL may come from a document; check it before any client
+        # is built.  The decision is cached, so a repeated call is cheap.
+        self.client_config.ensure_base_url_allowed()
+
         if self._persistent:
             client = self.client_config.get_persistent_client(use_async=False)
             return self._do_sync_request(client, kwargs)
@@ -146,6 +150,9 @@ class OpenAPIToolWrapper(BaseToolWrapper):
 
         if not self.name:
             raise ValueError("Tool name must be set before calling")
+
+        # Resolve through the loop: a synchronous lookup here would block it.
+        await self.client_config.ensure_base_url_allowed_async()
 
         if self._persistent:
             client = self.client_config.get_persistent_client(use_async=True)
@@ -476,14 +483,25 @@ class OpenAPIIntegration:
             return openapi_spec, False
 
         if self._spec_url:
-            from .utils import load_openapi_spec_conditional_async, validate_spec_url
+            from .utils import (
+                load_openapi_spec_conditional_async,
+                validate_spec_url_async,
+            )
 
+            allow_private_hosts = bool(
+                self._client_config and self._client_config.allow_private_hosts
+            )
             # A stored URL is fetched again on every refresh, so enforce the
-            # scheme invariant here too instead of trusting the path that
+            # outbound policy again instead of trusting the path that
             # registered it.
-            validate_spec_url(self._spec_url)
+            await validate_spec_url_async(
+                self._spec_url,
+                allow_private_hosts=allow_private_hosts,
+            )
             spec, new_etag = await load_openapi_spec_conditional_async(
-                self._spec_url, self._etag
+                self._spec_url,
+                self._etag,
+                allow_private_hosts=allow_private_hosts,
             )
             if spec is None:
                 return None, True
