@@ -24,6 +24,10 @@ def _parse_spec_content(content: str) -> Any:
     pretty-printed JSON document would load as ``{None: None}``.  Decode JSON
     first and fall back to YAML only when the text is not valid JSON.
 
+    A leading UTF-8 BOM is stripped here too.  Production callers decode with
+    ``utf-8-sig``, but the helper must stay correct when called directly: the
+    JSON decoder rejects a BOM and the YAML fallback would return a string.
+
     Args:
         content: Decoded OpenAPI document text.
 
@@ -34,6 +38,7 @@ def _parse_spec_content(content: str) -> Any:
         ValueError: If the text is empty or whitespace only.
         YAMLError: If the text is neither valid JSON nor valid YAML.
     """
+    content = content.lstrip(chr(0xFEFF))
     if not content.strip():
         raise ValueError("OpenAPI document is empty")
     try:

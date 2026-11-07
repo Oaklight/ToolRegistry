@@ -929,6 +929,17 @@ class TestLoadOpenapiSpec:
         assert result["info"]["title"] == "Petstore"
         assert set(result["paths"]) == set(PETSTORE_SPEC["paths"])
 
+    def test_parse_spec_content_strips_bom(self):
+        """The helper strips a BOM itself, independent of its callers."""
+        from toolregistry.integrations.openapi.utils import _parse_spec_content
+
+        text = bytes.fromhex("efbbbf").decode("utf-8") + json.dumps(
+            PETSTORE_SPEC, indent=2
+        )
+        result = _parse_spec_content(text)
+        assert result["info"]["title"] == "Petstore"
+        assert set(result["paths"]) == set(PETSTORE_SPEC["paths"])
+
     @pytest.mark.parametrize("content", ["", "   \n\t"])
     def test_load_empty_content_raises_value_error(self, tmp_path, content):
         """Empty or whitespace-only content reports an explicit error."""
