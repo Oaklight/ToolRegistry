@@ -281,6 +281,16 @@ class TestSpecUrlScheme:
         assert status == 400
         assert "must include a host" in data["message"]
 
+    def test_spec_url_rejects_an_invalid_port(self, server) -> None:
+        status, data = server.request(
+            "/api/sources/preview",
+            "POST",
+            {"kind": "openapi", "spec_url": "http://example.com:notaport/x"},
+        )
+
+        assert status == 400
+        assert "not a valid URL" in data["message"]
+
     @pytest.mark.parametrize("scheme", ["http", "HTTP", "Http"])
     def test_preview_fetches_an_http_spec_url(self, server, scheme: str) -> None:
         with _serve_spec() as base_url:
@@ -323,6 +333,10 @@ class TestSpecUrlScheme:
                 "Network error when fetching URI: "
                 "http://user%40name:secret@example.com:8443/spec",
                 "Network error when fetching URI: http://example.com:8443/spec",
+            ),
+            (
+                "HTTP error: 401 for http://user:p@ss@example.com/x",
+                "HTTP error: 401 for http://example.com/x",
             ),
         ],
     )
