@@ -85,7 +85,12 @@ class OpenAPIPathError(ValueError):
     """
 
 
-def _join_base_url(base_url: str, path: str) -> str:
+def _join_base_url(
+    base_url: str,
+    path: str,
+    *,
+    allow_private_hosts: bool = False,
+) -> str:
     """Join *path* to *base_url* without allowing the origin to change.
 
     The clients carry credentials (``Authorization``, Basic auth) and custom
