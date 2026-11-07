@@ -54,7 +54,7 @@ curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8081/api/tools
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/api/config` | Get the loaded configuration, with source secrets masked |
-| `PUT` | `/api/config` | Update `mode`, `disabled` or `enabled`, persist it, and return the masked result |
+| `PUT` | `/api/config` | Update `mode`, `disabled` or `enabled`, persist when a config file is known, and return the masked result |
 
 Source secrets are never returned in full. In both responses, every `env`,
 `headers` and `kwargs` value is `***`, URL userinfo is removed, and a stdio
