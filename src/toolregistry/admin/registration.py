@@ -216,7 +216,9 @@ def _base_url_from_spec(spec: dict[str, Any], *, allow_private_hosts: bool) -> s
         ) from None
     except UnsafeAddressError as exc:
         raise SourceError(str(exc)) from exc
-    base_url = extract_base_url_from_specs(spec)
+    base_url = extract_base_url_from_specs(
+        spec, allow_private_hosts=allow_private_hosts
+    )
     if not base_url:
         raise SourceError("The spec has no servers[] entry; pass 'base_url' explicitly")
     return base_url

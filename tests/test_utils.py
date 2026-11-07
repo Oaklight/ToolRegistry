@@ -389,7 +389,7 @@ class TestOutboundAddressPolicy:
         config = HttpClientConfig(base_url="http://127.0.0.1:11434")
         client = config.to_client(use_async=False)
         try:
-            with pytest.raises(UnsafeAddressError, match="not a public address"):
+            with pytest.raises(UnsafeAddressError, match="non-public address"):
                 client._url("/v1/models")
         finally:
             client.close()

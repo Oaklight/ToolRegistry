@@ -13,6 +13,7 @@ import pytest
 
 from toolregistry import _netpolicy
 from toolregistry._netpolicy import (
+    PrivateAddressError,
     UnsafeAddressError,
     clear_address_cache,
     validate_outbound_url,
@@ -68,7 +69,7 @@ def resolver(monkeypatch):
 class TestLiteralAddresses:
     @pytest.mark.parametrize("host", PRIVATE_LITERALS)
     def test_private_literal_is_refused(self, host):
-        with pytest.raises(UnsafeAddressError, match="not a public address"):
+        with pytest.raises(UnsafeAddressError, match="non-public address"):
             validate_outbound_url(_url(host))
 
     @pytest.mark.parametrize("host", PUBLIC_LITERALS)
@@ -97,13 +98,27 @@ class TestResolvedNames:
 
     def test_private_name_is_refused(self, resolver):
         resolver["addresses"].append("10.0.0.7")
-        with pytest.raises(UnsafeAddressError, match="10.0.0.7"):
+        with pytest.raises(PrivateAddressError, match="non-public address") as excinfo:
             validate_outbound_url("https://internal.example/spec")
+
+        assert excinfo.value.addresses == ("10.0.0.7",)
 
     def test_one_private_address_refuses_the_set(self, resolver):
         resolver["addresses"].extend(["93.184.216.34", "10.0.0.7"])
-        with pytest.raises(UnsafeAddressError, match="10.0.0.7"):
+        with pytest.raises(PrivateAddressError, match="non-public address") as excinfo:
             validate_outbound_url("https://mixed.example/spec")
+
+        assert excinfo.value.addresses == ("93.184.216.34", "10.0.0.7")
+
+    def test_refusal_text_does_not_name_the_resolved_address(self, resolver):
+        """A resolved address is topology; the exception carries it apart."""
+        resolver["addresses"].append("10.0.0.7")
+        with pytest.raises(PrivateAddressError) as excinfo:
+            validate_outbound_url("https://internal.example/spec")
+
+        text = str(excinfo.value)
+        assert "internal.example" in text
+        assert "10.0.0.7" not in text
 
     def test_empty_answer_is_refused(self, resolver):
         with pytest.raises(UnsafeAddressError, match="no address"):

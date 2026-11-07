@@ -435,6 +435,31 @@ class TestSpecUrlScheme:
         assert status == 400
         assert "no servers[] entry" in data["message"]
 
+    def test_private_inline_servers_are_accepted_when_the_panel_allows_them(
+        self, server_private
+    ) -> None:
+        """The switch reaches extraction too, not only the refusal message."""
+        spec = {**_SPEC, "servers": [{"url": "http://127.0.0.1:9/api"}]}
+        status, data = server_private.request(
+            "/api/sources/preview", "POST", {"kind": "openapi", "spec": spec}
+        )
+
+        assert status == 200, data
+        assert data["info"]["base_url"] == "http://127.0.0.1:9/api"
+
+    def test_private_inline_servers_can_be_registered_when_allowed(
+        self, server_private
+    ) -> None:
+        spec = {**_SPEC, "servers": [{"url": "http://127.0.0.1:9/api"}]}
+        status, data = server_private.request(
+            "/api/sources/register",
+            "POST",
+            {"kind": "openapi", "spec": spec, "selected": ["list_pets"]},
+        )
+
+        assert status == 200, data
+        assert data["registered"] == ["list_pets"]
+
     def test_a_redirect_to_a_private_address_is_refused_after_one_request(
         self, server, monkeypatch
     ) -> None:
