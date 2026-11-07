@@ -265,9 +265,17 @@ class TestSpecUrlScheme:
         assert status == 400
         assert "only http and https" in data["message"]
 
-    def test_spec_url_needs_a_host(self, server) -> None:
+    @pytest.mark.parametrize(
+        "spec_url",
+        [
+            "http://",
+            "http://:8080/openapi.json",
+            "http://user@/openapi.json",
+        ],
+    )
+    def test_spec_url_needs_a_host(self, server, spec_url: str) -> None:
         status, data = server.request(
-            "/api/sources/preview", "POST", {"kind": "openapi", "spec_url": "http://"}
+            "/api/sources/preview", "POST", {"kind": "openapi", "spec_url": spec_url}
         )
 
         assert status == 400
@@ -303,6 +311,42 @@ class TestSpecUrlScheme:
         from toolregistry.admin.registration import _validate_spec_url
 
         assert _validate_spec_url(spec_url) == spec_url
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            (
+                "HTTP error: 401 for http://user:secret@example.com/openapi.json",
+                "HTTP error: 401 for http://example.com/openapi.json",
+            ),
+            (
+                "Network error when fetching URI: "
+                "http://user%40name:secret@example.com:8443/spec",
+                "Network error when fetching URI: http://example.com:8443/spec",
+            ),
+        ],
+    )
+    def test_error_text_drops_credentials(self, text: str, expected: str) -> None:
+        from toolregistry.integrations.openapi.utils import redact_url_userinfo
+
+        assert redact_url_userinfo(text) == expected
+
+    def test_fetch_failure_does_not_echo_credentials(self, monkeypatch) -> None:
+        import toolregistry.integrations.openapi.utils as openapi_utils
+        from toolregistry.admin.registration import SourceError, _load_openapi
+
+        def failing_fetch(url: str) -> dict:
+            raise ValueError(f"HTTP error: 401 for {url}")
+
+        monkeypatch.setattr(openapi_utils, "load_openapi_spec", failing_fetch)
+
+        with pytest.raises(SourceError) as excinfo:
+            _load_openapi({"spec_url": "http://user:secret@example.com/openapi.json"})
+
+        message = str(excinfo.value)
+        assert "secret" not in message
+        assert "user:" not in message
+        assert "http://example.com/openapi.json" in message
 
 
 class TestStateChangingGuards:

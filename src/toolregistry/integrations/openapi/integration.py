@@ -429,8 +429,12 @@ class OpenAPIIntegration:
             return openapi_spec, False
 
         if self._spec_url:
-            from .utils import load_openapi_spec_conditional_async
+            from .utils import load_openapi_spec_conditional_async, validate_spec_url
 
+            # A stored URL is fetched again on every refresh, so enforce the
+            # scheme invariant here too instead of trusting the path that
+            # registered it.
+            validate_spec_url(self._spec_url)
             spec, new_etag = await load_openapi_spec_conditional_async(
                 self._spec_url, self._etag
             )

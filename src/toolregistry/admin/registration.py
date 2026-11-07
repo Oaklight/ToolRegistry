@@ -28,7 +28,6 @@ import importlib
 import inspect
 import re
 from typing import TYPE_CHECKING, Any
-from urllib.parse import urlparse
 
 from ..utils import HttpClientConfig
 
@@ -37,11 +36,6 @@ if TYPE_CHECKING:
 
 _SUPPORTED_KINDS = ("openapi", "mcp", "python")
 _HTTP_METHODS = {"get", "post", "put", "patch", "delete"}
-
-#: The only schemes a panel-supplied ``spec_url`` may use.  ``load_openapi_spec``
-#: treats every other scheme — and a URI with no scheme — as a local file path,
-#: so allowing them would turn the unauthenticated preview into a file read.
-_ALLOWED_SPEC_SCHEMES = frozenset({"http", "https"})
 
 
 class SourceError(ValueError):
@@ -139,11 +133,9 @@ def _validate_spec_url(spec_url: str) -> str:
     """Refuse a ``spec_url`` the panel must not fetch on the caller's behalf.
 
     The panel is reachable without a token by default on localhost, so a URL
-    it loads is an outbound request made for an anonymous caller.
-    ``load_openapi_spec`` reads a URI with no scheme, or with the ``file``
-    scheme, as a local file and fetches every other scheme.  Restricting the
-    panel to ``http`` and ``https`` closes the file-read path before any I/O
-    starts.
+    it loads is an outbound request made for an anonymous caller.  The shared
+    :func:`~toolregistry.integrations.openapi.utils.validate_spec_url` keeps
+    the rule in one place, because a refresh fetches the stored URL again.
 
     Args:
         spec_url: The payload's ``spec_url`` value.
@@ -152,22 +144,15 @@ def _validate_spec_url(spec_url: str) -> str:
         ``spec_url`` unchanged when it is allowed.
 
     Raises:
-        SourceError: When the scheme is not ``http``/``https``, or no host is
-            given.
+        SourceError: When the URL is malformed, its scheme is not
+            ``http``/``https``, or it names no host.
     """
-    parsed = urlparse(spec_url)
-    scheme = parsed.scheme.lower()
-    if scheme not in _ALLOWED_SPEC_SCHEMES:
-        raise SourceError(
-            f"Unsupported 'spec_url' scheme '{scheme or '(none)'}': "
-            "only http and https URLs are allowed"
-        )
-    if not parsed.netloc:
-        raise SourceError(
-            "'spec_url' must include a host, for example "
-            "https://example.com/openapi.json"
-        )
-    return spec_url
+    from ..integrations.openapi.utils import validate_spec_url
+
+    try:
+        return validate_spec_url(spec_url)
+    except ValueError as exc:
+        raise SourceError(str(exc)) from exc
 
 
 def _load_openapi(payload: dict[str, Any]) -> tuple[dict[str, Any], str, str | None]:
@@ -175,6 +160,7 @@ def _load_openapi(payload: dict[str, Any]) -> tuple[dict[str, Any], str, str | N
     from ..integrations.openapi.utils import (
         extract_base_url_from_specs,
         load_openapi_spec,
+        redact_url_userinfo,
     )
 
     spec_url = payload.get("spec_url")
@@ -190,7 +176,8 @@ def _load_openapi(payload: dict[str, Any]) -> tuple[dict[str, Any], str, str | N
         try:
             spec = load_openapi_spec(spec_url)
         except Exception as exc:  # noqa: BLE001 - surfaced to the operator
-            raise SourceError(f"Could not load the OpenAPI spec: {exc}") from exc
+            detail = redact_url_userinfo(str(exc))
+            raise SourceError(f"Could not load the OpenAPI spec: {detail}") from exc
     elif spec_url:
         # An inline spec is not fetched now, but the URL is stored and used
         # by a later refresh; refuse a scheme that refresh must not fetch.
