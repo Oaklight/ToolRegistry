@@ -1038,19 +1038,22 @@ _MASKED_SECRET = "***"
 def _redacted_config(config: Any) -> dict[str, Any]:
     """Return a config payload with source credentials masked.
 
-    Credentials reach the config payload in three ways: an MCP source keeps
+    Credentials reach the config payload in four ways: an MCP source keeps
     bearer tokens in ``headers`` and API keys in ``env``, a Python source
-    takes constructor credentials in ``kwargs``, and an MCP URL may carry
-    userinfo (``https://user:token@host``).  The admin API returns the
-    configuration for display, so all three are masked; ``save_config`` still
-    writes the real values.
+    takes constructor credentials in ``kwargs``, a URL may carry userinfo
+    (``https://user:token@host``), and a stdio command may put a secret in an
+    argument.  The admin API returns the configuration for display, so all
+    four are masked; ``save_config`` still writes the real values.  A
+    command's executable (``argv[0]``) stays visible because it identifies
+    the source.
 
     Args:
         config: The loaded ``ToolConfig``.
 
     Returns:
         The config as a dict, with every source ``env``, ``headers`` and
-        ``kwargs`` value replaced by ``***`` and URL userinfo removed.
+        ``kwargs`` value replaced by ``***``, URL userinfo removed, and
+        command arguments after the executable masked.
     """
     from ..integrations.openapi.utils import redact_url_userinfo
 
@@ -1066,6 +1069,12 @@ def _redacted_config(config: Any) -> dict[str, Any]:
             value = source.get(field)
             if isinstance(value, str):
                 source[field] = redact_url_userinfo(value)
+        command = source.get("command")
+        if isinstance(command, list) and command:
+            source["command"] = [
+                command[0],
+                *(_MASKED_SECRET for _ in command[1:]),
+            ]
     return data
 
 
