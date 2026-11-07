@@ -76,8 +76,11 @@ def extract_base_url_from_specs(openapi_spec: dict[str, Any]) -> str | None:
 #: every other scheme — and a URI with no scheme — as a local file path.
 _SPEC_URL_SCHEMES = frozenset({"http", "https"})
 
-#: ``scheme://user:password@`` in a URL, inside arbitrary text.
-_URL_USERINFO = re.compile(r"\b([A-Za-z][A-Za-z0-9+.\-]*://)[^/@\s]+@")
+#: ``scheme://user:password@`` in a URL, inside arbitrary text.  ``[^/\s]+``
+#: is greedy and the trailing ``@`` is required, so the match ends at the
+#: last ``@`` in the authority — the same split ``urlparse`` uses.  A ``@``
+#: in the path does not match because the character class excludes ``/``.
+_URL_USERINFO = re.compile(r"\b([A-Za-z][A-Za-z0-9+.\-]*://)[^/\s]+@")
 
 
 def redact_url_userinfo(text: str) -> str:
@@ -117,6 +120,9 @@ def validate_spec_url(uri: str) -> str:
     try:
         parsed = urlparse(uri)
         host = parsed.hostname
+        # Accessing ``port`` validates it: urlparse raises ValueError for a
+        # non-numeric or out-of-range value.
+        _ = parsed.port
     except ValueError as exc:  # malformed IPv6, invalid port, ...
         detail = redact_url_userinfo(str(exc))
         raise ValueError(f"'spec_url' is not a valid URL: {detail}") from exc
