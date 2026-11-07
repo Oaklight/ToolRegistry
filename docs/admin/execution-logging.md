@@ -21,6 +21,25 @@ def calculator_add(a: int, b: int) -> int:
 info = registry.enable_admin()
 ```
 
+### Redaction and retention
+
+By default the log is safe to expose through the admin panel:
+
+- Keys that name a credential (`password`, `token`, `secret`, `api_key`,
+  `authorization`, `credential`, and similar names, at any nesting depth)
+  have their values replaced with `***REDACTED***`.
+- An `arguments` or `result` payload longer than 2000 JSON characters is
+  replaced by `{"truncated": true, "size": ..., "preview": ...}`.
+- The traceback is dropped. `exception_type` and `error` keep the exception
+  class and message.
+
+Pass `full_record=True` to retain the raw payloads and traceback. Do this
+only when the log is not reachable by untrusted callers:
+
+```python
+log = registry.enable_logging(max_entries=1000, full_record=True)
+```
+
 ## Log Entry Structure
 
 Each execution log entry contains:
@@ -36,7 +55,7 @@ Each execution log entry contains:
 | `result` | `Any` | Execution result (for successful executions) |
 | `error` | `str \| None` | Error message (for failed executions) |
 | `exception_type` | `str \| None` | Qualified exception class name, e.g. `"ValueError"` |
-| `traceback` | `str \| None` | Formatted traceback string from the exception |
+| `traceback` | `str \| None` | Formatted traceback string (dropped by default; kept with `full_record=True`) |
 | `metadata` | `dict` | Additional metadata |
 
 ## Querying Logs Programmatically
