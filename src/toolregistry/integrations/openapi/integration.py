@@ -249,8 +249,10 @@ class OpenAPITool(Tool):
             persistent=persistent,
         )
 
-        # Build source_detail from the base URL and endpoint path.
-        source_detail = f"{client_config.base_url}{path}"
+        # Build source_detail from the base URL and endpoint path.  The URL
+        # may carry userinfo; the metadata is displayed and logged, so keep
+        # the credentials out of the copy that is stored.
+        source_detail = redact_url_userinfo(f"{client_config.base_url}{path}")
 
         tool = cls(
             name=func_name,
@@ -653,8 +655,12 @@ class OpenAPIIntegration:
         Raises:
             ValueError: If no spec can be obtained (no URL and no stored spec).
         """
-        source_detail = self._spec_url or (
-            self._client_config.base_url if self._client_config else ""
+        # The spec URL and the configured base URL can both carry userinfo.
+        # The value is returned to callers and shown in the admin panel, so
+        # redact it before it leaves the integration.
+        source_detail = redact_url_userinfo(
+            self._spec_url
+            or (self._client_config.base_url if self._client_config else "")
         )
 
         resolved, skipped = await self._resolve_spec(openapi_spec)
