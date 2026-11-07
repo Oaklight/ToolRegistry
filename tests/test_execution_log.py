@@ -724,3 +724,103 @@ class TestExecutionLogWarningsFilter:
 
         entries = log.get_entries(has_warnings=None)
         assert len(entries) == 2
+
+
+class TestExecutionLogSanitization:
+    """Default retention masks credentials, bounds payloads, drops tracebacks."""
+
+    @staticmethod
+    def _entry(**overrides):
+        values = {
+            "tool_name": "demo",
+            "status": ExecutionStatus.SUCCESS,
+            "duration_ms": 1.0,
+            "arguments": {},
+        }
+        values.update(overrides)
+        return ExecutionLogEntry.create(**values)
+
+    def test_sensitive_keys_are_redacted(self) -> None:
+        log = ExecutionLog()
+        log.add(
+            self._entry(
+                arguments={
+                    "password": "hunter2",
+                    "nested": {"api_key": "k", "ok": 1},
+                    "items": [{"refresh_token": "r"}],
+                }
+            )
+        )
+        entry = log.get_entries()[0]
+        assert entry.arguments["password"] == "***REDACTED***"
+        assert entry.arguments["nested"]["api_key"] == "***REDACTED***"
+        assert entry.arguments["nested"]["ok"] == 1
+        assert entry.arguments["items"][0]["refresh_token"] == "***REDACTED***"
+
+    def test_ordinary_keys_survive(self) -> None:
+        log = ExecutionLog()
+        log.add(self._entry(arguments={"query": "cats", "limit": 5}))
+        entry = log.get_entries()[0]
+        assert entry.arguments == {"query": "cats", "limit": 5}
+
+    def test_result_is_redacted(self) -> None:
+        log = ExecutionLog()
+        log.add(self._entry(result={"access_token": "abc", "items": [1, 2]}))
+        entry = log.get_entries()[0]
+        assert entry.result["access_token"] == "***REDACTED***"
+        assert entry.result["items"] == [1, 2]
+
+    def test_large_payload_is_truncated(self) -> None:
+        log = ExecutionLog(max_field_chars=100)
+        log.add(self._entry(arguments={"blob": "x" * 500}))
+        entry = log.get_entries()[0]
+        assert entry.arguments["truncated"] is True
+        assert entry.arguments["size"] > 100
+        assert len(entry.arguments["preview"]) == 100
+
+    def test_traceback_is_dropped_but_type_and_message_survive(self) -> None:
+        log = ExecutionLog()
+        log.add(
+            self._entry(
+                status=ExecutionStatus.ERROR,
+                error="boom",
+                exception_type="ValueError",
+                traceback="Traceback (most recent call last): /secret/path",
+            )
+        )
+        entry = log.get_entries()[0]
+        assert entry.traceback is None
+        assert entry.exception_type == "ValueError"
+        assert entry.error == "boom"
+
+    def test_cyclic_arguments_do_not_recurse_forever(self) -> None:
+        arguments: dict = {}
+        arguments["self"] = arguments
+        log = ExecutionLog()
+        log.add(self._entry(arguments=arguments))
+        entry = log.get_entries()[0]
+        assert entry.arguments["self"] == "<cycle>"
+
+    def test_full_record_keeps_payloads(self) -> None:
+        log = ExecutionLog(full_record=True)
+        log.add(
+            self._entry(
+                arguments={"password": "hunter2"},
+                traceback="trace",
+            )
+        )
+        entry = log.get_entries()[0]
+        assert entry.arguments == {"password": "hunter2"}
+        assert entry.traceback == "trace"
+
+    def test_registry_enable_logging_full_record(self) -> None:
+        from toolregistry import ToolRegistry
+
+        registry = ToolRegistry()
+        log = registry.enable_logging(full_record=True)
+        assert log.full_record is True
+        assert log.max_field_chars == 2000
+
+    def test_max_field_chars_must_be_positive(self) -> None:
+        with pytest.raises(ValueError, match="max_field_chars"):
+            ExecutionLog(max_field_chars=0)
