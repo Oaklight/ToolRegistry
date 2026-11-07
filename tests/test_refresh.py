@@ -540,6 +540,34 @@ class TestMCPRefresh:
         assert result.changed is False
         assert result.unchanged == 2
 
+    def test_refresh_source_detail_drops_userinfo(self):
+        """The refresh result must not echo a password from the transport."""
+        specs = [_MockToolSpec("add")]
+        registry = ToolRegistry()
+        integration = self._make_integration(registry, specs)
+        integration._transport = "https://user:secret@mcp.example.com/sse"
+        integration._connections[0].transport = integration._transport
+
+        with self._patch_mcp_client(specs):
+            result = integration.refresh()
+
+        assert result.source_detail == "https://mcp.example.com/sse"
+
+    def test_refresh_source_detail_hides_stdio_arguments(self):
+        """Arguments can carry a secret, so the result keeps the program only."""
+        specs = [_MockToolSpec("add")]
+        registry = ToolRegistry()
+        integration = self._make_integration(registry, specs)
+        integration._transport = {
+            "command": "uvx",
+            "args": ["my-server", "--api-key", "secret"],
+        }
+
+        with self._patch_mcp_client(specs):
+            result = integration.refresh()
+
+        assert result.source_detail == "stdio:uvx"
+
     def test_mcp_refresh_after_name_sep_change_is_noop(self):
         """Tracked names follow the separator, so refresh sees no change."""
         specs = [_MockToolSpec("add"), _MockToolSpec("multiply")]
