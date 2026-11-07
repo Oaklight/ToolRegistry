@@ -60,6 +60,7 @@ hide:
   `ValueError`。自动发现探测现在只读取响应头。两个预算都可分别通过 `max_bytes=` 与
   `max_depth=` 配置。
 - **规范 URL 中的凭据不再进入工具元数据或警告**（#378）：`ToolMetadata.source_detail` 过去直接由 `HttpClientConfig.base_url` 以及刷新时的已存 spec URL 拼接，因此 `servers[].url` 或 spec URL 形如 `https://user:secret@api.example.com` 时，密码会出现在管理接口返回的工具列表中。现在 `source_detail` 会经过 `redact_url_userinfo()`。`$ref` 解析器的警告会原样回显被丢弃的 `$ref`；现在重发时会去掉其中的 userinfo，解析结果本身不变。
+- **OpenAPI 操作路径不能离开 base origin**（#375）：`paths` 的 key 过去会原样交给 HTTP 客户端，因此文档把某个操作命名为 `http://attacker.example/...` 时，每次调用都会把配置的 `Authorization` 头或 Basic 凭据发往该 origin。`OpenAPITool.from_openapi_spec()` 现在要求路径是以单个 `/` 开头的相对路径；`_BaseUrlClient` / `_BaseUrlAsyncClient` 只把这类路径拼到 `base_url`，并校验结果中的 scheme 与 netloc。注册前会先检查整个文档，因此坏 key 不会留下半注册的来源。
 
 ### 修复
 
