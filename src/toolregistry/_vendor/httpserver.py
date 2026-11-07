@@ -1,5 +1,5 @@
 # /// zerodep
-# version = "0.7.1"
+# version = "0.7.2"
 # deps = []
 # tier = "subsystem"
 # category = "network"
@@ -84,6 +84,13 @@ DEFAULT_READ_TIMEOUT = 30.0  # seconds
 DEFAULT_KEEP_ALIVE_TIMEOUT = 5.0  # seconds between requests on one connection
 DEFAULT_MAX_REQUESTS_PER_CONNECTION = 100
 DEFAULT_SHUTDOWN_GRACE_TIMEOUT = 5.0  # seconds to let in-flight requests finish
+
+#: Unread body bytes a rejection drains, as a multiple of ``max_body_size``.
+#: A declared length beyond this budget is closed without draining.
+_REJECT_DRAIN_FACTOR = 8
+#: Seconds spent draining an unread body after a rejection, so a stalled or
+#: hostile upload cannot pin the connection task.
+_REJECT_DRAIN_TIMEOUT = 2.0
 
 _STATUS_REASONS: dict[int, str] = {
     100: "Continue",
@@ -924,7 +931,14 @@ class RejectedRequest:
 class _ReadState:
     """What :func:`_read_request` had parsed when it stopped."""
 
-    __slots__ = ("method", "path", "headers", "content_length", "bytes_received")
+    __slots__ = (
+        "method",
+        "path",
+        "headers",
+        "content_length",
+        "bytes_received",
+        "pending_chunk_size",
+    )
 
     def __init__(self) -> None:
         self.method: str | None = None
@@ -932,6 +946,10 @@ class _ReadState:
         self.headers: dict[str, str] | None = None
         self.content_length: int | None = None
         self.bytes_received = 0
+        #: Declared data length of the chunk whose size line crossed the body
+        #: limit, when the chunked reader rejected the request.  Its data was
+        #: not read, so a drain must start there.
+        self.pending_chunk_size: int | None = None
 
 
 # A single token of URL-safe characters: no spaces, commas or semicolons that a
@@ -1145,6 +1163,8 @@ async def _read_chunked_body(
             break
         total += chunk_size
         if total > max_body_size:
+            if state is not None:
+                state.pending_chunk_size = chunk_size
             raise HTTPException(413, "Request body too large")
         data = await asyncio.wait_for(reader.readexactly(chunk_size), timeout=timeout)
         await asyncio.wait_for(reader.readline(), timeout=timeout)
@@ -1152,6 +1172,53 @@ async def _read_chunked_body(
         if state is not None:
             state.bytes_received = total
     return b"".join(parts)
+
+
+async def _discard_exact(reader: asyncio.StreamReader, length: int) -> None:
+    """Read and discard *length* bytes, or until the stream ends."""
+    remaining = length
+    while remaining:
+        chunk = await reader.read(min(remaining, 65536))
+        if not chunk:
+            return
+        remaining -= len(chunk)
+
+
+async def _discard_chunked(
+    reader: asyncio.StreamReader,
+    pending_size: int,
+    budget: int,
+) -> None:
+    """Read and discard chunked frames after a 413, up to *budget* data bytes.
+
+    Args:
+        reader: Client stream, positioned at the first unread data byte.
+        pending_size: Data length of the frame whose size line crossed the
+            body limit; its data was not read.
+        budget: Largest number of chunk data bytes to discard.
+    """
+    discarded = 0
+    size = pending_size
+    while True:
+        if size:
+            if discarded + size > budget:
+                return
+            await _discard_exact(reader, size)
+            discarded += size
+            if not await reader.readline():  # CRLF after the chunk data
+                return
+        size_line = await reader.readline()
+        if not size_line:
+            return
+        size_str = size_line.decode("latin-1").split(";")[0].strip()
+        if not size_str or not _CHUNK_SIZE_RE.fullmatch(size_str):
+            return
+        size = int(size_str, 16)
+        if size == 0:
+            while True:  # trailer section, up to the blank line
+                trailer = await reader.readline()
+                if not trailer or trailer in (b"\r\n", b"\n"):
+                    return
 
 
 # ── Utilities ────────────────────────────────────────────────────────────────
@@ -1783,12 +1850,20 @@ class App:
 
     # ── Connection Handling ───────────────────────────────────────────────
 
-    @staticmethod
     async def _send_error_and_close(
+        self,
         writer: asyncio.StreamWriter,
         response: Response | JSONResponse,
+        reader: asyncio.StreamReader | None = None,
+        exc: Exception | None = None,
+        state: _ReadState | None = None,
     ) -> None:
-        """Write an error response to the client and close the connection.
+        """Write an error response, drain an unread body, and close.
+
+        Closing a socket while the client is still sending makes the kernel
+        answer with RST, which can hide the response from the client.  When
+        *reader*, *exc* and *state* describe an over-limit body, the left-over
+        body is discarded first so the close is a normal FIN.
 
         Swallows broken-pipe / reset errors that occur when the client has
         already disconnected.
@@ -1796,8 +1871,68 @@ class App:
         try:
             await response._write(writer)
         except (BrokenPipeError, ConnectionResetError):
-            pass
+            writer.close()
+            return
+        if reader is not None and exc is not None:
+            await self._drain_rejected_body(reader, exc, state)
         writer.close()
+
+    async def _drain_rejected_body(
+        self,
+        reader: asyncio.StreamReader,
+        exc: Exception,
+        state: _ReadState | None,
+    ) -> None:
+        """Discard an over-limit body so closing the socket does not send RST.
+
+        Only a 413 is drained.  For ``Content-Length`` the declared remainder
+        is read; for chunked transfer encoding the frame that crossed the limit
+        and every frame after it are read.  Both paths stop at
+        ``_REJECT_DRAIN_FACTOR * max_body_size`` data bytes or
+        ``_REJECT_DRAIN_TIMEOUT`` seconds.  A body that would need more than
+        that byte budget is not drained at all — for ``Content-Length`` when
+        the declared remainder is larger, for chunked when the next frame
+        would cross the budget.  An absurd upload must not hold the task, so
+        that connection may still see RST.
+
+        The drain is asynchronous and bounded per connection: other
+        connections keep being served, each rejected connection costs at most
+        ``_REJECT_DRAIN_TIMEOUT`` seconds, and there is no global drain
+        budget.  That is the same order as the idle keep-alive wait.
+
+        Read errors are swallowed because the connection is closing anyway.
+        ``ValueError`` is one of them: ``StreamReader.readline()`` raises it
+        when a chunk size line or trailer exceeds the 64 KiB stream limit,
+        and a hostile client must not turn that into a logged traceback.
+        """
+        if not (isinstance(exc, HTTPException) and exc.status_code == 413):
+            return
+        if state is None or state.headers is None:
+            return
+
+        budget = _REJECT_DRAIN_FACTOR * self.max_body_size
+        if budget <= 0:
+            return
+
+        try:
+            if state.content_length is not None:
+                remaining = state.content_length - state.bytes_received
+                if remaining <= 0 or remaining > budget:
+                    return
+                await asyncio.wait_for(
+                    _discard_exact(reader, remaining),
+                    timeout=_REJECT_DRAIN_TIMEOUT,
+                )
+            elif (
+                state.headers.get("transfer-encoding", "").lower() == "chunked"
+                and state.pending_chunk_size is not None
+            ):
+                await asyncio.wait_for(
+                    _discard_chunked(reader, state.pending_chunk_size, budget),
+                    timeout=_REJECT_DRAIN_TIMEOUT,
+                )
+        except (asyncio.TimeoutError, asyncio.IncompleteReadError, OSError, ValueError):
+            pass
 
     async def _handle_connection(
         self,
@@ -1845,7 +1980,9 @@ class App:
                 except _ClientDisconnected:
                     break
                 except Exception as exc:
-                    await self._reject_read(exc, writer, client_addr, read_state)
+                    await self._reject_read(
+                        exc, writer, client_addr, read_state, reader=reader
+                    )
                     break
                 finally:
                     self._idle_connections.discard(writer)
@@ -1884,6 +2021,7 @@ class App:
         writer: asyncio.StreamWriter,
         client_addr: tuple,
         state: _ReadState | None = None,
+        reader: asyncio.StreamReader | None = None,
     ) -> None:
         """Answer a failed request read, or close quietly on an idle timeout.
 
@@ -1900,6 +2038,8 @@ class App:
             writer: The client connection.
             client_addr: Client address for logging.
             state: What the read had parsed when it failed.
+            reader: The client stream, used to drain an over-limit body before
+                closing so the close is a FIN rather than an RST.
         """
         if isinstance(exc, _IdleTimeout):
             logger.debug("Keep-alive idle timeout from %s", client_addr)
@@ -1949,7 +2089,7 @@ class App:
                 bytes_received=bytes_received,
             ),
         )
-        await self._send_error_and_close(writer, response)
+        await self._send_error_and_close(writer, response, reader, exc, state)
 
     @staticmethod
     def _connection_tokens(headers: dict[str, str]) -> set[str]:
