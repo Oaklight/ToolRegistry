@@ -373,6 +373,38 @@ class TestOpenAPIConditionalFetch:
             assert spec is not None
             assert etag == '"new-etag"'
 
+    @pytest.mark.asyncio
+    async def test_etag_200_pretty_printed_json(self):
+        """A multi-line JSON body parses through the conditional loader."""
+        from toolregistry._vendor.httpclient import Response
+
+        spec_bytes = json.dumps(SPEC_V1, indent=2).encode()
+        mock_response = Response(
+            200,
+            {"content-type": "application/json", "ETag": '"pretty-etag"'},
+            spec_bytes,
+            "http://test.example.com/openapi.json",
+        )
+
+        with patch("toolregistry.integrations.openapi.utils.AsyncClient") as MockClient:
+            mock_client = AsyncMock()
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            MockClient.return_value = mock_client
+
+            from toolregistry.integrations.openapi.utils import (
+                load_openapi_spec_conditional_async,
+            )
+
+            spec, etag = await load_openapi_spec_conditional_async(
+                "http://test.example.com/openapi.json"
+            )
+            assert spec is not None
+            assert spec["info"]["title"] == "TestAPI"
+            assert set(spec["paths"]) == set(SPEC_V1["paths"])
+            assert etag == '"pretty-etag"'
+
 
 # ---------------------------------------------------------------------------
 # refresh_all
