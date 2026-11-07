@@ -1346,3 +1346,26 @@ class TestDetermineUrlsBudget:
 
         assert result["found"] is False
         assert response.chunks_read == 0
+
+
+class TestLoaderRefRedaction:
+    """The loader keeps the redaction from #378 when it resolves refs."""
+
+    def test_loader_warns_without_credentials(self, tmp_path):
+        """A loader-level ``$ref`` warning must not contain the password."""
+        document = {
+            "openapi": "3.0.0",
+            "info": {"title": "redaction", "version": "1"},
+            "paths": {},
+            "x-external": {"$ref": "https://user:secret@example.com/schema.json"},
+        }
+        spec_file = tmp_path / "spec.json"
+        spec_file.write_text(json.dumps(document))
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            load_openapi_spec(str(spec_file), allow_local_files=True)
+
+        messages = [str(item.message) for item in caught]
+        assert any("Unresolvable $ref" in message for message in messages)
+        assert all("secret" not in message for message in messages)
