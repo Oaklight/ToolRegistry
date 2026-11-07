@@ -103,9 +103,10 @@ def validate_spec_url(uri: str) -> str:
     """Return *uri* unchanged when it is an HTTP(S) URL that names a host.
 
     ``load_openapi_spec`` reads a URI with no scheme, or with ``file``, as a
-    local path, while ``load_openapi_spec_conditional_async`` can only fetch
-    over HTTP(S).  Callers that accept a URL from an untrusted source use this
-    to refuse anything else before any I/O starts.
+    local path only when the caller opts in with ``allow_local_files=True``,
+    while ``load_openapi_spec_conditional_async`` can only fetch over HTTP(S).
+    Callers that accept a URL from an untrusted source use this to refuse
+    anything else before any I/O starts.
 
     Args:
         uri: A candidate specification URL.
@@ -186,22 +187,39 @@ def determine_urls(url: str) -> dict[str, Any]:
     return {"found": False, "base_api_url": base_url}
 
 
-async def load_openapi_spec_async(uri: str) -> dict[str, Any]:
+async def load_openapi_spec_async(
+    uri: str, *, allow_local_files: bool = False
+) -> dict[str, Any]:
     """Async version of load_openapi_spec using AsyncClient.
+
+    A URI with no scheme, or with the ``file`` scheme, names a local file.
+    Such a URI is refused by default so that a spec location supplied by
+    someone else cannot be turned into a read of the local file system.  A
+    caller that really means to read a local file passes
+    ``allow_local_files=True``.
 
     Args:
         uri (str): URL or file path pointing to an OpenAPI specification.
+        allow_local_files: Read *uri* from the local file system when it names
+            a path or a ``file://`` URI.  Defaults to ``False``.
 
     Returns:
         Dict[str, Any]: A dictionary containing the parsed OpenAPI specification.
 
     Raises:
-        ValueError: If URI retrieval, parsing, or decoding fails.
+        ValueError: If URI retrieval, parsing, or decoding fails, or if *uri*
+            names a local file while *allow_local_files* is false.
     """
-    try:
-        parsed_uri = urlparse(uri)
+    parsed_uri = urlparse(uri)
+    is_local = parsed_uri.scheme in ("", "file")
+    if is_local and not allow_local_files:
+        raise ValueError(
+            "Reading an OpenAPI specification from the local file system is "
+            "disabled; pass allow_local_files=True to allow it"
+        )
 
-        if parsed_uri.scheme in ("", "file"):  # Handle file paths
+    try:
+        if is_local:  # Handle file paths
             file_path = parsed_uri.path if parsed_uri.scheme == "file" else uri
             with open(file_path, "rb") as file:
                 openapi_spec_content = file.read()
@@ -248,18 +266,24 @@ async def load_openapi_spec_async(uri: str) -> dict[str, Any]:
         raise ValueError(f"Unexpected error: {redact_url_userinfo(str(e))}")
 
 
-def load_openapi_spec(uri: str) -> dict[str, Any]:
+def load_openapi_spec(uri: str, *, allow_local_files: bool = False) -> dict[str, Any]:
     """Sync version that calls the async implementation.
 
     Args:
         uri (str): URL or file path pointing to an OpenAPI specification.
+        allow_local_files: Read *uri* from the local file system when it names
+            a path or a ``file://`` URI.  Defaults to ``False``.
 
     Returns:
         Dict[str, Any]: A dictionary containing the parsed OpenAPI specification.
 
     Raises:
-        ValueError: If URI retrieval, parsing, or decoding fails."""
-    return asyncio.run(load_openapi_spec_async(uri))
+        ValueError: If URI retrieval, parsing, or decoding fails, or if *uri*
+            names a local file while *allow_local_files* is false.
+    """
+    return asyncio.run(
+        load_openapi_spec_async(uri, allow_local_files=allow_local_files)
+    )
 
 
 async def load_openapi_spec_conditional_async(

@@ -907,14 +907,14 @@ class TestLoadOpenapiSpec:
         """Load spec from a single-line JSON file."""
         spec_file = tmp_path / "spec.json"
         spec_file.write_text(json.dumps(PETSTORE_SPEC))
-        result = load_openapi_spec(str(spec_file))
+        result = load_openapi_spec(str(spec_file), allow_local_files=True)
         assert result["info"]["title"] == "Petstore"
 
     def test_load_from_pretty_printed_json_file(self, tmp_path):
         """A multi-line JSON spec loads as a mapping (issue #369)."""
         spec_file = tmp_path / "spec.json"
         spec_file.write_text(json.dumps(PETSTORE_SPEC, indent=2))
-        result = load_openapi_spec(str(spec_file))
+        result = load_openapi_spec(str(spec_file), allow_local_files=True)
         assert result["info"]["title"] == "Petstore"
         assert set(result["paths"]) == set(PETSTORE_SPEC["paths"])
 
@@ -925,7 +925,7 @@ class TestLoadOpenapiSpec:
             bytes.fromhex("efbbbf")
             + json.dumps(PETSTORE_SPEC, indent=2).encode("utf-8")
         )
-        result = load_openapi_spec(str(spec_file))
+        result = load_openapi_spec(str(spec_file), allow_local_files=True)
         assert result["info"]["title"] == "Petstore"
         assert set(result["paths"]) == set(PETSTORE_SPEC["paths"])
 
@@ -946,7 +946,7 @@ class TestLoadOpenapiSpec:
         spec_file = tmp_path / "spec.json"
         spec_file.write_text(content)
         with pytest.raises(ValueError, match="OpenAPI document is empty"):
-            load_openapi_spec(str(spec_file))
+            load_openapi_spec(str(spec_file), allow_local_files=True)
 
     def test_load_from_yaml_file(self, tmp_path):
         """Load spec from a YAML file."""
@@ -954,7 +954,7 @@ class TestLoadOpenapiSpec:
 
         spec_file = tmp_path / "spec.yaml"
         spec_file.write_text(yaml_dump(PETSTORE_SPEC))
-        result = load_openapi_spec(str(spec_file))
+        result = load_openapi_spec(str(spec_file), allow_local_files=True)
         assert result["info"]["title"] == "Petstore"
 
     def test_load_invalid_content_raises_value_error(self, tmp_path):
@@ -962,20 +962,47 @@ class TestLoadOpenapiSpec:
         spec_file = tmp_path / "spec.txt"
         spec_file.write_text("this is not an OpenAPI document")
         with pytest.raises(ValueError):
-            load_openapi_spec(str(spec_file))
+            load_openapi_spec(str(spec_file), allow_local_files=True)
 
     def test_load_nonexistent_file(self):
         """Non-existent file raises FileNotFoundError."""
         with pytest.raises(FileNotFoundError):
-            load_openapi_spec("/nonexistent/path/spec.json")
+            load_openapi_spec("/nonexistent/path/spec.json", allow_local_files=True)
 
     @pytest.mark.asyncio
     async def test_load_async_from_file(self, tmp_path):
         """Async load from file path."""
         spec_file = tmp_path / "spec.json"
         spec_file.write_text(json.dumps(PETSTORE_SPEC, indent=2))
-        result = await load_openapi_spec_async(str(spec_file))
+        result = await load_openapi_spec_async(str(spec_file), allow_local_files=True)
         assert result["info"]["title"] == "Petstore"
+
+    def test_local_path_requires_opt_in(self, tmp_path):
+        """A local path is refused unless the caller opts in (issue #376)."""
+        spec_file = tmp_path / "spec.json"
+        spec_file.write_text(json.dumps(PETSTORE_SPEC))
+        with pytest.raises(ValueError, match="allow_local_files=True"):
+            load_openapi_spec(str(spec_file))
+
+    def test_file_uri_requires_opt_in(self, tmp_path):
+        """A ``file://`` URI is refused unless the caller opts in."""
+        spec_file = tmp_path / "spec.json"
+        spec_file.write_text(json.dumps(PETSTORE_SPEC))
+        with pytest.raises(ValueError, match="allow_local_files=True"):
+            load_openapi_spec(f"file://{spec_file}")
+
+    @pytest.mark.asyncio
+    async def test_async_local_path_requires_opt_in(self, tmp_path):
+        """The async entry point applies the same default."""
+        spec_file = tmp_path / "spec.json"
+        spec_file.write_text(json.dumps(PETSTORE_SPEC))
+        with pytest.raises(ValueError, match="allow_local_files=True"):
+            await load_openapi_spec_async(str(spec_file))
+
+    def test_local_path_refused_before_any_io(self):
+        """The refusal precedes the file read, so nothing is opened."""
+        with pytest.raises(ValueError, match="allow_local_files=True"):
+            load_openapi_spec("/nonexistent/path/spec.json")
 
     @pytest.mark.asyncio
     async def test_load_pretty_printed_json_with_bom_url(self):
