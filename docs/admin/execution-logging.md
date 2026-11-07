@@ -21,6 +21,24 @@ def calculator_add(a: int, b: int) -> int:
 info = registry.enable_admin()
 ```
 
+### 脱敏与留存
+
+默认情况下，日志可以安全地通过管理面板暴露：
+
+- 名称表示凭据的键（`password`、`token`、`secret`、`api_key`、
+  `authorization`、`credential` 等，任意嵌套层级）的值会被替换为
+  `***REDACTED***`。
+- `arguments` 或 `result` 的 JSON 编码超过 2000 个字符时，会被替换为
+  `{"truncated": true, "size": ..., "preview": ...}`。
+- 追溯信息会被丢弃；`exception_type` 与 `error` 保留异常类型和消息。
+
+传入 `full_record=True` 可保留原始参数、结果与追溯信息。仅在日志不会被
+不受信任的调用方访问时使用：
+
+```python
+log = registry.enable_logging(max_entries=1000, full_record=True)
+```
+
 ## 日志条目结构
 
 每个执行日志条目包含：
@@ -36,7 +54,7 @@ info = registry.enable_admin()
 | `result` | `Any` | 执行结果（成功执行时） |
 | `error` | `str \| None` | 错误信息（失败执行时） |
 | `exception_type` | `str \| None` | 异常类的限定名称，如 `"ValueError"` |
-| `traceback` | `str \| None` | 异常的格式化追溯字符串 |
+| `traceback` | `str \| None` | 异常的格式化追溯字符串（默认丢弃；`full_record=True` 时保留） |
 | `metadata` | `dict` | 附加元数据 |
 
 ## 编程方式查询日志
