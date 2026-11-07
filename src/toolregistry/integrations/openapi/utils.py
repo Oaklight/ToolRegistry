@@ -31,8 +31,11 @@ def _parse_spec_content(content: str) -> Any:
         The parsed document.
 
     Raises:
+        ValueError: If the text is empty or whitespace only.
         YAMLError: If the text is neither valid JSON nor valid YAML.
     """
+    if not content.strip():
+        raise ValueError("OpenAPI document is empty")
     try:
         return json.loads(content)
     except json.JSONDecodeError:
@@ -146,7 +149,7 @@ async def load_openapi_spec_async(uri: str) -> dict[str, Any]:
         openapi_spec_dict = await loop.run_in_executor(
             None,
             lambda: resolve_refs(
-                _parse_spec_content(openapi_spec_content.decode("utf-8"))
+                _parse_spec_content(openapi_spec_content.decode("utf-8-sig"))
             ),
         )
 
@@ -222,7 +225,7 @@ async def load_openapi_spec_conditional_async(
         openapi_spec_dict = await loop.run_in_executor(
             None,
             lambda: resolve_refs(
-                _parse_spec_content(openapi_spec_content.decode("utf-8"))
+                _parse_spec_content(openapi_spec_content.decode("utf-8-sig"))
             ),
         )
 

@@ -918,6 +918,25 @@ class TestLoadOpenapiSpec:
         assert result["info"]["title"] == "Petstore"
         assert set(result["paths"]) == set(PETSTORE_SPEC["paths"])
 
+    def test_load_from_pretty_printed_json_with_bom_file(self, tmp_path):
+        """A UTF-8 BOM must not hide a multi-line JSON spec on a file path."""
+        spec_file = tmp_path / "spec.json"
+        spec_file.write_bytes(
+            bytes.fromhex("efbbbf")
+            + json.dumps(PETSTORE_SPEC, indent=2).encode("utf-8")
+        )
+        result = load_openapi_spec(str(spec_file))
+        assert result["info"]["title"] == "Petstore"
+        assert set(result["paths"]) == set(PETSTORE_SPEC["paths"])
+
+    @pytest.mark.parametrize("content", ["", "   \n\t"])
+    def test_load_empty_content_raises_value_error(self, tmp_path, content):
+        """Empty or whitespace-only content reports an explicit error."""
+        spec_file = tmp_path / "spec.json"
+        spec_file.write_text(content)
+        with pytest.raises(ValueError, match="OpenAPI document is empty"):
+            load_openapi_spec(str(spec_file))
+
     def test_load_from_yaml_file(self, tmp_path):
         """Load spec from a YAML file."""
         from toolregistry._vendor.yaml import dump as yaml_dump
@@ -946,3 +965,29 @@ class TestLoadOpenapiSpec:
         spec_file.write_text(json.dumps(PETSTORE_SPEC, indent=2))
         result = await load_openapi_spec_async(str(spec_file))
         assert result["info"]["title"] == "Petstore"
+
+    @pytest.mark.asyncio
+    async def test_load_pretty_printed_json_with_bom_url(self):
+        """A UTF-8 BOM must not hide a multi-line JSON spec fetched by URL."""
+        from unittest.mock import AsyncMock, patch
+
+        from toolregistry._vendor.httpclient import Response
+
+        body = bytes.fromhex("efbbbf") + json.dumps(PETSTORE_SPEC, indent=2).encode()
+        mock_response = Response(
+            200,
+            {"content-type": "application/json"},
+            body,
+            "http://test.example.com/openapi.json",
+        )
+        with patch("toolregistry.integrations.openapi.utils.AsyncClient") as MockClient:
+            mock_client = AsyncMock()
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            MockClient.return_value = mock_client
+            result = await load_openapi_spec_async(
+                "http://test.example.com/openapi.json"
+            )
+        assert result["info"]["title"] == "Petstore"
+        assert set(result["paths"]) == set(PETSTORE_SPEC["paths"])
