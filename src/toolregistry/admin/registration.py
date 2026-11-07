@@ -9,7 +9,7 @@ browser.
 Three kinds are supported:
 
 ``openapi``
-    A specification from a URL or a local path, or an inline spec dict.
+    A specification from an ``http``/``https`` URL, or an inline spec dict.
 ``mcp``
     An MCP server addressed by transport — stdio command, SSE or streamable
     HTTP URL.
@@ -28,6 +28,7 @@ import importlib
 import inspect
 import re
 from typing import TYPE_CHECKING, Any
+from urllib.parse import urlparse
 
 from ..utils import HttpClientConfig
 
@@ -36,6 +37,11 @@ if TYPE_CHECKING:
 
 _SUPPORTED_KINDS = ("openapi", "mcp", "python")
 _HTTP_METHODS = {"get", "post", "put", "patch", "delete"}
+
+#: The only schemes a panel-supplied ``spec_url`` may use.  ``load_openapi_spec``
+#: treats every other scheme — and a URI with no scheme — as a local file path,
+#: so allowing them would turn the unauthenticated preview into a file read.
+_ALLOWED_SPEC_SCHEMES = frozenset({"http", "https"})
 
 
 class SourceError(ValueError):
@@ -129,6 +135,41 @@ def _request_headers(payload: dict[str, Any]) -> dict[str, str] | None:
     return headers or None
 
 
+def _validate_spec_url(spec_url: str) -> str:
+    """Refuse a ``spec_url`` the panel must not fetch on the caller's behalf.
+
+    The panel is reachable without a token by default on localhost, so a URL
+    it loads is an outbound request made for an anonymous caller.
+    ``load_openapi_spec`` reads a URI with no scheme, or with the ``file``
+    scheme, as a local file and fetches every other scheme.  Restricting the
+    panel to ``http`` and ``https`` closes the file-read path before any I/O
+    starts.
+
+    Args:
+        spec_url: The payload's ``spec_url`` value.
+
+    Returns:
+        ``spec_url`` unchanged when it is allowed.
+
+    Raises:
+        SourceError: When the scheme is not ``http``/``https``, or no host is
+            given.
+    """
+    parsed = urlparse(spec_url)
+    scheme = parsed.scheme.lower()
+    if scheme not in _ALLOWED_SPEC_SCHEMES:
+        raise SourceError(
+            f"Unsupported 'spec_url' scheme '{scheme or '(none)'}': "
+            "only http and https URLs are allowed"
+        )
+    if not parsed.netloc:
+        raise SourceError(
+            "'spec_url' must include a host, for example "
+            "https://example.com/openapi.json"
+        )
+    return spec_url
+
+
 def _load_openapi(payload: dict[str, Any]) -> tuple[dict[str, Any], str, str | None]:
     """Return ``(spec, base_url, spec_url)`` for an OpenAPI payload."""
     from ..integrations.openapi.utils import (
@@ -138,22 +179,29 @@ def _load_openapi(payload: dict[str, Any]) -> tuple[dict[str, Any], str, str | N
 
     spec_url = payload.get("spec_url")
     spec = payload.get("spec")
+    if spec_url is not None and not isinstance(spec_url, str):
+        raise SourceError("'spec_url' must be a string")
     if spec is not None and not isinstance(spec, dict):
         raise SourceError("'spec' must be a JSON object")
     if spec is None:
-        if not spec_url or not isinstance(spec_url, str):
+        if not spec_url:
             raise SourceError("Provide either 'spec_url' or an inline 'spec'")
+        spec_url = _validate_spec_url(spec_url)
         try:
             spec = load_openapi_spec(spec_url)
         except Exception as exc:  # noqa: BLE001 - surfaced to the operator
             raise SourceError(f"Could not load the OpenAPI spec: {exc}") from exc
+    elif spec_url:
+        # An inline spec is not fetched now, but the URL is stored and used
+        # by a later refresh; refuse a scheme that refresh must not fetch.
+        _validate_spec_url(spec_url)
     if not isinstance(spec, dict) or not spec.get("paths"):
         raise SourceError("The OpenAPI spec has no 'paths' to register")
 
     base_url = payload.get("base_url") or extract_base_url_from_specs(spec)
     if not base_url:
         raise SourceError("The spec has no servers[] entry; pass 'base_url' explicitly")
-    return spec, str(base_url), spec_url if isinstance(spec_url, str) else None
+    return spec, str(base_url), spec_url
 
 
 def _openapi_entries(
