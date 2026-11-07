@@ -1853,6 +1853,10 @@ class TestAdminSourcesAndConfig:
                     url="https://user:spec-token@spec.example/openapi.json",
                     base_url="https://user:base-secret@api.example",
                 ),
+                MCPSource(
+                    transport="stdio",
+                    command=("mcp-server", "--api-key", "real-command-secret"),
+                ),
             ),
         )
         registry = ToolRegistry()
@@ -1862,13 +1866,15 @@ class TestAdminSourcesAndConfig:
         try:
             status, data = self._request(f"{info.url}/api/config")
             assert status == 200
-            mcp, python, openapi = data["tools"]
+            mcp, python, openapi, stdio = data["tools"]
             assert mcp["env"] == {"API_KEY": "***"}
             assert mcp["headers"] == {"Authorization": "***"}
             assert mcp["url"] == "https://mcp.example/mcp"
             assert python["kwargs"] == {"api_key": "***"}
             assert openapi["url"] == "https://spec.example/openapi.json"
             assert openapi["base_url"] == "https://api.example"
+            # The executable stays visible; arguments may carry a secret.
+            assert stdio["command"] == ["mcp-server", "***", "***"]
             body = json.dumps(data)
             for secret in (
                 "real-key",
@@ -1876,6 +1882,7 @@ class TestAdminSourcesAndConfig:
                 "real-secret",
                 "spec-token",
                 "base-secret",
+                "real-command-secret",
                 "user:",
             ):
                 assert secret not in body
