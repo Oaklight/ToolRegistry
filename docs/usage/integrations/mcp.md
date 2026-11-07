@@ -63,6 +63,23 @@ print(registry)  # Outputs registered tools
 !!! tip "提示"
     `ToolRegistry.register()` 搭配 `source="mcp"` 支持 URL 字符串、脚本路径和字典配置，可以满足大多数使用场景。`.py` 脚本路径会使用运行 ToolRegistry 的解释器（`sys.executable`）启动；若需要指定其他解释器，请使用字典形式（`{"command": ..., "args": [...]}`）。
 
+## 出站地址
+
+URL 传输会在建立连接前解析并校验。回环、链路本地与私有地址默认被拒绝，
+组播与保留地址同样如此。对于本机或内网服务器，请显式开启：
+
+```python
+registry.register(
+    "http://localhost:8000/mcp",
+    source="mcp",
+    allow_private_hosts=True,
+)
+```
+
+`register_async()` 与 `register_mcp_tools*()` 接受同一关键字。配置文件中的
+来源可写 `allow_private_hosts: true`；需要 server 版本转发（core ≥ 0.20；
+toolregistry-server #168）。拒绝信息会点名该开关，且不回显解析到的地址。
+
 !!! tip "提示"
     新兴的 MCP Hub 服务（无论是商业的还是自托管的）简化了 MCP 服务器的发现和集中管理。它们非常适合避免使用 stdio 服务器、减少环境负担，或实现 MCP 主机共享。
 
@@ -174,13 +191,17 @@ from toolregistry import ToolRegistry
 
 # Synchronous
 with ToolRegistry() as registry:
-    registry.register("http://localhost:8000/mcp", source="mcp")
+    registry.register(
+        "http://localhost:8000/mcp", source="mcp", allow_private_hosts=True
+    )
     result = registry["add"](1, 2)
 # Connections are automatically closed on exit
 
 # Asynchronous
 async with ToolRegistry() as registry:
-    await registry.register_async("http://localhost:8000/mcp", source="mcp")
+    await registry.register_async(
+        "http://localhost:8000/mcp", source="mcp", allow_private_hosts=True
+    )
     result = await registry["add"](1, 2)
 # Connections are automatically closed on exit
 ```
@@ -191,7 +212,9 @@ async with ToolRegistry() as registry:
 
 ```python
 registry = ToolRegistry()
-registry.register("http://localhost:8000/mcp", source="mcp")
+registry.register(
+    "http://localhost:8000/mcp", source="mcp", allow_private_hosts=True
+)
 # ... use tools ...
 registry.close()  # Close all persistent connections
 

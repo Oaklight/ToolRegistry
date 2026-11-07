@@ -43,6 +43,17 @@ MCP 来源可以是 stdio 命令、脚本路径，或任何不是 `http(s)://` �
 `auth_token=...`，或以 `remote=True` 启动（该模式会自动生成令牌）。HTTP MCP
 来源、OpenAPI 来源与 Python 模块不受此限制。
 
+## 出站地址
+
+MCP 来源的 `http(s)://` 或 `ws(s)://` 地址会在建立传输前解析并校验。回环、
+链路本地、私有、组播与保留地址默认被拒绝。通过
+`register(..., source="mcp")`、`register_mcp_tools*()` 或管理面板注册请求传入
+`allow_private_hosts=True`，才能访问本机或内网服务器；本地面板在授予该开关前
+应先启用令牌。拒绝信息会点名该开关，且不回显解析到的地址。
+
+重定向无法到达未经校验的主机：mcp v1 的 HTTP 客户端禁用重定向，mcp v2 只跟随
+同源重定向。
+
 ## 框架保护
 
 所有管理响应都带有 `X-Frame-Options: DENY` 与

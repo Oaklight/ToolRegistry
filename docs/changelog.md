@@ -57,6 +57,7 @@ hide:
 
 ### 安全
 
+- **MCP 的 URL 传输默认拒绝非公网主机**（**破坏性变更**）（#398）：`MCPClient` 现在会在建立传输前解析 `http(s)://` 或 `ws(s)://` 来源，并拒绝回环、链路本地、私有、组播与保留地址。可通过 `register_mcp_tools*()`、`register(..., source="mcp")`、管理面板注册请求或 `MCPSource` 的 `allow_private_hosts=True` 显式开启。配置文件中的同名键只有在 server 转发后才生效（core ≥ 0.20；toolregistry-server #168）。mcp v1 的 HTTP 客户端以 `follow_redirects=False` 创建，mcp v2 只跟随同源重定向，因此重定向无法到达未经校验的主机。错误信息会点名 `allow_private_hosts`，且不回显解析到的地址。
 - **跨站请求无法改变管理状态**（#366）：所有 `/api/` 下的 `POST`、`PUT`、`PATCH` 与 `DELETE`
   现在要求 `Origin` 同源，并对 `Sec-Fetch-Site: cross-site` 返回 403；这些方法还必须携带
   `Content-Type: application/json`，否则返回 415。`text/plain` POST 正是跨站表单无需预检即可
