@@ -28,7 +28,7 @@ async function refreshSources() {
         renderSources(data.sources || []);
     } catch (e) {
         document.getElementById('sources-body').innerHTML =
-            `<div class="empty-state"><div class="text-error">${e.message}</div></div>`;
+            `<div class="empty-state"><div class="text-error">${escapeHtml(e.message)}</div></div>`;
     }
     // The response told the API client whether this panel requires a token;
     // the register form uses that to explain why a local command is refused.
@@ -71,13 +71,13 @@ function renderSources(sources) {
                     }
                 }
             }
-            return `<button type="button" class="source-tool-chip" title="${escapeHtml(tn)}" onclick="showToolDetailModal('${escapeJs(tn)}')">${escapeHtml(short)}</button>`;
+            return `<button type="button" class="source-tool-chip" title="${escapeHtml(tn)}" onclick="showToolDetailModal('${escapeJsAttr(tn)}')">${escapeHtml(short)}</button>`;
         }).join('');
         return `
         <div class="source-card">
             <div class="source-card-header">
                 ${renderSourceBadge(src.type)}
-                <button type="button" class="ns-link" onclick="gotoTools({ namespace: '${escapeJs(src.namespace)}' })" title="${t('ns.showTools')}">${escapeHtml(src.namespace)}</button>
+                <button type="button" class="ns-link" onclick="gotoTools({ namespace: '${escapeJsAttr(src.namespace)}' })" title="${t('ns.showTools')}">${escapeHtml(src.namespace)}</button>
                 <span class="text-muted" style="font-size: var(--text-small); margin-left: auto;">${src.enabled_count}/${src.tool_count} ${t('stat.enabled').toLowerCase()}</span>
             </div>
             ${src.detail ? `<div class="source-detail">${escapeHtml(src.detail)}</div>` : ''}

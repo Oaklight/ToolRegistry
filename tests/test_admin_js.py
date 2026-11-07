@@ -21,6 +21,10 @@ ADMIN_API_JS = (
     files("toolregistry.admin").joinpath("js/core/api.js").read_text(encoding="utf-8")
 )
 
+ADMIN_UI_JS = (
+    files("toolregistry.admin").joinpath("js/core/ui.js").read_text(encoding="utf-8")
+)
+
 NODE = shutil.which("node")
 pytestmark = pytest.mark.skipif(NODE is None, reason="Node.js is required")
 
@@ -40,6 +44,7 @@ let promptCount = 0;
 globalThis.localStorage = {
   getItem: (k) => (Object.prototype.hasOwnProperty.call(stored, k) ? stored[k] : null),
   setItem: (k, v) => { stored[k] = String(v); },
+  removeItem: (k) => { delete stored[k]; },
 };
 globalThis.prompt = () => {
   promptCount += 1;
@@ -60,6 +65,8 @@ globalThis.t = (key) => key;
 globalThis.AUTH_TOKEN = '';
 
 if (scenario === 'stale' || scenario === 'wrong') {
+  // A previous page may have left a token behind; the client must not read
+  // storage for it.  The initial token is passed explicitly below.
   stored.admin_token = 'stale';
 }
 
@@ -143,7 +150,7 @@ def _auth_client_source() -> str:
             {
                 "calls": [None, "Bearer good"],
                 "prompts": 1,
-                "stored": "good",
+                "stored": None,
                 "threw": None,
             },
         ),
@@ -152,7 +159,10 @@ def _auth_client_source() -> str:
             {
                 "calls": ["Bearer stale", "Bearer good"],
                 "prompts": 1,
-                "stored": "good",
+                # The client must not replace the stale value; the prompt
+                # result lives in memory and the server's HttpOnly cookie
+                # carries it across reloads.
+                "stored": "stale",
                 "threw": None,
             },
         ),
@@ -161,7 +171,7 @@ def _auth_client_source() -> str:
             {
                 "calls": ["Bearer stale", "Bearer wrong"],
                 "prompts": 1,
-                "stored": "wrong",
+                "stored": "stale",
                 # The harness stubs t() as the identity, so the message is
                 # the i18n key the client throws.
                 "threw": "error.unauthorized",
@@ -334,3 +344,80 @@ def test_register_ui_copy_is_translated_and_wired() -> None:
     assert "register.overridesKept" in register_js
     assert "register.stdioNeedsAuth" in register_js
     assert "updateStdioHint" in register_js
+
+
+_ESCAPE_HARNESS = """
+const vm = require('vm');
+const fs = require('fs');
+const code = fs.readFileSync(process.argv[2], 'utf8');
+const payloads = JSON.parse(process.argv[3]);
+vm.runInContext(code, vm.createContext(globalThis));
+
+const entities = { amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" };
+const results = payloads.map((payload) => {
+  const attr = escapeJsAttr(payload);
+  // The HTML parser decodes entity references once before the handler is
+  // compiled; this is the value the JS parser receives.
+  const decoded = attr.replace(/&(amp|lt|gt|quot|#39);/g, (_, key) => entities[key]);
+  globalThis.PWNED = 0;
+  try {
+    new Function(
+      'showToolDetailModal',
+      "showToolDetailModal('" + decoded + "')"
+    )(() => {});
+  } catch (error) {
+    // A syntax error also proves the payload did not execute.
+  }
+  return { payload, attr, decoded, pwned: globalThis.PWNED };
+});
+
+const html = escapeHtml(
+  ['&', '<', '>', String.fromCharCode(34), String.fromCharCode(39)].join('')
+);
+console.log(JSON.stringify({ results, html }));
+"""
+
+
+def _escape_helpers_source() -> str:
+    """Return the escape helpers from ``ui.js`` for the Node harness."""
+    start = ADMIN_UI_JS.index("// ============== Utilities ==============")
+    end = ADMIN_UI_JS.index("// Prose that names a tool", start)
+    return ADMIN_UI_JS[start:end]
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "x&#39;);globalThis.PWNED=1;//",
+        "x&quot;);globalThis.PWNED=1;//",
+        "</script><img src=x onerror=globalThis.PWNED=1>",
+        "x');globalThis.PWNED=1;//",
+    ],
+)
+def test_inline_handler_escaping_survives_entity_decoding(
+    tmp_path: Path, payload: str
+) -> None:
+    """A handler argument is parsed as HTML and then as JS; both layers escape.
+
+    ``escapeJs`` alone leaves ``&#39;`` untouched, and the HTML parser turns it
+    into a quote before the handler compiles. ``escapeJsAttr`` encodes the
+    entity as well.
+    """
+    code_path = tmp_path / "ui_helpers.js"
+    code_path.write_text(_escape_helpers_source(), encoding="utf-8")
+    harness = tmp_path / "escape_harness.js"
+    harness.write_text(_ESCAPE_HARNESS, encoding="utf-8")
+
+    result = subprocess.run(
+        [NODE, str(harness), str(code_path), json.dumps([payload])],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stderr
+    data = json.loads(result.stdout)
+    entry = data["results"][0]
+    assert entry["pwned"] == 0, entry
+    assert "'" not in entry["attr"], entry
+    assert '"' not in entry["attr"], entry
+    assert data["html"] == "&amp;&lt;&gt;&quot;&#39;"

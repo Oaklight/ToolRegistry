@@ -1,6 +1,15 @@
 // ============== Configuration ==============
 const API_BASE = window.location.origin + window.location.pathname.replace(/\/+$/, '');
-let AUTH_TOKEN = localStorage.getItem('admin_token') || '';
+// The bearer token lives in memory only.  A successful Bearer request makes
+// the server set an HttpOnly session cookie, which carries the login across
+// reloads without leaving a value in storage that page script can read.
+let AUTH_TOKEN = '';
+// Remove the value older builds persisted.
+try {
+    localStorage.removeItem('admin_token');
+} catch (e) {
+    // Private mode or blocked storage: nothing to clear.
+}
 let autoRefreshInterval = null;
 let allTools = [];
 

@@ -28,7 +28,7 @@ function showToast(message, type = 'success') {
     toast.innerHTML = `
         <span class="toast-dot"></span>
         <div class="toast-content">
-            <div class="toast-message">${message}</div>
+            <div class="toast-message">${escapeHtml(message)}</div>
         </div>
     `;
 
@@ -124,11 +124,24 @@ function escapeJs(value) {
         .replace(/\r?\n/g, '\\n');
 }
 
+// Escape a value for an inline handler argument.  The handler body is a JS
+// string inside an HTML attribute, so the value passes two parsers.
+// ``escapeJs`` protects the JS string; ``escapeHtml`` then protects the
+// attribute.  Without the second pass an entity in the value (``&#39;``) is
+// decoded to a quote by the HTML parser before the handler is compiled,
+// which breaks out of the string.
+function escapeJsAttr(value) {
+    return escapeHtml(escapeJs(value));
+}
+
 function escapeHtml(str) {
     if (!str) return '';
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 // Prose that names a tool sets it as an identifier.  The sentence comes from

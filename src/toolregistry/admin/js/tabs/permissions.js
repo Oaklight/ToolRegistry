@@ -5,7 +5,7 @@ async function refreshPermissions() {
         renderPermissions(data);
     } catch (e) {
         document.getElementById('permissions-body').innerHTML =
-            `<div class="empty-state"><div class="text-error">${e.message}</div></div>`;
+            `<div class="empty-state"><div class="text-error">${escapeHtml(e.message)}</div></div>`;
     }
 }
 
