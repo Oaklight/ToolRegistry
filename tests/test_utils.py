@@ -1,5 +1,7 @@
 """Unit tests for the utils module."""
 
+import pytest
+
 from toolregistry._vendor.httpclient import AsyncClient, Client
 from toolregistry.utils import HttpClientConfig, HttpxClientConfig, normalize_tool_name
 
@@ -116,12 +118,13 @@ class TestHttpClientConfig:
 
         assert client._url("/api/test") == "https://api.example.com/api/test"
 
-    def test_absolute_url_not_modified(self):
-        """Test that absolute URLs are passed through unchanged."""
+    def test_absolute_url_is_refused(self):
+        """An absolute URL must not leave the configured origin (#375)."""
         config = HttpClientConfig(base_url="https://api.example.com")
         client = config.to_client(use_async=False)
 
-        assert client._url("https://other.com/test") == "https://other.com/test"
+        with pytest.raises(ValueError, match="non-relative path"):
+            client._url("https://other.com/test")
 
     def test_deprecated_alias(self):
         """Test that HttpxClientConfig emits deprecation warning."""
