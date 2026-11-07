@@ -63,6 +63,25 @@ print(registry)  # Outputs registered tools
 !!! tip
     `ToolRegistry.register()` with `source="mcp"` supports URL strings, script paths, and dict configurations, which are sufficient for most scenarios. A `.py` script path is launched with the interpreter running ToolRegistry (`sys.executable`); use the dict form (`{"command": ..., "args": [...]}`) to choose a different interpreter.
 
+## Outbound addresses
+
+A URL transport is resolved and checked before the connection opens. Loopback,
+link-local and private addresses are refused by default, as are multicast and
+reserved addresses. For a server on the same host or a private network, opt in:
+
+```python
+registry.register(
+    "http://localhost:8000/mcp",
+    source="mcp",
+    allow_private_hosts=True,
+)
+```
+
+`register_async()` and `register_mcp_tools*()` accept the same keyword. A
+config-file source accepts `allow_private_hosts: true`; the server must forward
+it (core ≥ 0.20; toolregistry-server #168). The refusal names the switch and
+does not echo resolved addresses.
+
 !!! tip
     Emerging MCP hub services, commercial or self-hosted, simplify discovering and centralizing MCP servers. They're ideal for avoiding stdio servers, reducing environment clutter, or enabling MCP host sharing.
 
@@ -174,13 +193,17 @@ from toolregistry import ToolRegistry
 
 # Synchronous
 with ToolRegistry() as registry:
-    registry.register("http://localhost:8000/mcp", source="mcp")
+    registry.register(
+        "http://localhost:8000/mcp", source="mcp", allow_private_hosts=True
+    )
     result = registry["add"](1, 2)
 # Connections are automatically closed on exit
 
 # Asynchronous
 async with ToolRegistry() as registry:
-    await registry.register_async("http://localhost:8000/mcp", source="mcp")
+    await registry.register_async(
+        "http://localhost:8000/mcp", source="mcp", allow_private_hosts=True
+    )
     result = await registry["add"](1, 2)
 # Connections are automatically closed on exit
 ```
@@ -191,7 +214,9 @@ You can also close connections explicitly:
 
 ```python
 registry = ToolRegistry()
-registry.register("http://localhost:8000/mcp", source="mcp")
+registry.register(
+    "http://localhost:8000/mcp", source="mcp", allow_private_hosts=True
+)
 # ... use tools ...
 registry.close()  # Close all persistent connections
 

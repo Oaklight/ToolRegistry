@@ -51,6 +51,19 @@ the panel has no authentication token. Configure `auth_token=...`, or run with
 MCP sources, OpenAPI sources and Python modules are not affected by this
 guard.
 
+## Outbound Addresses
+
+An MCP source that names an `http(s)://` or `ws(s)://` URL is resolved and
+checked before its transport opens. Loopback, link-local, private, multicast
+and reserved addresses are refused by default. Pass `allow_private_hosts=True`
+to `register(..., source="mcp")`, `register_mcp_tools*()` or the admin register
+payload to reach a server on the same host or a private network; a local panel
+should enable a token before granting that opt-in. The refusal names the switch
+and does not echo the resolved address.
+
+A redirect cannot reach a host the check never saw: mcp v1 HTTP clients are
+created with redirects disabled, and mcp v2 follows only same-origin redirects.
+
 ## Frame Protection
 
 Every admin response carries `X-Frame-Options: DENY` and
