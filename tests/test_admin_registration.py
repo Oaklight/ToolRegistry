@@ -8,7 +8,10 @@ MCP is covered by its transport validation only.
 
 from __future__ import annotations
 
+import contextlib
+import http.server
 import json
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -180,6 +183,126 @@ class TestSourcePreview:
 
         assert status == 400
         assert "MCP 'url'" in data["message"]
+
+
+@contextlib.contextmanager
+def _serve_spec():
+    """Serve ``_SPEC`` as JSON over HTTP on an ephemeral loopback port."""
+    payload = json.dumps(_SPEC).encode()
+
+    class _Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802 - stdlib hook name
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+        def log_message(self, format: str, *args: object) -> None:
+            pass
+
+    httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{httpd.server_port}"
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=5)
+
+
+class TestSpecUrlScheme:
+    """A panel-supplied ``spec_url`` may only name an http(s) resource.
+
+    ``load_openapi_spec`` reads a URI with no scheme, or with ``file``, from
+    local disk and fetches every other scheme.  Because the panel is
+    unauthenticated by default, the scheme is checked in the source layer
+    before any I/O starts.  Loopback and private addresses are still allowed:
+    blocking them needs a separate decision.
+    """
+
+    @pytest.mark.parametrize(
+        ("spec_url", "scheme"),
+        [
+            ("file:///etc/hostname", "file"),
+            ("FILE:///etc/hostname", "file"),
+            ("data:application/json,%7B%7D", "data"),
+            ("ftp://example.com/openapi.json", "ftp"),
+            ("/etc/hostname", "(none)"),
+        ],
+    )
+    def test_preview_refuses_a_non_http_spec_url(
+        self, server, spec_url: str, scheme: str
+    ) -> None:
+        status, data = server.request(
+            "/api/sources/preview", "POST", {"kind": "openapi", "spec_url": spec_url}
+        )
+
+        assert status == 400
+        assert scheme in data["message"]
+        assert "only http and https" in data["message"]
+        assert server.registry.list_tools() == []
+
+    def test_register_refuses_a_non_http_spec_url(self, server) -> None:
+        status, data = server.request(
+            "/api/sources/register",
+            "POST",
+            {"kind": "openapi", "spec_url": "file:///etc/hostname"},
+        )
+
+        assert status == 400
+        assert "only http and https" in data["message"]
+
+    def test_inline_spec_with_a_non_http_spec_url_is_refused(self, server) -> None:
+        # Not fetched now, but the URL is stored and a later refresh fetches it.
+        status, data = server.request(
+            "/api/sources/preview",
+            "POST",
+            {"kind": "openapi", "spec": _SPEC, "spec_url": "file:///etc/hostname"},
+        )
+
+        assert status == 400
+        assert "only http and https" in data["message"]
+
+    def test_spec_url_needs_a_host(self, server) -> None:
+        status, data = server.request(
+            "/api/sources/preview", "POST", {"kind": "openapi", "spec_url": "http://"}
+        )
+
+        assert status == 400
+        assert "must include a host" in data["message"]
+
+    @pytest.mark.parametrize("scheme", ["http", "HTTP", "Http"])
+    def test_preview_fetches_an_http_spec_url(self, server, scheme: str) -> None:
+        with _serve_spec() as base_url:
+            url = f"{scheme}://{base_url.split('://', 1)[1]}/openapi.json"
+            status, data = server.request(
+                "/api/sources/preview",
+                "POST",
+                {
+                    "kind": "openapi",
+                    "spec_url": url,
+                    "base_url": "https://pets.example/api",
+                },
+            )
+
+        assert status == 200, data
+        assert data["info"]["spec_url"] == url
+        assert {tool["name"] for tool in data["tools"]} == {
+            "list_pets",
+            "create_pet",
+            "delete_pet",
+        }
+
+    @pytest.mark.parametrize(
+        "spec_url",
+        ["http://example.com/openapi.json", "HTTPS://example.com/openapi.json"],
+    )
+    def test_http_and_https_are_accepted_in_any_case(self, spec_url: str) -> None:
+        from toolregistry.admin.registration import _validate_spec_url
+
+        assert _validate_spec_url(spec_url) == spec_url
 
 
 class TestStateChangingGuards:
