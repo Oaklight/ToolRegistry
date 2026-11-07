@@ -1,5 +1,5 @@
 {
-  "generated_by": "zerodep 2026.11.4",
+  "generated_by": "zerodep 2026.11.7.1",
   "lock_version": 1,
   "modules": {
     "httpclient": {
@@ -20,11 +20,11 @@
     },
     "jsonschema": {
       "files": {
-        "jsonschema.py": "ab200cf7cbc29c23da6607312ed4b3472ec0cd1cb9036e656f610139b765fb56"
+        "jsonschema.py": "991b5f93a6e8f529d092eeeb6d99b19561394eaefab947cb7f78e97752994c31"
       },
       "requested": true,
-      "upstream_hash": "9b4f8684930617202004f8024e3e1e7b6e248982060e5d6caacdbf544e3ab0ab",
-      "version": "0.4.1"
+      "upstream_hash": "60a0c33c6982ea184dd199b740f8e9c92e95b915c5b5ac78f14534ee1e1975fb",
+      "version": "0.4.3"
     },
     "jsonx": {
       "files": {
@@ -68,7 +68,7 @@
     }
   },
   "source": {
-    "ref": "v2026.11.7.1",
+    "ref": "2d68ee7231564164e9376f12f6d6ba538c4b4835",
     "repo": "Oaklight/zerodep"
   }
 }

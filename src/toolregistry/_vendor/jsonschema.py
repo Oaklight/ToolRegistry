@@ -1,5 +1,5 @@
 # /// zerodep
-# version = "0.4.1"
+# version = "0.4.3"
 # deps = []
 # tier = "subsystem"
 # category = "validation"
@@ -75,6 +75,9 @@ __all__ = [
     # Schema transformation
     "flatten_schema",
     "resolve_refs",
+    "RefExpansionLimitError",
+    "DEFAULT_MAX_REF_EXPANSIONS",
+    "DEFAULT_MAX_EXPANDED_NODES",
     "merge_allof",
     "simplify_unions",
     "sanitize",
@@ -172,74 +175,298 @@ def _resolve_ref(ref: str, root: dict[str, Any]) -> dict[str, Any]:
     return node if isinstance(node, dict) else {}
 
 
+#: ``scheme://user:password@`` — an absolute URL with userinfo.
+_URL_USERINFO_SCHEME = re.compile(r"\b([A-Za-z][A-Za-z0-9+.\-]*://)[^/\s]+@")
+
+#: ``//user:password@`` — a protocol-relative reference.  Both a colon and a
+#: token boundary are required, so a path such as ``a//b@c`` is left alone.
+_URL_USERINFO_NETLOC = re.compile(r"(?<![:/\w.])(//)[^/\s:@]+:[^/\s@]+@")
+
+#: ``user:password@host`` with no scheme.  The colon keeps an email address
+#: (``user@host``) untouched; the greedy class consumes an ``@`` inside the
+#: password up to the last one in the segment.
+_URL_USERINFO_BARE = re.compile(r"(?<![:/\w.@])[^/\s:@]+:[^/\s]+@")
+
+
+def _redact_userinfo(text: str) -> str:
+    """Remove ``user:password@`` userinfo from every URL in *text*.
+
+    The ``$ref`` warnings quote a pointer supplied by the document, so a
+    credential can reach a log or an alert handler.  Three forms are handled:
+    with a scheme, protocol-relative (``//user:password@host``) and without a
+    scheme (``user:password@host``).  A bare email address is left alone.
+
+    Args:
+        text: Arbitrary text, such as a warning message.
+
+    Returns:
+        *text* with each URL's userinfo removed.
+    """
+    text = _URL_USERINFO_SCHEME.sub(r"\1", text)
+    text = _URL_USERINFO_NETLOC.sub(r"\1", text)
+    return _URL_USERINFO_BARE.sub("", text)
+
+
+#: Largest number of distinct ``$ref`` targets one :func:`resolve_refs` call
+#: expands before it refuses the schema.
+DEFAULT_MAX_REF_EXPANSIONS = 10_000
+
+#: Largest number of nodes (dicts, lists and scalars) the inlined result may
+#: contain.  A document that is small on disk can fan out into a huge tree;
+#: this bound turns that into an error instead of unbounded memory growth.
+DEFAULT_MAX_EXPANDED_NODES = 500_000
+
+
+class RefExpansionLimitError(ValueError):
+    """Raised when ``$ref`` inlining exceeds its work or output budget.
+
+    The error subclasses :class:`ValueError` so existing handlers keep
+    working; callers that care can catch this class to tell a hostile or
+    pathological schema from an ordinary parse error.
+
+    Attributes:
+        limit: Which budget was crossed, ``"expansions"`` or ``"nodes"``.
+        reached: The counter value that crossed the limit.
+        maximum: The configured limit.
+        ref: The ``$ref`` being expanded, with URL userinfo removed.
+    """
+
+    def __init__(
+        self,
+        limit: str,
+        reached: int,
+        maximum: int,
+        ref: str | None = None,
+    ) -> None:
+        self.limit = limit
+        self.reached = reached
+        self.maximum = maximum
+        self.ref = _redact_userinfo(ref) if ref else None
+        where = f" while expanding {self.ref!r}" if self.ref else ""
+        super().__init__(
+            f"Schema $ref expansion exceeded the {limit} limit "
+            f"({reached} > {maximum}){where}; the document is too large "
+            "after inlining. Refuse an untrusted schema, or raise the limit "
+            "for a legitimate one."
+        )
+
+
+class _ExpansionBudget:
+    """Counters and memo table for one :func:`resolve_refs` call.
+
+    Args:
+        max_expansions: Largest number of target expansions allowed.
+        max_nodes: Largest number of emitted nodes allowed.
+    """
+
+    __slots__ = ("expansions", "max_expansions", "max_nodes", "memo", "nodes")
+
+    def __init__(self, max_expansions: int, max_nodes: int) -> None:
+        self.max_expansions = max_expansions
+        self.max_nodes = max_nodes
+        self.expansions = 0
+        self.nodes = 0
+        # (ref, resolution stack) -> (inlined target, logical node count)
+        self.memo: dict[tuple[str, frozenset[str]], tuple[dict[str, Any], int]] = {}
+
+    def note_expansion(self, ref: str, stack_size: int) -> None:
+        """Count one target expansion and its memo-key overhead.
+
+        The memo keeps the resolution stack as part of its key, so a long
+        chain costs memory proportional to its depth.  Charging the stack
+        size to the node budget keeps that bound with the rest of the work.
+
+        Args:
+            ref: The ``$ref`` about to be expanded.
+            stack_size: Number of refs on the resolution stack, i.e. the
+                size of the frozenset retained by the memo key.
+        """
+        self.expansions += 1
+        if self.expansions > self.max_expansions:
+            raise RefExpansionLimitError(
+                "expansions", self.expansions, self.max_expansions, ref
+            )
+        self.spend(stack_size)
+
+    def spend(self, nodes: int) -> None:
+        """Count *nodes* emitted into the output, raising over the limit."""
+        self.nodes += nodes
+        if self.nodes > self.max_nodes:
+            raise RefExpansionLimitError("nodes", self.nodes, self.max_nodes)
+
+
 def _inline_refs(
     schema: dict[str, Any],
     root: dict[str, Any],
-    _seen: set[str] | None = None,
+    _seen: frozenset[str] | None = None,
+    _budget: _ExpansionBudget | None = None,
 ) -> dict[str, Any]:
     """Recursively inline all ``$ref`` pointers in *schema*.
 
     *root* is the top-level document used for JSON Pointer resolution.
     *_seen* tracks ``$ref`` strings on the current resolution stack to
-    prevent infinite recursion from circular references.
+    prevent infinite recursion from circular references.  *_budget* counts
+    expansions and emitted nodes so a document whose refs fan out cannot
+    exhaust memory.
+
+    The expanded target for a ``(ref, resolution stack)`` pair is memoized.
+    Sibling occurrences reuse one expansion instead of re-walking the same
+    subtree; the cached value is deep-copied, so the result never aliases it.
     """
     if _seen is None:
-        _seen = set()
+        _seen = frozenset()
+    if _budget is None:
+        _budget = _ExpansionBudget(
+            DEFAULT_MAX_REF_EXPANSIONS, DEFAULT_MAX_EXPANDED_NODES
+        )
 
     ref = schema.get("$ref")
-    if isinstance(ref, str):
-        if ref in _seen:
-            # Circular reference — drop the $ref and keep sibling keys.
-            warnings.warn(
-                f"Circular $ref: {ref!r} — dropped",
-                stacklevel=2,
-            )
-            return {k: v for k, v in schema.items() if k != "$ref"}
-        resolved = _resolve_ref(ref, root)
-        if resolved:
-            _seen = _seen | {ref}  # new set — don't mutate caller's copy
-            merged = {**copy.deepcopy(resolved)}
-            for k, v in schema.items():
-                if k != "$ref":
-                    merged[k] = v
-            return _inline_refs(merged, root, _seen)
-        else:
-            warnings.warn(
-                f"Unresolvable $ref: {ref!r} — dropped",
-                stacklevel=2,
-            )
-            return {k: v for k, v in schema.items() if k != "$ref"}
+    if not isinstance(ref, str):
+        return _inline_mapping(schema, root, _seen, _budget)
 
-    # No $ref at this level — recurse into children.
-    result: dict[str, Any] = {}
-    for key, value in schema.items():
-        if isinstance(value, dict):
-            result[key] = _inline_refs(value, root, _seen)
-        elif isinstance(value, list):
-            result[key] = [
-                _inline_refs(item, root, _seen) if isinstance(item, dict) else item
-                for item in value
-            ]
-        else:
-            result[key] = value
-    return result
+    siblings = {key: value for key, value in schema.items() if key != "$ref"}
+
+    if ref in _seen:
+        # Circular reference — drop the $ref and keep sibling keys, as before.
+        warnings.warn(
+            f"Circular $ref: {_redact_userinfo(ref)!r} — dropped",
+            stacklevel=2,
+        )
+        return _shallow_mapping(siblings, _budget)
+
+    resolved = _resolve_ref(ref, root)
+    if not resolved:
+        warnings.warn(
+            f"Unresolvable $ref: {_redact_userinfo(ref)!r} — dropped",
+            stacklevel=2,
+        )
+        return _shallow_mapping(siblings, _budget)
+
+    seen = _seen | {ref}
+    cache_key = (ref, seen)
+    cached = _budget.memo.get(cache_key)
+    if cached is None:
+        _budget.note_expansion(ref, len(seen))
+        before = _budget.nodes
+        base = _inline_refs(copy.deepcopy(resolved), root, seen, _budget)
+        _budget.memo[cache_key] = (base, _budget.nodes - before)
+    else:
+        base, size = cached
+        _budget.spend(size)
+        base = copy.deepcopy(base)
+
+    if not siblings:
+        return base
+
+    # Sibling keys override the target at the top level.  Expanding each value
+    # separately gives the same result as merging first and inlining the
+    # merged dict, because inlining is a per-value recursion.
+    merged = dict(base)
+    for key, value in siblings.items():
+        merged[key] = _inline_value(value, root, seen, _budget)
+    return merged
 
 
-def resolve_refs(schema: dict[str, Any]) -> dict[str, Any]:
+def _shallow_mapping(
+    schema: dict[str, Any], budget: _ExpansionBudget
+) -> dict[str, Any]:
+    """Return a copy of a mapping whose values are kept un-inlined.
+
+    Used when a ``$ref`` is dropped (circular or unresolvable): the historical
+    behaviour keeps the sibling keys without recursing into them.
+    """
+    budget.spend(1)
+    return dict(schema)
+
+
+def _inline_mapping(
+    schema: dict[str, Any],
+    root: dict[str, Any],
+    seen: frozenset[str],
+    budget: _ExpansionBudget,
+) -> dict[str, Any]:
+    """Inline every value of a mapping that has no ``$ref`` of its own."""
+    budget.spend(1)
+    return {
+        key: _inline_value(value, root, seen, budget) for key, value in schema.items()
+    }
+
+
+def _inline_value(
+    value: Any,
+    root: dict[str, Any],
+    seen: frozenset[str],
+    budget: _ExpansionBudget,
+) -> Any:
+    """Inline one schema value, keeping the historical list behaviour.
+
+    Only dict items inside a list are inlined; a nested list keeps the
+    previous behaviour of being copied as-is.
+    """
+    if isinstance(value, dict):
+        return _inline_refs(value, root, seen, budget)
+    if isinstance(value, list):
+        budget.spend(1)
+        return [
+            _inline_refs(item, root, seen, budget)
+            if isinstance(item, dict)
+            else _inline_scalar(item, budget)
+            for item in value
+        ]
+    return _inline_scalar(value, budget)
+
+
+def _inline_scalar(value: Any, budget: _ExpansionBudget) -> Any:
+    """Count one scalar node and return it unchanged."""
+    budget.spend(1)
+    return value
+
+
+def resolve_refs(
+    schema: dict[str, Any],
+    *,
+    max_ref_expansions: int = DEFAULT_MAX_REF_EXPANSIONS,
+    max_expanded_nodes: int = DEFAULT_MAX_EXPANDED_NODES,
+) -> dict[str, Any]:
     """Resolve all local ``$ref`` pointers and inline their targets.
 
     Supports any JSON Pointer fragment (RFC 6901), including
     ``#/$defs/``, ``#/definitions/``, ``#/components/schemas/``, etc.
     After resolution, ``$defs`` and ``definitions`` maps are removed.
 
+    A ref that appears under many siblings expands once per distinct
+    resolution stack, so a document that is small on disk can fan out into
+    an exponentially large tree.  Two budgets bound that work: the number of
+    target expansions and the number of nodes in the result.  A schema that
+    crosses either raises :class:`RefExpansionLimitError`.
+
     Args:
         schema: A JSON Schema dict.
+        max_ref_expansions: Largest number of distinct ``$ref`` targets one
+            call may expand.  Defaults to
+            :data:`DEFAULT_MAX_REF_EXPANSIONS`.
+        max_expanded_nodes: Largest number of nodes (dicts, lists and
+            scalars) the inlined result may contain.  Defaults to
+            :data:`DEFAULT_MAX_EXPANDED_NODES`.
 
     Returns:
         A new dict with all ``$ref`` inlined and definition maps removed.
+
+    Raises:
+        ValueError: If either budget is not positive.
+        RefExpansionLimitError: If the schema exceeds either budget.
     """
+    if max_ref_expansions <= 0:
+        raise ValueError(
+            f"max_ref_expansions must be positive, got {max_ref_expansions}"
+        )
+    if max_expanded_nodes <= 0:
+        raise ValueError(
+            f"max_expanded_nodes must be positive, got {max_expanded_nodes}"
+        )
+    budget = _ExpansionBudget(max_ref_expansions, max_expanded_nodes)
     schema = copy.deepcopy(schema)
-    result = _inline_refs(schema, schema)
+    result = _inline_refs(schema, schema, _budget=budget)
     # Strip consumed definition maps.
     for key in _DEFS_KEYS:
         result.pop(key, None)
@@ -533,6 +760,8 @@ def flatten_schema(
     schema: dict[str, Any],
     *,
     strip_keys: set[str] | None = None,
+    max_ref_expansions: int = DEFAULT_MAX_REF_EXPANSIONS,
+    max_expanded_nodes: int = DEFAULT_MAX_EXPANDED_NODES,
 ) -> dict[str, Any]:
     """One-call full pipeline: resolve → merge → simplify → sanitize.
 
@@ -541,11 +770,23 @@ def flatten_schema(
             ``allOf``, ``anyOf``, ``oneOf``, and unsupported keywords.
         strip_keys: Additional keys to strip beyond
             :data:`UNSUPPORTED_SCHEMA_KEYS`.
+        max_ref_expansions: Passed to :func:`resolve_refs`; bounds the
+            number of ``$ref`` targets expanded.
+        max_expanded_nodes: Passed to :func:`resolve_refs`; bounds the size
+            of the inlined document.
 
     Returns:
         A flattened, sanitized schema safe for LLM provider consumption.
+
+    Raises:
+        RefExpansionLimitError: If the schema exceeds either ``$ref``
+            expansion budget.
     """
-    result = resolve_refs(schema)
+    result = resolve_refs(
+        schema,
+        max_ref_expansions=max_ref_expansions,
+        max_expanded_nodes=max_expanded_nodes,
+    )
     result = _walk_merge_allof(result)  # skip redundant deepcopy
     result = _walk_simplify(result)
     strip = UNSUPPORTED_SCHEMA_KEYS | (strip_keys or set())
@@ -1258,6 +1499,10 @@ def iter_errors(
 
     Returns:
         A list of :class:`SchemaErrorDetail`; empty if valid.
+
+    Raises:
+        RefExpansionLimitError: If the schema's ``$ref`` graph exceeds the
+            default expansion budget (see :func:`resolve_refs`).
     """
     errors: list[SchemaErrorDetail] = []
     if isinstance(schema, bool):
@@ -1286,6 +1531,8 @@ def schema_validate(
 
     Raises:
         SchemaValidationError: If validation fails, with all errors collected.
+        RefExpansionLimitError: If the schema's ``$ref`` graph exceeds the
+            default expansion budget (see :func:`resolve_refs`).
     """
     errors = iter_errors(instance, schema, resolved=resolved)
     if errors:
