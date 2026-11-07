@@ -116,9 +116,9 @@ def _join_base_url(
         OpenAPIPathError: If *path* is not a string rooted at a single ``/``,
             contains a backslash, or the joined URL's scheme or netloc differs
             from the base URL's.
-        UnsafeAddressError: If *base_url* is not HTTP(S), names no host, does
-            not resolve, or resolves to a non-public address while
-            *allow_private_hosts* is false.
+        UnsafeAddressError: If *base_url* uses a scheme the outbound policy
+            does not accept, names no host, does not resolve, or resolves to
+            a non-public address while *allow_private_hosts* is false.
     """
     if (
         not isinstance(path, str)
@@ -310,8 +310,9 @@ class HttpClientConfig:
         this ahead of time.  The decision is cached, so repeating it is cheap.
 
         Raises:
-            UnsafeAddressError: If the base URL is not HTTP(S), names no host,
-                does not resolve, or resolves to a non-public address while
+            UnsafeAddressError: If the base URL uses a scheme the outbound
+                policy does not accept, names no host, does not resolve, or
+                resolves to a non-public address while
                 :attr:`allow_private_hosts` is false.
         """
         validate_outbound_url(
@@ -323,9 +324,10 @@ class HttpClientConfig:
         """Validate :attr:`base_url` without blocking the event loop.
 
         Raises:
-            UnsafeAddressError: If the base URL is not HTTP(S), names no host,
-                does not resolve, resolution times out, or resolves to a
-                non-public address while :attr:`allow_private_hosts` is false.
+            UnsafeAddressError: If the base URL uses a scheme the outbound
+                policy does not accept, names no host, does not resolve,
+                resolution times out, or resolves to a non-public address
+                while :attr:`allow_private_hosts` is false.
         """
         await validate_outbound_url_async(
             self.base_url,

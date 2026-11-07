@@ -48,16 +48,23 @@ def _url(host: str) -> str:
 @pytest.fixture
 def resolver(monkeypatch):
     """Replace the resolver with a controllable one (sync and async)."""
-    state: dict[str, list] = {"addresses": [], "hosts": [], "calls": 0}
+    state: dict[str, list] = {
+        "addresses": [],
+        "hosts": [],
+        "ports": [],
+        "calls": 0,
+    }
 
     def _resolve(host, port):
         state["calls"] += 1
         state["hosts"].append(host)
+        state["ports"].append(port)
         return list(state["addresses"])
 
     async def _resolve_async(host, port, timeout=0):
         state["calls"] += 1
         state["hosts"].append(host)
+        state["ports"].append(port)
         return list(state["addresses"])
 
     monkeypatch.setattr(_netpolicy, "_resolve", _resolve)
@@ -88,6 +95,38 @@ class TestLiteralAddresses:
     def test_missing_host_is_refused(self):
         with pytest.raises(UnsafeAddressError, match="host"):
             validate_outbound_url("https:///spec")
+
+
+class TestWebSocketSchemes:
+    """``ws``/``wss`` are checked natively, with no scheme translation (#407)."""
+
+    @pytest.mark.parametrize(
+        ("url", "port"),
+        [("ws://example.com/socket", 80), ("wss://example.com/socket", 443)],
+    )
+    def test_scheme_passes_with_its_default_port(self, resolver, url, port):
+        resolver["addresses"].append("93.184.216.34")
+        assert validate_outbound_url(url) == url
+        assert resolver["hosts"] == ["example.com"]
+        assert resolver["ports"] == [port]
+
+    def test_private_name_is_refused(self, resolver):
+        resolver["addresses"].append("10.0.0.7")
+        with pytest.raises(PrivateAddressError, match="non-public address"):
+            validate_outbound_url("ws://internal.example/socket")
+
+    def test_cache_key_includes_the_scheme(self, resolver):
+        """A decision for ``https`` must not answer for ``wss``."""
+        resolver["addresses"].append("93.184.216.34")
+        validate_outbound_url("https://example.com/socket")
+        resolver["addresses"][:] = ["10.0.0.7"]
+        with pytest.raises(PrivateAddressError):
+            validate_outbound_url("wss://example.com/socket")
+
+    @pytest.mark.parametrize("scheme", ["file", "ftp", "gopher"])
+    def test_other_schemes_are_still_refused(self, scheme):
+        with pytest.raises(UnsafeAddressError, match="only http, https, ws and wss"):
+            validate_outbound_url(f"{scheme}://example.com/socket")
 
 
 class TestResolvedNames:
@@ -177,6 +216,13 @@ class TestAsync:
         with pytest.raises(UnsafeAddressError):
             asyncio.run(validate_outbound_url_async("https://internal.example/spec"))
         assert resolver["calls"] == 1
+
+    def test_async_websocket_scheme_passes(self, resolver):
+        """The async path accepts ``wss`` and resolves on its own port."""
+        resolver["addresses"].append("93.184.216.34")
+        url = "wss://example.com/socket"
+        assert asyncio.run(validate_outbound_url_async(url)) == url
+        assert resolver["ports"] == [443]
 
     def test_async_resolver_timeout_is_refused(self, monkeypatch):
         async def timing_out(host, port, timeout=0):
