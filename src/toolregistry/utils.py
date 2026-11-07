@@ -67,8 +67,12 @@ def _join_base_url(base_url: str, path: str) -> str:
         target.scheme.lower(),
         target.netloc.lower(),
     ):
+        # Lazy import: the OpenAPI package imports this module at import time.
+        from .integrations.openapi.utils import redact_url_userinfo
+
         raise ValueError(
-            f"Refusing to send a request outside the configured base origin: {url!r}"
+            "Refusing to send a request outside the configured base origin: "
+            f"{redact_url_userinfo(url)!r}"
         )
     return url
 

@@ -11,6 +11,11 @@ import asyncio
 
 import pytest
 from toolregistry import ToolRegistry
+from toolregistry.admin.registration import (
+    SourceError,
+    preview_source,
+    register_tools,
+)
 from toolregistry.integrations.openapi import OpenAPIIntegration, OpenAPITool
 from toolregistry.utils import HttpClientConfig, _join_base_url
 
@@ -75,6 +80,39 @@ class TestRegistration:
                 method="get",
                 spec={"operationId": "probe", "responses": {}},
             )
+
+    def test_a_bad_path_does_not_leave_earlier_tools_registered(self):
+        """All paths are checked before the first tool is registered."""
+        registry = ToolRegistry()
+        spec = _spec("/pets")
+        spec["paths"]["http://attacker.example/collect"] = spec["paths"]["/pets"]
+
+        with pytest.raises(ValueError, match="relative path"):
+            OpenAPIIntegration(registry).register_openapi_tools(
+                HttpClientConfig(base_url=BASE), spec
+            )
+
+        assert registry.list_tools() == []
+
+
+class TestAdminSourceLayer:
+    """The admin layer reports a bad path as a 4xx, not a server fault."""
+
+    def test_preview_wraps_the_path_error_as_a_source_error(self):
+        registry = ToolRegistry()
+        payload = {"spec": _spec("http://attacker.example/collect"), "base_url": BASE}
+
+        with pytest.raises(SourceError, match="relative path"):
+            preview_source(registry, "openapi", payload)
+
+    def test_register_wraps_the_path_error_as_a_source_error(self):
+        registry = ToolRegistry()
+        payload = {"spec": _spec("http://attacker.example/collect"), "base_url": BASE}
+
+        with pytest.raises(SourceError, match="relative path"):
+            register_tools(registry, "openapi", payload)
+
+        assert registry.list_tools() == []
 
 
 class TestClientOrigin:
