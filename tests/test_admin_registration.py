@@ -62,9 +62,16 @@ _SPEC = {
 class _Server:
     """Small context manager around an AdminServer on an ephemeral port."""
 
-    def __init__(self, auth_token: str | None = None) -> None:
+    def __init__(
+        self, auth_token: str | None = None, allow_private_hosts: bool = False
+    ) -> None:
         self.registry = ToolRegistry()
-        self.server = AdminServer(self.registry, port=0, auth_token=auth_token)
+        self.server = AdminServer(
+            self.registry,
+            port=0,
+            auth_token=auth_token,
+            allow_private_hosts=allow_private_hosts,
+        )
         self.info = self.server.start()
         time.sleep(0.1)
 
@@ -108,6 +115,13 @@ def server():
 @pytest.fixture
 def server_with_auth():
     with _Server(auth_token="test-token") as srv:
+        yield srv
+
+
+@pytest.fixture
+def server_private():
+    """A panel started with ``allow_private_hosts=True`` (#370)."""
+    with _Server(allow_private_hosts=True) as srv:
         yield srv
 
 
@@ -245,14 +259,42 @@ def _serve_spec():
         thread.join(timeout=5)
 
 
+@contextlib.contextmanager
+def _serve_redirect(target_url: str):
+    """Answer every request with a 302 to *target_url*, and count requests."""
+    hits: list[str] = []
+
+    class _Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802 - stdlib hook name
+            hits.append(self.path)
+            self.send_response(302)
+            self.send_header("Location", target_url)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        def log_message(self, format: str, *args: object) -> None:
+            pass
+
+    httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{httpd.server_port}", hits
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=5)
+
+
 class TestSpecUrlScheme:
-    """A panel-supplied ``spec_url`` may only name an http(s) resource.
+    """A panel-supplied ``spec_url`` may only name an allowed http(s) resource.
 
     ``load_openapi_spec`` reads a URI with no scheme, or with ``file``, from
     local disk and fetches every other scheme.  Because the panel is
-    unauthenticated by default, the scheme is checked in the source layer
-    before any I/O starts.  Loopback and private addresses are still allowed:
-    blocking them needs a separate decision.
+    unauthenticated by default, the scheme and the address are checked in the
+    source layer before any I/O starts.  A loopback, link-local or private
+    address is refused unless the panel was started with
+    ``allow_private_hosts=True``, and the refusal names that switch.
     """
 
     @pytest.mark.parametrize(
@@ -325,34 +367,13 @@ class TestSpecUrlScheme:
         assert "not a valid URL" in data["message"]
 
     @pytest.mark.parametrize("scheme", ["http", "HTTP", "Http"])
-    def test_preview_fetches_an_http_spec_url(
-        self, server, scheme: str, monkeypatch
+    def test_private_spec_url_is_fetched_when_the_panel_allows_it(
+        self, server_private, scheme: str
     ) -> None:
-        """The fetch path works; the loopback policy is tested elsewhere.
-
-        The test server listens on a loopback literal, which the outbound
-        policy refuses by default (#370).  Allow it for this test so the
-        request path itself stays covered.
-        """
-        import toolregistry.integrations.openapi.utils as openapi_utils
-        import toolregistry.utils as core_utils
-        from toolregistry import _netpolicy
-
-        def allow(url, *, allow_private_hosts=False):
-            return url
-
-        async def allow_async(url, *, allow_private_hosts=False, timeout=0):
-            return url
-
-        monkeypatch.setattr(_netpolicy, "validate_outbound_url", allow)
-        monkeypatch.setattr(_netpolicy, "validate_outbound_url_async", allow_async)
-        monkeypatch.setattr(core_utils, "validate_outbound_url", allow)
-        monkeypatch.setattr(openapi_utils, "validate_outbound_url", allow)
-        monkeypatch.setattr(openapi_utils, "validate_outbound_url_async", allow_async)
-
+        """The switch reaches the fetch path, not only the error message."""
         with _serve_spec() as base_url:
             url = f"{scheme}://{base_url.split('://', 1)[1]}/openapi.json"
-            status, data = server.request(
+            status, data = server_private.request(
                 "/api/sources/preview",
                 "POST",
                 {
@@ -369,6 +390,95 @@ class TestSpecUrlScheme:
             "create_pet",
             "delete_pet",
         }
+
+    def test_private_spec_url_is_refused_with_the_switch_name(self, server) -> None:
+        with _serve_spec() as base_url:
+            status, data = server.request(
+                "/api/sources/preview",
+                "POST",
+                {"kind": "openapi", "spec_url": f"{base_url}/openapi.json"},
+            )
+
+        assert status == 400
+        assert "allow_private_hosts" in data["message"]
+        assert "enable_admin(allow_private_hosts=True)" in data["message"]
+
+    def test_private_base_url_is_refused_with_the_switch_name(self, server) -> None:
+        status, data = server.request(
+            "/api/sources/preview",
+            "POST",
+            {"kind": "openapi", "spec": _SPEC, "base_url": "http://127.0.0.1:9/api"},
+        )
+
+        assert status == 400
+        assert "'base_url' is refused" in data["message"]
+        assert "allow_private_hosts" in data["message"]
+
+    def test_inline_private_servers_are_reported_as_such(self, server) -> None:
+        """Not "no servers[] entry": the entry exists, and is refused."""
+        spec = {**_SPEC, "servers": [{"url": "http://127.0.0.1:9/api"}]}
+        status, data = server.request(
+            "/api/sources/preview", "POST", {"kind": "openapi", "spec": spec}
+        )
+
+        assert status == 400
+        assert "servers[] URL is refused" in data["message"]
+        assert "no servers[] entry" not in data["message"]
+        assert "allow_private_hosts" in data["message"]
+
+    def test_spec_without_servers_still_asks_for_base_url(self, server) -> None:
+        spec = {key: value for key, value in _SPEC.items() if key != "servers"}
+        status, data = server.request(
+            "/api/sources/preview", "POST", {"kind": "openapi", "spec": spec}
+        )
+
+        assert status == 400
+        assert "no servers[] entry" in data["message"]
+
+    def test_a_redirect_to_a_private_address_is_refused_after_one_request(
+        self, server, monkeypatch
+    ) -> None:
+        """The first hop is public; the redirect is refused, not followed.
+
+        ``conftest`` stubs the address policy to a public address, and this
+        test maps the name to the local server, so the public hop really
+        answers.  Only one request may reach it: the 302 target is never
+        contacted, and its address is not echoed back.
+        """
+        import socket
+
+        real_getaddrinfo = socket.getaddrinfo
+
+        def getaddrinfo(host, port, *args, **kwargs):
+            if host == "public.example":
+                return [
+                    (
+                        socket.AF_INET,
+                        socket.SOCK_STREAM,
+                        socket.IPPROTO_TCP,
+                        "",
+                        ("127.0.0.1", int(port)),
+                    )
+                ]
+            return real_getaddrinfo(host, port, *args, **kwargs)
+
+        monkeypatch.setattr(socket, "getaddrinfo", getaddrinfo)
+
+        with _serve_redirect("http://127.0.0.1:1/openapi.json") as (base_url, hits):
+            port = base_url.rsplit(":", 1)[1]
+            status, data = server.request(
+                "/api/sources/preview",
+                "POST",
+                {
+                    "kind": "openapi",
+                    "spec_url": f"http://public.example:{port}/openapi.json",
+                },
+            )
+
+        assert status == 400, data
+        assert "redirect (3xx)" in data["message"]
+        assert "127.0.0.1:1" not in data["message"]
+        assert len(hits) == 1
 
     @pytest.mark.parametrize(
         "spec_url",
@@ -406,7 +516,7 @@ class TestSpecUrlScheme:
         import toolregistry.integrations.openapi.utils as openapi_utils
         from toolregistry.admin.registration import SourceError, _load_openapi
 
-        def failing_fetch(url: str) -> dict:
+        def failing_fetch(url: str, **kwargs: object) -> dict:
             raise ValueError(f"HTTP error: 401 for {url}")
 
         monkeypatch.setattr(openapi_utils, "load_openapi_spec", failing_fetch)

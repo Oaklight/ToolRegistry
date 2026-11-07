@@ -24,6 +24,7 @@ from urllib.parse import urlparse
 
 __all__ = [
     "SCHEMES",
+    "PrivateAddressError",
     "UnsafeAddressError",
     "clear_address_cache",
     "validate_outbound_url",
@@ -48,6 +49,14 @@ _cache_lock = threading.Lock()
 
 class UnsafeAddressError(ValueError):
     """A URL names a host the outbound policy refuses to contact."""
+
+
+class PrivateAddressError(UnsafeAddressError):
+    """A host resolves to an address the policy allows only on request.
+
+    The distinction matters to callers that can offer an opt-in: a private
+    address has a switch, while a name that does not resolve does not.
+    """
 
 
 def clear_address_cache() -> None:
@@ -130,7 +139,7 @@ def _check(host: str, addresses: list[str]) -> None:
         raise UnsafeAddressError(f"Could not resolve '{host}': no address")
     for address in addresses:
         if not _is_public(address):
-            raise UnsafeAddressError(
+            raise PrivateAddressError(
                 f"Refusing to contact '{host}': it resolves to {address}, "
                 "which is not a public address. Pass allow_private_hosts=True "
                 "to allow loopback, link-local and private hosts."
