@@ -209,6 +209,14 @@ class _BaseUrlAsyncClient:
         await self.aclose()
 
 
+#: Default cap on a buffered tool-call response, in bytes.  It matches the
+#: OpenAPI document-download budget (``DEFAULT_MAX_SPEC_BYTES``): a tool that
+#: answers with more than 10 MiB is almost always a misconfiguration, and the
+#: whole body would otherwise be buffered in memory.  Callers that legitimately
+#: need more raise this value; ``None`` disables the cap.
+DEFAULT_MAX_TOOL_RESPONSE_BYTES = 10 * 1024 * 1024
+
+
 class HttpClientConfig:
     """Container for HTTP client configuration.
 
@@ -224,11 +232,20 @@ class HttpClientConfig:
             client maintains a persistent cookie jar — cookies from
             ``Set-Cookie`` response headers are accumulated across
             requests on the same persistent client. Default is None.
-        **extra_options: Additional client parameters (e.g. verify, proxy, pool_size).
+        **extra_options: Additional client parameters (e.g. verify, proxy,
+            pool_size, max_response_size).  ``max_response_size`` defaults to
+            :data:`DEFAULT_MAX_TOOL_RESPONSE_BYTES` (10 MiB); pass ``None`` to
+            disable the cap.
     """
 
     # Known parameters that map directly to Client/AsyncClient constructor
-    _KNOWN_CLIENT_PARAMS = {"verify", "proxy", "pool_size", "max_redirects"}
+    _KNOWN_CLIENT_PARAMS = {
+        "verify",
+        "proxy",
+        "pool_size",
+        "max_redirects",
+        "max_response_size",
+    }
 
     def __init__(
         self,
@@ -244,6 +261,10 @@ class HttpClientConfig:
         self.timeout = timeout
         self.auth = auth
         self.cookies = cookies
+        # A buffered tool response is capped by default; ``None`` disables it.
+        # Seeding extra_options keeps the pass-through in one place.
+        extra_options.setdefault("max_response_size", DEFAULT_MAX_TOOL_RESPONSE_BYTES)
+        self.max_response_size = extra_options["max_response_size"]
         self.extra_options = extra_options
         self._sync_client: _BaseUrlClient | None = None
         self._async_client: _BaseUrlAsyncClient | None = None
