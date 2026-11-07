@@ -977,12 +977,50 @@ def _get_permissions(request: Request) -> Response:
     )
 
 
+#: Value the admin API shows in place of a stored source secret.
+_MASKED_SECRET = "***"
+
+
+def _redacted_config(config: Any) -> dict[str, Any]:
+    """Return a config payload with source credentials masked.
+
+    Credentials reach the config payload in three ways: an MCP source keeps
+    bearer tokens in ``headers`` and API keys in ``env``, a Python source
+    takes constructor credentials in ``kwargs``, and an MCP URL may carry
+    userinfo (``https://user:token@host``).  The admin API returns the
+    configuration for display, so all three are masked; ``save_config`` still
+    writes the real values.
+
+    Args:
+        config: The loaded ``ToolConfig``.
+
+    Returns:
+        The config as a dict, with every source ``env``, ``headers`` and
+        ``kwargs`` value replaced by ``***`` and URL userinfo removed.
+    """
+    from ..integrations.openapi.utils import redact_url_userinfo
+
+    data = config.to_dict()
+    for source in data.get("tools") or []:
+        if not isinstance(source, dict):
+            continue
+        for field in ("env", "headers", "kwargs"):
+            values = source.get(field)
+            if isinstance(values, dict):
+                source[field] = {key: _MASKED_SECRET for key in values}
+        for field in ("url", "base_url"):
+            value = source.get(field)
+            if isinstance(value, str):
+                source[field] = redact_url_userinfo(value)
+    return data
+
+
 def _get_config(request: Request) -> Response:
-    """Get the current tool configuration."""
+    """Get the current tool configuration, with source secrets masked."""
     config = _app(request).config
     if config is None:
         return _error_response(404, "Not Found", "No tool configuration is loaded")
-    data = config.to_dict()
+    data = _redacted_config(config)
     data["source"] = config.source
     return _json_response(data)
 
@@ -1077,7 +1115,7 @@ def _update_config(request: Request) -> Response:
 
     app.config = new_config
 
-    result = new_config.to_dict()
+    result = _redacted_config(new_config)
     result["source"] = new_config.source
     result["saved"] = bool(saved_path)
     if saved_path:
@@ -1248,17 +1286,32 @@ def _source_body(request: Request) -> dict[str, Any] | Response:
 
 
 def _refuse_local_command(request: Request, data: dict[str, Any]) -> Response | None:
-    """Refuse a request that would start a local process without authentication.
+    """Refuse a request that executes caller-selected code without authentication.
 
-    Preview and registration run the command of a stdio MCP source.  The panel
-    serves its UI to anyone who can reach the port and runs without a token by
-    default on localhost, so an anonymous request must not be able to spawn a
-    process.  Configuring an authentication token is the operator's explicit
+    Preview and registration run the command of a stdio MCP source, and the
+    ``python`` kind imports a module, which executes its top-level code.  The
+    panel serves its UI to anyone who can reach the port and runs without a
+    token by default on localhost, so an anonymous request must not be able to
+    do either.  Configuring an authentication token is the operator's explicit
     opt-in for that authority.
     """
     from .registration import SourceError, transport_spawns_process
 
-    if data.get("kind") != "mcp" or _app(request).auth is not None:
+    if _app(request).auth is not None:
+        return None
+    kind = data.get("kind")
+    if kind == "python":
+        return _add_cors(
+            request,
+            _error_response(
+                403,
+                "Forbidden",
+                "Refusing to import a module from an unauthenticated admin "
+                "panel; start the server with auth_token=... to allow python "
+                "sources.",
+            ),
+        )
+    if kind != "mcp":
         return None
     try:
         spawns = transport_spawns_process(data)

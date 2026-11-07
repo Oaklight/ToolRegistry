@@ -62,9 +62,9 @@ _SPEC = {
 class _Server:
     """Small context manager around an AdminServer on an ephemeral port."""
 
-    def __init__(self) -> None:
+    def __init__(self, auth_token: str | None = None) -> None:
         self.registry = ToolRegistry()
-        self.server = AdminServer(self.registry, port=0)
+        self.server = AdminServer(self.registry, port=0, auth_token=auth_token)
         self.info = self.server.start()
         time.sleep(0.1)
 
@@ -103,6 +103,16 @@ class _Server:
 def server():
     with _Server() as srv:
         yield srv
+
+
+@pytest.fixture
+def server_with_auth():
+    with _Server(auth_token="test-token") as srv:
+        yield srv
+
+
+#: Header for the authenticated server fixture.
+_AUTH_HEADERS = {"Authorization": "Bearer test-token"}
 
 
 class TestSourcePreview:
@@ -149,26 +159,49 @@ class TestSourcePreview:
         assert by_name["create_pet"]["registered"] is False
         assert data["already_registered"] == 1
 
-    def test_python_preview_reads_a_module(self, server) -> None:
-        status, data = server.request(
+    def test_python_preview_reads_a_module(self, server_with_auth) -> None:
+        status, data = server_with_auth.request(
             "/api/sources/preview",
             "POST",
             {"kind": "python", "module": "toolregistry.utils"},
+            extra_headers=_AUTH_HEADERS,
         )
 
         assert status == 200
         names = {tool["name"] for tool in data["tools"]}
         assert "normalize_tool_name" in names
 
-    def test_python_preview_reports_an_import_failure(self, server) -> None:
-        status, data = server.request(
+    def test_python_preview_reports_an_import_failure(self, server_with_auth) -> None:
+        status, data = server_with_auth.request(
             "/api/sources/preview",
             "POST",
             {"kind": "python", "module": "no_such_module_anywhere"},
+            extra_headers=_AUTH_HEADERS,
         )
 
         assert status == 400
         assert "Could not import" in data["message"]
+
+    def test_python_preview_is_refused_without_auth(self, server) -> None:
+        """Importing a module executes code; the stdio guard must cover it."""
+        status, data = server.request(
+            "/api/sources/preview",
+            "POST",
+            {"kind": "python", "module": "toolregistry.utils"},
+        )
+
+        assert status == 403
+        assert "unauthenticated admin panel" in data["message"]
+
+    def test_python_register_is_refused_without_auth(self, server) -> None:
+        status, data = server.request(
+            "/api/sources/register",
+            "POST",
+            {"kind": "python", "module": "toolregistry.utils"},
+        )
+
+        assert status == 403
+        assert "unauthenticated admin panel" in data["message"]
 
     def test_preview_rejects_an_unknown_kind(self, server) -> None:
         status, data = server.request(
@@ -493,8 +526,8 @@ class TestSourceRegistration:
         assert data["registered"] == ["pets-list_pets"]
         assert server.registry.get_tool("pets-list_pets").namespace == "pets"
 
-    def test_registering_python_functions(self, server) -> None:
-        status, data = server.request(
+    def test_registering_python_functions(self, server_with_auth) -> None:
+        status, data = server_with_auth.request(
             "/api/sources/register",
             "POST",
             {
@@ -502,21 +535,23 @@ class TestSourceRegistration:
                 "module": "toolregistry.utils",
                 "selected": ["normalize_tool_name"],
             },
+            extra_headers=_AUTH_HEADERS,
         )
 
         assert status == 200
         assert data["registered"] == ["normalize_tool_name"]
-        assert server.registry.list_tools() == ["normalize_tool_name"]
+        assert server_with_auth.registry.list_tools() == ["normalize_tool_name"]
 
-    def test_registering_an_empty_selection_is_rejected(self, server) -> None:
-        status, data = server.request(
+    def test_registering_an_empty_selection_is_rejected(self, server_with_auth) -> None:
+        status, data = server_with_auth.request(
             "/api/sources/register",
             "POST",
             {"kind": "python", "module": "toolregistry.utils", "selected": ["nope"]},
+            extra_headers=_AUTH_HEADERS,
         )
 
         assert status == 400
-        assert server.registry.list_tools() == []
+        assert server_with_auth.registry.list_tools() == []
 
     def test_register_rejects_a_malformed_selection(self, server) -> None:
         status, data = server.request(

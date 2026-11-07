@@ -1647,6 +1647,58 @@ class TestAdminSourcesAndConfig:
         finally:
             server.stop()
 
+    def test_config_response_masks_source_secrets(self) -> None:
+        """MCP env/headers/url, Python kwargs and OpenAPI URLs are masked."""
+        from toolregistry.config import (
+            MCPSource,
+            OpenAPISource,
+            PythonSource,
+            ToolConfig,
+        )
+
+        config = ToolConfig(
+            mode="denylist",
+            tools=(
+                MCPSource(
+                    transport="streamable-http",
+                    url="https://user:real-token@mcp.example/mcp",
+                    env={"API_KEY": "real-key"},
+                    headers={"Authorization": "Bearer real-token"},
+                ),
+                PythonSource(class_path="a.B", kwargs={"api_key": "real-secret"}),
+                OpenAPISource(
+                    url="https://user:spec-token@spec.example/openapi.json",
+                    base_url="https://user:base-secret@api.example",
+                ),
+            ),
+        )
+        registry = ToolRegistry()
+        server = AdminServer(registry, port=0, config=config)
+        info = server.start()
+        time.sleep(0.1)
+        try:
+            status, data = self._request(f"{info.url}/api/config")
+            assert status == 200
+            mcp, python, openapi = data["tools"]
+            assert mcp["env"] == {"API_KEY": "***"}
+            assert mcp["headers"] == {"Authorization": "***"}
+            assert mcp["url"] == "https://mcp.example/mcp"
+            assert python["kwargs"] == {"api_key": "***"}
+            assert openapi["url"] == "https://spec.example/openapi.json"
+            assert openapi["base_url"] == "https://api.example"
+            body = json.dumps(data)
+            for secret in (
+                "real-key",
+                "real-token",
+                "real-secret",
+                "spec-token",
+                "base-secret",
+                "user:",
+            ):
+                assert secret not in body
+        finally:
+            server.stop()
+
     def test_update_config_invalid_mode(self, tmp_path) -> None:
         """Test PUT /api/config rejects invalid mode."""
         from toolregistry.config import ToolConfig

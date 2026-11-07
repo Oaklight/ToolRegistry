@@ -283,7 +283,8 @@ class AdminServer:
 
         logger.info(f"Admin server started at {url}")
         if self._auth:
-            logger.info(f"Authentication token: {self._auth.token}")
+            # The value is returned in AdminInfo; never write it to a log.
+            logger.info("Authentication enabled")
 
         return info
 
