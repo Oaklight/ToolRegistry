@@ -7,6 +7,10 @@ on:
         description: "Version to release (e.g. 0.12.0)"
         required: true
         type: string
+      ref:
+        description: "Commit or branch to release from (defaults to the branch this workflow runs on)"
+        required: false
+        type: string
 
 jobs:
   prepare:
@@ -15,13 +19,18 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
       - name: Verify version matches package
+        env:
+          RELEASE_REF: ${{ inputs.ref || github.ref }}
         run: |
+          echo "Releasing from ref: $RELEASE_REF"
           PKG_VER=$(python -c "import re; m=re.search(r'__version__\s*=\s*\"(.+?)\"', open('src/toolregistry/__init__.py').read()); print(m.group(1))")
           echo "Package version: $PKG_VER"
           echo "Requested version: ${{ inputs.version }}"
