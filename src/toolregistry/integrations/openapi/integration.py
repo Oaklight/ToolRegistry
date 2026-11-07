@@ -11,10 +11,12 @@ from ...tool_registry import ToolRegistry
 from ...tool_wrapper import BaseToolWrapper
 from ...utils import (
     HttpClientConfig,
+    OpenAPIPathError,
     ToolNameFilter,
     normalize_tool_name,
     utc_iso_now,
 )
+from .utils import redact_url_userinfo
 
 
 def _operation_id(spec: dict[str, Any], path: str, method: str) -> str:
@@ -36,8 +38,10 @@ def _validate_operation_path(path: str) -> str:
 
     A ``paths`` key must start with a single ``/``.  An absolute URL — or a
     scheme-relative ``//host`` reference — would make the HTTP client send
-    the request, with its configured credentials, to another origin.  The
-    document is untrusted input, so refuse it before a tool is built.
+    the request, with its configured credentials, to another origin.  A
+    backslash is refused as well, because some clients and proxies normalise
+    it to ``/``.  The document is untrusted input, so refuse it before a tool
+    is built.
 
     Args:
         path: The ``paths`` key from the OpenAPI document.
@@ -46,12 +50,18 @@ def _validate_operation_path(path: str) -> str:
         *path*, unchanged.
 
     Raises:
-        ValueError: If *path* is not a string rooted at a single ``/``.
+        OpenAPIPathError: If *path* is not a string rooted at a single ``/``
+            or contains a backslash.
     """
-    if not isinstance(path, str) or not path.startswith("/") or path.startswith("//"):
-        raise ValueError(
+    if (
+        not isinstance(path, str)
+        or not path.startswith("/")
+        or path.startswith("//")
+        or "\\" in path
+    ):
+        raise OpenAPIPathError(
             "OpenAPI operation path must be a relative path starting with a "
-            f"single '/', got {path!r}"
+            f"single '/', got {redact_url_userinfo(repr(path))}"
         )
     return path
 
@@ -395,6 +405,10 @@ class OpenAPIIntegration:
                     )
                     self._registered_tool_names.add(open_api_tool.name)
                     registered += 1
+        except OpenAPIPathError:
+            # A rejected path is the caller's input, not an internal fault;
+            # keep the type so the admin layer can answer 400.
+            raise
         except Exception as e:
             raise ValueError(f"Failed to register OpenAPI tools: {e}")
 
