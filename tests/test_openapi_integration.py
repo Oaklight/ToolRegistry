@@ -1114,3 +1114,23 @@ class TestUserinfoRedaction:
         assert redact_url_userinfo("contact user@example.com") == (
             "contact user@example.com"
         )
+
+    def test_redaction_cannot_make_an_external_ref_resolve(self):
+        """``user:pass@#/definitions/X`` must stay dropped after redaction."""
+        from toolregistry.integrations.openapi.utils import resolve_refs_redacted
+
+        schema = {
+            "definitions": {"X": {"type": "string"}},
+            "properties": {"a": {"$ref": "user:pass@#/definitions/X"}},
+        }
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = resolve_refs_redacted(schema)
+
+        # The vendored resolver drops the original pointer, so nothing is
+        # inlined and the definition map is stripped from the result.
+        assert result == {"properties": {"a": {}}}
+        messages = [str(item.message) for item in caught]
+        assert any("Unresolvable $ref" in message for message in messages)
+        assert all("pass" not in message for message in messages)
