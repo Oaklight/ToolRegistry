@@ -25,6 +25,7 @@ class AdminMixin:
         remote: bool = False,
         auth_token: str | None = None,
         config: ToolConfig | None = None,
+        allow_private_hosts: bool = False,
     ) -> AdminInfo:
         """Enable the admin panel.
 
@@ -43,6 +44,10 @@ class AdminMixin:
                 When provided, enables ``GET /api/config`` and
                 ``PUT /api/config`` endpoints for viewing and persisting
                 configuration changes to the source file.
+            allow_private_hosts: Let the panel fetch a spec or a server URL
+                that resolves to a loopback, link-local or private address.
+                Defaults to ``False``; set it to register an API on the same
+                host or a private network.
 
         Returns:
             AdminInfo containing server details including URL and token.
@@ -74,6 +79,7 @@ class AdminMixin:
             remote=remote,
             auth_token=auth_token,
             config=config,
+            allow_private_hosts=allow_private_hosts,
         )
         return self._admin_server.start()
 

@@ -125,6 +125,7 @@ class AdminApp(App):
     metrics: RequestMetrics | None = None
     allowed_hosts: tuple[str, ...] = ()
     secure_cookies: bool = False
+    allow_private_hosts: bool = False
 
 
 class AdminServer:
@@ -167,6 +168,7 @@ class AdminServer:
         config: "ToolConfig | None" = None,
         ssl_context: ssl.SSLContext | None = None,
         allowed_hosts: Iterable[str] | None = None,
+        allow_private_hosts: bool = False,
     ) -> None:
         """Initialize admin server.
 
@@ -197,6 +199,12 @@ class AdminServer:
                 host.  Pass the public hostname when a reverse proxy
                 forwards a different Host.  Pass an empty iterable only when
                 a token protects every request.
+            allow_private_hosts: Fetch a spec or a server URL that resolves
+                to a loopback, link-local or private address.  Defaults to
+                ``False``: the panel refuses such a source, because it runs
+                on the operator's host and must not become a probe of the
+                local network.  Set it to register an API on the same host
+                or a private network.
         """
         self._registry = registry
         self._host = "0.0.0.0" if remote else host
@@ -205,6 +213,7 @@ class AdminServer:
         self._remote = remote
         self._config = config
         self._ssl_context = ssl_context
+        self._allow_private_hosts = allow_private_hosts
         # By default a loopback-bound panel answers only to loopback names;
         # a wildcard bind has no predictable name and relies on token auth.
         if allowed_hosts is None:
@@ -306,6 +315,7 @@ class AdminServer:
         self._app.serve_ui = self._serve_ui
         self._app.config = self._config
         self._app.allowed_hosts = self._allowed_hosts
+        self._app.allow_private_hosts = self._allow_private_hosts
         self._app.secure_cookies = self._ssl_context is not None
 
         # Collect HTTP metrics from the lifecycle signals.  Register the

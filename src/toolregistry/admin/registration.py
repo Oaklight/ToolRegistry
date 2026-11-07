@@ -46,6 +46,17 @@ class SourceError(ValueError):
     """
 
 
+#: Shown when the outbound address policy refuses an address.  The panel
+#: serves local APIs, so the operator needs the switch that changes the
+#: policy, not just the fact that the address was refused.
+_PRIVATE_HOSTS_HINT = (
+    "That address is not publicly routable (loopback, link-local, private "
+    "or another reserved range). Start the admin panel with "
+    "allow_private_hosts=True "
+    "(registry.enable_admin(allow_private_hosts=True)) to allow it."
+)
+
+
 #: The character set OpenAI and Anthropic accept for a function/tool name.
 #: Gemini is looser (dots are allowed) but a name that passes this passes all
 #: three, so the panel reports against the strictest rule it knows.
@@ -129,7 +140,7 @@ def _request_headers(payload: dict[str, Any]) -> dict[str, str] | None:
     return headers or None
 
 
-def _validate_spec_url(spec_url: str) -> str:
+def _validate_spec_url(spec_url: str, *, allow_private_hosts: bool = False) -> str:
     """Refuse a ``spec_url`` the panel must not fetch on the caller's behalf.
 
     The panel is reachable without a token by default on localhost, so a URL
@@ -139,29 +150,94 @@ def _validate_spec_url(spec_url: str) -> str:
 
     Args:
         spec_url: The payload's ``spec_url`` value.
+        allow_private_hosts: Whether the operator started the panel with
+            ``enable_admin(allow_private_hosts=True)``.
 
     Returns:
         ``spec_url`` unchanged when it is allowed.
 
     Raises:
         SourceError: When the URL is malformed, its scheme is not
-            ``http``/``https``, or it names no host.
+            ``http``/``https``, it names no host, or the outbound address
+            policy refuses it.  A refused private address is reported with
+            the switch that allows it.
     """
+    from .._netpolicy import PrivateAddressError, UnsafeAddressError
     from ..integrations.openapi.utils import validate_spec_url
 
     try:
-        return validate_spec_url(spec_url)
+        return validate_spec_url(spec_url, allow_private_hosts=allow_private_hosts)
+    except PrivateAddressError:
+        raise SourceError(_PRIVATE_HOSTS_HINT) from None
+    except UnsafeAddressError as exc:
+        # A malformed URL or a name that does not resolve; the switch would
+        # not help, so the policy's own message is the useful one.
+        raise SourceError(str(exc)) from exc
     except ValueError as exc:
         raise SourceError(str(exc)) from exc
 
 
-def _load_openapi(payload: dict[str, Any]) -> tuple[dict[str, Any], str, str | None]:
-    """Return ``(spec, base_url, spec_url)`` for an OpenAPI payload."""
-    from ..integrations.openapi.utils import (
-        extract_base_url_from_specs,
-        load_openapi_spec,
-        redact_url_userinfo,
+def _checked_base_url(value: str, *, allow_private_hosts: bool) -> str:
+    """Return *value* when the outbound address policy allows it."""
+    from .._netpolicy import (
+        PrivateAddressError,
+        UnsafeAddressError,
+        validate_outbound_url,
     )
+
+    try:
+        validate_outbound_url(value, allow_private_hosts=allow_private_hosts)
+    except PrivateAddressError:
+        raise SourceError(f"'base_url' is refused. {_PRIVATE_HOSTS_HINT}") from None
+    except UnsafeAddressError as exc:
+        raise SourceError(str(exc)) from exc
+    return value
+
+
+def _base_url_from_spec(spec: dict[str, Any], *, allow_private_hosts: bool) -> str:
+    """Return the first ``servers[]`` URL when every entry is allowed.
+
+    Raises:
+        SourceError: When an entry is refused, or the spec has no usable
+            ``servers[]`` entry.  The two cases are reported differently,
+            because only the first one has a switch.
+    """
+    from .._netpolicy import PrivateAddressError, UnsafeAddressError
+    from ..integrations.openapi.utils import (
+        check_spec_servers,
+        extract_base_url_from_specs,
+    )
+
+    try:
+        check_spec_servers(spec, allow_private_hosts=allow_private_hosts)
+    except PrivateAddressError:
+        raise SourceError(
+            "The spec's servers[] URL is refused. " + _PRIVATE_HOSTS_HINT
+        ) from None
+    except UnsafeAddressError as exc:
+        raise SourceError(str(exc)) from exc
+    base_url = extract_base_url_from_specs(spec)
+    if not base_url:
+        raise SourceError("The spec has no servers[] entry; pass 'base_url' explicitly")
+    return base_url
+
+
+def _load_openapi(
+    payload: dict[str, Any], *, allow_private_hosts: bool = False
+) -> tuple[dict[str, Any], str, str | None]:
+    """Return ``(spec, base_url, spec_url)`` for an OpenAPI payload.
+
+    Args:
+        payload: The panel's source description.
+        allow_private_hosts: Accept a ``spec_url``, a ``base_url`` or a
+            ``servers[]`` entry that resolves to a loopback, link-local or
+            private address.
+
+    Raises:
+        SourceError: When the description is incomplete, the spec cannot be
+            loaded, or an address it names is refused.
+    """
+    from ..integrations.openapi.utils import load_openapi_spec, redact_url_userinfo
 
     spec_url = payload.get("spec_url")
     spec = payload.get("spec")
@@ -172,32 +248,47 @@ def _load_openapi(payload: dict[str, Any]) -> tuple[dict[str, Any], str, str | N
     if spec is None:
         if not spec_url:
             raise SourceError("Provide either 'spec_url' or an inline 'spec'")
-        spec_url = _validate_spec_url(spec_url)
+        spec_url = _validate_spec_url(spec_url, allow_private_hosts=allow_private_hosts)
         try:
-            spec = load_openapi_spec(spec_url)
+            spec = load_openapi_spec(spec_url, allow_private_hosts=allow_private_hosts)
         except Exception as exc:  # noqa: BLE001 - surfaced to the operator
             detail = redact_url_userinfo(str(exc))
             raise SourceError(f"Could not load the OpenAPI spec: {detail}") from exc
     elif spec_url:
         # An inline spec is not fetched now, but the URL is stored and used
         # by a later refresh; refuse a scheme that refresh must not fetch.
-        _validate_spec_url(spec_url)
+        _validate_spec_url(spec_url, allow_private_hosts=allow_private_hosts)
     if not isinstance(spec, dict) or not spec.get("paths"):
         raise SourceError("The OpenAPI spec has no 'paths' to register")
 
-    base_url = payload.get("base_url") or extract_base_url_from_specs(spec)
-    if not base_url:
-        raise SourceError("The spec has no servers[] entry; pass 'base_url' explicitly")
+    explicit_base_url = payload.get("base_url")
+    if explicit_base_url:
+        if not isinstance(explicit_base_url, str):
+            raise SourceError("'base_url' must be a string")
+        base_url = _checked_base_url(
+            explicit_base_url, allow_private_hosts=allow_private_hosts
+        )
+    else:
+        base_url = _base_url_from_spec(spec, allow_private_hosts=allow_private_hosts)
     return spec, str(base_url), spec_url
 
 
 def _openapi_entries(
-    payload: dict[str, Any], registry: ToolRegistry
+    payload: dict[str, Any],
+    registry: ToolRegistry,
+    *,
+    allow_private_hosts: bool = False,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     from ..integrations.openapi.integration import OpenAPITool
 
-    spec, base_url, spec_url = _load_openapi(payload)
-    client = HttpClientConfig(base_url=base_url, headers=_request_headers(payload))
+    spec, base_url, spec_url = _load_openapi(
+        payload, allow_private_hosts=allow_private_hosts
+    )
+    client = HttpClientConfig(
+        base_url=base_url,
+        headers=_request_headers(payload),
+        allow_private_hosts=allow_private_hosts,
+    )
     namespace = _namespace(payload)
     entries: list[dict[str, Any]] = []
     for path, operations in spec.get("paths", {}).items():
@@ -425,13 +516,22 @@ def _python_entries(
 # --------------------------------------------------------------------------
 
 
-def preview_source(registry: ToolRegistry, kind: str, payload: Any) -> dict[str, Any]:
+def preview_source(
+    registry: ToolRegistry,
+    kind: str,
+    payload: Any,
+    *,
+    allow_private_hosts: bool = False,
+) -> dict[str, Any]:
     """List what a source offers without registering anything.
 
     Args:
         registry: Registry whose naming rules (``name_sep``) shape the names.
         kind: One of ``"openapi"``, ``"mcp"`` or ``"python"``.
         payload: Source description; see the module docstring.
+        allow_private_hosts: Accept an OpenAPI address that resolves to a
+            loopback, link-local or private address.  The admin panel passes
+            the switch it was started with.
 
     Returns:
         ``{"kind", "tools", "count", "already_registered", "info"}`` where
@@ -451,7 +551,9 @@ def preview_source(registry: ToolRegistry, kind: str, payload: Any) -> dict[str,
 
     if kind == "openapi":
         try:
-            entries, info = _openapi_entries(data, registry)
+            entries, info = _openapi_entries(
+                data, registry, allow_private_hosts=allow_private_hosts
+            )
         except SourceError:
             raise
         except OpenAPIPathError as exc:
@@ -491,9 +593,17 @@ def _register_openapi_source(
     data: dict[str, Any],
     selected: list[str] | None,
     namespace: str | None,
+    *,
+    allow_private_hosts: bool = False,
 ) -> None:
-    spec, base_url, spec_url = _load_openapi(data)
-    client = HttpClientConfig(base_url=base_url, headers=_request_headers(data))
+    spec, base_url, spec_url = _load_openapi(
+        data, allow_private_hosts=allow_private_hosts
+    )
+    client = HttpClientConfig(
+        base_url=base_url,
+        headers=_request_headers(data),
+        allow_private_hosts=allow_private_hosts,
+    )
     kwargs: dict[str, Any] = {
         "source": "openapi",
         "openapi_spec": spec,
@@ -548,7 +658,13 @@ def _register_python_source(
             registry.register(member, name=name, namespace=namespace or False)
 
 
-def register_tools(registry: ToolRegistry, kind: str, payload: Any) -> dict[str, Any]:
+def register_tools(
+    registry: ToolRegistry,
+    kind: str,
+    payload: Any,
+    *,
+    allow_private_hosts: bool = False,
+) -> dict[str, Any]:
     """Register the picked tools of a source.
 
     Args:
@@ -557,6 +673,10 @@ def register_tools(registry: ToolRegistry, kind: str, payload: Any) -> dict[str,
         payload: Source description plus ``selected`` — the list of preview
             names to keep, or ``None`` for every tool the source offers —
             and an optional ``namespace``.
+        allow_private_hosts: Accept an OpenAPI address that resolves to a
+            loopback, link-local or private address, for both the spec fetch
+            and the tools' calls.  The admin panel passes the switch it was
+            started with.
 
     Returns:
         ``{"kind", "registered", "count", "namespace", "preserved_overrides"}``.
@@ -589,7 +709,13 @@ def register_tools(registry: ToolRegistry, kind: str, payload: Any) -> dict[str,
     }
 
     if kind == "openapi":
-        _register_openapi_source(registry, data, selected, namespace)
+        _register_openapi_source(
+            registry,
+            data,
+            selected,
+            namespace,
+            allow_private_hosts=allow_private_hosts,
+        )
     elif kind == "mcp":
         _register_mcp_source(registry, data, selected, namespace)
     else:

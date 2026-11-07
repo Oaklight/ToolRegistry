@@ -1412,7 +1412,13 @@ def _preview_source(request: Request) -> Response:
         return refusal
 
     try:
-        result = preview_source(_app(request).registry, kind, data)
+        app = _app(request)
+        result = preview_source(
+            app.registry,
+            kind,
+            data,
+            allow_private_hosts=app.allow_private_hosts,
+        )
     except SourceError as e:
         return _error_response(400, "Bad Request", str(e))
     return _json_response(result)
@@ -1434,7 +1440,13 @@ def _register_source(request: Request) -> Response:
         return refusal
 
     try:
-        result = register_tools(_app(request).registry, kind, data)
+        app = _app(request)
+        result = register_tools(
+            app.registry,
+            kind,
+            data,
+            allow_private_hosts=app.allow_private_hosts,
+        )
     except SourceError as e:
         return _error_response(400, "Bad Request", str(e))
     return _json_response(result)
