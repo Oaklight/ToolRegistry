@@ -56,7 +56,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   spec = load_openapi_spec("http://127.0.0.1:8000/openapi.json", allow_private_hosts=True)
   ```
 
-  `load_openapi_spec*()` also accepts `follow_redirects=False`, which refuses a redirect instead of following it to an address the policy never saw. DNS rebinding and cross-origin redirect credentials are tracked in #399; MCP HTTP/SSE transports in #398.
+  `load_openapi_spec*()` does not follow redirects by default (`follow_redirects=False`), and neither does `determine_urls()`: the next hop cannot be checked against the policy, so a 3xx is refused with an actionable error and the final URL must be used instead. The admin panel uses the same loaders, so it refuses redirects too, and it passes its own switch through to preview and registration — start it with `registry.enable_admin(allow_private_hosts=True)` to use a local API, and a refused address is reported with that switch name. A tool call still follows redirects, because the vendored client cannot expose each hop for validation; redirect revalidation on the call path is tracked in #399, together with DNS rebinding and cross-origin redirect credentials. MCP HTTP/SSE transports are tracked in #398.
 
 ### Security
 

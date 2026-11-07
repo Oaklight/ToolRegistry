@@ -30,8 +30,8 @@ from toolregistry import ToolRegistry
 
 PORT = os.getenv("PORT", 8000)  # Default port is 8000; can be overridden by an environment variable
 registry = ToolRegistry()
-client_config = HttpClientConfig(base_url=f"http://localhost:{PORT}")
-openapi_spec = load_openapi_spec("http://localhost:{PORT}")  # Auto-discovery of OpenAPI spec
+client_config = HttpClientConfig(base_url=f"http://localhost:{PORT}", allow_private_hosts=True)
+openapi_spec = load_openapi_spec(f"http://localhost:{PORT}", allow_private_hosts=True)  # Auto-discovery of OpenAPI spec
 
 # Synchronously register OpenAPI tools
 registry.register(client_config, source="openapi", openapi_spec=openapi_spec)
@@ -79,10 +79,10 @@ from toolregistry import ToolRegistry
 
 PORT = os.getenv("PORT", 8000)
 registry = ToolRegistry()
-client_config = HttpClientConfig(base_url=f"http://localhost:{PORT}")
+client_config = HttpClientConfig(base_url=f"http://localhost:{PORT}", allow_private_hosts=True)
 
 async def async_register():
-    openapi_spec = await load_openapi_spec_async("http://localhost:{PORT}")  # Auto-discovery of OpenAPI spec
+    openapi_spec = await load_openapi_spec_async(f"http://localhost:{PORT}", allow_private_hosts=True)  # Auto-discovery of OpenAPI spec
     await registry.register_async(client_config, source="openapi", openapi_spec=openapi_spec)
     print(registry)  # Optionally, inspect the registry for registered tools
 
@@ -102,6 +102,7 @@ OPENAPI_BEARER_TOKENS = os.getenv("OPENAPI_BEARER_TOKENS", "your-api-token")
 client_config = HttpClientConfig(
     base_url=OPENAPI_SERVER_URL,
     headers={"Authorization": f"Bearer {OPENAPI_BEARER_TOKENS}"}, # this sets the Bearer token
+    allow_private_hosts=True, # the example default is a loopback address (#370)
 )
 ```
 
@@ -112,6 +113,7 @@ from toolregistry.integrations.openapi import HttpClientConfig
 
 client_config = HttpClientConfig(
     base_url=OPENAPI_SERVER_URL,
+    allow_private_hosts=True, # the example default is a loopback address (#370)
 )
 ```
 
@@ -122,13 +124,14 @@ When using the functions `load_openapi_spec` or `load_openapi_spec_async`, the f
 1. **Base URL provided**: If you specify only a base URL (e.g., `http://localhost:8000`), the loader will attempt "best effort" auto-discovery to locate the OpenAPI specification file. It checks endpoints such as `http://<base_url>/openapi.json`, `http://<base_url>/swagger.json`, etc. If auto-discovery fails, ensure the base URL is accurate and the specification is accessible.
 2. **File path provided**: If you provide a file path (e.g., `./openapi_spec.json`), the function will load the OpenAPI specification directly from the file. A local path or a `file://` URI is refused unless you pass `allow_local_files=True`; the default is `False`, because a location supplied by someone else could otherwise read an arbitrary local file. Enable the flag only when the path comes from a trusted local source. Unlike simple direct load, the functionality includes unwinding `$ref` blocks commonly found in OpenAPI specifications. This ensures that any schema references are fully resolved within the returned dictionary.
 3. **Size and nesting budgets**: the loader streams the document and reads at most 10 MiB by default (`DEFAULT_MAX_SPEC_BYTES`), and rejects a document nested deeper than 100 containers (`DEFAULT_MAX_SPEC_DEPTH`). Pass `max_bytes=` or `max_depth=` to change either budget. A document over the byte budget raises `SpecTooLargeError`; one over the depth budget raises `SpecTooDeepError`; both are subclasses of `ValueError`. A declared `Content-Length` over the budget is refused before the body is read, an unbounded stream is cut off at the limit, and auto-discovery probes read headers only.
+4. **Address policy**: before any request, the host is resolved and refused when it is loopback, link-local, private, multicast or reserved, or when it does not resolve. Pass `allow_private_hosts=True` for an API on the same machine or a private network. Redirects are refused by default (`follow_redirects=False`): the next hop cannot be checked against the policy, so a 3xx raises `ValueError` and the final URL must be used instead.
 
 ```python
 from toolregistry.integrations.openapi import load_openapi_spec
 
 openapi_spec = load_openapi_spec("./openapi_spec.json", allow_local_files=True) # Load from file
-openapi_spec = load_openapi_spec("http://localhost:8000") # auto-discovery with URL to service root
-openapi_spec = load_openapi_spec("http://localhost:8000/openapi.json") # load from specification URL
+openapi_spec = load_openapi_spec("http://localhost:8000", allow_private_hosts=True) # auto-discovery with URL to service root
+openapi_spec = load_openapi_spec("http://localhost:8000/openapi.json", allow_private_hosts=True) # load from specification URL
 ```
 
 ## Persistent Connections
@@ -147,8 +150,8 @@ from toolregistry import ToolRegistry
 from toolregistry.integrations.openapi import HttpClientConfig, load_openapi_spec
 
 with ToolRegistry() as registry:
-    client_config = HttpClientConfig(base_url="http://localhost:8000")
-    openapi_spec = load_openapi_spec("http://localhost:8000")
+    client_config = HttpClientConfig(base_url="http://localhost:8000", allow_private_hosts=True)
+    openapi_spec = load_openapi_spec("http://localhost:8000", allow_private_hosts=True)
     registry.register(client_config, source="openapi", openapi_spec=openapi_spec)
     result = registry["add_get"](1, 2)
 # HTTP connections are automatically closed on exit
@@ -241,8 +244,8 @@ load_dotenv()
 PORT = os.getenv("PORT", 8000)  # default port 8000, change via environment variable
 
 registry = ToolRegistry()
-client_config = HttpClientConfig(base_url=f"http://localhost:{PORT}")
-openapi_spec = load_openapi_spec(f"http://localhost:{PORT}")
+client_config = HttpClientConfig(base_url=f"http://localhost:{PORT}", allow_private_hosts=True)
+openapi_spec = load_openapi_spec(f"http://localhost:{PORT}", allow_private_hosts=True)
 registry.register(client_config, source="openapi", openapi_spec=openapi_spec)
 
 # Set up OpenAI client

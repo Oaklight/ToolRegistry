@@ -9,6 +9,7 @@ The `enable_admin()` method accepts the following parameters:
 | `serve_ui` | `bool` | `True` | Whether to serve the web UI at root path |
 | `remote` | `bool` | `False` | Whether to allow remote connections |
 | `auth_token` | `str \| None` | `None` | Authentication token for API access |
+| `allow_private_hosts` | `bool` | `False` | Allow the panel to fetch an OpenAPI spec from, and register tools on, a loopback, link-local or private address |
 
 ## Configuration Examples
 
@@ -44,6 +45,14 @@ The `enable_admin()` method accepts the following parameters:
     ```python
     # Disable web UI, serve API only
     info = registry.enable_admin(serve_ui=False)
+    ```
+
+=== "Local API Sources"
+
+    ```python
+    # The panel refuses loopback, link-local and private addresses by default
+    # (#370).  Opt in to register tools from an API on this machine:
+    info = registry.enable_admin(allow_private_hosts=True)
     ```
 
 ## AdminInfo Object

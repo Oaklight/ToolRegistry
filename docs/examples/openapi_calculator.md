@@ -124,10 +124,10 @@ Example:
 ```python
 from toolregistry.integrations.openapi import HttpClientConfig, load_openapi_spec
 
-client_config = HttpClientConfig(base_url="http://localhost:8000")
-openapi_spec = load_openapi_spec("./openapi_spec.json") # specification at local path
-openapi_spec = load_openapi_spec("http://localhost:8000") # URL to service root
-openapi_spec = load_openapi_spec("http://localhost:8000/openapi.json") # URL to specification
+client_config = HttpClientConfig(base_url="http://localhost:8000", allow_private_hosts=True)
+openapi_spec = load_openapi_spec("./openapi_spec.json", allow_local_files=True) # specification at local path
+openapi_spec = load_openapi_spec("http://localhost:8000", allow_private_hosts=True) # URL to service root
+openapi_spec = load_openapi_spec("http://localhost:8000/openapi.json", allow_private_hosts=True) # URL to specification
 
 registry.register(
     client_config,
@@ -166,8 +166,8 @@ llm = MultiModalModel(
 # Initialize tool registry
 tool_registry = ToolRegistry()
 
-client_config = HttpClientConfig(base_url="http://localhost:8000")
-openapi_spec = load_openapi_spec("http://localhost:8000")
+client_config = HttpClientConfig(base_url="http://localhost:8000", allow_private_hosts=True)
+openapi_spec = load_openapi_spec("http://localhost:8000", allow_private_hosts=True)
 tool_registry.register(client_config, source="openapi", openapi_spec=openapi_spec)
 
 print(tool_registry.get_available_tools())
@@ -209,8 +209,8 @@ BASE_URL = os.getenv("BASE_URL", "https://api.deepseek.com/")
 # Initialize tool registry
 tool_registry = ToolRegistry()
 
-client_config = HttpClientConfig(base_url="http://localhost:8000")
-openapi_spec = load_openapi_spec("http://localhost:8000")
+client_config = HttpClientConfig(base_url="http://localhost:8000", allow_private_hosts=True)
+openapi_spec = load_openapi_spec("http://localhost:8000", allow_private_hosts=True)
 tool_registry.register(client_config, source="openapi", openapi_spec=openapi_spec)
 
 print(tool_registry.get_available_tools())
