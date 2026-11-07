@@ -49,6 +49,12 @@ hide:
   `POST /api/sources/preview` 与 `POST /api/sources/register` 对 stdio MCP 来源——命令、
   脚本路径或任何非 `http(s)://` 传输——返回 403。请用 `auth_token=...`（或 `remote=True`）
   启动服务器以允许本地命令；注册表单会在请求前说明这一点。
+- **下载的 OpenAPI 文档在字节数与嵌套深度上受限**（#377）：加载器以流式读取文档，默认最多缓冲
+  10 MiB（`DEFAULT_MAX_SPEC_BYTES`）；声明的 `Content-Length` 超限时会在读取正文前拒绝，
+  无上限的流会在达到限制时中止。在解析 `$ref` 之前，嵌套深度被限制为 100 层
+  （`DEFAULT_MAX_SPEC_DEPTH`）；解析器递归溢出会抛出 `SpecTooDeepError`，而不是通用的
+  `ValueError`。自动发现探测现在只读取响应头。两个预算都可分别通过 `max_bytes=` 与
+  `max_depth=` 配置。
 
 ### 修复
 
