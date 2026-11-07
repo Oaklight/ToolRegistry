@@ -4,6 +4,7 @@ This module tests the AdminServer, TokenAuth, and REST API endpoints.
 """
 
 import asyncio
+import dataclasses
 import json
 import re
 import shutil
@@ -21,6 +22,7 @@ from toolregistry import (
     AdminServer,
     RequestMetrics,
     TokenAuth,
+    Tool,
     ToolRegistry,
 )
 from toolregistry.permissions import PermissionPolicy, PermissionResult, PermissionRule
@@ -905,6 +907,61 @@ class TestAdminHostValidation:
         req.add_header("Host", f"127.0.0.1:{info.port}")
         with urllib.request.urlopen(req, timeout=5) as response:
             assert response.status == 200
+
+
+class TestAdminSourceRedaction:
+    """``source_detail`` must not expose URL userinfo to panel callers."""
+
+    @pytest.fixture
+    def info(self):
+        registry = ToolRegistry()
+
+        def echo(value: str = "") -> str:
+            """Echo a value."""
+            return value
+
+        tool = Tool.from_function(echo)
+        tool = dataclasses.replace(
+            tool,
+            metadata=dataclasses.replace(
+                tool.metadata,
+                source="openapi",
+                source_detail="http://user:pass@example.com/v1/echo",
+            ),
+        )
+        registry.register(tool)
+
+        server = AdminServer(registry, port=18112)
+        info = server.start()
+        time.sleep(0.1)
+        yield info
+        server.stop()
+
+    @staticmethod
+    def _get(url: str) -> dict:
+        with urllib.request.urlopen(url, timeout=5) as response:
+            return json.loads(response.read().decode())
+
+    def test_tool_detail_redacts_userinfo(self, info) -> None:
+        data = self._get(f"{info.url}/api/tools/echo")
+        detail = data["metadata"]["source_detail"]
+        assert "pass@" not in detail
+        assert "user@" not in detail
+        assert "example.com" in detail
+
+    def test_tool_list_redacts_userinfo(self, info) -> None:
+        data = self._get(f"{info.url}/api/tools")
+        detail = data["tools"][0]["source_detail"]
+        assert "pass@" not in detail
+        assert "example.com" in detail
+
+    def test_sources_redacts_userinfo(self, info) -> None:
+        data = self._get(f"{info.url}/api/sources")
+        assert "pass@" not in json.dumps(data)
+
+    def test_state_export_redacts_userinfo(self, info) -> None:
+        data = self._get(f"{info.url}/api/state")
+        assert "pass@" not in json.dumps(data)
 
 
 def _ui_source() -> str:
@@ -2099,6 +2156,46 @@ class TestAdminServerTLS:
             ) as response:
                 assert response.status == 200
                 assert "tools" in json.loads(response.read().decode())
+        finally:
+            server.stop()
+
+    def test_https_session_cookie_is_secure(self, server_tls_context) -> None:
+        """A TLS server must mark its session cookie ``Secure``."""
+        server = AdminServer(
+            ToolRegistry(),
+            port=18114,
+            auth_token="secret",
+            ssl_context=server_tls_context,
+        )
+        try:
+            info = server.start()
+            client = ssl.create_default_context()
+            client.check_hostname = False
+            client.verify_mode = ssl.CERT_NONE
+
+            req = urllib.request.Request(f"{info.url}/api/tools")
+            req.add_header("Authorization", "Bearer secret")
+            with urllib.request.urlopen(req, timeout=5, context=client) as response:
+                cookie = response.headers.get("Set-Cookie")
+                assert cookie is not None
+                assert "Secure" in cookie
+                assert "HttpOnly" in cookie
+                assert "SameSite=Lax" in cookie
+        finally:
+            server.stop()
+
+    def test_plain_http_session_cookie_omits_secure(self) -> None:
+        """A loopback HTTP panel keeps the cookie usable by the browser."""
+        server = AdminServer(ToolRegistry(), port=18115, auth_token="secret")
+        try:
+            info = server.start()
+            req = urllib.request.Request(f"{info.url}/api/tools")
+            req.add_header("Authorization", "Bearer secret")
+            with urllib.request.urlopen(req, timeout=5) as response:
+                cookie = response.headers.get("Set-Cookie")
+                assert cookie is not None
+                assert "Secure" not in cookie
+                assert "HttpOnly" in cookie
         finally:
             server.stop()
 

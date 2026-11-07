@@ -113,6 +113,8 @@ class AdminApp(App):
         metrics: HTTP request metrics collected from lifecycle signals.
         allowed_hosts: Host header names this panel accepts.  Empty disables
             the check (a wildcard bind with authenticated remote access).
+        secure_cookies: Whether session cookies carry the ``Secure`` flag.
+            True when the server terminates TLS.
     """
 
     registry: "ToolRegistry"
@@ -122,6 +124,7 @@ class AdminApp(App):
     config: "ToolConfig | None"
     metrics: RequestMetrics | None = None
     allowed_hosts: tuple[str, ...] = ()
+    secure_cookies: bool = False
 
 
 class AdminServer:
@@ -303,6 +306,7 @@ class AdminServer:
         self._app.serve_ui = self._serve_ui
         self._app.config = self._config
         self._app.allowed_hosts = self._allowed_hosts
+        self._app.secure_cookies = self._ssl_context is not None
 
         # Collect HTTP metrics from the lifecycle signals.  Register the
         # timing hook before setup_routes so it runs before CORS/auth and
