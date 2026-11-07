@@ -54,7 +54,7 @@ curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8081/api/tools
 | 方法 | 端点 | 描述 |
 |------|------|------|
 | `GET` | `/api/config` | 获取已加载的配置，来源凭据已脱敏 |
-| `PUT` | `/api/config` | 更新 `mode`、`disabled` 或 `enabled` 并持久化，返回脱敏后的结果 |
+| `PUT` | `/api/config` | 更新 `mode`、`disabled` 或 `enabled`，在已知配置文件时持久化，返回脱敏后的结果 |
 
 来源凭据不会完整返回。两个响应中，`env`、`headers` 与 `kwargs` 的每个值都是
 `***`，URL userinfo 会被移除，stdio `command` 只保留可执行文件——
