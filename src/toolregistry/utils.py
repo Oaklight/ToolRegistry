@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Literal, overload
 from urllib.parse import urlparse
 
+from ._netpolicy import validate_outbound_url, validate_outbound_url_async
 from ._vendor.httpclient import AsyncClient, Client
 from ._warnings import warn_at_user_frame
 
@@ -104,6 +105,9 @@ def _join_base_url(
     Args:
         base_url: The configured base URL.
         path: The request path supplied by the caller.
+        allow_private_hosts: Permit a base URL that resolves to a loopback,
+            link-local or private address.  Defaults to ``False``; a client
+            serving a local API passes ``True``.
 
     Returns:
         ``base_url + path``.
@@ -112,6 +116,9 @@ def _join_base_url(
         OpenAPIPathError: If *path* is not a string rooted at a single ``/``,
             contains a backslash, or the joined URL's scheme or netloc differs
             from the base URL's.
+        UnsafeAddressError: If *base_url* is not HTTP(S), names no host, does
+            not resolve, or resolves to a non-public address while
+            *allow_private_hosts* is false.
     """
     if (
         not isinstance(path, str)
@@ -135,18 +142,32 @@ def _join_base_url(
             "Refusing to send a request outside the configured base origin: "
             f"{redact_url_userinfo(url)!r}"
         )
+    # The origin cannot change from here, so checking the base once per
+    # call (a cached decision) bounds every request this client makes.
+    validate_outbound_url(base_url, allow_private_hosts=allow_private_hosts)
     return url
 
 
 class _BaseUrlClient:
     """Sync HTTP client wrapper that prepends base_url to relative URLs."""
 
-    def __init__(self, client: Client, base_url: str) -> None:
+    def __init__(
+        self,
+        client: Client,
+        base_url: str,
+        *,
+        allow_private_hosts: bool = False,
+    ) -> None:
         self._client = client
         self._base_url = base_url
+        self._allow_private_hosts = allow_private_hosts
 
     def _url(self, path: str) -> str:
-        return _join_base_url(self._base_url, path)
+        return _join_base_url(
+            self._base_url,
+            path,
+            allow_private_hosts=self._allow_private_hosts,
+        )
 
     def get(self, url: str, **kwargs: Any) -> Any:
         return self._client.get(self._url(url), **kwargs)
@@ -179,12 +200,23 @@ class _BaseUrlClient:
 class _BaseUrlAsyncClient:
     """Async HTTP client wrapper that prepends base_url to relative URLs."""
 
-    def __init__(self, client: AsyncClient, base_url: str) -> None:
+    def __init__(
+        self,
+        client: AsyncClient,
+        base_url: str,
+        *,
+        allow_private_hosts: bool = False,
+    ) -> None:
         self._client = client
         self._base_url = base_url
+        self._allow_private_hosts = allow_private_hosts
 
     def _url(self, path: str) -> str:
-        return _join_base_url(self._base_url, path)
+        return _join_base_url(
+            self._base_url,
+            path,
+            allow_private_hosts=self._allow_private_hosts,
+        )
 
     async def get(self, url: str, **kwargs: Any) -> Any:
         return await self._client.get(self._url(url), **kwargs)
@@ -229,6 +261,9 @@ class HttpClientConfig:
             client maintains a persistent cookie jar — cookies from
             ``Set-Cookie`` response headers are accumulated across
             requests on the same persistent client. Default is None.
+        allow_private_hosts: Permit *base_url* to resolve to a loopback,
+            link-local or private address.  Defaults to ``False``; set it for
+            an API that runs on the same host or on a private network.
         **extra_options: Additional client parameters (e.g. verify, proxy, pool_size).
     """
 
@@ -242,6 +277,7 @@ class HttpClientConfig:
         timeout: float = 10.0,
         auth: tuple[str, str] | None = None,
         cookies: dict[str, str] | None = None,
+        allow_private_hosts: bool = False,
         **extra_options: Any,
     ):
         self.base_url = base_url.rstrip("/")
@@ -249,6 +285,7 @@ class HttpClientConfig:
         self.timeout = timeout
         self.auth = auth
         self.cookies = cookies
+        self.allow_private_hosts = allow_private_hosts
         self.extra_options = extra_options
         self._sync_client: _BaseUrlClient | None = None
         self._async_client: _BaseUrlAsyncClient | None = None
@@ -265,6 +302,35 @@ class HttpClientConfig:
             if key in self.extra_options:
                 kwargs[key] = self.extra_options[key]
         return kwargs
+
+    def ensure_base_url_allowed(self) -> None:
+        """Validate :attr:`base_url` on the calling thread.
+
+        Callers that build a client from a URL they did not choose can run
+        this ahead of time.  The decision is cached, so repeating it is cheap.
+
+        Raises:
+            UnsafeAddressError: If the base URL is not HTTP(S), names no host,
+                does not resolve, or resolves to a non-public address while
+                :attr:`allow_private_hosts` is false.
+        """
+        validate_outbound_url(
+            self.base_url,
+            allow_private_hosts=self.allow_private_hosts,
+        )
+
+    async def ensure_base_url_allowed_async(self) -> None:
+        """Validate :attr:`base_url` without blocking the event loop.
+
+        Raises:
+            UnsafeAddressError: If the base URL is not HTTP(S), names no host,
+                does not resolve, resolution times out, or resolves to a
+                non-public address while :attr:`allow_private_hosts` is false.
+        """
+        await validate_outbound_url_async(
+            self.base_url,
+            allow_private_hosts=self.allow_private_hosts,
+        )
 
     @overload
     def to_client(self, use_async: Literal[False]) -> _BaseUrlClient: ...
@@ -296,10 +362,18 @@ class HttpClientConfig:
         kwargs = self._client_kwargs()
         if use_async:
             raw = AsyncClient(**kwargs)
-            return _BaseUrlAsyncClient(raw, self.base_url)
+            return _BaseUrlAsyncClient(
+                raw,
+                self.base_url,
+                allow_private_hosts=self.allow_private_hosts,
+            )
         else:
             raw = Client(**kwargs)
-            return _BaseUrlClient(raw, self.base_url)
+            return _BaseUrlClient(
+                raw,
+                self.base_url,
+                allow_private_hosts=self.allow_private_hosts,
+            )
 
     @overload
     def get_persistent_client(
@@ -368,6 +442,7 @@ class HttpClientConfig:
             "timeout": self.timeout,
             "auth": self.auth,
             "cookies": self.cookies,
+            "allow_private_hosts": self.allow_private_hosts,
             "extra_options": self.extra_options,
         }
 
@@ -378,6 +453,7 @@ class HttpClientConfig:
         self.timeout = state["timeout"]
         self.auth = state["auth"]
         self.cookies = state.get("cookies")
+        self.allow_private_hosts = state.get("allow_private_hosts", False)
         self.extra_options = state["extra_options"]
         self._sync_client = None
         self._async_client = None

@@ -900,10 +900,19 @@ class TestDetermineUrls:
 
     def test_not_found_returns_base(self):
         """When no endpoint is found via probing, returns found=False."""
-        # This will fail to connect since no server is running
-        result = determine_urls("http://127.0.0.1:19999")
+        # This will fail to connect since no server is running.  The host is
+        # a loopback literal, so the outbound policy has to be told to allow
+        # it (#370).
+        result = determine_urls("http://127.0.0.1:19999", allow_private_hosts=True)
         assert result["found"] is False
         assert result["base_api_url"] == "http://127.0.0.1:19999"
+
+    def test_probing_a_loopback_host_is_refused_by_default(self):
+        """The policy runs before a probe opens a connection (#370)."""
+        from toolregistry._netpolicy import UnsafeAddressError
+
+        with pytest.raises(UnsafeAddressError):
+            determine_urls("http://127.0.0.1:19999")
 
 
 class TestLoadOpenapiSpec:
@@ -1369,3 +1378,109 @@ class TestLoaderRefRedaction:
         messages = [str(item.message) for item in caught]
         assert any("Unresolvable $ref" in message for message in messages)
         assert all("secret" not in message for message in messages)
+
+
+# ---------------------------------------------------------------------------
+# Outbound address policy (#370)
+# ---------------------------------------------------------------------------
+
+
+class TestOutboundPolicy:
+    """The loader applies the address policy before any I/O."""
+
+    def test_private_server_url_is_refused(self):
+        from toolregistry.integrations.openapi.utils import extract_base_url_from_specs
+
+        spec = {"servers": [{"url": "http://169.254.169.254/latest"}]}
+        assert extract_base_url_from_specs(spec) is None
+        assert (
+            extract_base_url_from_specs(spec, allow_private_hosts=True)
+            == "http://169.254.169.254/latest"
+        )
+
+    def test_a_later_private_server_url_is_refused(self):
+        from toolregistry.integrations.openapi.utils import extract_base_url_from_specs
+
+        spec = {
+            "servers": [
+                {"url": "https://api.example.com"},
+                {"url": "http://10.0.0.5/internal"},
+            ]
+        }
+        assert extract_base_url_from_specs(spec) is None
+
+    def test_server_variables_are_skipped(self):
+        from toolregistry.integrations.openapi.utils import extract_base_url_from_specs
+
+        spec = {"servers": [{"url": "https://{region}.example.com"}]}
+        assert extract_base_url_from_specs(spec) == "https://{region}.example.com"
+
+    def test_private_spec_url_is_refused_before_any_io(self, monkeypatch):
+        import toolregistry.integrations.openapi.utils as openapi_utils
+        from toolregistry._netpolicy import UnsafeAddressError
+
+        reached: list[str] = []
+        monkeypatch.setattr(
+            openapi_utils,
+            "determine_urls",
+            lambda *args, **kwargs: reached.append("determine"),
+        )
+        monkeypatch.setattr(
+            openapi_utils,
+            "AsyncClient",
+            lambda *args, **kwargs: reached.append("client"),
+        )
+
+        with pytest.raises(UnsafeAddressError):
+            load_openapi_spec("http://127.0.0.1:9/openapi.json")
+
+        assert reached == []
+
+    def test_allow_private_hosts_skips_the_address_check(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        import toolregistry.integrations.openapi.utils as openapi_utils
+
+        reached: list[str] = []
+        monkeypatch.setattr(
+            openapi_utils,
+            "determine_urls",
+            lambda url, **kwargs: reached.append(url) or {"found": False},
+        )
+        monkeypatch.setattr(
+            openapi_utils,
+            "AsyncClient",
+            MagicMock(side_effect=RuntimeError("stop")),
+        )
+
+        with pytest.raises(ValueError):
+            load_openapi_spec(
+                "http://127.0.0.1:9/openapi.json", allow_private_hosts=True
+            )
+
+        assert reached == ["http://127.0.0.1:9/openapi.json"]
+
+    def test_redirect_is_refused_when_following_is_off(self, monkeypatch):
+        from unittest.mock import AsyncMock, patch
+
+        import toolregistry.integrations.openapi.utils as openapi_utils
+        from toolregistry._vendor.httpclient import TooManyRedirects
+
+        monkeypatch.setattr(
+            openapi_utils,
+            "determine_urls",
+            lambda url, **kwargs: {"found": False},
+        )
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(
+            side_effect=TooManyRedirects("https://api.example.com/spec", 0)
+        )
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch.object(openapi_utils, "AsyncClient", return_value=mock_client):
+            with pytest.raises(ValueError, match="redirect"):
+                load_openapi_spec(
+                    "https://api.example.com/openapi.json",
+                    follow_redirects=False,
+                )

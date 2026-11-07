@@ -51,7 +51,8 @@ _SOURCE_KEYS: dict[str, frozenset[str]] = {
         "include",
         "exclude",
     },
-    "openapi": _COMMON_SOURCE_KEYS | {"url", "auth", "base_url", "include", "exclude"},
+    "openapi": _COMMON_SOURCE_KEYS
+    | {"url", "auth", "base_url", "include", "exclude", "allow_private_hosts"},
 }
 
 _KNOWN_AUTH_KEYS: frozenset[str] = frozenset(
@@ -630,6 +631,14 @@ def _build_openapi_source(
 
     include, exclude = _parse_name_patterns(entry, index, "openapi")
 
+    allow_private_hosts = entry.get("allow_private_hosts", False)
+    if not isinstance(allow_private_hosts, bool):
+        raise ConfigError(
+            f"Tool entry at index {index} (type=openapi): "
+            f"'allow_private_hosts' must be a boolean, "
+            f"got {type(allow_private_hosts).__name__}."
+        )
+
     return OpenAPISource(
         url=url,
         namespace=namespace,
@@ -639,6 +648,7 @@ def _build_openapi_source(
         tags=tags,
         include=include,
         exclude=exclude,
+        allow_private_hosts=allow_private_hosts,
     )
 
 

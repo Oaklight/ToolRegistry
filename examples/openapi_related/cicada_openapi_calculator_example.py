@@ -28,12 +28,14 @@ llm = MultiModalModel(
 base_url = OPENAPI_SERVER_URL
 client_config = HttpClientConfig(
     base_url=base_url,
+    # The example server runs on localhost by default.
+    allow_private_hosts=True,
     headers={"Authorization": f"Bearer {OPENAPI_BEARER_TOKENS}"}
     if OPENAPI_BEARER_TOKENS
     else None,
     timeout=10.0,
 )
-openapi_spec = load_openapi_spec(base_url)
+openapi_spec = load_openapi_spec(base_url, allow_private_hosts=True)
 
 # Initialize tool registry and register Calculator static methods
 tool_registry = ToolRegistry()

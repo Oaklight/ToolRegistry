@@ -3,6 +3,11 @@ import json
 from typing import Any
 from urllib.parse import urlparse
 
+from ..._netpolicy import (
+    UnsafeAddressError,
+    validate_outbound_url,
+    validate_outbound_url_async,
+)
 from ..._vendor.jsonschema import resolve_refs
 from ..._vendor.yaml import YAMLError
 from ..._vendor.yaml import load as yaml_load
@@ -12,6 +17,7 @@ from ..._vendor.httpclient import (
     Client,
     HttpClientError,
     HTTPError,
+    TooManyRedirects,
 )
 from ...utils import redact_url_userinfo
 
@@ -64,28 +70,60 @@ def _parse_spec_content(content: str) -> Any:
         return yaml_load(content)
 
 
-def extract_base_url_from_specs(openapi_spec: dict[str, Any]) -> str | None:
-    """
-    Extract and validate the base URL from the 'servers' field of the OpenAPI specification.
+def extract_base_url_from_specs(
+    openapi_spec: dict[str, Any],
+    *,
+    allow_private_hosts: bool = False,
+) -> str | None:
+    """Extract and validate the base URL from the 'servers' field.
+
+    Every HTTP(S) entry in ``servers`` is checked against the outbound
+    address policy, not only the entry that is returned: a document must not
+    carry a private address that a later step could pick up.  Entries that
+    use OpenAPI server variables (``https://{region}.example.com``) are
+    skipped, because they cannot be resolved before substitution.
 
     Args:
-        openapi_spec (Dict[str, Any]): The parsed OpenAPI specification.
+        openapi_spec: The parsed OpenAPI specification.
+        allow_private_hosts: Accept a server URL that resolves to a loopback,
+            link-local or private address.  Defaults to ``False``.
 
     Returns:
-        Optional[str]: The validated base API URL extracted from the 'servers' field, or None if not valid.
+        The validated base API URL from ``servers[0]``, or ``None`` when the
+        first entry is not an HTTP(S) URL or any entry is refused.
     """
     servers = openapi_spec.get("servers", [])
-    if servers:
-        server_url = (
-            servers[0].get("url", "").strip()
-        )  # Get the first server URL and strip whitespace
-        parsed_url = urlparse(server_url)
+    if not servers:
+        return None
+    server_url = servers[0].get("url", "").strip()
+    parsed_url = urlparse(server_url)
+    if parsed_url.scheme not in _SPEC_URL_SCHEMES or not parsed_url.netloc:
+        return None
 
-        # Validate the extracted URL
-        if parsed_url.scheme in ["http", "https"] and parsed_url.netloc:
-            return server_url.rstrip("/")
+    for server in servers:
+        if not isinstance(server, dict):
+            continue
+        candidate = server.get("url")
+        if not isinstance(candidate, str):
+            continue
+        candidate = candidate.strip()
+        if "{" in candidate or "}" in candidate:
+            continue
+        candidate_parsed = urlparse(candidate)
+        if (
+            candidate_parsed.scheme not in _SPEC_URL_SCHEMES
+            or not candidate_parsed.netloc
+        ):
+            continue
+        try:
+            validate_outbound_url(
+                candidate,
+                allow_private_hosts=allow_private_hosts,
+            )
+        except UnsafeAddressError:
+            return None
 
-    return None
+    return server_url.rstrip("/")
 
 
 #: The only schemes an HTTP fetch path accepts.  ``load_openapi_spec`` treats
@@ -289,20 +327,11 @@ async def _read_body_capped(response: Any, max_bytes: int, uri: str) -> bytes:
     return b"".join(chunks)
 
 
-def validate_spec_url(uri: str) -> str:
-    """Return *uri* unchanged when it is an HTTP(S) URL that names a host.
-
-    ``load_openapi_spec`` reads a URI with no scheme, or with ``file``, as a
-    local path only when the caller opts in with ``allow_local_files=True``,
-    while ``load_openapi_spec_conditional_async`` can only fetch over HTTP(S).
-    Callers that accept a URL from an untrusted source use this to refuse
-    anything else before any I/O starts.
+def _validate_spec_url_shape(uri: str) -> None:
+    """Refuse a URL whose shape is not HTTP(S) with a host.
 
     Args:
         uri: A candidate specification URL.
-
-    Returns:
-        *uri*, unchanged.
 
     Raises:
         ValueError: If the URL cannot be parsed, its scheme is not
@@ -328,6 +357,69 @@ def validate_spec_url(uri: str) -> str:
             "'spec_url' must include a host, for example "
             "https://example.com/openapi.json"
         )
+
+
+def validate_spec_url(uri: str, *, allow_private_hosts: bool = False) -> str:
+    """Return *uri* unchanged when it is an allowed HTTP(S) URL.
+
+    ``load_openapi_spec`` reads a URI with no scheme, or with ``file``, as a
+    local path only when the caller opts in with ``allow_local_files=True``,
+    while ``load_openapi_spec_conditional_async`` can only fetch over HTTP(S).
+    Callers that accept a URL from an untrusted source use this to refuse
+    anything else before any I/O starts.
+
+    The host is resolved on the calling thread.  Async callers use
+    :func:`validate_spec_url_async`.
+
+    Args:
+        uri: A candidate specification URL.
+        allow_private_hosts: Accept a host that resolves to a loopback,
+            link-local or private address.  Defaults to ``False``.
+
+    Returns:
+        *uri*, unchanged.
+
+    Raises:
+        ValueError: If the URL cannot be parsed, its scheme is not
+            ``http``/``https``, it names no host, it does not resolve, or
+            (unless *allow_private_hosts*) it resolves to a non-public
+            address.
+    """
+    _validate_spec_url_shape(uri)
+    try:
+        validate_outbound_url(uri, allow_private_hosts=allow_private_hosts)
+    except UnsafeAddressError as exc:
+        raise ValueError(f"'spec_url' was refused: {exc}") from exc
+    return uri
+
+
+async def validate_spec_url_async(
+    uri: str, *, allow_private_hosts: bool = False
+) -> str:
+    """Async twin of :func:`validate_spec_url`.
+
+    The resolver runs through the event loop, so a slow name server does not
+    block other tasks.
+
+    Args:
+        uri: A candidate specification URL.
+        allow_private_hosts: Accept a host that resolves to a loopback,
+            link-local or private address.  Defaults to ``False``.
+
+    Returns:
+        *uri*, unchanged.
+
+    Raises:
+        ValueError: If the URL cannot be parsed, its scheme is not
+            ``http``/``https``, it names no host, it does not resolve, or
+            (unless *allow_private_hosts*) it resolves to a non-public
+            address.
+    """
+    _validate_spec_url_shape(uri)
+    try:
+        await validate_outbound_url_async(uri, allow_private_hosts=allow_private_hosts)
+    except UnsafeAddressError as exc:
+        raise ValueError(f"'spec_url' was refused: {exc}") from exc
     return uri
 
 
@@ -368,7 +460,11 @@ def _probe_spec_url(
 
 
 def determine_urls(
-    url: str, *, max_bytes: int = DEFAULT_MAX_SPEC_BYTES
+    url: str,
+    *,
+    max_bytes: int = DEFAULT_MAX_SPEC_BYTES,
+    allow_private_hosts: bool = False,
+    follow_redirects: bool = True,
 ) -> dict[str, Any]:
     """
     Determine whether the given URL or its common endpoints contain an OpenAPI schema.
@@ -380,9 +476,16 @@ def determine_urls(
     Args:
         url (str): Base URL or schema URL.
         max_bytes: Maximum declared body size a candidate may have.
+        allow_private_hosts: Probe a host that resolves to a loopback,
+            link-local or private address.  Defaults to ``False``.
+        follow_redirects: Follow a redirect while probing.  Defaults to
+            ``True``; a redirect is not followed when it is ``False``.
 
     Returns:
         Dict[str, Any]: Contains "found" (bool), "schema_url" (str) if valid or None, and "base_api_url" (str).
+
+    Raises:
+        UnsafeAddressError: If *url* is not allowed by the outbound policy.
     """
     _positive(max_bytes, "max_bytes")
     common_endpoints = [
@@ -401,8 +504,15 @@ def determine_urls(
             base_api_url = base_url.rstrip(endpoint)
             return {"found": True, "schema_url": base_url, "base_api_url": base_api_url}
 
+    # Probing makes requests, so check the host first; the direct check above
+    # contacts nothing.
+    validate_outbound_url(url, allow_private_hosts=allow_private_hosts)
+
     # Test appending endpoints to base URL
-    with Client(timeout=5.0) as client:
+    client_kwargs: dict[str, Any] = {"timeout": 5.0}
+    if not follow_redirects:
+        client_kwargs["max_redirects"] = 0
+    with Client(**client_kwargs) as client:
         for endpoint in common_endpoints:
             found_url = _probe_spec_url(client, base_url, endpoint, max_bytes)
             if found_url is not None:
@@ -415,7 +525,14 @@ def determine_urls(
     return {"found": False, "base_api_url": base_url}
 
 
-async def _read_spec_source(uri: str, *, is_local: bool, max_bytes: int) -> bytes:
+async def _read_spec_source(
+    uri: str,
+    *,
+    is_local: bool,
+    max_bytes: int,
+    allow_private_hosts: bool = False,
+    follow_redirects: bool = True,
+) -> bytes:
     """Read an OpenAPI document from a local path or an HTTP(S) URL.
 
     The caller has already applied the local-file policy and validated the
@@ -433,12 +550,24 @@ async def _read_spec_source(uri: str, *, is_local: bool, max_bytes: int) -> byte
     # First attempt to determine schema URL and fallback base URL
     loop = asyncio.get_event_loop()
     results = await loop.run_in_executor(
-        None, lambda: determine_urls(uri, max_bytes=max_bytes)
+        None,
+        lambda: determine_urls(
+            uri,
+            max_bytes=max_bytes,
+            allow_private_hosts=allow_private_hosts,
+            follow_redirects=follow_redirects,
+        ),
     )
     resolved_uri = results["schema_url"] if results["found"] else uri
 
     # timeout for network requests (e.g., 10 seconds)
-    async with AsyncClient(timeout=10) as client:
+    client_kwargs: dict[str, Any] = {"timeout": 10}
+    if not follow_redirects:
+        # The vendored client raises on the first redirect with a zero
+        # budget; core cannot read the Location, so a redirect is refused
+        # rather than followed to an unvalidated origin.
+        client_kwargs["max_redirects"] = 0
+    async with AsyncClient(**client_kwargs) as client:
         response = await client.get(resolved_uri, stream=True)
         async with response:
             response.raise_for_status()
@@ -449,6 +578,8 @@ async def load_openapi_spec_async(
     uri: str,
     *,
     allow_local_files: bool = False,
+    allow_private_hosts: bool = False,
+    follow_redirects: bool = True,
     max_bytes: int = DEFAULT_MAX_SPEC_BYTES,
     max_depth: int = DEFAULT_MAX_SPEC_DEPTH,
 ) -> dict[str, Any]:
@@ -460,6 +591,10 @@ async def load_openapi_spec_async(
     caller that really means to read a local file passes
     ``allow_local_files=True``.
 
+    An HTTP(S) URI is checked against the outbound address policy before any
+    request is made: a host that resolves to a loopback, link-local or
+    private address is refused unless *allow_private_hosts* is true.
+
     The document is streamed and charged against *max_bytes* as it arrives.
     A declared ``Content-Length`` above the budget is refused before any body
     byte is read.  Nesting is bounded by *max_depth* before references are
@@ -469,6 +604,10 @@ async def load_openapi_spec_async(
         uri (str): URL or file path pointing to an OpenAPI specification.
         allow_local_files: Read *uri* from the local file system when it names
             a path or a ``file://`` URI.  Defaults to ``False``.
+        allow_private_hosts: Fetch from a host that resolves to a loopback,
+            link-local or private address.  Defaults to ``False``.
+        follow_redirects: Follow an HTTP redirect.  Defaults to ``True``; when
+            ``False`` a redirect is refused before the target is contacted.
         max_bytes: Maximum number of bytes to read from the document.
         max_depth: Maximum number of nested containers.
 
@@ -476,6 +615,7 @@ async def load_openapi_spec_async(
         Dict[str, Any]: A dictionary containing the parsed OpenAPI specification.
 
     Raises:
+        UnsafeAddressError: If *uri* is not allowed by the outbound policy.
         SpecTooLargeError: If the document exceeds *max_bytes*.
         SpecTooDeepError: If the document nests deeper than *max_depth* or
             exceeds the interpreter's recursion limit.
@@ -496,10 +636,20 @@ async def load_openapi_spec_async(
             "Reading an OpenAPI specification from the local file system is "
             "disabled; pass allow_local_files=True to allow it"
         )
+    if not is_local:
+        # Before any I/O: a refused host never sees a connection.
+        await validate_outbound_url_async(
+            uri,
+            allow_private_hosts=allow_private_hosts,
+        )
 
     try:
         openapi_spec_content = await _read_spec_source(
-            uri, is_local=is_local, max_bytes=max_bytes
+            uri,
+            is_local=is_local,
+            max_bytes=max_bytes,
+            allow_private_hosts=allow_private_hosts,
+            follow_redirects=follow_redirects,
         )
 
         # Parse and resolve off the event loop (CPU-bound operation)
@@ -512,6 +662,13 @@ async def load_openapi_spec_async(
         )
         return openapi_spec_dict
 
+    except TooManyRedirects:
+        # The vendored client raises without exposing Location, and its
+        # message quotes the URL, which may carry userinfo.
+        raise ValueError(
+            "The address redirected, and redirects are not followed for a "
+            "specification from an untrusted location; use the final URL"
+        ) from None
     except YAMLError as e:
         raise ValueError(f"Failed to parse OpenAPI content: {e}")
     except HTTPError as e:
@@ -538,6 +695,8 @@ def load_openapi_spec(
     uri: str,
     *,
     allow_local_files: bool = False,
+    allow_private_hosts: bool = False,
+    follow_redirects: bool = True,
     max_bytes: int = DEFAULT_MAX_SPEC_BYTES,
     max_depth: int = DEFAULT_MAX_SPEC_DEPTH,
 ) -> dict[str, Any]:
@@ -547,6 +706,10 @@ def load_openapi_spec(
         uri (str): URL or file path pointing to an OpenAPI specification.
         allow_local_files: Read *uri* from the local file system when it names
             a path or a ``file://`` URI.  Defaults to ``False``.
+        allow_private_hosts: Fetch from a host that resolves to a loopback,
+            link-local or private address.  Defaults to ``False``.
+        follow_redirects: Follow an HTTP redirect.  Defaults to ``True``; when
+            ``False`` a redirect is refused before the target is contacted.
         max_bytes: Maximum number of bytes to read from the document.
         max_depth: Maximum number of nested containers.
 
@@ -554,6 +717,7 @@ def load_openapi_spec(
         Dict[str, Any]: A dictionary containing the parsed OpenAPI specification.
 
     Raises:
+        UnsafeAddressError: If *uri* is not allowed by the outbound policy.
         SpecTooLargeError: If the document exceeds *max_bytes*.
         SpecTooDeepError: If the document nests deeper than *max_depth* or
             exceeds the interpreter's recursion limit.
@@ -564,6 +728,8 @@ def load_openapi_spec(
         load_openapi_spec_async(
             uri,
             allow_local_files=allow_local_files,
+            allow_private_hosts=allow_private_hosts,
+            follow_redirects=follow_redirects,
             max_bytes=max_bytes,
             max_depth=max_depth,
         )
@@ -575,6 +741,8 @@ async def load_openapi_spec_conditional_async(
     etag: str | None = None,
     headers: dict[str, str] | None = None,
     *,
+    allow_private_hosts: bool = False,
+    follow_redirects: bool = True,
     max_bytes: int = DEFAULT_MAX_SPEC_BYTES,
     max_depth: int = DEFAULT_MAX_SPEC_DEPTH,
 ) -> tuple[dict[str, Any] | None, str | None]:
@@ -589,6 +757,10 @@ async def load_openapi_spec_conditional_async(
         uri: URL pointing to an OpenAPI specification.
         etag: ETag value from a previous fetch.  ``None`` for the first request.
         headers: Extra HTTP headers to include in the request.
+        allow_private_hosts: Fetch from a host that resolves to a loopback,
+            link-local or private address.  Defaults to ``False``.
+        follow_redirects: Follow an HTTP redirect.  Defaults to ``True``; when
+            ``False`` a redirect is refused before the target is contacted.
         max_bytes: Maximum number of bytes to read from the document.
         max_depth: Maximum number of nested containers.
 
@@ -597,18 +769,27 @@ async def load_openapi_spec_conditional_async(
         server returned 304.
 
     Raises:
+        UnsafeAddressError: If *uri* is not allowed by the outbound policy.
         SpecTooLargeError: If the document exceeds *max_bytes*.
         SpecTooDeepError: If the document nests deeper than *max_depth* or
             exceeds the interpreter's recursion limit.
     """
     _positive(max_bytes, "max_bytes")
     _positive(max_depth, "max_depth")
+    # Before any I/O: a refused host never sees a connection.
+    await validate_outbound_url_async(
+        uri,
+        allow_private_hosts=allow_private_hosts,
+    )
     try:
         req_headers: dict[str, str] = dict(headers or {})
         if etag is not None:
             req_headers["If-None-Match"] = etag
 
-        async with AsyncClient(timeout=10) as client:
+        client_kwargs: dict[str, Any] = {"timeout": 10}
+        if not follow_redirects:
+            client_kwargs["max_redirects"] = 0
+        async with AsyncClient(**client_kwargs) as client:
             response = await client.get(uri, headers=req_headers, stream=True)
             async with response:
                 if response.status_code == 304:
@@ -628,6 +809,13 @@ async def load_openapi_spec_conditional_async(
         )
         return openapi_spec_dict, new_etag
 
+    except TooManyRedirects:
+        # The vendored client raises without exposing Location, and its
+        # message quotes the URL, which may carry userinfo.
+        raise ValueError(
+            "The address redirected, and redirects are not followed for a "
+            "specification from an untrusted location; use the final URL"
+        ) from None
     except YAMLError as e:
         raise ValueError(f"Failed to parse OpenAPI content: {e}")
     except HTTPError as e:
@@ -653,6 +841,8 @@ def load_openapi_spec_conditional(
     etag: str | None = None,
     headers: dict[str, str] | None = None,
     *,
+    allow_private_hosts: bool = False,
+    follow_redirects: bool = True,
     max_bytes: int = DEFAULT_MAX_SPEC_BYTES,
     max_depth: int = DEFAULT_MAX_SPEC_DEPTH,
 ) -> tuple[dict[str, Any] | None, str | None]:
@@ -662,6 +852,8 @@ def load_openapi_spec_conditional(
             uri,
             etag,
             headers,
+            allow_private_hosts=allow_private_hosts,
+            follow_redirects=follow_redirects,
             max_bytes=max_bytes,
             max_depth=max_depth,
         )

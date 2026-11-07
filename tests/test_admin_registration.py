@@ -325,7 +325,26 @@ class TestSpecUrlScheme:
         assert "not a valid URL" in data["message"]
 
     @pytest.mark.parametrize("scheme", ["http", "HTTP", "Http"])
-    def test_preview_fetches_an_http_spec_url(self, server, scheme: str) -> None:
+    def test_preview_fetches_an_http_spec_url(
+        self, server, scheme: str, monkeypatch
+    ) -> None:
+        """The fetch path works; the loopback policy is tested elsewhere.
+
+        The test server listens on a loopback literal, which the outbound
+        policy refuses by default (#370).  Allow it for this test so the
+        request path itself stays covered.
+        """
+        import toolregistry.integrations.openapi.utils as openapi_utils
+        import toolregistry.utils as core_utils
+        from toolregistry import _netpolicy
+
+        def allow(url, *, allow_private_hosts=False):
+            return url
+
+        monkeypatch.setattr(_netpolicy, "validate_outbound_url", allow)
+        monkeypatch.setattr(core_utils, "validate_outbound_url", allow)
+        monkeypatch.setattr(openapi_utils, "validate_outbound_url", allow)
+
         with _serve_spec() as base_url:
             url = f"{scheme}://{base_url.split('://', 1)[1]}/openapi.json"
             status, data = server.request(

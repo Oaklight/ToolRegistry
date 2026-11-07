@@ -177,3 +177,35 @@ def mock_class():
 def mock_class_type():
     """Mock class type for testing."""
     return MockClass
+
+
+# ---------------------------------------------------------------------------
+# Outbound policy (#370)
+#
+# Every OpenAPI fetch and every tool call now resolves the host before a
+# connection is opened.  A unit test must not depend on real DNS: this stub
+# makes every name look publicly reachable.  Tests that exercise the policy
+# patch `_netpolicy._resolve` / `._resolve_async` themselves, which wins over
+# this fixture.
+# ---------------------------------------------------------------------------
+
+_PUBLIC_TEST_ADDRESS = "93.184.216.34"
+
+
+@pytest.fixture(autouse=True)
+def _stub_outbound_dns(monkeypatch):
+    """Keep the suite hermetic and the address cache clean."""
+    from toolregistry import _netpolicy
+
+    _netpolicy.clear_address_cache()
+
+    def _resolve(host, port):
+        return [_PUBLIC_TEST_ADDRESS]
+
+    async def _resolve_async(host, port, timeout=0):
+        return [_PUBLIC_TEST_ADDRESS]
+
+    monkeypatch.setattr(_netpolicy, "_resolve", _resolve)
+    monkeypatch.setattr(_netpolicy, "_resolve_async", _resolve_async)
+    yield
+    _netpolicy.clear_address_cache()

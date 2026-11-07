@@ -526,6 +526,37 @@ tools:
         assert src.namespace == "api"
         assert src.auth is None
 
+    def test_allow_private_hosts_round_trips(self, tmp_path: Path) -> None:
+        p = _write(
+            tmp_path,
+            "cfg.yaml",
+            """\
+tools:
+  - type: openapi
+    url: http://127.0.0.1:8000/openapi.json
+    allow_private_hosts: true
+""",
+        )
+        src = load_config(p).tools[0]
+        assert isinstance(src, OpenAPISource)
+        assert src.allow_private_hosts is True
+        assert src.to_dict()["allow_private_hosts"] is True
+
+        default = load_config(
+            _write(
+                tmp_path,
+                "default.yaml",
+                """\
+tools:
+  - type: openapi
+    url: https://api.example.com/openapi.json
+""",
+            )
+        ).tools[0]
+        assert isinstance(default, OpenAPISource)
+        assert default.allow_private_hosts is False
+        assert "allow_private_hosts" not in default.to_dict()
+
     def test_bearer_auth_with_token_env(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

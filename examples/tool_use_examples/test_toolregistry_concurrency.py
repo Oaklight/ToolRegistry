@@ -166,8 +166,12 @@ def main():
 
     OPENAPI_PORT = os.getenv("OPENAPI_PORT", 8000)
 
-    client_config = HttpClientConfig(base_url=f"http://localhost:{OPENAPI_PORT}")
-    openapi_spec = load_openapi_spec(f"http://localhost:{OPENAPI_PORT}")
+    client_config = HttpClientConfig(
+        base_url=f"http://localhost:{OPENAPI_PORT}", allow_private_hosts=True
+    )
+    openapi_spec = load_openapi_spec(
+        f"http://localhost:{OPENAPI_PORT}", allow_private_hosts=True
+    )
 
     registry.register(
         client_config, source="openapi", openapi_spec=openapi_spec, namespace=True
