@@ -4,11 +4,11 @@
   "modules": {
     "httpclient": {
       "files": {
-        "httpclient.py": "4071ede8ef2e6d28c642ea2f5590109ce48dd6d359d93320b150752a2dbc7c00"
+        "httpclient.py": "9515b3ef4182a66204c6b39d1c42da8d3753b9fa994ffe9c709a7474677ad7a9"
       },
       "requested": true,
-      "upstream_hash": "3966c84bb7f6305da7a7dfefdc2de6800ebc8498618e7255ae78c183949c7855",
-      "version": "0.6.4"
+      "upstream_hash": "5b7c48adbe2a5c5520a84341963d9e8e01b841d2d911c11d9525810f1f90d458",
+      "version": "0.6.5"
     },
     "httpserver": {
       "files": {
@@ -68,7 +68,7 @@
     }
   },
   "source": {
-    "ref": "v2026.11.7",
+    "ref": "v2026.11.7.1",
     "repo": "Oaklight/zerodep"
   }
 }
