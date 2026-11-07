@@ -12,6 +12,7 @@ from decimal import Decimal
 from enum import Enum
 from pathlib import Path
 from typing import Any, Literal, overload
+from urllib.parse import urlparse
 
 from ._vendor.httpclient import AsyncClient, Client
 from ._warnings import warn_at_user_frame
@@ -34,6 +35,44 @@ def generate_invocation_id(prefix: Literal["bat", "ptc", "sig"] = "sig") -> str:
     return f"tr_{prefix}_{uuid.uuid4().hex[:8]}"
 
 
+def _join_base_url(base_url: str, path: str) -> str:
+    """Join *path* to *base_url* without allowing the origin to change.
+
+    The clients carry credentials (``Authorization``, Basic auth) and custom
+    headers.  An absolute URL — or a scheme-relative ``//host`` reference —
+    would send them to a different origin, so only a path rooted at a single
+    ``/`` is accepted, and the joined URL is checked against the base origin
+    as a second line of defence.
+
+    Args:
+        base_url: The configured base URL.
+        path: The request path supplied by the caller.
+
+    Returns:
+        ``base_url + path``.
+
+    Raises:
+        ValueError: If *path* is not rooted at a single ``/``, or the joined
+            URL's scheme or netloc differs from the base URL's.
+    """
+    if not isinstance(path, str) or not path.startswith("/") or path.startswith("//"):
+        raise ValueError(
+            "Refusing to send a request for a non-relative path "
+            f"{path!r}; only '/'-rooted paths are allowed"
+        )
+    url = base_url + path
+    base = urlparse(base_url)
+    target = urlparse(url)
+    if (base.scheme.lower(), base.netloc.lower()) != (
+        target.scheme.lower(),
+        target.netloc.lower(),
+    ):
+        raise ValueError(
+            f"Refusing to send a request outside the configured base origin: {url!r}"
+        )
+    return url
+
+
 class _BaseUrlClient:
     """Sync HTTP client wrapper that prepends base_url to relative URLs."""
 
@@ -42,9 +81,7 @@ class _BaseUrlClient:
         self._base_url = base_url
 
     def _url(self, path: str) -> str:
-        if path.startswith(("http://", "https://")):
-            return path
-        return self._base_url + path
+        return _join_base_url(self._base_url, path)
 
     def get(self, url: str, **kwargs: Any) -> Any:
         return self._client.get(self._url(url), **kwargs)
@@ -82,9 +119,7 @@ class _BaseUrlAsyncClient:
         self._base_url = base_url
 
     def _url(self, path: str) -> str:
-        if path.startswith(("http://", "https://")):
-            return path
-        return self._base_url + path
+        return _join_base_url(self._base_url, path)
 
     async def get(self, url: str, **kwargs: Any) -> Any:
         return await self._client.get(self._url(url), **kwargs)
