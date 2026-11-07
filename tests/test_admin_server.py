@@ -831,6 +831,82 @@ class TestAdminCORS:
             assert response.headers.get("Access-Control-Allow-Origin") is None
 
 
+class TestAdminHostValidation:
+    """A DNS-rebinding page cannot reach the API through its own Host name."""
+
+    @pytest.fixture
+    def info(self):
+        """Start an unauthenticated loopback server."""
+        registry = ToolRegistry()
+        server = AdminServer(registry, port=18111)
+        info = server.start()
+        time.sleep(0.1)
+        yield info
+        server.stop()
+
+    def test_allowed_hosts_for_a_loopback_bind(self) -> None:
+        from toolregistry.admin.server import _allowed_hosts_for
+
+        assert set(_allowed_hosts_for("127.0.0.1")) >= {
+            "127.0.0.1",
+            "localhost",
+            "::1",
+        }
+        assert "localhost" in _allowed_hosts_for("localhost")
+        assert _allowed_hosts_for("0.0.0.0") == ()
+        assert _allowed_hosts_for("::") == ()
+
+        server = AdminServer(ToolRegistry(), allowed_hosts=["Panel.Example.COM:443"])
+        assert server._allowed_hosts == ("panel.example.com",)
+        opted_out = AdminServer(ToolRegistry(), allowed_hosts=[])
+        assert opted_out._allowed_hosts == ()
+
+    def test_forged_host_is_rejected(self, info) -> None:
+        req = urllib.request.Request(f"{info.url}/api/tools")
+        req.add_header("Host", f"rebind.attacker:{info.port}")
+        with pytest.raises(urllib.error.HTTPError) as exc_info:
+            urllib.request.urlopen(req, timeout=5)
+        assert exc_info.value.code == 403
+        body = json.loads(exc_info.value.read().decode())
+        assert body["error"] == "Forbidden"
+
+    def test_forged_host_with_matching_origin_is_rejected(self, info) -> None:
+        """The rebinding case: Origin and Host agree on the attacker name."""
+        attacker = f"rebind.attacker:{info.port}"
+        req = urllib.request.Request(f"{info.url}/api/tools")
+        req.add_header("Host", attacker)
+        req.add_header("Origin", f"http://{attacker}")
+        with pytest.raises(urllib.error.HTTPError) as exc_info:
+            urllib.request.urlopen(req, timeout=5)
+        assert exc_info.value.code == 403
+
+    def test_state_change_from_forged_host_is_rejected(self, info) -> None:
+        req = urllib.request.Request(
+            f"{info.url}/api/state",
+            data=b'{"disabled": {}}',
+            method="POST",
+            headers={
+                "Content-Type": "application/json",
+                "Host": f"rebind.attacker:{info.port}",
+            },
+        )
+        with pytest.raises(urllib.error.HTTPError) as exc_info:
+            urllib.request.urlopen(req, timeout=5)
+        assert exc_info.value.code == 403
+
+    def test_localhost_host_is_accepted(self, info) -> None:
+        req = urllib.request.Request(f"{info.url}/api/tools")
+        req.add_header("Host", f"localhost:{info.port}")
+        with urllib.request.urlopen(req, timeout=5) as response:
+            assert response.status == 200
+
+    def test_loopback_ip_with_port_is_accepted(self, info) -> None:
+        req = urllib.request.Request(f"{info.url}/api/tools")
+        req.add_header("Host", f"127.0.0.1:{info.port}")
+        with urllib.request.urlopen(req, timeout=5) as response:
+            assert response.status == 200
+
+
 def _ui_source() -> str:
     """Return the shell and every shipped asset as one searchable string.
 
@@ -1078,6 +1154,56 @@ class TestAdminServerWithLogging:
         status, data = self._request(f"{info.url}/api/logs", method="DELETE")
         assert status == 200
         assert data["success"] is True
+
+    def test_logs_are_redacted_by_default(self, server_with_logging) -> None:
+        """The endpoint must not return credentials or full tracebacks."""
+        server, info, registry = server_with_logging
+        from toolregistry import ExecutionLogEntry, ExecutionStatus
+
+        log = registry.get_execution_log()
+        assert log is not None
+        log.add(
+            ExecutionLogEntry.create(
+                tool_name="math-add",
+                status=ExecutionStatus.SUCCESS,
+                duration_ms=1.0,
+                arguments={"a": 1, "b": 2, "password": "hunter2"},
+                result={"access_token": "abc", "value": 3},
+                traceback="Traceback: /home/operator/secret.py",
+            )
+        )
+
+        status, data = self._request(f"{info.url}/api/logs")
+        assert status == 200
+        entry = data["entries"][0]
+        assert entry["arguments"]["password"] == "***REDACTED***"
+        assert entry["arguments"]["a"] == 1
+        assert entry["result"]["access_token"] == "***REDACTED***"
+        assert entry["result"]["value"] == 3
+        assert entry["traceback"] is None
+
+    def test_oversized_arguments_are_truncated(self, server_with_logging) -> None:
+        """A large payload becomes a bounded preview, not the full value."""
+        server, info, registry = server_with_logging
+        from toolregistry import ExecutionLogEntry, ExecutionStatus
+
+        log = registry.get_execution_log()
+        assert log is not None
+        log.add(
+            ExecutionLogEntry.create(
+                tool_name="math-add",
+                status=ExecutionStatus.SUCCESS,
+                duration_ms=1.0,
+                arguments={"blob": "x" * 5000},
+            )
+        )
+
+        status, data = self._request(f"{info.url}/api/logs")
+        assert status == 200
+        arguments = data["entries"][0]["arguments"]
+        assert arguments["truncated"] is True
+        assert arguments["size"] > 2000
+        assert len(arguments["preview"]) == 2000
 
 
 class TestAdminServerEnrichedAPI:

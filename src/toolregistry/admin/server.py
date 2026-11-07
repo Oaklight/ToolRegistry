@@ -10,6 +10,7 @@ import socket
 import ssl
 import threading
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -22,6 +23,63 @@ if TYPE_CHECKING:
     from toolregistry.config import ToolConfig
 
 logger = logging.getLogger(__name__)
+
+
+#: Bind addresses that accept a connection on any interface.  Their Host
+#: header cannot be predicted, so the allowlist is disabled for them; remote
+#: deployments always require a token, which a rebinding page cannot supply.
+_WILDCARD_BIND_HOSTS = frozenset({"", "*", "0.0.0.0", "::"})
+
+#: Names that always resolve to the local machine.  A loopback-bound panel
+#: answers to these whatever address it was configured with.
+_LOOPBACK_HOST_NAMES = frozenset({"localhost", "127.0.0.1", "::1"})
+
+
+def _host_name(host_header: str) -> str | None:
+    """Return the host name from a Host header, without its port.
+
+    Args:
+        host_header: The raw ``Host`` header value.
+
+    Returns:
+        The lower-cased host name, or ``None`` when the header is empty or
+        malformed.  A bracketed IPv6 literal loses its brackets; an
+        unbracketed value with more than one colon is a raw IPv6 address and
+        is returned unchanged.
+    """
+    value = host_header.strip().lower()
+    if not value:
+        return None
+    if value.startswith("["):
+        end = value.find("]")
+        return value[1:end] if end != -1 else None
+    if value.count(":") == 1:
+        host, _, port = value.partition(":")
+        if host and port.isdigit():
+            return host
+    return value
+
+
+def _allowed_hosts_for(host: str) -> tuple[str, ...]:
+    """Return the Host header names a locally bound panel may answer to.
+
+    A DNS-rebinding page reaches the panel through its own hostname, so the
+    socket address alone cannot tell it apart from a local browser.  Checking
+    the Host header against this allowlist is the standard mitigation
+    (RFC 9307): a request that kept ``rebind.attacker`` as Host is refused
+    before any handler runs.
+
+    Args:
+        host: The address the server was asked to bind.
+
+    Returns:
+        Normalised host names, or an empty tuple when the bind is a
+        wildcard address and no fixed name can be derived.
+    """
+    normalized = _host_name(host) or ""
+    if normalized in _WILDCARD_BIND_HOSTS:
+        return ()
+    return tuple(sorted(_LOOPBACK_HOST_NAMES | {normalized}))
 
 
 @dataclass
@@ -53,6 +111,8 @@ class AdminApp(App):
         serve_ui: Whether to serve the admin UI at root path.
         config: Optional ToolConfig for config-aware endpoints.
         metrics: HTTP request metrics collected from lifecycle signals.
+        allowed_hosts: Host header names this panel accepts.  Empty disables
+            the check (a wildcard bind with authenticated remote access).
     """
 
     registry: "ToolRegistry"
@@ -61,6 +121,7 @@ class AdminApp(App):
     serve_ui: bool
     config: "ToolConfig | None"
     metrics: RequestMetrics | None = None
+    allowed_hosts: tuple[str, ...] = ()
 
 
 class AdminServer:
@@ -102,6 +163,7 @@ class AdminServer:
         session_secret: str | None = None,
         config: "ToolConfig | None" = None,
         ssl_context: ssl.SSLContext | None = None,
+        allowed_hosts: Iterable[str] | None = None,
     ) -> None:
         """Initialize admin server.
 
@@ -127,6 +189,11 @@ class AdminServer:
                 When provided, the admin server accepts HTTPS connections.
                 The caller is responsible for configuring the context
                 (certificate chain, verification mode, etc.).
+            allowed_hosts: Host names accepted in the ``Host`` header.
+                Defaults to the loopback names plus the configured bind
+                host.  Pass the public hostname when a reverse proxy
+                forwards a different Host.  Pass an empty iterable only when
+                a token protects every request.
         """
         self._registry = registry
         self._host = "0.0.0.0" if remote else host
@@ -135,6 +202,13 @@ class AdminServer:
         self._remote = remote
         self._config = config
         self._ssl_context = ssl_context
+        # By default a loopback-bound panel answers only to loopback names;
+        # a wildcard bind has no predictable name and relies on token auth.
+        if allowed_hosts is None:
+            self._allowed_hosts = _allowed_hosts_for(self._host)
+        else:
+            explicit = {name for entry in allowed_hosts if (name := _host_name(entry))}
+            self._allowed_hosts = tuple(sorted(explicit))
 
         # Set up authentication
         if auth_token is not None:
@@ -228,6 +302,7 @@ class AdminServer:
         self._app.session = self._session
         self._app.serve_ui = self._serve_ui
         self._app.config = self._config
+        self._app.allowed_hosts = self._allowed_hosts
 
         # Collect HTTP metrics from the lifecycle signals.  Register the
         # timing hook before setup_routes so it runs before CORS/auth and
