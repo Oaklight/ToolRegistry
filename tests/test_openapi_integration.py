@@ -1103,3 +1103,14 @@ class TestUserinfoRedaction:
         }
 
         assert resolve_refs_redacted(schema) == resolve_refs(schema)
+
+    def test_redaction_covers_protocol_relative_and_bare_userinfo(self):
+        """``//user:pass@`` and scheme-less ``user:pass@`` are removed too."""
+        from toolregistry.integrations.openapi.utils import redact_url_userinfo
+
+        assert redact_url_userinfo("//user:secret@example.com/x") == "//example.com/x"
+        assert redact_url_userinfo("user:secret@example.com/x") == "example.com/x"
+        # An email address has no colon before the @ and must survive.
+        assert redact_url_userinfo("contact user@example.com") == (
+            "contact user@example.com"
+        )

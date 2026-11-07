@@ -1,8 +1,6 @@
 import asyncio
 import json
 import re
-import threading
-import warnings
 from typing import Any
 from urllib.parse import urlparse
 
@@ -82,7 +80,17 @@ _SPEC_URL_SCHEMES = frozenset({"http", "https"})
 #: is greedy and the trailing ``@`` is required, so the match ends at the
 #: last ``@`` in the authority — the same split ``urlparse`` uses.  A ``@``
 #: in the path does not match because the character class excludes ``/``.
-_URL_USERINFO = re.compile(r"\b([A-Za-z][A-Za-z0-9+.\-]*://)[^/\s]+@")
+_URL_USERINFO_SCHEME = re.compile(r"\b([A-Za-z][A-Za-z0-9+.\-]*://)[^/\s]+@")
+
+#: ``//user:password@`` — a protocol-relative reference.  A password and a
+#: token boundary are both required, so a path such as ``a//b@c`` and a
+#: plain ``//host`` are left alone.
+_URL_USERINFO_NETLOC = re.compile(r"(?<![:/\w.])(//)[^/\s:@]+:[^/\s@]+@")
+
+#: ``user:password@host`` with no scheme.  The colon keeps an email address
+#: (``user@host``) untouched; the greedy class consumes an ``@`` inside the
+#: password up to the last one in the segment, as the scheme form does.
+_URL_USERINFO_BARE = re.compile(r"(?<![:/\w.@])[^/\s:@]+:[^/\s]+@")
 
 
 def redact_url_userinfo(text: str) -> str:
@@ -90,7 +98,9 @@ def redact_url_userinfo(text: str) -> str:
 
     Error messages may quote a URL that a caller supplied.  A URL can carry
     credentials in its userinfo component, so strip them before the message
-    reaches the caller or a log.
+    reaches the caller or a log.  Three forms are handled: with a scheme,
+    protocol-relative (``//user:password@host``) and without a scheme
+    (``user:password@host``).  A bare email address is left alone.
 
     Args:
         text: Arbitrary text, such as an exception message.
@@ -98,24 +108,50 @@ def redact_url_userinfo(text: str) -> str:
     Returns:
         *text* with each URL's userinfo removed.
     """
-    return _URL_USERINFO.sub(r"\1", text)
+    text = _URL_USERINFO_SCHEME.sub(r"\1", text)
+    text = _URL_USERINFO_NETLOC.sub(r"\1", text)
+    return _URL_USERINFO_BARE.sub("", text)
 
 
-#: Serialises the change to the process-wide warnings state below.
-_REF_WARNING_LOCK = threading.Lock()
+def _redact_dropped_refs(node: Any) -> None:
+    """Strip userinfo from every ``$ref`` the resolver will drop, in place.
+
+    ``_vendor.jsonschema`` warns with the raw ``$ref`` text when it drops a
+    pointer.  A pointer that is not a local ``#/`` reference is always
+    dropped, so rewriting it before resolution changes only that warning;
+    the pointer itself never reaches the returned document.
+
+    A local ``#/`` pointer is left byte for byte intact, because its exact
+    text decides what resolves.
+    """
+    if isinstance(node, dict):
+        ref = node.get("$ref")
+        if isinstance(ref, str) and not ref.startswith("#/"):
+            node["$ref"] = redact_url_userinfo(ref)
+        for value in node.values():
+            _redact_dropped_refs(value)
+    elif isinstance(node, list):
+        for item in node:
+            _redact_dropped_refs(item)
 
 
 def resolve_refs_redacted(schema: dict[str, Any]) -> dict[str, Any]:
-    """Resolve local ``$ref`` pointers, re-emitting each warning redacted.
+    """Resolve local ``$ref`` pointers without leaking userinfo in warnings.
 
     The vendored resolver reports a dropped ``$ref`` by quoting it verbatim.
     An external ``$ref`` is always dropped, and its text comes from the
     document, which may be attacker controlled and may carry URL userinfo.
-    ``_vendor/`` must not be edited in place, so the resolver's warnings are
-    captured here and re-emitted through :func:`redact_url_userinfo`.
+    ``_vendor/`` must not be edited in place, so every pointer that is going
+    to be dropped is rewritten with :func:`redact_url_userinfo` applied
+    before resolution starts.  Only the warning text changes: dropped
+    pointers never appear in the result.
 
-    ``warnings.catch_warnings`` changes process-wide state.  The shared lock
-    keeps two concurrent resolutions from capturing each other's warnings.
+    This deliberately does not use ``warnings.catch_warnings``: that context
+    manager changes process-wide state and would capture warnings raised by
+    other threads.  Rewriting the input needs no global state.
+
+    ``schema`` is modified in place.  Both spec loaders pass a document they
+    just parsed, so no caller observes the rewritten pointers.
 
     Args:
         schema: A parsed OpenAPI or JSON Schema document.
@@ -124,16 +160,8 @@ def resolve_refs_redacted(schema: dict[str, Any]) -> dict[str, Any]:
         The resolved document, exactly as
         :func:`toolregistry._vendor.jsonschema.resolve_refs` returns it.
     """
-    with _REF_WARNING_LOCK, warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        resolved = resolve_refs(schema)
-    for item in caught:
-        warnings.warn(
-            redact_url_userinfo(str(item.message)),
-            item.category,
-            stacklevel=2,
-        )
-    return resolved
+    _redact_dropped_refs(schema)
+    return resolve_refs(schema)
 
 
 def validate_spec_url(uri: str) -> str:
