@@ -17,7 +17,11 @@ from toolregistry.admin.registration import (
     register_tools,
 )
 from toolregistry.integrations.openapi import OpenAPIIntegration, OpenAPITool
-from toolregistry.utils import HttpClientConfig, _join_base_url
+from toolregistry.utils import (
+    HttpClientConfig,
+    OpenAPIPathError,
+    _join_base_url,
+)
 
 BASE = "https://api.example.com"
 
@@ -55,13 +59,37 @@ class TestRegistration:
     def test_scheme_relative_path_is_refused(self):
         registry = ToolRegistry()
 
-        with pytest.raises(ValueError, match="relative path"):
+        with pytest.raises(OpenAPIPathError, match="relative path"):
             OpenAPIIntegration(registry).register_openapi_tools(
                 HttpClientConfig(base_url=BASE),
                 _spec("//attacker.example/collect"),
             )
 
         assert registry.list_tools() == []
+
+    def test_backslash_path_is_refused(self):
+        """Some clients normalise a backslash to ``/``, making it scheme-relative."""
+        registry = ToolRegistry()
+
+        with pytest.raises(OpenAPIPathError, match="relative path"):
+            OpenAPIIntegration(registry).register_openapi_tools(
+                HttpClientConfig(base_url=BASE),
+                _spec("/\\attacker.example/collect"),
+            )
+
+        assert registry.list_tools() == []
+
+    def test_rejection_message_redacts_userinfo(self):
+        registry = ToolRegistry()
+
+        with pytest.raises(OpenAPIPathError) as excinfo:
+            OpenAPIIntegration(registry).register_openapi_tools(
+                HttpClientConfig(base_url=BASE),
+                _spec("http://user:secret@attacker.example/collect"),
+            )
+
+        assert "secret" not in str(excinfo.value)
+        assert "relative path" in str(excinfo.value)
 
     def test_relative_path_still_registers(self):
         registry = ToolRegistry()
@@ -114,6 +142,42 @@ class TestAdminSourceLayer:
 
         assert registry.list_tools() == []
 
+    def test_preview_does_not_hide_an_internal_fault(self, monkeypatch):
+        """Only a rejected path is a 4xx; an internal fault stays a 500."""
+        from toolregistry.admin import registration
+
+        def boom(*args, **kwargs):
+            raise RuntimeError("internal fault")
+
+        monkeypatch.setattr(registration, "_openapi_entries", boom)
+
+        with pytest.raises(RuntimeError, match="internal fault"):
+            preview_source(
+                ToolRegistry(),
+                "openapi",
+                {"spec": _spec("/pets"), "base_url": BASE},
+            )
+
+    def test_register_does_not_hide_an_internal_fault(self, monkeypatch):
+        """An internal fault must not be converted into a SourceError."""
+        from toolregistry.integrations.openapi.integration import OpenAPITool
+
+        def boom(cls, *args, **kwargs):
+            raise RuntimeError("internal fault")
+
+        monkeypatch.setattr(OpenAPITool, "from_openapi_spec", classmethod(boom))
+
+        with pytest.raises(
+            ValueError, match="Failed to register OpenAPI tools"
+        ) as excinfo:
+            register_tools(
+                ToolRegistry(),
+                "openapi",
+                {"spec": _spec("/pets"), "base_url": BASE},
+            )
+
+        assert not isinstance(excinfo.value, SourceError)
+
 
 class TestClientOrigin:
     def test_sync_client_refuses_absolute_url(self):
@@ -138,8 +202,22 @@ class TestClientOrigin:
         finally:
             asyncio.run(client.aclose())
 
+    def test_client_refuses_backslash_path(self):
+        client = HttpClientConfig(base_url=BASE).to_client()
+        try:
+            with pytest.raises(OpenAPIPathError, match="backslash"):
+                client._url("/\\attacker.example/collect")
+        finally:
+            client.close()
+
+    def test_non_relative_message_redacts_userinfo(self):
+        with pytest.raises(OpenAPIPathError) as excinfo:
+            _join_base_url(BASE, "http://user:secret@attacker.example/collect")
+
+        assert "secret" not in str(excinfo.value)
+
     def test_join_base_url_keeps_the_origin(self):
         assert _join_base_url(BASE, "/pets") == f"{BASE}/pets"
 
-        with pytest.raises(ValueError):
+        with pytest.raises(OpenAPIPathError):
             _join_base_url(BASE, "http://attacker.example/collect")

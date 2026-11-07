@@ -29,7 +29,7 @@ import inspect
 import re
 from typing import TYPE_CHECKING, Any
 
-from ..utils import HttpClientConfig
+from ..utils import HttpClientConfig, OpenAPIPathError
 
 if TYPE_CHECKING:
     from ..tool_registry import ToolRegistry
@@ -454,8 +454,8 @@ def preview_source(registry: ToolRegistry, kind: str, payload: Any) -> dict[str,
             entries, info = _openapi_entries(data, registry)
         except SourceError:
             raise
-        except ValueError as exc:
-            # A malformed operation path is a bad request, not a server fault.
+        except OpenAPIPathError as exc:
+            # A rejected operation path is a bad request, not a server fault.
             raise SourceError(str(exc)) from exc
     elif kind == "mcp":
         entries, info = _mcp_entries(data, registry)
@@ -506,8 +506,8 @@ def _register_openapi_source(
         registry.register(client, **kwargs)
     except SourceError:
         raise
-    except ValueError as exc:
-        # A malformed operation path is a bad request, not a server fault.
+    except OpenAPIPathError as exc:
+        # A rejected operation path is a bad request, not a server fault.
         raise SourceError(str(exc)) from exc
 
 

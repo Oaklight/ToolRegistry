@@ -35,6 +35,16 @@ def generate_invocation_id(prefix: Literal["bat", "ptc", "sig"] = "sig") -> str:
     return f"tr_{prefix}_{uuid.uuid4().hex[:8]}"
 
 
+class OpenAPIPathError(ValueError):
+    """A request path would leave the configured base origin.
+
+    Raised before a tool is built or a request is sent.  It subclasses
+    ``ValueError`` so existing callers keep working; the admin layer catches
+    this type specifically so a path rejection is reported as a bad request
+    instead of being confused with an internal fault.
+    """
+
+
 def _join_base_url(base_url: str, path: str) -> str:
     """Join *path* to *base_url* without allowing the origin to change.
 
@@ -42,7 +52,9 @@ def _join_base_url(base_url: str, path: str) -> str:
     headers.  An absolute URL — or a scheme-relative ``//host`` reference —
     would send them to a different origin, so only a path rooted at a single
     ``/`` is accepted, and the joined URL is checked against the base origin
-    as a second line of defence.
+    as a second line of defence.  A backslash is refused as well: some
+    clients and proxies normalise it to ``/``, which would turn
+    ``/\\host`` into a protocol-relative URL.
 
     Args:
         base_url: The configured base URL.
@@ -52,13 +64,23 @@ def _join_base_url(base_url: str, path: str) -> str:
         ``base_url + path``.
 
     Raises:
-        ValueError: If *path* is not rooted at a single ``/``, or the joined
-            URL's scheme or netloc differs from the base URL's.
+        OpenAPIPathError: If *path* is not a string rooted at a single ``/``,
+            contains a backslash, or the joined URL's scheme or netloc differs
+            from the base URL's.
     """
-    if not isinstance(path, str) or not path.startswith("/") or path.startswith("//"):
-        raise ValueError(
+    if (
+        not isinstance(path, str)
+        or not path.startswith("/")
+        or path.startswith("//")
+        or "\\" in path
+    ):
+        # Lazy import: the OpenAPI package imports this module at import time.
+        from .integrations.openapi.utils import redact_url_userinfo
+
+        raise OpenAPIPathError(
             "Refusing to send a request for a non-relative path "
-            f"{path!r}; only '/'-rooted paths are allowed"
+            f"{redact_url_userinfo(repr(path))}; only '/'-rooted paths "
+            "without a backslash are allowed"
         )
     url = base_url + path
     base = urlparse(base_url)
@@ -70,7 +92,7 @@ def _join_base_url(base_url: str, path: str) -> str:
         # Lazy import: the OpenAPI package imports this module at import time.
         from .integrations.openapi.utils import redact_url_userinfo
 
-        raise ValueError(
+        raise OpenAPIPathError(
             "Refusing to send a request outside the configured base origin: "
             f"{redact_url_userinfo(url)!r}"
         )
