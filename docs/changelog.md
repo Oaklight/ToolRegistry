@@ -44,6 +44,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - **Local OpenAPI spec files need an explicit opt-in** (**breaking**) (#376): `load_openapi_spec()` and `load_openapi_spec_async()` used to read any URI with no scheme, or with the `file` scheme, from the local file system, so a caller that passed a location supplied by someone else could be made to read an arbitrary file. Both loaders now raise `ValueError` for a local path or a `file://` URI unless the caller passes `allow_local_files=True`, and the check runs before any file I/O. Code that loads a local spec passes the flag: `load_openapi_spec(path, allow_local_files=True)`. The admin panel is unaffected, because it already restricts `spec_url` to http(s) (#373).
+- **Outbound requests refuse non-public hosts by default** (**breaking**) (#370): an OpenAPI document's `servers[].url`, a `spec_url`, and every tool call now resolve the host before a connection is opened and refuse loopback, link-local, private, multicast and reserved addresses. The check runs before any I/O and fails closed when the name does not resolve; a successful answer is cached for 60 seconds and a failure is never cached. `validate_spec_url()`, `load_openapi_spec*()`, `extract_base_url_from_specs()`, `HttpClientConfig` and the base-URL clients take `allow_private_hosts: bool = False`, and `OpenAPISource` accepts the same key. An API on the same host or a private network must opt in:
+
+  ```python
+  # before — the host was used as given
+  config = HttpClientConfig(base_url="http://localhost:11434")
+  spec = load_openapi_spec("http://127.0.0.1:8000/openapi.json")
+
+  # after — UnsafeAddressError unless the host is public
+  config = HttpClientConfig(base_url="http://localhost:11434", allow_private_hosts=True)
+  spec = load_openapi_spec("http://127.0.0.1:8000/openapi.json", allow_private_hosts=True)
+  ```
+
+  `load_openapi_spec*()` also accepts `follow_redirects=False`, which refuses a redirect instead of following it to an address the policy never saw. DNS rebinding and cross-origin redirect credentials are tracked in #399; MCP HTTP/SSE transports in #398.
 
 ### Security
 
