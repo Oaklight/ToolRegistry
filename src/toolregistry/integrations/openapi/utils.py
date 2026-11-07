@@ -205,6 +205,12 @@ def _declared_length(headers: Any) -> int | None:
         return None
 
 
+def _positive(value: int, name: str) -> None:
+    """Reject a non-positive budget with a clear error."""
+    if value < 1:
+        raise ValueError(f"{name} must be a positive integer, got {value!r}")
+
+
 def _too_large(uri: str, max_bytes: int) -> SpecTooLargeError:
     """Build the error for a document over *max_bytes*."""
     return SpecTooLargeError(
@@ -272,11 +278,17 @@ def _parse_and_resolve(content: str, max_depth: int) -> dict[str, Any]:
 
 
 async def _read_body_capped(response: Any, max_bytes: int, uri: str) -> bytes:
-    """Read a response body, refusing to buffer more than *max_bytes*.
+    """Read a streaming response body, bounding the buffer to *max_bytes*.
 
     A declared ``Content-Length`` is checked before any body byte is read.
-    A chunked or unbounded stream is charged as it arrives, so a server
-    cannot make the process buffer an arbitrary amount.
+    A chunked or unbounded stream is charged as it arrives, so the buffer
+    never grows past the budget.
+
+    A buffered response (no ``aiter_bytes``) is checked only after it has
+    already been read into memory.  The vendored client honours
+    ``stream=True``, so that path exists only for a caller-supplied client;
+    the check still refuses an over-budget body, but it cannot prevent the
+    initial buffer.
 
     Args:
         response: A streaming or buffered HTTP response.
@@ -294,9 +306,9 @@ async def _read_body_capped(response: Any, max_bytes: int, uri: str) -> bytes:
     if declared is not None and declared > max_bytes:
         raise _too_large(uri, max_bytes)
 
-    # A buffered response only appears when a caller supplies its own client
-    # (the vendored client honours ``stream=True``).  Apply the same cap so
-    # such a client cannot bypass the budget.
+    # The vendored client honours ``stream=True``; this branch only runs for
+    # a caller-supplied client.  The body is already in memory here, so the
+    # cap is enforced after the fact.
     if not hasattr(response, "aiter_bytes"):
         content = response.content
         if len(content) > max_bytes:
@@ -408,6 +420,7 @@ def determine_urls(
     Returns:
         Dict[str, Any]: Contains "found" (bool), "schema_url" (str) if valid or None, and "base_api_url" (str).
     """
+    _positive(max_bytes, "max_bytes")
     common_endpoints = [
         "/openapi.json",
         "/swagger.json",
@@ -475,6 +488,8 @@ async def load_openapi_spec_async(
         ValueError: If URI retrieval, parsing, or decoding fails, or if *uri*
             names a local file while *allow_local_files* is false.
     """
+    _positive(max_bytes, "max_bytes")
+    _positive(max_depth, "max_depth")
     try:
         parsed_uri = urlparse(uri)
     except Exception as exc:  # noqa: BLE001 - same wrapping as the request path
@@ -611,6 +626,8 @@ async def load_openapi_spec_conditional_async(
         SpecTooDeepError: If the document nests deeper than *max_depth* or
             exceeds the interpreter's recursion limit.
     """
+    _positive(max_bytes, "max_bytes")
+    _positive(max_depth, "max_depth")
     try:
         req_headers: dict[str, str] = dict(headers or {})
         if etag is not None:

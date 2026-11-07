@@ -1029,7 +1029,20 @@ class TestLoadOpenapiSpec:
             body,
             "http://test.example.com/openapi.json",
         )
-        with patch("toolregistry.integrations.openapi.utils.AsyncClient") as MockClient:
+        found = {
+            "found": True,
+            "schema_url": "http://test.example.com/openapi.json",
+            "base_api_url": "http://test.example.com",
+        }
+        # Stub discovery as well as the client: the test must not touch the
+        # network if the direct-endpoint fast path ever changes.
+        with (
+            patch(
+                "toolregistry.integrations.openapi.utils.determine_urls",
+                return_value=found,
+            ),
+            patch("toolregistry.integrations.openapi.utils.AsyncClient") as MockClient,
+        ):
             mock_client = AsyncMock()
             mock_client.get = AsyncMock(return_value=mock_response)
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -1258,6 +1271,33 @@ class TestSpecSizeBudget:
 
         with pytest.raises(SpecTooDeepError, match="nested"):
             load_openapi_spec(str(spec_file), allow_local_files=True)
+
+    @pytest.mark.parametrize(
+        ("kwargs", "message"),
+        [
+            ({"max_bytes": 0}, "max_bytes must be a positive integer"),
+            ({"max_bytes": -1}, "max_bytes must be a positive integer"),
+            ({"max_depth": 0}, "max_depth must be a positive integer"),
+            ({"max_depth": -5}, "max_depth must be a positive integer"),
+        ],
+    )
+    def test_non_positive_budgets_are_refused(self, tmp_path, kwargs, message):
+        spec_file = tmp_path / "spec.json"
+        spec_file.write_text(json.dumps(PETSTORE_SPEC))
+
+        with pytest.raises(ValueError, match=message):
+            load_openapi_spec(str(spec_file), **kwargs)
+
+    def test_discovery_refuses_a_non_positive_budget(self):
+        with pytest.raises(ValueError, match="max_bytes must be a positive integer"):
+            determine_urls("http://test.example.com/openapi.json", max_bytes=0)
+
+    @pytest.mark.asyncio
+    async def test_conditional_loader_refuses_a_non_positive_budget(self):
+        with pytest.raises(ValueError, match="max_depth must be a positive integer"):
+            await load_openapi_spec_conditional_async(
+                "http://test.example.com/openapi.json", max_depth=0
+            )
 
 
 class TestDetermineUrlsBudget:
