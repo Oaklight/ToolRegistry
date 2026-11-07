@@ -341,13 +341,14 @@ def _set_session_cookie(request: Request, response: Response) -> None:
     if session is None:
         return
     token = session.issue()
-    # Secure omitted — admin panel often runs on localhost (plain HTTP).
-    # Add secure=True when serving behind TLS.
+    # Secure is set whenever the server terminates TLS.  A plain-HTTP
+    # loopback deployment cannot use it: browsers would drop the cookie.
     response.set_cookie(
         session.cookie_name,
         token,
         max_age=session.max_age,
         httponly=True,
+        secure=_app(request).secure_cookies,
         samesite="Lax",
         path="/",
     )
@@ -428,6 +429,26 @@ def _serve_asset(request: Request, name: str) -> Response:
     )
 
 
+def _public_source_detail(detail: str) -> str:
+    """Strip credentials from a URL-shaped ``source_detail`` before display.
+
+    An OpenAPI base URL may carry ``user:password`` in its userinfo.  The
+    panel does not need it, and an unauthenticated local panel would
+    otherwise expose upstream credentials to any local reader.
+
+    Args:
+        detail: The tool's raw source detail.
+
+    Returns:
+        The detail with each URL's userinfo removed.
+    """
+    if not detail:
+        return detail
+    from ..integrations.openapi.utils import redact_url_userinfo
+
+    return redact_url_userinfo(detail)
+
+
 def _get_tools(request: Request) -> Response:
     """Get all tools status."""
     registry = _app(request).registry
@@ -436,6 +457,10 @@ def _get_tools(request: Request) -> Response:
         tool_status["permission"] = _evaluate_tool_permission(
             registry, tool_status["name"]
         )
+        if "source_detail" in tool_status:
+            tool_status["source_detail"] = _public_source_detail(
+                tool_status["source_detail"]
+            )
     return _json_response({"tools": tools_status})
 
 
@@ -468,7 +493,7 @@ def _get_tool(request: Request, name: str) -> Response:
             "tags": sorted(str(t) for t in tool.metadata.tags),
             "custom_tags": sorted(tool.metadata.custom_tags),
             "source": tool.metadata.source,
-            "source_detail": tool.metadata.source_detail,
+            "source_detail": _public_source_detail(tool.metadata.source_detail),
             "defer": tool.metadata.defer,
             "search_hint": tool.metadata.search_hint,
             "title": tool.metadata.title,
@@ -869,7 +894,7 @@ def _get_sources(request: Request) -> Response:
         if key not in groups:
             groups[key] = {
                 "type": meta.source,
-                "detail": meta.source_detail,
+                "detail": _public_source_detail(meta.source_detail),
                 "namespace": ns,
                 "tool_count": 0,
                 "enabled_count": 0,
@@ -893,7 +918,7 @@ def _export_state(request: Request) -> Response:
         if tool:
             sources[tool_name] = {
                 "source": tool.metadata.source,
-                "source_detail": tool.metadata.source_detail,
+                "source_detail": _public_source_detail(tool.metadata.source_detail),
             }
     state = {
         "disabled": dict(registry._disabled),
