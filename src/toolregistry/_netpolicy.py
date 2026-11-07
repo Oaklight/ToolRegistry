@@ -32,8 +32,13 @@ __all__ = [
     "validate_outbound_url_async",
 ]
 
-#: Schemes an outbound integration may fetch.
-SCHEMES = frozenset({"http", "https"})
+#: Schemes an outbound integration may open a connection to.  ``ws`` and
+#: ``wss`` are the WebSocket twins of ``http`` and ``https``: same host, same
+#: default port, so one policy covers both transports.
+SCHEMES = frozenset({"http", "https", "ws", "wss"})
+
+#: Port used when the URL names none.
+_DEFAULT_PORTS = {"http": 80, "https": 443, "ws": 80, "wss": 443}
 
 #: Seconds a successful check is reused.  A failure is never cached: one DNS
 #: hiccup must not lock a host out until the process restarts.  This window
@@ -96,8 +101,8 @@ def _parse(url: str) -> tuple[str, str, int]:
         the port, defaulting to the scheme's port.
 
     Raises:
-        UnsafeAddressError: If the URL cannot be parsed, its scheme is not
-            HTTP(S), or it names no host.
+        UnsafeAddressError: If the URL cannot be parsed, its scheme is not in
+            :data:`SCHEMES`, or it names no host.
     """
     try:
         parsed = urlparse(url)
@@ -109,7 +114,7 @@ def _parse(url: str) -> tuple[str, str, int]:
     if scheme not in SCHEMES:
         raise UnsafeAddressError(
             f"Unsupported URL scheme '{scheme or '(none)'}': "
-            "only http and https are allowed"
+            "only http, https, ws and wss are allowed"
         )
     if not host:
         raise UnsafeAddressError("URL must include a host")
@@ -119,7 +124,7 @@ def _parse(url: str) -> tuple[str, str, int]:
         host = host[:-1]
     if not host:
         raise UnsafeAddressError("URL must include a host")
-    return scheme, host, port or (443 if scheme == "https" else 80)
+    return scheme, host, port or _DEFAULT_PORTS[scheme]
 
 
 def _is_public(address: str) -> bool:
@@ -221,8 +226,8 @@ def validate_outbound_url(url: str, *, allow_private_hosts: bool = False) -> str
         *url*, unchanged.
 
     Raises:
-        UnsafeAddressError: If the URL is malformed, its scheme is not
-            HTTP(S), its host does not resolve, or (unless
+        UnsafeAddressError: If the URL is malformed, its scheme is not in
+            :data:`SCHEMES`, its host does not resolve, or (unless
             *allow_private_hosts*) any resolved address is not globally
             reachable.
     """
@@ -265,10 +270,10 @@ async def validate_outbound_url_async(
         *url*, unchanged.
 
     Raises:
-        UnsafeAddressError: If the URL is malformed, its scheme is not
-            HTTP(S), its host does not resolve, resolution times out, or
-            (unless *allow_private_hosts*) any resolved address is not
-            globally reachable.
+        UnsafeAddressError: If the URL is malformed, its scheme is not in
+            :data:`SCHEMES`, its host does not resolve, resolution times
+            out, or (unless *allow_private_hosts*) any resolved address is
+            not globally reachable.
     """
     scheme, host, port = _parse(url)
     literal = _literal(host)
