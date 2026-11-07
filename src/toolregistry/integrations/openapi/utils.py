@@ -1,4 +1,5 @@
 import asyncio
+import json
 from typing import Any
 from urllib.parse import urlparse
 
@@ -13,6 +14,29 @@ from ..._vendor.httpclient import (
     HTTPError,
     Response,
 )
+
+
+def _parse_spec_content(content: str) -> Any:
+    """Parse an OpenAPI document, preferring JSON over YAML.
+
+    JSON is a subset of YAML, but the vendored YAML reader does not join a
+    flow mapping that continues past the first line (issue #369), so a
+    pretty-printed JSON document would load as ``{None: None}``.  Decode JSON
+    first and fall back to YAML only when the text is not valid JSON.
+
+    Args:
+        content: Decoded OpenAPI document text.
+
+    Returns:
+        The parsed document.
+
+    Raises:
+        YAMLError: If the text is neither valid JSON nor valid YAML.
+    """
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError:
+        return yaml_load(content)
 
 
 def extract_base_url_from_specs(openapi_spec: dict[str, Any]) -> str | None:
@@ -121,7 +145,9 @@ async def load_openapi_spec_async(uri: str) -> dict[str, Any]:
         loop = asyncio.get_event_loop()
         openapi_spec_dict = await loop.run_in_executor(
             None,
-            lambda: resolve_refs(yaml_load(openapi_spec_content.decode("utf-8"))),
+            lambda: resolve_refs(
+                _parse_spec_content(openapi_spec_content.decode("utf-8"))
+            ),
         )
 
         # Ensure return type matches Dict[str, Any]
@@ -195,7 +221,9 @@ async def load_openapi_spec_conditional_async(
         loop = asyncio.get_running_loop()
         openapi_spec_dict = await loop.run_in_executor(
             None,
-            lambda: resolve_refs(yaml_load(openapi_spec_content.decode("utf-8"))),
+            lambda: resolve_refs(
+                _parse_spec_content(openapi_spec_content.decode("utf-8"))
+            ),
         )
 
         if not isinstance(openapi_spec_dict, dict):

@@ -904,11 +904,19 @@ class TestLoadOpenapiSpec:
     """Tests for load_openapi_spec() from file."""
 
     def test_load_from_json_file(self, tmp_path):
-        """Load spec from a JSON file."""
+        """Load spec from a single-line JSON file."""
         spec_file = tmp_path / "spec.json"
         spec_file.write_text(json.dumps(PETSTORE_SPEC))
         result = load_openapi_spec(str(spec_file))
         assert result["info"]["title"] == "Petstore"
+
+    def test_load_from_pretty_printed_json_file(self, tmp_path):
+        """A multi-line JSON spec loads as a mapping (issue #369)."""
+        spec_file = tmp_path / "spec.json"
+        spec_file.write_text(json.dumps(PETSTORE_SPEC, indent=2))
+        result = load_openapi_spec(str(spec_file))
+        assert result["info"]["title"] == "Petstore"
+        assert set(result["paths"]) == set(PETSTORE_SPEC["paths"])
 
     def test_load_from_yaml_file(self, tmp_path):
         """Load spec from a YAML file."""
@@ -919,6 +927,13 @@ class TestLoadOpenapiSpec:
         result = load_openapi_spec(str(spec_file))
         assert result["info"]["title"] == "Petstore"
 
+    def test_load_invalid_content_raises_value_error(self, tmp_path):
+        """Content that is neither a JSON nor a YAML mapping is rejected."""
+        spec_file = tmp_path / "spec.txt"
+        spec_file.write_text("this is not an OpenAPI document")
+        with pytest.raises(ValueError):
+            load_openapi_spec(str(spec_file))
+
     def test_load_nonexistent_file(self):
         """Non-existent file raises FileNotFoundError."""
         with pytest.raises(FileNotFoundError):
@@ -928,6 +943,6 @@ class TestLoadOpenapiSpec:
     async def test_load_async_from_file(self, tmp_path):
         """Async load from file path."""
         spec_file = tmp_path / "spec.json"
-        spec_file.write_text(json.dumps(PETSTORE_SPEC))
+        spec_file.write_text(json.dumps(PETSTORE_SPEC, indent=2))
         result = await load_openapi_spec_async(str(spec_file))
         assert result["info"]["title"] == "Petstore"
