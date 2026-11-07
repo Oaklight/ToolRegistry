@@ -450,7 +450,13 @@ def preview_source(registry: ToolRegistry, kind: str, payload: Any) -> dict[str,
     data = _require_mapping(payload)
 
     if kind == "openapi":
-        entries, info = _openapi_entries(data, registry)
+        try:
+            entries, info = _openapi_entries(data, registry)
+        except SourceError:
+            raise
+        except ValueError as exc:
+            # A malformed operation path is a bad request, not a server fault.
+            raise SourceError(str(exc)) from exc
     elif kind == "mcp":
         entries, info = _mcp_entries(data, registry)
     else:
@@ -496,7 +502,13 @@ def _register_openapi_source(
     }
     if selected is not None:
         kwargs["include"] = selected
-    registry.register(client, **kwargs)
+    try:
+        registry.register(client, **kwargs)
+    except SourceError:
+        raise
+    except ValueError as exc:
+        # A malformed operation path is a bad request, not a server fault.
+        raise SourceError(str(exc)) from exc
 
 
 def _register_mcp_source(

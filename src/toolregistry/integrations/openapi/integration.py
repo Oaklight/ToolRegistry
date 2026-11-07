@@ -338,6 +338,11 @@ class OpenAPIIntegration:
         Raises:
             ValueError: If both *include* and *exclude* are given.
         """
+        # Reject the document as a whole before registering anything: a bad
+        # path after good ones must not leave a half-registered source.
+        for path in openapi_spec.get("paths", {}):
+            _validate_operation_path(path)
+
         self._filter = ToolNameFilter(include, exclude)
         candidates = 0
         registered = 0
