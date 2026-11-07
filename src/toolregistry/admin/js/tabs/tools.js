@@ -20,7 +20,7 @@ async function refreshTools() {
         filterTools();
     } catch (e) {
         document.getElementById('tools-body').innerHTML =
-            `<tr><td colspan="7" class="empty-state"><div class="text-error">${e.message}</div></td></tr>`;
+            `<tr><td colspan="7" class="empty-state"><div class="text-error">${escapeHtml(e.message)}</div></td></tr>`;
     }
 }
 
@@ -48,7 +48,7 @@ function isProviderSafeName(name) {
 
 function sourceBadgeButton(source, visible) {
     if (!visible) return '';
-    return `<button type="button" class="source-badge-link" onclick="focusSources('${escapeJs(source)}')"
+    return `<button type="button" class="source-badge-link" onclick="focusSources('${escapeJsAttr(source)}')"
         title="${t('source.showInPanel')}">${escapeHtml(source)}</button>`;
 }
 
@@ -99,7 +99,7 @@ function renderMetaToggle(toolName, field, checked, disabled) {
     return `<label class="${cls}" style="justify-content: center;" ${title ? `title="${title}"` : ''}>
         <input type="checkbox" ${checked ? 'checked' : ''} ${dis}
             onclick="event.stopPropagation()"
-            onchange="toggleToolMeta('${escapeHtml(toolName)}', '${field}', this.checked)">
+            onchange="toggleToolMeta('${escapeJsAttr(toolName)}', '${field}', this.checked)">
     </label>`;
 }
 
@@ -159,26 +159,26 @@ function renderTools(tools, filtersActive = false) {
             <td><span class="ns-chevron">${SVG_CHEVRON}</span></td>
             <td>
                 <button type="button" class="ns-link" onclick="event.stopPropagation(); toggleNsGroup('${nsId}')" title="${t('ns.toggleGroup')}">${escapeHtml(ns)}</button>
-                ${nsSourceBadge ? `<button type="button" class="source-badge-link" onclick="event.stopPropagation(); focusSources('${escapeJs(nsSources[0])}')" title="${t('source.showInPanel')}">${escapeHtml(nsSources[0])}</button>` : ''}
+                ${nsSourceBadge ? `<button type="button" class="source-badge-link" onclick="event.stopPropagation(); focusSources('${escapeJsAttr(nsSources[0])}')" title="${t('source.showInPanel')}">${escapeHtml(nsSources[0])}</button>` : ''}
                 <span class="text-muted" style="margin-left: 8px; font-size: var(--text-small);">${children.length > 1 ? t('misc.toolCountPlural', {count: children.length}) : t('misc.toolCount', {count: children.length})}</span>
             </td>
             <td class="col-think" onclick="event.stopPropagation()">
                 <label class="meta-checkbox" style="justify-content: center;" title="${t('misc.thinkAugmentedAll')}">
                     <input type="checkbox" ${allThink ? 'checked' : ''} data-indeterminate="${anyThink && !allThink}"
-                        onchange="toggleNamespaceMeta('${escapeHtml(ns)}', 'think_augment', this.checked)">
+                        onchange="toggleNamespaceMeta('${escapeJsAttr(ns)}', 'think_augment', this.checked)">
                 </label>
             </td>
             <td class="col-defer" onclick="event.stopPropagation()">
                 <label class="meta-checkbox" style="justify-content: center;" title="${t('misc.deferredAll')}">
                     <input type="checkbox" ${allDefer ? 'checked' : ''} data-indeterminate="${anyDefer && !allDefer}"
-                        onchange="toggleNamespaceMeta('${escapeHtml(ns)}', 'defer', this.checked)">
+                        onchange="toggleNamespaceMeta('${escapeJsAttr(ns)}', 'defer', this.checked)">
                 </label>
             </td>
             <td class="col-permission"></td>
             <td>
                 ${isDefault ? '' : `<label class="toggle-switch toggle-ns" title="${allEnabled ? t('misc.clickToDisableAll') : t('misc.clickToEnableAll')}" onclick="event.stopPropagation()">
                     <input type="checkbox" ${allEnabled ? 'checked' : ''}
-                        onchange="toggleNamespace('${escapeHtml(ns)}', this.checked)">
+                        onchange="toggleNamespace('${escapeJsAttr(ns)}', this.checked)">
                     <span class="toggle-slider"></span>
                 </label>`}
             </td>
@@ -200,7 +200,7 @@ function renderTools(tools, filtersActive = false) {
             <td></td>
             <td>
                 <div class="tool-name-cell">
-                    <span class="ns-child-name-link" onclick="event.stopPropagation(); showToolDetailModal('${escapeHtml(tool.name)}')">${escapeHtml(shortName)}</span>
+                    <span class="ns-child-name-link" onclick="event.stopPropagation(); showToolDetailModal('${escapeJsAttr(tool.name)}')">${escapeHtml(shortName)}</span>
                     ${nameWarning}
                     <span class="tool-tags">
                         ${_overrideNames.has(tool.name) ? `<span class="badge-override">${t('override.badge')}</span>` : ''}
@@ -216,7 +216,7 @@ function renderTools(tools, filtersActive = false) {
             <td>
                 <label class="toggle-switch" title="${tool.enabled ? t('misc.clickToDisable') : t('misc.clickToEnable')}">
                     <input type="checkbox" ${tool.enabled ? 'checked' : ''}
-                        onchange="toggleTool('${escapeHtml(tool.name)}', this.checked)">
+                        onchange="toggleTool('${escapeJsAttr(tool.name)}', this.checked)">
                     <span class="toggle-slider"></span>
                 </label>
             </td>
@@ -511,7 +511,7 @@ async function refreshStats() {
         `;
     } catch (e) {
         document.getElementById('stats-grid').innerHTML =
-            `<div class="stat-card"><div class="stat-label text-error">${e.message}</div></div>`;
+            `<div class="stat-card"><div class="stat-label text-error">${escapeHtml(e.message)}</div></div>`;
     }
 }
 
@@ -616,15 +616,15 @@ async function showToolDetailModal(toolName) {
                 <div class="meta-item"><span class="meta-label">${t('detail.locality')}</span><span class="meta-value">${meta.locality || 'any'}</span></div>
                 <div class="meta-item"><span class="meta-label">${t('detail.async')}</span><span class="meta-value">${meta.is_async ? t('meta.yes') : t('meta.no')}</span></div>
                 <div class="meta-item"><span class="meta-label">${t('detail.concurrencySafe')}</span><span class="meta-value">${meta.is_concurrency_safe !== false ? t('meta.yes') : t('meta.no')}</span></div>
-                <div class="meta-item"><span class="meta-label">${t('detail.thinkAugment')}</span><span class="meta-value"><label class="meta-checkbox"><input type="checkbox" ${meta.think_augment ? 'checked' : ''} onchange="toggleToolMeta('${escapeHtml(tool.name)}', 'think_augment', this.checked)"></label></span></div>
+                <div class="meta-item"><span class="meta-label">${t('detail.thinkAugment')}</span><span class="meta-value"><label class="meta-checkbox"><input type="checkbox" ${meta.think_augment ? 'checked' : ''} onchange="toggleToolMeta('${escapeJsAttr(tool.name)}', 'think_augment', this.checked)"></label></span></div>
                 <div class="meta-item"><span class="meta-label">${t('detail.timeout')}</span><span class="meta-value">${meta.timeout != null ? meta.timeout + 's' : 'None'}</span></div>
                 <div class="meta-item"><span class="meta-label">${t('detail.maxResultSize')}</span><span class="meta-value">${meta.max_result_size != null ? meta.max_result_size + ' chars' : 'None'}</span></div>
-                <div class="meta-item"><span class="meta-label">${t('detail.deferred')}</span><span class="meta-value"><label class="meta-checkbox"><input type="checkbox" ${meta.defer ? 'checked' : ''} onchange="toggleToolMeta('${escapeHtml(tool.name)}', 'defer', this.checked)"></label></span></div>
+                <div class="meta-item"><span class="meta-label">${t('detail.deferred')}</span><span class="meta-value"><label class="meta-checkbox"><input type="checkbox" ${meta.defer ? 'checked' : ''} onchange="toggleToolMeta('${escapeJsAttr(tool.name)}', 'defer', this.checked)"></label></span></div>
                 <div class="meta-item" style="grid-column:1/-1;"><span class="meta-label">${t('detail.searchHint')}</span><span class="meta-value" style="display:flex;gap:4px;align-items:center;margin-top:2px;">
                     <input type="text" id="sh-modal-${escapeHtml(tool.name)}" value="${escapeHtml(meta.search_hint || '')}" placeholder="${t('detail.searchHintPlaceholder')}"
                         style="flex:1;padding:3px 7px;font-size:var(--text-small);border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-secondary);color:var(--text-primary);"
-                        onkeydown="if(event.key==='Enter')saveSearchHint('${escapeHtml(tool.name)}',this,false)">
-                    <button class="btn btn-secondary btn-sm" onclick="saveSearchHint('${escapeHtml(tool.name)}',document.getElementById('sh-modal-${escapeHtml(tool.name)}'),false)">${t('btn.apply')}</button>
+                        onkeydown="if(event.key==='Enter')saveSearchHint('${escapeJsAttr(tool.name)}',this,false)">
+                    <button class="btn btn-secondary btn-sm" onclick="saveSearchHint('${escapeJsAttr(tool.name)}',document.getElementById('sh-modal-${escapeJsAttr(tool.name)}'),false)">${t('btn.apply')}</button>
                 </span></div>
             </div>
             ${systemTags.length > 0 ? `<div class="mt-2"><span class="meta-label">${t('detail.tags')}</span><div style="margin-top: 4px;">${renderTagBadges(systemTags)}</div></div>` : ''}
@@ -650,8 +650,8 @@ async function showToolDetailModal(toolName) {
         if (actions) {
             actions.innerHTML = `
                 ${overridden ? `<span class="badge-tag-slow">${t('override.badge')}</span>` : ''}
-                <button class="btn btn-secondary btn-sm" onclick="openOverrideModal('${escapeHtml(tool.name)}')">${t('override.edit')}</button>
-                ${overridden ? `<button class="btn btn-danger btn-sm" onclick="restoreToolOverride('${escapeHtml(tool.name)}')">${t('override.restore')}</button>` : ''}`;
+                <button class="btn btn-secondary btn-sm" onclick="openOverrideModal('${escapeJsAttr(tool.name)}')">${t('override.edit')}</button>
+                ${overridden ? `<button class="btn btn-danger btn-sm" onclick="restoreToolOverride('${escapeJsAttr(tool.name)}')">${t('override.restore')}</button>` : ''}`;
         }
 
         document.getElementById('detail-body').innerHTML = html;

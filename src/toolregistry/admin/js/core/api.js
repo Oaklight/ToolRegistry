@@ -53,7 +53,11 @@ class AdminAPI {
                 if (!token || token === requestToken) {
                     token = await promptForAdminToken();
                     if (!token) throw new Error(t('error.unauthorized'));
-                    localStorage.setItem('admin_token', token);
+                    // Keep the bearer token in memory only.  The server
+                    // issues an HttpOnly session cookie on the first
+                    // authenticated response, so a reload still
+                    // authenticates while page script (and an XSS) cannot
+                    // read the long-lived value from storage.
                     this.token = token;
                     AUTH_TOKEN = token;
                 }

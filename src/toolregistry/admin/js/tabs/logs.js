@@ -12,7 +12,7 @@ async function refreshLogs() {
         renderLogs(data.entries || []);
     } catch (e) {
         document.getElementById('logs-body').innerHTML =
-            `<tr><td colspan="5" class="empty-state"><div class="text-error">${e.message}</div></td></tr>`;
+            `<tr><td colspan="5" class="empty-state"><div class="text-error">${escapeHtml(e.message)}</div></td></tr>`;
     }
 }
 

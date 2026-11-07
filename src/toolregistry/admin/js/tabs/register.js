@@ -243,7 +243,7 @@ function renderRegisterPreview(result) {
             </td>
             <td>
                 <button type="button" class="mono ns-link" style="font-size: var(--text-body);"
-                        onclick="showToolDetailModal('${escapeJs(tool.name)}')">${escapeHtml(tool.name)}</button>
+                        onclick="showToolDetailModal('${escapeJsAttr(tool.name)}')">${escapeHtml(tool.name)}</button>
                 ${tool.registered ? `<span class="badge-source badge-source-native">${t('register.registered')}</span>` : ''}
             </td>
             <td class="text-muted" style="font-size: var(--text-small);">${escapeHtml((tool.description || '').slice(0, 160))}</td>

@@ -80,8 +80,8 @@ async function loadDiscover() {
                     </span>
                     <input type="text" id="${safeId}" placeholder="${t('schema.hintPlaceholder')}"
                         style="flex:1;min-width:160px;padding:2px 6px;font-size:var(--text-small);border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-secondary);color:var(--text-primary);"
-                        onkeydown="if(event.key==='Enter')saveSearchHint('${escapeHtml(w.name)}',document.getElementById('${safeId}'),true)">
-                    <button class="btn btn-secondary btn-sm" onclick="saveSearchHint('${escapeHtml(w.name)}',document.getElementById('${safeId}'),true)">${t('btn.apply')}</button>
+                        onkeydown="if(event.key==='Enter')saveSearchHint('${escapeJsAttr(w.name)}',document.getElementById('${safeId}'),true)">
+                    <button class="btn btn-secondary btn-sm" onclick="saveSearchHint('${escapeJsAttr(w.name)}',document.getElementById('${safeId}'),true)">${t('btn.apply')}</button>
                 </div>`;
             }).join('');
             warnDiv.innerHTML = `<div class="notice inline">
