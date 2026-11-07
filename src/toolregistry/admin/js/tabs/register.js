@@ -49,6 +49,10 @@ function registerFieldsTemplate(kind) {
             <div class="form-hint" data-i18n="register.orCommand">or start a local server</div>
             <label class="form-label" data-i18n="register.command">Command</label>
             <input class="input" id="rf-command" placeholder="npx -y @modelcontextprotocol/server-filesystem /tmp">
+            <label class="form-label">
+                <input type="checkbox" id="rf-allow-private">
+                <span data-i18n="register.allowPrivate">Allow private network hosts</span>
+            </label>
             <div class="register-warning" id="register-stdio-hint" style="display:none;">
                 <span data-i18n="register.stdioNeedsAuth"></span>
             </div>
@@ -187,6 +191,9 @@ function readRegisterPayload() {
         const command = value('rf-command');
         if (url) payload.url = url;
         if (command) payload.command = command;
+        if (document.getElementById('rf-allow-private')?.checked) {
+            payload.allow_private_hosts = true;
+        }
     } else if (kind === 'python') {
         payload.module = value('rf-module');
         const object = value('rf-object');

@@ -181,6 +181,9 @@ class MCPSource:
         url: Server URL for *sse* or *streamable-http* transport.
         headers: Extra HTTP headers for network transports.
         persistent: Whether to keep the MCP connection alive.
+        allow_private_hosts: Allow an HTTP(S) or WS(S) URL transport to reach
+            loopback, link-local or private addresses.  The default refuses
+            them before a connection is opened.
         include: Names or glob patterns to keep.  ``None`` means no
             include filter; an empty tuple is an explicit empty list and
             matches nothing.  Mutually exclusive with *exclude*.
@@ -196,6 +199,7 @@ class MCPSource:
     url: str | None = None
     headers: dict[str, str] | None = None
     persistent: bool = True
+    allow_private_hosts: bool = False
     tags: tuple[str, ...] = ()
     include: tuple[str, ...] | None = None
     exclude: tuple[str, ...] | None = None
@@ -220,6 +224,8 @@ class MCPSource:
             d["headers"] = dict(self.headers)
         if not self.persistent:
             d["persistent"] = False
+        if self.allow_private_hosts:
+            d["allow_private_hosts"] = True
         if self.tags:
             d["tags"] = list(self.tags)
         if self.include is not None:

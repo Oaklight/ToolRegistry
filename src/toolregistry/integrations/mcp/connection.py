@@ -28,6 +28,8 @@ class MCPConnectionManager:
         headers: Optional HTTP headers for SSE/streamable-http transports.
         persistent: If True (default), keep the connection open across calls.
             If False, create a new connection per call (original behavior).
+        allow_private_hosts: Allow URL transports to reach loopback,
+            link-local or private addresses.
     """
 
     def __init__(
@@ -35,10 +37,12 @@ class MCPConnectionManager:
         transport: str | dict | Path,
         headers: dict[str, str] | None = None,
         persistent: bool = True,
+        allow_private_hosts: bool = False,
     ) -> None:
         self._transport = transport
         self._headers = headers
         self._persistent = persistent
+        self._allow_private_hosts = allow_private_hosts
         self._client: MCPClient | None = None
         self._lock = asyncio.Lock()
 
@@ -76,7 +80,11 @@ class MCPConnectionManager:
         Returns:
             List of ToolSpec objects.
         """
-        async with MCPClient(self._transport, self._headers) as client:
+        async with MCPClient(
+            self._transport,
+            self._headers,
+            allow_private_hosts=self._allow_private_hosts,
+        ) as client:
             return await client.list_tools()
 
     async def _ensure_connected(self) -> None:
@@ -91,7 +99,11 @@ class MCPConnectionManager:
                 await self._client.__aexit__(None, None, None)
             except Exception:
                 pass
-        self._client = MCPClient(self._transport, self._headers)
+        self._client = MCPClient(
+            self._transport,
+            self._headers,
+            allow_private_hosts=self._allow_private_hosts,
+        )
         await self._client.__aenter__()
 
     async def _call_persistent(
@@ -114,7 +126,11 @@ class MCPConnectionManager:
         self, name: str, arguments: dict[str, Any]
     ) -> CallToolResult:
         """Call tool using a fresh connection (original behavior)."""
-        async with MCPClient(self._transport, self._headers) as client:
+        async with MCPClient(
+            self._transport,
+            self._headers,
+            allow_private_hosts=self._allow_private_hosts,
+        ) as client:
             return await client.call_tool(name, arguments)
 
     # -- Sync API (shared AsyncRuntime) ------------------------------
@@ -171,6 +187,7 @@ class MCPConnectionManager:
             "_transport": self._transport,
             "_headers": self._headers,
             "_persistent": self._persistent,
+            "_allow_private_hosts": self._allow_private_hosts,
         }
 
     def __setstate__(self, state: dict) -> None:
@@ -178,5 +195,8 @@ class MCPConnectionManager:
         self._transport = state["_transport"]
         self._headers = state["_headers"]
         self._persistent = state["_persistent"]
+        # A payload produced before the opt-in existed has no key; refusing
+        # private hosts is the safe default.
+        self._allow_private_hosts = state.get("_allow_private_hosts", False)
         self._client = None
         self._lock = asyncio.Lock()
