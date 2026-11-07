@@ -81,4 +81,8 @@ handle /admin/openapi* {
 }
 ```
 
+同源判断会比较 `Origin` 的 netloc 与 `Host` 头，因此代理必须原样转发
+客户端的 `Host`（nginx：`proxy_set_header Host $host;`）。若代理把 `Host`
+改写成内部地址，所有状态改变请求都会被视为跨源并返回 403。
+
 管理面板在 `remote=False` 时不强制认证——请使用反向代理的认证机制（如 Caddy 的 `basic_auth`）来保护访问。
