@@ -79,7 +79,37 @@ class TestMCPToolSource:
 
         tool = MCPTool.from_tool_json(tool_spec, connection=connection)
         assert tool.metadata.source == "mcp"
-        assert tool.metadata.source_detail == "stdio:uvx my-server"
+        assert tool.metadata.source_detail == "stdio:uvx"
+
+    def test_mcp_source_detail_drops_url_userinfo(self):
+        """An HTTP transport URL must not put its password in the metadata."""
+        mcp_types = pytest.importorskip("mcp.types")
+
+        from toolregistry.integrations.mcp.integration import MCPTool
+
+        tool_spec = mcp_types.Tool(
+            name="echo",
+            description="Echo input",
+            inputSchema={"type": "object", "properties": {"msg": {"type": "string"}}},
+        )
+
+        connection = MagicMock()
+        connection.transport = "https://user:secret@mcp.example.com/sse"
+
+        tool = MCPTool.from_tool_json(tool_spec, connection=connection)
+        assert tool.metadata.source_detail == "https://mcp.example.com/sse"
+
+    def test_mcp_source_detail_hides_stdio_arguments(self):
+        """Arguments can carry a secret, so only the program name is kept."""
+        from toolregistry.integrations.mcp.integration import _source_detail
+
+        transport = {
+            "command": "uvx",
+            "args": ["my-server", "--api-key", "secret"],
+        }
+        detail = _source_detail(transport)
+        assert detail == "stdio:uvx"
+        assert "secret" not in detail
 
 
 # ---------------------------------------------------------------------------

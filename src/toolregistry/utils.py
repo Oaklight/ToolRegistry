@@ -35,6 +35,46 @@ def generate_invocation_id(prefix: Literal["bat", "ptc", "sig"] = "sig") -> str:
     return f"tr_{prefix}_{uuid.uuid4().hex[:8]}"
 
 
+#: ``scheme://user:password@`` in a URL, inside arbitrary text.  ``[^/\s]+``
+#: is greedy and the trailing ``@`` is required, so the match ends at the
+#: last ``@`` in the authority — the same split ``urlparse`` uses.  A ``@``
+#: in the path does not match because the character class excludes ``/``.
+_URL_USERINFO_SCHEME = re.compile(r"\b([A-Za-z][A-Za-z0-9+.\-]*://)[^/\s]+@")
+
+#: ``//user:password@`` — a protocol-relative reference.  A password and a
+#: token boundary are both required, so a path such as ``a//b@c`` and a
+#: plain ``//host`` are left alone.
+_URL_USERINFO_NETLOC = re.compile(r"(?<![:/\w.])(//)[^/\s:@]+:[^/\s@]+@")
+
+#: ``user:password@host`` with no scheme.  The colon keeps an email address
+#: (``user@host``) untouched; the greedy class consumes an ``@`` inside the
+#: password up to the last one in the segment, as the scheme form does.
+_URL_USERINFO_BARE = re.compile(r"(?<![:/\w.@])[^/\s:@]+:[^/\s]+@")
+
+
+def redact_url_userinfo(text: str) -> str:
+    """Remove ``user:password@`` userinfo from every URL in *text*.
+
+    Error messages may quote a URL that a caller supplied.  A URL can carry
+    credentials in its userinfo component, so strip them before the message
+    reaches the caller or a log.  Three forms are handled: with a scheme,
+    protocol-relative (``//user:password@host``) and without a scheme
+    (``user:password@host``).  A bare email address is left alone.
+
+    This lives in the shared module because the OpenAPI, admin and MCP
+    integrations all need it.
+
+    Args:
+        text: Arbitrary text, such as an exception message.
+
+    Returns:
+        *text* with each URL's userinfo removed.
+    """
+    text = _URL_USERINFO_SCHEME.sub(r"\1", text)
+    text = _URL_USERINFO_NETLOC.sub(r"\1", text)
+    return _URL_USERINFO_BARE.sub("", text)
+
+
 class OpenAPIPathError(ValueError):
     """A request path would leave the configured base origin.
 
@@ -74,9 +114,6 @@ def _join_base_url(base_url: str, path: str) -> str:
         or path.startswith("//")
         or "\\" in path
     ):
-        # Lazy import: the OpenAPI package imports this module at import time.
-        from .integrations.openapi.utils import redact_url_userinfo
-
         raise OpenAPIPathError(
             "Refusing to send a request for a non-relative path "
             f"{redact_url_userinfo(repr(path))}; only '/'-rooted paths "
@@ -89,9 +126,6 @@ def _join_base_url(base_url: str, path: str) -> str:
         target.scheme.lower(),
         target.netloc.lower(),
     ):
-        # Lazy import: the OpenAPI package imports this module at import time.
-        from .integrations.openapi.utils import redact_url_userinfo
-
         raise OpenAPIPathError(
             "Refusing to send a request outside the configured base origin: "
             f"{redact_url_userinfo(url)!r}"

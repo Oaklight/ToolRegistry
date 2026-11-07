@@ -21,12 +21,36 @@ from ...schema_diff import SchemaChangeKind, classify_tool_change
 from ...tool import Tool, ToolMetadata
 from ...tool_registry import ToolRegistry
 from ...tool_wrapper import BaseToolWrapper
-from ...utils import ToolNameFilter, normalize_tool_name, utc_iso_now
+from ...utils import (
+    ToolNameFilter,
+    normalize_tool_name,
+    redact_url_userinfo,
+    utc_iso_now,
+)
 from .client import MCPClient
 from .connection import MCPConnectionManager
 
 
 logger = get_logger()
+
+
+def _source_detail(transport: str | dict[str, Any] | Path) -> str:
+    """Return a display form of *transport* with credentials removed.
+
+    A URL transport can carry ``user:password@``, and a stdio transport can
+    carry a secret in its arguments (``--api-key ...``), so the stdio form
+    keeps the program name only.
+
+    Args:
+        transport: The MCP transport: a URL string, a stdio command mapping,
+            or a script path.
+
+    Returns:
+        A human-readable value for ``ToolMetadata.source_detail``.
+    """
+    if isinstance(transport, dict):
+        return f"stdio:{transport.get('command', '')}".strip()
+    return redact_url_userinfo(str(transport))
 
 
 class MCPToolWrapper(BaseToolWrapper):
@@ -264,13 +288,7 @@ class MCPTool(Tool):
         )
 
         # Build a human-readable source_detail from the transport config.
-        transport = connection.transport
-        if isinstance(transport, dict):
-            cmd = transport.get("command", "")
-            args = " ".join(transport.get("args", []))
-            source_detail = f"stdio:{cmd} {args}".strip()
-        else:
-            source_detail = str(transport)
+        source_detail = _source_detail(connection.transport)
 
         tool = cls(
             name=normalize_tool_name(name),
@@ -585,13 +603,7 @@ class MCPIntegration:
         connection = self._connections[0]
 
         # Build source_detail for the result
-        transport = self._transport
-        if isinstance(transport, dict):
-            cmd = transport.get("command", "")
-            args = " ".join(transport.get("args", []))
-            source_detail = f"stdio:{cmd} {args}".strip()
-        else:
-            source_detail = str(transport)
+        source_detail = _source_detail(self._transport)
 
         async with MCPClient(self._transport, headers=self._headers) as client:
             tools_response: list[ToolSpec] = await client.list_tools()

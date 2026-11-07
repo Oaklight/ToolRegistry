@@ -1,6 +1,5 @@
 import asyncio
 import json
-import re
 from typing import Any
 from urllib.parse import urlparse
 
@@ -15,6 +14,7 @@ from ..._vendor.httpclient import (
     HTTPError,
     Response,
 )
+from ...utils import redact_url_userinfo
 
 
 def _parse_spec_content(content: str) -> Any:
@@ -75,42 +75,6 @@ def extract_base_url_from_specs(openapi_spec: dict[str, Any]) -> str | None:
 #: The only schemes an HTTP fetch path accepts.  ``load_openapi_spec`` treats
 #: every other scheme — and a URI with no scheme — as a local file path.
 _SPEC_URL_SCHEMES = frozenset({"http", "https"})
-
-#: ``scheme://user:password@`` in a URL, inside arbitrary text.  ``[^/\s]+``
-#: is greedy and the trailing ``@`` is required, so the match ends at the
-#: last ``@`` in the authority — the same split ``urlparse`` uses.  A ``@``
-#: in the path does not match because the character class excludes ``/``.
-_URL_USERINFO_SCHEME = re.compile(r"\b([A-Za-z][A-Za-z0-9+.\-]*://)[^/\s]+@")
-
-#: ``//user:password@`` — a protocol-relative reference.  A password and a
-#: token boundary are both required, so a path such as ``a//b@c`` and a
-#: plain ``//host`` are left alone.
-_URL_USERINFO_NETLOC = re.compile(r"(?<![:/\w.])(//)[^/\s:@]+:[^/\s@]+@")
-
-#: ``user:password@host`` with no scheme.  The colon keeps an email address
-#: (``user@host``) untouched; the greedy class consumes an ``@`` inside the
-#: password up to the last one in the segment, as the scheme form does.
-_URL_USERINFO_BARE = re.compile(r"(?<![:/\w.@])[^/\s:@]+:[^/\s]+@")
-
-
-def redact_url_userinfo(text: str) -> str:
-    """Remove ``user:password@`` userinfo from every URL in *text*.
-
-    Error messages may quote a URL that a caller supplied.  A URL can carry
-    credentials in its userinfo component, so strip them before the message
-    reaches the caller or a log.  Three forms are handled: with a scheme,
-    protocol-relative (``//user:password@host``) and without a scheme
-    (``user:password@host``).  A bare email address is left alone.
-
-    Args:
-        text: Arbitrary text, such as an exception message.
-
-    Returns:
-        *text* with each URL's userinfo removed.
-    """
-    text = _URL_USERINFO_SCHEME.sub(r"\1", text)
-    text = _URL_USERINFO_NETLOC.sub(r"\1", text)
-    return _URL_USERINFO_BARE.sub("", text)
 
 
 #: Added to a redacted ``$ref`` when redaction would leave a local pointer.
