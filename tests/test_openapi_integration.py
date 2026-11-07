@@ -2,6 +2,7 @@
 
 import json
 import warnings
+from unittest.mock import AsyncMock, MagicMock
 from urllib.parse import urlparse
 
 import pytest
@@ -14,10 +15,14 @@ from toolregistry.integrations.openapi.integration import (  # noqa: E402
     OpenAPIToolWrapper,
 )
 from toolregistry.integrations.openapi.utils import (  # noqa: E402
+    DEFAULT_MAX_SPEC_BYTES,
+    SpecTooDeepError,
+    SpecTooLargeError,
     determine_urls,
     extract_base_url_from_specs,
     load_openapi_spec,
     load_openapi_spec_async,
+    load_openapi_spec_conditional_async,
 )
 from toolregistry.utils import HttpClientConfig  # noqa: E402
 
@@ -1134,3 +1139,170 @@ class TestUserinfoRedaction:
         messages = [str(item.message) for item in caught]
         assert any("Unresolvable $ref" in message for message in messages)
         assert all("pass" not in message for message in messages)
+
+
+class _FakeStreamingResponse:
+    """Minimal streaming response for the spec-budget tests."""
+
+    def __init__(self, status_code, headers, chunks, url=""):
+        self.status_code = status_code
+        self.headers = headers
+        self._chunks = chunks
+        self.url = url
+        self.chunks_read = 0
+
+    def raise_for_status(self):
+        if not 200 <= self.status_code < 300:
+            raise HTTPError(self.status_code, "", self.url)
+
+    async def aiter_bytes(self, chunk_size=4096):
+        for chunk in self._chunks:
+            self.chunks_read += 1
+            yield chunk
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        return False
+
+
+def _patch_async_client(monkeypatch, response):
+    """Make utils.AsyncClient return *response* from get()."""
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(return_value=response)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    monkeypatch.setattr(
+        "toolregistry.integrations.openapi.utils.AsyncClient",
+        MagicMock(return_value=mock_client),
+    )
+    return mock_client
+
+
+class TestSpecSizeBudget:
+    """A downloaded document is charged against a byte budget (issue #377)."""
+
+    URL = "http://test.example.com/openapi.json"
+
+    @pytest.mark.asyncio
+    async def test_oversized_content_length_is_refused_before_reading(
+        self, monkeypatch
+    ):
+        response = _FakeStreamingResponse(
+            200,
+            {"content-length": str(DEFAULT_MAX_SPEC_BYTES + 1)},
+            [b"{}"],
+            self.URL,
+        )
+        _patch_async_client(monkeypatch, response)
+
+        with pytest.raises(SpecTooLargeError, match="exceeds the .*byte limit"):
+            await load_openapi_spec_async(self.URL)
+
+        assert response.chunks_read == 0
+
+    @pytest.mark.asyncio
+    async def test_unbounded_stream_is_truncated(self, monkeypatch):
+        response = _FakeStreamingResponse(200, {}, [b"x" * 1024] * 20, self.URL)
+        _patch_async_client(monkeypatch, response)
+
+        with pytest.raises(SpecTooLargeError, match="byte limit"):
+            await load_openapi_spec_async(self.URL, max_bytes=4096)
+
+        assert response.chunks_read < 20
+
+    @pytest.mark.asyncio
+    async def test_conditional_loader_applies_the_same_budget(self, monkeypatch):
+        response = _FakeStreamingResponse(
+            200,
+            {"content-length": str(DEFAULT_MAX_SPEC_BYTES + 1)},
+            [b"{}"],
+            self.URL,
+        )
+        _patch_async_client(monkeypatch, response)
+
+        with pytest.raises(SpecTooLargeError):
+            await load_openapi_spec_conditional_async(self.URL)
+
+        assert response.chunks_read == 0
+
+    def test_oversized_local_file_is_refused(self, tmp_path):
+        spec_file = tmp_path / "spec.json"
+        spec_file.write_bytes(b'{"x": "' + b"a" * 64 + b'"}')
+
+        with pytest.raises(SpecTooLargeError, match="byte limit"):
+            load_openapi_spec(str(spec_file), allow_local_files=True, max_bytes=32)
+
+    def test_deeply_nested_document_names_the_depth_limit(self, tmp_path):
+        document = {}
+        for _ in range(20):
+            document = {"nested": document}
+        spec_file = tmp_path / "spec.json"
+        spec_file.write_text(json.dumps(document))
+
+        with pytest.raises(
+            SpecTooDeepError, match="nested deeper than the 5-level limit"
+        ):
+            load_openapi_spec(str(spec_file), allow_local_files=True, max_depth=5)
+
+    def test_parser_recursion_becomes_a_depth_error(self, tmp_path):
+        spec_file = tmp_path / "deep.json"
+        spec_file.write_text("[" * 5000 + "]" * 5000)
+
+        with pytest.raises(SpecTooDeepError, match="nested"):
+            load_openapi_spec(str(spec_file), allow_local_files=True)
+
+
+class TestDetermineUrlsBudget:
+    """Probes inspect headers only; they never buffer a candidate body."""
+
+    @staticmethod
+    def _patch_client(monkeypatch, response):
+        class _FakeClient:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def get(self, url, **kwargs):
+                assert kwargs.get("stream") is True
+                return response
+
+        monkeypatch.setattr(
+            "toolregistry.integrations.openapi.utils.Client", _FakeClient
+        )
+
+    def test_probe_does_not_read_the_body(self, monkeypatch):
+        response = _FakeStreamingResponse(
+            200, {"content-type": "application/json"}, [b"x" * 1024] * 100
+        )
+        self._patch_client(monkeypatch, response)
+
+        result = determine_urls("http://test.example.com")
+
+        assert result["found"] is True
+        assert response.chunks_read == 0
+
+    def test_probe_skips_a_candidate_over_the_budget(self, monkeypatch):
+        response = _FakeStreamingResponse(
+            200,
+            {"content-type": "application/json", "content-length": "2048"},
+            [b"x" * 1024] * 100,
+        )
+        self._patch_client(monkeypatch, response)
+
+        result = determine_urls("http://test.example.com", max_bytes=1024)
+
+        assert result["found"] is False
+        assert response.chunks_read == 0
