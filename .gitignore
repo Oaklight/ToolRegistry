@@ -98,7 +98,6 @@ ipython_config.py
 #   Similar to Pipfile.lock, it is generally recommended to include uv.lock in version control.
 #   This is especially recommended for binary packages to ensure reproducibility, and is more
 #   commonly ignored for libraries.
-#uv.lock
 
 # poetry
 #   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.
@@ -194,3 +193,12 @@ docs_zh/
 # Temporary test artifacts
 test.db
 .complexipy_cache/
+
+# Local packaging, design and documentation scratch (kept in the working tree)
+uv.lock
+/staged-recipes/
+/logo-lab.html
+/tmp-logo-elements/
+/toolregistry-*.png
+/DOCUMENTATION_AUDIT.md
+/DOCUMENTATION_FIXES_CHECKLIST.md
