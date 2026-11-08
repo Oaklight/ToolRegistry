@@ -49,7 +49,9 @@ the OpenAPI form shows a hint when the server refuses private addresses.
 
 `load_openapi_spec()`, `load_openapi_spec_async()` and `determine_urls()` no
 longer follow redirects by default. The next hop cannot be checked against the
-outbound policy, so a 3xx is refused with an error that names the final URL.
+outbound policy, and the vendored client does not expose `Location`, so a 3xx is
+refused without echoing the redirect target; the error asks the caller to enter
+the final URL instead.
 
 ```python
 # before — a 302 was followed to an address nobody validated
