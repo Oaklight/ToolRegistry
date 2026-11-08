@@ -8,6 +8,7 @@ import collections
 import hashlib
 import hmac
 import secrets
+import threading
 import time
 from collections.abc import Callable
 
@@ -38,6 +39,15 @@ class AuthFailureLimiter:
     source is evicted when a new one would exceed the bound.  Only a bounded
     number of timestamps per source is kept, because older entries can no
     longer affect the decision.
+
+    The limiter is thread-safe.  The admin server runs a synchronous
+    before-request hook through ``asyncio.to_thread``, so concurrent
+    requests reach these methods from several threads; every read-modify-write
+    runs under one lock so no failure is lost and no source is left dangling.
+
+    The key is the TCP peer address.  Behind a reverse proxy every client
+    shares the proxy's address, so the whole proxy is throttled together;
+    trusted-proxy handling is deliberately out of scope (#431).
 
     Args:
         limit: Failures inside *window* that block a source.
@@ -76,6 +86,7 @@ class AuthFailureLimiter:
         self._window = window
         self._max_sources = max_sources
         self._clock = clock
+        self._lock = threading.Lock()
         self._failures: collections.OrderedDict[str, collections.deque[float]] = (
             collections.OrderedDict()
         )
@@ -93,17 +104,18 @@ class AuthFailureLimiter:
             Seconds until the oldest counted failure leaves the window, or
             ``None`` when the source is not blocked.
         """
-        failures = self._failures.get(source)
-        if failures is None:
-            return None
-        self._prune(source, failures)
-        if not failures:
-            return None
-        self._failures.move_to_end(source)
-        if len(failures) < self._limit:
-            return None
-        wait = failures[0] + self._window - self._clock()
-        return wait if wait > 0 else None
+        with self._lock:
+            failures = self._failures.get(source)
+            if failures is None:
+                return None
+            self._prune_locked(source, failures)
+            if not failures:
+                return None
+            self._failures.move_to_end(source)
+            if len(failures) < self._limit:
+                return None
+            wait = failures[0] + self._window - self._clock()
+            return wait if wait > 0 else None
 
     def record_failure(self, source: str) -> None:
         """Record one failed authentication for *source*.
@@ -111,18 +123,19 @@ class AuthFailureLimiter:
         Args:
             source: Client source key, normally the peer address.
         """
-        now = self._clock()
-        failures = self._failures.get(source)
-        if failures is None:
-            if len(self._failures) >= self._max_sources:
-                self._evict(now)
-            failures = collections.deque()
-            self._failures[source] = failures
-        else:
-            self._failures.move_to_end(source)
-        failures.append(now)
-        while len(failures) > self._limit:
-            failures.popleft()
+        with self._lock:
+            now = self._clock()
+            failures = self._failures.get(source)
+            if failures is None:
+                if len(self._failures) >= self._max_sources:
+                    self._evict_locked(now)
+                failures = collections.deque()
+                self._failures[source] = failures
+            else:
+                self._failures.move_to_end(source)
+            failures.append(now)
+            while len(failures) > self._limit:
+                failures.popleft()
 
     def clear(self, source: str) -> None:
         """Forget the failures recorded for *source*, after a success.
@@ -130,20 +143,21 @@ class AuthFailureLimiter:
         Args:
             source: Client source key, normally the peer address.
         """
-        self._failures.pop(source, None)
+        with self._lock:
+            self._failures.pop(source, None)
 
-    def _prune(self, source: str, failures: collections.deque[float]) -> None:
-        """Drop timestamps that have left the window."""
+    def _prune_locked(self, source: str, failures: collections.deque[float]) -> None:
+        """Drop timestamps that have left the window.  Holds the lock."""
         cutoff = self._clock() - self._window
         while failures and failures[0] <= cutoff:
             failures.popleft()
         if not failures:
             self._failures.pop(source, None)
 
-    def _evict(self, now: float) -> None:
+    def _evict_locked(self, now: float) -> None:
         """Make room for one more source, preferring expired entries."""
         for source in list(self._failures):
-            self._prune(source, self._failures[source])
+            self._prune_locked(source, self._failures[source])
         if len(self._failures) >= self._max_sources:
             self._failures.popitem(last=False)
 

@@ -4,6 +4,9 @@ The limiter is exercised with an injectable clock so the window can be
 crossed without sleeping.
 """
 
+import threading
+from concurrent.futures import ThreadPoolExecutor
+
 import pytest
 
 from toolregistry.admin.auth import (
@@ -140,3 +143,47 @@ class TestMemoryBound:
         assert limiter.retry_after(SOURCE) is not None
         limiter.record_failure("third")
         assert limiter.retry_after(SOURCE) is not None
+
+
+class TestThreadSafety:
+    """Before-request hooks run through ``asyncio.to_thread`` (#405 review)."""
+
+    def test_concurrent_failures_are_all_counted(self) -> None:
+        """No failure is lost when threads race to create the source."""
+        workers = 64
+        limiter = AuthFailureLimiter(limit=workers, max_sources=8)
+        barrier = threading.Barrier(workers)
+
+        def fail(_: int) -> None:
+            barrier.wait()
+            limiter.record_failure(SOURCE)
+
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            list(pool.map(fail, range(workers)))
+
+        assert len(limiter._failures[SOURCE]) == workers
+        assert limiter.retry_after(SOURCE) is not None
+
+    def test_concurrent_clear_and_retry_after_do_not_raise(self, clock) -> None:
+        """``clear()`` may not leave ``retry_after()`` a dangling entry."""
+        limiter = AuthFailureLimiter(limit=10_000, max_sources=4, clock=clock)
+        for _ in range(100):
+            limiter.record_failure(SOURCE)
+        # Expired entries make ``retry_after`` prune and remove the key while
+        # ``clear`` may be doing the same.
+        clock.advance(AUTH_FAILURE_WINDOW_SECONDS + 1)
+
+        def churn(index: int) -> None:
+            for _ in range(50):
+                if index % 2:
+                    limiter.clear(SOURCE)
+                else:
+                    limiter.retry_after(SOURCE)
+
+        with ThreadPoolExecutor(max_workers=16) as pool:
+            list(pool.map(churn, range(32)))
+
+        # A failure recorded after the churn is still counted exactly once.
+        limiter.clear(SOURCE)
+        limiter.record_failure(SOURCE)
+        assert len(limiter._failures[SOURCE]) == 1
