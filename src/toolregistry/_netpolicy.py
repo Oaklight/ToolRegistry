@@ -5,6 +5,9 @@ can name any host, while the process usually runs where the network trusts
 its peers.  The policy refuses a host that resolves to anything other than a
 globally reachable address, unless the caller opts in.
 
+This module is the implementation; ``toolregistry.netpolicy`` is the public
+entry point and re-exports the same objects.
+
 Known limit: the addresses are resolved here and resolved again when the
 connection opens, so a name server that changes its answer in between (DNS
 rebinding) defeats the check.  Closing that needs the connection layer to
@@ -51,6 +54,53 @@ RESOLVE_TIMEOUT_SECONDS = 5.0
 #: ``(scheme, host, port) -> monotonic expiry`` for successful checks.
 _cache: dict[tuple[str, str, int], float] = {}
 _cache_lock = threading.Lock()
+
+#: IPv4 and IPv6 ranges that ``is_global`` alone cannot be trusted to refuse.
+#:
+#: ``is_global`` is the allowlist, but the IANA special-purpose table behind it
+#: changes between interpreter releases, so a range's verdict is not stable
+#: across the versions this project supports.  Measured with the interpreters
+#: available locally (3.10, 3.11, 3.14) and re-checked by CI on 3.10-3.13:
+#:
+#: * ``192.88.99.0/24`` (6to4 relay anycast), ``64:ff9b::/96`` (NAT64),
+#:   ``2001:20::/28`` (ORCHIDv2) and ``5f00::/16`` (SRv6 SIDs) report
+#:   ``is_global=True`` on every version measured - those are live bypasses.
+#: * The remaining ranges already report ``False``, but they are pinned here
+#:   so a later CPython table change (the 3.13 release added several
+#:   special-purpose blocks) cannot silently open them again.
+#:
+#: NAT64 is handled separately: its prefix is public by design, so the
+#: embedded IPv4 address is what decides.
+_SPECIAL_PURPOSE_NETWORKS = tuple(
+    ipaddress.ip_network(network)
+    for network in (
+        # IPv4
+        "192.0.0.0/24",  # IETF protocol assignments; a mixed block, refused
+        #                  as a unit (192.0.0.9/32 is global anycast).
+        "192.88.99.0/24",  # 6to4 relay anycast (deprecated); is_global=True.
+        "198.18.0.0/15",  # benchmarking; is_global=False today.
+        "240.0.0.0/4",  # reserved, includes 255.255.255.255.
+        # IPv6
+        "::/96",  # IPv4-compatible (deprecated); ::7f00:1 reaches 127.0.0.1.
+        "100::/64",  # discard-only; is_global=False today.
+        "2001::/32",  # Teredo; embeds an IPv4 address.
+        "2001:2::/48",  # benchmarking; is_global=False today.
+        "2001:10::/28",  # ORCHID; is_global=False today.
+        "2001:20::/28",  # ORCHIDv2; is_global=True.
+        "2001:db8::/32",  # documentation; is_global=False today.
+        "2002::/16",  # 6to4; embeds an IPv4 address.
+        "3fff::/20",  # documentation; is_global=False today.
+        "5f00::/16",  # SRv6 SIDs; is_global=True.
+    )
+)
+
+#: Prefixes that carry an IPv4 address in their low 32 bits: the NAT64
+#: well-known prefix (RFC 6052) and the local-use prefix (RFC 8215).  Their
+#: IPv6 form is reported as public, so the embedded address decides.
+_NAT64_NETWORKS = (
+    ipaddress.ip_network("64:ff9b::/96"),
+    ipaddress.ip_network("64:ff9b:1::/48"),
+)
 
 
 class UnsafeAddressError(ValueError):
@@ -127,8 +177,42 @@ def _parse(url: str) -> tuple[str, str, int]:
     return scheme, host, port or _DEFAULT_PORTS[scheme]
 
 
+def _embedded_ipv4(
+    ip: ipaddress.IPv4Address | ipaddress.IPv6Address,
+) -> ipaddress.IPv4Address | None:
+    """Return the IPv4 address *ip* encodes, when it encodes one.
+
+    An IPv4-mapped address (``::ffff:a.b.c.d``) and both NAT64 prefixes reach
+    the IPv4 host whose address occupies the low 32 bits.  ``is_global``
+    judges the IPv6 prefix instead: it reports ``64:ff9b::/96`` as public,
+    which makes ``64:ff9b::7f00:1`` look like a public target although it
+    reaches 127.0.0.1.
+
+    Args:
+        ip: A parsed IPv4 or IPv6 address.
+
+    Returns:
+        The embedded IPv4 address, or ``None`` when *ip* is not a mapped or
+        NAT64 address.
+    """
+    if not isinstance(ip, ipaddress.IPv6Address):
+        return None
+    if ip.ipv4_mapped is not None:
+        return ip.ipv4_mapped
+    for network in _NAT64_NETWORKS:
+        if ip in network:
+            return ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF)
+    return None
+
+
 def _is_public(address: str) -> bool:
-    """Return True when *address* is globally reachable.
+    """Return True when *address* may be dialed.
+
+    ``is_global`` is the allowlist, followed by explicit refusals for
+    addresses it cannot be trusted to classify: multicast, unspecified,
+    link-local, loopback and reserved, and the version-dependent
+    special-purpose ranges in :data:`_SPECIAL_PURPOSE_NETWORKS`.  An
+    IPv4-mapped or NAT64 address is judged by the IPv4 address it embeds.
 
     Args:
         address: An IPv4 or IPv6 literal as returned by the resolver.
@@ -137,12 +221,24 @@ def _is_public(address: str) -> bool:
         True for a globally reachable unicast address.
     """
     ip = ipaddress.ip_address(address)
-    if ip.version == 6 and ip.ipv4_mapped is not None:
-        # ``::ffff:127.0.0.1`` reaches the same host as ``127.0.0.1``.
-        ip = ip.ipv4_mapped
-    # ``is_global`` alone is not enough: CPython reports 224.0.0.0/4 as
-    # global on 3.10, and an unspecified address is never a target.
-    return ip.is_global and not ip.is_multicast and not ip.is_unspecified
+    embedded = _embedded_ipv4(ip)
+    if embedded is not None:
+        ip = embedded
+    if (
+        ip.is_multicast
+        or ip.is_unspecified
+        or ip.is_link_local
+        or ip.is_loopback
+        or ip.is_reserved
+    ):
+        return False
+    if not ip.is_global:
+        return False
+    return not any(
+        ip in network
+        for network in _SPECIAL_PURPOSE_NETWORKS
+        if network.version == ip.version
+    )
 
 
 def _check(host: str, addresses: list[str]) -> None:

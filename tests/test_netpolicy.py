@@ -232,3 +232,83 @@ class TestAsync:
         clear_address_cache()
         with pytest.raises(UnsafeAddressError, match="Could not resolve"):
             asyncio.run(validate_outbound_url_async("https://slow.example/spec"))
+
+
+#: One literal from each range the policy refuses explicitly.  Several are
+#: reported as global by ``ipaddress``; the rest are pinned so an interpreter
+#: table change cannot open them again.
+SPECIAL_PURPOSE_LITERALS = [
+    "192.0.0.1",  # IETF protocol assignments
+    "192.88.99.1",  # 6to4 relay anycast, is_global=True
+    "198.18.0.1",  # benchmarking
+    "240.0.0.1",  # reserved
+    "::7f00:1",  # IPv4-compatible, embeds 127.0.0.1
+    "100::1",  # discard-only
+    "2001::1",  # Teredo
+    "2001:2::1",  # benchmarking
+    "2001:10::1",  # ORCHID
+    "2001:20::1",  # ORCHIDv2, is_global=True
+    "2001:db8::1",  # documentation
+    "2002::1",  # 6to4, embeds an IPv4 address
+    "3fff::1",  # documentation
+    "5f00::1",  # SRv6 SIDs, is_global=True
+    "ff02::1",  # IPv6 multicast
+]
+
+
+class TestSpecialPurposeRanges:
+    @pytest.mark.parametrize("host", SPECIAL_PURPOSE_LITERALS)
+    def test_special_purpose_literal_is_refused(self, host):
+        with pytest.raises(PrivateAddressError):
+            validate_outbound_url(_url(host))
+
+    @pytest.mark.parametrize("host", SPECIAL_PURPOSE_LITERALS)
+    def test_allow_private_hosts_still_opts_out(self, host):
+        url = _url(host)
+        assert validate_outbound_url(url, allow_private_hosts=True) == url
+
+
+class TestNat64:
+    """A NAT64 prefix is judged by the IPv4 address it embeds."""
+
+    def test_embedded_loopback_is_refused(self):
+        # 64:ff9b::7f00:1 reaches 127.0.0.1; is_global reports the prefix as
+        # public, which is the bypass this check closes.
+        with pytest.raises(PrivateAddressError):
+            validate_outbound_url(_url("64:ff9b::7f00:1"))
+
+    def test_local_use_prefix_embedded_loopback_is_refused(self):
+        with pytest.raises(PrivateAddressError):
+            validate_outbound_url(_url("64:ff9b:1::7f00:1"))
+
+    def test_embedded_public_address_is_allowed(self):
+        url = _url("64:ff9b::808:808")  # 8.8.8.8
+        assert validate_outbound_url(url) == url
+
+    def test_local_use_prefix_embedded_public_address_is_allowed(self):
+        url = _url("64:ff9b:1::808:808")
+        assert validate_outbound_url(url) == url
+
+
+class TestPublicModule:
+    """``toolregistry.netpolicy`` is the public name for the policy."""
+
+    def test_public_names_are_the_compatibility_names(self):
+        from toolregistry import _netpolicy, netpolicy
+
+        assert netpolicy.validate_outbound_url is _netpolicy.validate_outbound_url
+        assert (
+            netpolicy.validate_outbound_url_async
+            is _netpolicy.validate_outbound_url_async
+        )
+        assert netpolicy.UnsafeAddressError is _netpolicy.UnsafeAddressError
+        assert netpolicy.PrivateAddressError is _netpolicy.PrivateAddressError
+        assert netpolicy.SCHEMES is _netpolicy.SCHEMES
+        assert netpolicy.clear_address_cache is _netpolicy.clear_address_cache
+
+    def test_public_import_enforces_the_policy(self):
+        from toolregistry.netpolicy import PrivateAddressError as PublicError
+        from toolregistry.netpolicy import validate_outbound_url as public_validate
+
+        with pytest.raises(PublicError):
+            public_validate("http://127.0.0.1/")
