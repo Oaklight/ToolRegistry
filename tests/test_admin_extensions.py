@@ -233,6 +233,54 @@ class TestExtensionsMounted:
         assert status == 404
 
 
+class ApiOnlyExtension:
+    """An extension with routes but no tab and no assets."""
+
+    name = "api-only"
+    title = {"en": "API only"}
+    requires_api = ADMIN_EXTENSION_API
+
+    def register(self, ctx) -> None:
+        ctx.get("/ping", self.ping)
+
+    def ping(self, request):
+        return {"pong": True}
+
+
+class TestApiOnlyExtension:
+    """An extension may omit nav, assets, entry and styles."""
+
+    @pytest.fixture()
+    def server(self):
+        admin = AdminServer(ToolRegistry(), port=0, extensions=[ApiOnlyExtension()])
+        info = admin.start()
+        try:
+            yield info
+        finally:
+            admin.stop()
+
+    def test_manifest_has_no_nav_or_entry(self, server) -> None:
+        status, body, _ = _request(f"{server.url}/api/extensions")
+
+        assert status == 200
+        manifest = json.loads(body)["extensions"][0]
+        assert manifest["name"] == "api-only"
+        assert manifest["nav"] is None
+        assert manifest["entry"] is None
+        assert manifest["styles"] == []
+
+    def test_routes_are_mounted(self, server) -> None:
+        status, body, _ = _request(f"{server.url}/ext/api-only/ping")
+
+        assert status == 200
+        assert json.loads(body) == {"pong": True}
+
+    def test_no_assets_are_served(self, server) -> None:
+        status, _, _ = _request(f"{server.url}/assets/ext/api-only/main.js")
+
+        assert status == 404
+
+
 class TestExtensionAuthentication:
     """Extension routes and assets inherit the panel's auth policy."""
 
@@ -330,6 +378,20 @@ class TestExtensionValidation:
 
         with pytest.raises(AdminExtensionError, match="assets directory"):
             self._prepare(NoAssets())
+
+    def test_nav_without_entry_is_refused(self, assets_dir: Path) -> None:
+        class NavNoEntry(ClockExtension):
+            entry = None
+
+        with pytest.raises(AdminExtensionError, match="no entry module"):
+            self._prepare(NavNoEntry(assets_dir))
+
+    def test_nav_group_must_be_a_key(self, assets_dir: Path) -> None:
+        class LabelGroup(ClockExtension):
+            nav = {"group": "Utilities"}
+
+        with pytest.raises(AdminExtensionError, match="lower-case key"):
+            self._prepare(LabelGroup(assets_dir))
 
     def test_unknown_nav_key_is_refused(self, assets_dir: Path) -> None:
         class BadNav(ClockExtension):

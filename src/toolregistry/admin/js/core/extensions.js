@@ -32,6 +32,15 @@ const AdminExtensions = (() => {
         return (manifest.nav && manifest.nav.group) || '';
     }
 
+    // A group is a translation key, not a label: "group.gateway" is rendered
+    // when a dictionary defines it, otherwise the key reads as itself.
+    function groupLabel(key) {
+        if (!key) return t('nav.extensions');
+        const active = I18N[currentLang] || {};
+        const english = I18N.en || {};
+        return active['group.' + key] || english['group.' + key] || key;
+    }
+
     // A path in the manifest is relative to the panel API prefix; accept both
     // "/things" and "things" so an extension does not depend on one spelling.
     function normalizeSubpath(path) {
@@ -113,8 +122,7 @@ const AdminExtensions = (() => {
             section.dataset.extGroup = groupName;
             section.innerHTML = '<hr class="console-sep">'
                 + '<div class="console-label"></div><div class="console-group"></div>';
-            section.querySelector('.console-label').textContent =
-                groupName || t('nav.extensions');
+            section.querySelector('.console-label').textContent = groupLabel(groupName);
             const spacer = nav.querySelector('.console-spacer');
             if (spacer) nav.insertBefore(section, spacer);
             else nav.appendChild(section);
@@ -165,6 +173,9 @@ const AdminExtensions = (() => {
             throw new Error('extension "' + manifest.name + '" requires API '
                 + manifest.requires_api + ', this panel provides ' + ADMIN_EXTENSION_API);
         }
+        // An API-only extension has routes but no tab: its manifest has no
+        // nav object, no entry module and nothing for the shell to mount.
+        if (!manifest.nav) return;
 
         injectStyles(manifest);
         insertNav(manifest);
@@ -239,7 +250,7 @@ const AdminExtensions = (() => {
             });
         Array.from(document.querySelectorAll('.console-ext')).forEach((section) => {
             const label = section.querySelector('.console-label');
-            if (label) label.textContent = section.dataset.extGroup || t('nav.extensions');
+            if (label) label.textContent = groupLabel(section.dataset.extGroup);
         });
     }
 
