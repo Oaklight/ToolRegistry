@@ -14,6 +14,20 @@ hide:
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，并在需要时保留项目自身的分类方式。
 
+## [Unreleased]
+
+### 新增
+
+#### 核心
+
+- **出站地址策略公开**（#425）：`toolregistry.netpolicy` 导出 `validate_outbound_url()`、`validate_outbound_url_async()`、`UnsafeAddressError`、`PrivateAddressError`、`SCHEMES` 与 `clear_address_cache()`。`toolregistry._netpolicy` 仍可导入且指向同一对象，现有导入不受影响。模块 docstring 写明契约：策略只回答该 URL 能否被拨号；重定向、连接时的地址固定与跨 origin 凭据处理仍由调用方负责。
+
+### 安全
+
+#### 核心
+
+- **特殊用途网段改为显式拒绝**（#425，比 0.20.0 更严格）：在 `is_global` 白名单之外，策略现在拒绝 `192.0.0.0/24`、`192.88.99.0/24`、`198.18.0.0/15`、`240.0.0.0/4`、`::/96`、`100::/64`、`2001::/32`、`2001:2::/48`、`2001:10::/28`、`2001:20::/28`、`2001:db8::/32`、`2002::/16`、`3fff::/20` 与 `5f00::/16`。其中 `192.88.99.0/24`、`2001:20::/28` 与 `5f00::/16` 在所有受支持的 Python 解释器上都被 `ipaddress` 报告为全球可达，仅靠 `is_global` 会放行；其余网段则显式固定，避免解释器表变化后重新放开。NAT64 地址（`64:ff9b::/96`、`64:ff9b:1::/48`）按其中内嵌的 IPv4 判断，因此 `64:ff9b::7f00:1` 不再能到达 `127.0.0.1`，而经 NAT64 访问公网 IPv4 仍然可用。`allow_private_hosts=True` 仍可整体放行。
+
 ## [0.20.0] - 2026-11-08
 
 ### 破坏性变更
