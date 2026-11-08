@@ -10,9 +10,13 @@ The `toolregistry.runtimes` subpackage provides the **PTC (Programmatic Tool Cal
     `CodeResult`, `SubprocessRuntime`, `IpcSubprocessRuntime`, and validators
     are provided by the `codecell` package: `pip install toolregistry[ptc]`
 
-## CodeExecutionTool
+## PtcTool
 
-Built-in PTC meta-tool that lets LLMs write Python code with registered tools callable in the namespace. Registered via `registry.ptc.enable()`.
+`PtcTool` is the built-in PTC meta-tool that lets LLMs write Python code with
+registered tools callable in the namespace. It is registered as
+`programmatic_tool_call` and enabled via `registry.ptc.enable()`. Import it
+with `from toolregistry.runtimes import PtcTool` (requires
+`pip install toolregistry[ptc]`).
 
 ```python
 from toolregistry import ToolRegistry
@@ -38,8 +42,7 @@ registry.ptc.enable()
 **Invocation tracking:** Each `execute()` call generates a `tr_ptc_` invocation ID. All tool calls within that execution share the same ID in the execution log:
 
 ```python
-# registry.ptc.last_invocation_id
-executor.execute("print(add(a=1, b=2))")
+registry.invoke("programmatic_tool_call", {"code": "print(add(a=1, b=2))"})
 
 # Query all tool calls from this execution:
 log = registry.get_execution_log()

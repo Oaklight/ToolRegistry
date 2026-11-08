@@ -304,7 +304,8 @@ registry = ToolRegistry()
 registry.register(tool_instance)
 
 # Execute tool through registry
-result = registry.execute_tool("tool_name", param1="value1", param2="value2")
+result = registry.invoke("tool_name", {"param1": "value1", "param2": "value2"})
+print(result.result)  # result.message when the call failed
 ```
 
 The Tool class provides the foundation for all tool operations within the ToolRegistry ecosystem, ensuring consistent behavior across different tool sources and execution environments.

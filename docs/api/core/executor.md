@@ -96,7 +96,7 @@ Returned by `backend.submit()`. Controls and observes a running execution.
 |--------|-------------|
 | `result(timeout)` | Block until result or timeout |
 | `cancel()` | Request cancellation |
-| `status()` | Return `ExecutionStatus` (PENDING, RUNNING, COMPLETED, FAILED, CANCELLED) |
+| `status()` | Return `HandleStatus` (PENDING, RUNNING, COMPLETED, FAILED, CANCELLED) |
 | `on_progress(callback)` | Register a progress listener |
 | `execution_id` | Unique ID for this execution |
 

@@ -119,13 +119,13 @@ registry = ToolRegistry()
 
 # Default behavior (traverse_mro=True): includes inherited methods from BaseCalculator
 registry.register(AdvancedCalculator, source="class")
-print(registry.get_available_tools())
+print(registry.list_tools())
 # Output: ['advanced_calculator-add', 'advanced_calculator-multiply']
 
 # With traverse_mro=False: only methods defined directly on AdvancedCalculator
 registry2 = ToolRegistry()
 registry2.register(AdvancedCalculator, source="class", traverse_mro=False)
-print(registry2.get_available_tools())
+print(registry2.list_tools())
 # Output: ['advanced_calculator-multiply']
 ```
 
@@ -139,8 +139,10 @@ registry = ToolRegistry()
 # Register with custom namespace
 registry.register(my_function, namespace="math_utils")
 
-# Access tools with namespace
-available_tools = registry.get_available_tools(namespace="math_utils")
+# Access tools with namespace — names carry the prefix
+available_tools = [
+    name for name in registry.list_tools() if name.startswith("math_utils-")
+]
 ```
 
 ### Change Callbacks
@@ -208,7 +210,7 @@ print(disabled_tools)
 ### Tag-Based Bulk Disable
 
 ```python
-from toolregistry import ToolRegistry, ToolMetadata, ToolTag
+from toolregistry import Tool, ToolRegistry, ToolMetadata, ToolTag
 
 registry = ToolRegistry()
 
@@ -224,9 +226,24 @@ def send_email(to: str, body: str) -> None:
     """Send an email."""
     ...
 
-registry.register(read_file, metadata=ToolMetadata(tags={ToolTag.FILE_SYSTEM, ToolTag.READ_ONLY}))
-registry.register(delete_file, metadata=ToolMetadata(tags={ToolTag.FILE_SYSTEM, ToolTag.DESTRUCTIVE}))
-registry.register(send_email, metadata=ToolMetadata(tags={ToolTag.NETWORK}))
+registry.register(
+    Tool.from_function(
+        read_file,
+        metadata=ToolMetadata(tags={ToolTag.FILE_SYSTEM, ToolTag.READ_ONLY}),
+    )
+)
+registry.register(
+    Tool.from_function(
+        delete_file,
+        metadata=ToolMetadata(tags={ToolTag.FILE_SYSTEM, ToolTag.DESTRUCTIVE}),
+    )
+)
+registry.register(
+    Tool.from_function(
+        send_email,
+        metadata=ToolMetadata(tags={ToolTag.NETWORK}),
+    )
+)
 
 # match="any" (default): disable tools that have AT LEAST ONE of the given tags
 disabled = registry.disable_by_tags(
@@ -238,8 +255,18 @@ print(disabled)  # ['delete_file', 'send_email']
 
 # match="all": disable only tools that carry EVERY specified tag
 registry2 = ToolRegistry()
-registry2.register(read_file, metadata=ToolMetadata(tags={ToolTag.FILE_SYSTEM, ToolTag.READ_ONLY}))
-registry2.register(delete_file, metadata=ToolMetadata(tags={ToolTag.FILE_SYSTEM, ToolTag.DESTRUCTIVE}))
+registry2.register(
+    Tool.from_function(
+        read_file,
+        metadata=ToolMetadata(tags={ToolTag.FILE_SYSTEM, ToolTag.READ_ONLY}),
+    )
+)
+registry2.register(
+    Tool.from_function(
+        delete_file,
+        metadata=ToolMetadata(tags={ToolTag.FILE_SYSTEM, ToolTag.DESTRUCTIVE}),
+    )
+)
 
 disabled2 = registry2.disable_by_tags(
     {ToolTag.FILE_SYSTEM, ToolTag.DESTRUCTIVE},
@@ -252,7 +279,7 @@ print(disabled2)  # ['delete_file']
 ### Post-Registration Hook
 
 ```python
-from toolregistry import ToolRegistry, PostRegisterHook, ToolMetadata, ToolTag
+from toolregistry import PostRegisterHook, Tool, ToolRegistry, ToolMetadata, ToolTag
 
 registry = ToolRegistry()
 
@@ -269,7 +296,9 @@ def sudo_command(cmd: str) -> str:
     """Run a command with elevated privileges."""
     ...
 
-registry.register(sudo_command, metadata=ToolMetadata(tags={ToolTag.PRIVILEGED}))
+registry.register(
+    Tool.from_function(sudo_command, metadata=ToolMetadata(tags={ToolTag.PRIVILEGED}))
+)
 
 print(registry.is_enabled("sudo_command"))     # False
 print(registry.get_disable_reason("sudo_command"))
