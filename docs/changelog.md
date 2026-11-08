@@ -30,6 +30,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+#### Core
+
+- **Auto discovery no longer mutates the tool map from inside a change callback** (#428): `_sync_tool_discovery` runs as a change callback, and starting or stopping discovery writes `_tools`. `disable_by_tags()` iterating that map while disabling the last deferred tool, or a reload loop that updates metadata inside its own iteration, therefore raised `RuntimeError: dictionary changed size during iteration` — not catchable inside the callback, because the outer iterator raises. Registry mutations now run inside a `_mutation()` batch: the callback only marks reconciliation pending, and the outermost mutation applies it once after every event is dispatched. Starting or stopping discovery also detaches `_tools` before writing it, so a frame already iterating keeps its snapshot; only discovery start/stop pays for that copy. `auto` still follows the deferred set, and `on` / `off` are unchanged.
+
 #### Admin panel
 
 - **A spec regex that does not compile is refused at registration** (#421): `preview_source()` and source registration loaded an OpenAPI document without compiling its `pattern` or `patternProperties`, so a malformed pattern was accepted and surfaced only on the first call — a 500 with the optional `regex` package installed, a silently ignored constraint without it. Both paths now call `_check_spec_patterns` before anything is registered; a bad pattern raises the panel's `SourceError` with the tool name and schema path, so the HTTP layer answers 400 and the registry stays untouched. The engine is `regex` when installed (the one request-time validation uses) and stdlib `re` otherwise; the fallback is stricter, rejecting patterns that only `regex` accepts, such as a variable-length lookbehind or `\p{...}`.
