@@ -69,7 +69,7 @@ class AdminExtensionError(RuntimeError):
 class AdminExtension(Protocol):
     """Structural contract for an admin panel extension.
 
-    Only the members below are required.  The host reads the remaining
+    Only the members below are required.  The host reads the optional
     members with a default when they are absent:
 
     Attributes:
@@ -79,12 +79,21 @@ class AdminExtension(Protocol):
         title: Locale map used as the navigation label, for example
             ``{"en": "Clock", "zh": "时钟"}``.  The loader uses the active
             language, then ``en``, then any value.
-        entry: Browser module path under ``assets/ext/<name>/``.  It exports
-            ``register({container, api, i18n})`` and optionally ``unmount()``.
         requires_api: Contract version the extension was written for.  Must
             equal :data:`ADMIN_EXTENSION_API`.
         register: Called once with an :class:`AdminContext`.  It registers the
             extension's HTTP routes and returns.
+
+    Optional members, read when present:
+        assets: Asset directory.  Required when the extension declares a tab
+            or any asset path.
+        entry: Browser module path under ``assets/ext/<name>/``.  Required
+            with ``nav``; the module exports
+            ``register({container, api, i18n})`` and optionally ``unmount()``.
+        styles: Stylesheet paths under ``assets/ext/<name>/``.
+        icon: SVG markup for the navigation item.
+        nav: Mapping with an optional ``group`` translation key and an
+            integer ``order``.  Its presence makes the extension a tab.
     """
 
     @property
@@ -94,10 +103,6 @@ class AdminExtension(Protocol):
     @property
     def title(self) -> Mapping[str, str]:
         """Locale -> navigation label."""
-
-    @property
-    def entry(self) -> str:
-        """Browser module path under ``assets/ext/<name>/``."""
 
     @property
     def requires_api(self) -> int:
@@ -148,10 +153,9 @@ class AdminContext:
         registry: The registry the panel manages.
     """
 
-    def __init__(self, app: AdminApp, name: str, assets_dir: Path) -> None:
+    def __init__(self, app: AdminApp, name: str) -> None:
         self._app = app
         self._name = name
-        self._assets_dir = assets_dir
         self._routes: set[tuple[str, str]] = set()
 
     @property
@@ -255,22 +259,28 @@ class MountedExtension:
         name: Extension identifier.
         title: Locale → label map.
         icon: Optional SVG markup for the navigation item.
-        nav_group: Optional console group label.  Extensions that share a
-            group are listed together.
+        has_nav: Whether the extension contributes a console section.  An
+            API-only extension has routes but no tab.
+        nav_group: Optional translation key for the console group.  The shell
+            renders ``group.<key>`` when a dictionary defines it, otherwise
+            the key itself.
         nav_order: Sort key inside the group.
-        entry: Module path under ``assets/ext/<name>/``.
+        entry: Module path under ``assets/ext/<name>/``, or ``None`` for an
+            extension without a tab.
         styles: Stylesheet paths under ``assets/ext/<name>/``.
-        assets_dir: Resolved directory the asset paths read from.
+        assets_dir: Resolved directory the asset paths read from, or ``None``
+            when the extension declares no assets.
     """
 
     name: str
     title: dict[str, str]
     icon: str | None
+    has_nav: bool
     nav_group: str | None
     nav_order: int
-    entry: str
+    entry: str | None
     styles: tuple[str, ...]
-    assets_dir: Path
+    assets_dir: Path | None
 
     @property
     def api_prefix(self) -> str:
@@ -289,7 +299,11 @@ class MountedExtension:
             "name": self.name,
             "title": dict(self.title),
             "icon": self.icon,
-            "nav": {"group": self.nav_group, "order": self.nav_order},
+            "nav": (
+                {"group": self.nav_group, "order": self.nav_order}
+                if self.has_nav
+                else None
+            ),
             "entry": self.entry,
             "styles": list(self.styles),
             "api_prefix": self.api_prefix,
@@ -328,13 +342,15 @@ def _require_title(extension: object, name: str) -> dict[str, str]:
     return normalized
 
 
-def _require_assets_dir(extension: object, name: str) -> Path:
-    """Return the extension's resolved asset directory."""
+def _optional_assets_dir(extension: object, name: str) -> Path | None:
+    """Return the extension's resolved asset directory, or ``None``.
+
+    An extension without a tab and without assets is API-only; it has no
+    directory to validate or serve.
+    """
     raw = getattr(extension, "assets", None)
     if raw is None:
-        raise AdminExtensionError(
-            f"extension '{name}' must provide an assets directory"
-        )
+        return None
     try:
         assets_dir = Path(raw).resolve()
     except TypeError as exc:
@@ -358,7 +374,7 @@ def _require_asset_path(value: object, name: str, assets_dir: Path, field: str) 
         field: Field name used in error messages.
 
     Returns:
-        The URL path, with the ``assets/`` prefix applied.
+        The declaration unchanged: it is already relative to the panel root.
 
     Raises:
         AdminExtensionError: If the path is malformed, outside the extension's
@@ -378,17 +394,17 @@ def _require_asset_path(value: object, name: str, assets_dir: Path, field: str) 
         raise AdminExtensionError(
             f"extension '{name}' {field} must not contain dot segments: {value!r}"
         )
-    if path.parts[:2] != ("ext", name) or len(path.parts) < 3:
+    if path.parts[:3] != ("assets", "ext", name) or len(path.parts) < 4:
         raise AdminExtensionError(
             f"extension '{name}' {field} must start with "
-            f"'{EXTENSION_ASSET_PREFIX}/{name}/': {value!r}"
+            f"'assets/{EXTENSION_ASSET_PREFIX}/{name}/': {value!r}"
         )
     if content_type_for(path.suffix) is None:
         raise AdminExtensionError(
             f"extension '{name}' {field} has an unsupported file type: {value!r}"
         )
 
-    candidate = assets_dir.joinpath(*path.parts[2:])
+    candidate = assets_dir.joinpath(*path.parts[3:])
     try:
         resolved = candidate.resolve()
     except OSError as exc:  # pragma: no cover - unusual filesystem state
@@ -403,14 +419,14 @@ def _require_asset_path(value: object, name: str, assets_dir: Path, field: str) 
         raise AdminExtensionError(
             f"extension '{name}' {field} does not exist: {value!r}"
         )
-    return f"{EXTENSION_ASSET_PREFIX}/{value.removeprefix('ext/')}"
+    return value
 
 
-def _require_nav(extension: object, name: str) -> tuple[str | None, int]:
-    """Return the validated ``nav`` group and order."""
+def _require_nav(extension: object, name: str) -> tuple[bool, str | None, int]:
+    """Return whether the extension has a tab, its group key and order."""
     nav = getattr(extension, "nav", None)
     if nav is None:
-        return None, DEFAULT_NAV_ORDER
+        return False, None, DEFAULT_NAV_ORDER
     if not isinstance(nav, Mapping):
         raise AdminExtensionError(f"extension '{name}' nav must be a mapping")
     unknown = set(nav) - {"group", "order"}
@@ -419,16 +435,17 @@ def _require_nav(extension: object, name: str) -> tuple[str | None, int]:
             f"extension '{name}' nav has unknown keys: {sorted(map(str, unknown))}"
         )
     group = nav.get("group")
-    if group is not None and (not isinstance(group, str) or not group):
+    if group is not None and (not isinstance(group, str) or not _NAME_RE.match(group)):
         raise AdminExtensionError(
-            f"extension '{name}' nav group must be a non-empty string"
+            f"extension '{name}' nav group must be a lower-case key "
+            f"matching {_NAME_RE.pattern}"
         )
     order = nav.get("order", DEFAULT_NAV_ORDER)
     if isinstance(order, bool) or not isinstance(order, int):
         raise AdminExtensionError(
             f"extension '{name}' nav order must be an integer, got {order!r}"
         )
-    return group, order
+    return True, group, order
 
 
 def _prepare_one(extension: object) -> MountedExtension:
@@ -446,29 +463,45 @@ def _prepare_one(extension: object) -> MountedExtension:
             f"extension '{name}' must define a register(context) method"
         )
     title = _require_title(extension, name)
-    assets_dir = _require_assets_dir(extension, name)
-    entry = _require_asset_path(
-        getattr(extension, "entry", None), name, assets_dir, "entry"
-    )
+    has_nav, group, order = _require_nav(extension, name)
+    assets_dir = _optional_assets_dir(extension, name)
 
+    entry_value = getattr(extension, "entry", None)
     styles_raw = getattr(extension, "styles", None) or ()
     if isinstance(styles_raw, str) or not isinstance(styles_raw, Sequence):
         raise AdminExtensionError(
             f"extension '{name}' styles must be a sequence of asset paths"
         )
-    styles = tuple(
-        _require_asset_path(value, name, assets_dir, "style") for value in styles_raw
-    )
+    styles_values = tuple(styles_raw)
+
+    if has_nav and entry_value is None:
+        raise AdminExtensionError(
+            f"extension '{name}' declares a nav section but no entry module"
+        )
+    if (entry_value is not None or styles_values) and assets_dir is None:
+        raise AdminExtensionError(
+            f"extension '{name}' declares assets but no assets directory"
+        )
+
+    entry: str | None = None
+    styles: tuple[str, ...] = ()
+    if assets_dir is not None:
+        if entry_value is not None:
+            entry = _require_asset_path(entry_value, name, assets_dir, "entry")
+        styles = tuple(
+            _require_asset_path(value, name, assets_dir, "style")
+            for value in styles_values
+        )
 
     icon = getattr(extension, "icon", None)
     if icon is not None and not isinstance(icon, str):
         raise AdminExtensionError(f"extension '{name}' icon must be a string")
-    group, order = _require_nav(extension, name)
 
     return MountedExtension(
         name=name,
         title=title,
         icon=icon,
+        has_nav=has_nav,
         nav_group=group,
         nav_order=order,
         entry=entry,
@@ -527,7 +560,7 @@ def mount_extensions(
     mounted: list[MountedExtension] = []
     for extension in instances:
         info = _prepare_one(extension)
-        context = AdminContext(app, info.name, info.assets_dir)
+        context = AdminContext(app, info.name)
         try:
             cast(AdminExtension, extension).register(context)
         except AdminExtensionError as exc:
@@ -541,5 +574,7 @@ def mount_extensions(
         mounted.append(info)
 
     app.extensions = tuple(mounted)
-    app.extension_assets = {info.name: info.assets_dir for info in mounted}
+    app.extension_assets = {
+        info.name: info.assets_dir for info in mounted if info.assets_dir is not None
+    }
     return tuple(mounted)
