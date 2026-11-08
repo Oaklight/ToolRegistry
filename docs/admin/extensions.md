@@ -16,18 +16,22 @@ An extension is an object with the attributes below and a `register` method.
 |-----------|----------|---------|
 | `name` | yes | Lower-case identifier matching `^[a-z][a-z0-9_-]*$`. It becomes the URL segment `/ext/<name>` and the asset directory key. |
 | `title` | yes | Locale map for the navigation label, for example `{"en": "Clock", "zh": "时钟"}`. |
-| `assets` | yes | Directory on disk that `entry` and `styles` are read from. |
-| `entry` | yes | Browser module path under `assets/ext/<name>/`, ending in `.js`. |
+| `assets` | with a tab | Directory on disk that `entry` and `styles` are read from. Required when the extension declares `nav` or any asset. |
+| `entry` | with a tab | Browser module path under `assets/ext/<name>/`, ending in `.js`. Required when `nav` is present. |
 | `requires_api` | yes | Contract version the extension targets. Must equal `ADMIN_EXTENSION_API` (`1`). |
 | `styles` | no | Sequence of `.css` paths under `assets/ext/<name>/`. |
 | `icon` | no | SVG markup for the navigation item. The default is a grid glyph. |
-| `nav` | no | Mapping with an optional `group` label and an integer `order` (default `100`). |
+| `nav` | no | Mapping with an optional `group` translation key and an integer `order` (default `100`). |
 | `register` | yes | Called once with an `AdminContext`. |
 
-`name`, `title`, `entry`, `requires_api` and `register` are validated before
-the listener starts. A violation raises `AdminExtensionError` naming the
+`name`, `title`, `requires_api` and `register` are validated before the
+listener starts. A violation raises `AdminExtensionError` naming the
 extension, and `AdminServer.start()` fails; the panel never serves a
 half-mounted extension.
+
+An extension that only contributes HTTP routes omits `nav`, `assets`, `entry`
+and `styles`. Its routes are mounted and `GET /api/extensions` reports
+`"nav": null` and `"entry": null`; the panel shows no tab for it.
 
 Paths that do not start with `assets/ext/<name>/`, contain dot segments, or
 use a suffix outside `.css` / `.js` are refused.
@@ -50,7 +54,7 @@ class ClockExtension:
     styles = ("assets/ext/clock/style.css",)
     requires_api = ADMIN_EXTENSION_API
     assets = Path("/srv/toolregistry/extensions/clock/static")
-    nav = {"group": "Utilities", "order": 20}
+    nav = {"group": "utilities", "order": 20}
 
     def register(self, ctx):
         ctx.get("/now", self.now)
@@ -96,7 +100,7 @@ Registering the same method and path twice raises `AdminExtensionError`.
       "name": "clock",
       "title": {"en": "Clock", "zh": "时钟"},
       "icon": null,
-      "nav": {"group": "Utilities", "order": 20},
+      "nav": {"group": "utilities", "order": 20},
       "entry": "assets/ext/clock/main.js",
       "styles": ["assets/ext/clock/style.css"],
       "api_prefix": "/ext/clock",
@@ -106,7 +110,12 @@ Registering the same method and path twice raises `AdminExtensionError`.
 }
 ```
 
-The endpoint requires the same authentication as the rest of the panel.
+The endpoint requires the same authentication as the rest of the panel. An
+API-only extension appears with `"nav": null` and `"entry": null`.
+
+`nav.group` is a translation key, not a display label: the shell renders
+`group.<key>` when a dictionary defines it, and otherwise shows the key
+itself. Group keys use the same lower-case charset as `name`.
 
 ## The browser module
 
@@ -170,8 +179,9 @@ directory, so a symlink cannot escape it.
 
 When the UI is served, extension assets share the shell's authentication
 exemption: the browser must load the panel's scripts before it can present a
-token prompt. Extension assets are therefore public on a token-protected
-panel. Do not put secrets in them.
+token prompt. The handler serves only declared files with the whitelisted
+content types. Extension assets are therefore public to anyone who can reach
+the panel port, even on a token-protected panel. Do not put secrets in them.
 
 ## Security and versioning
 
@@ -185,4 +195,5 @@ panel. Do not put secrets in them.
   extension with its name in the message; it is never mounted silently.
 - **Trust.** An extension is operator-installed code. Its browser module runs
   with the panel's privileges, and its `icon` string is inserted as SVG
-  markup. Install only extensions you trust.
+  markup. There is no sandbox, so the panel's XSS boundary is only as strong
+  as the extension's own correctness. Install only extensions you trust.
