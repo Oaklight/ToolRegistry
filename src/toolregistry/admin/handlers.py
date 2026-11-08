@@ -1199,6 +1199,10 @@ def _get_info(request: Request) -> Response:
         "name_sep": registry.name_sep,
         "discover_enabled": "discover_tools" in registry._tools
         and registry.is_enabled("discover_tools"),
+        # The panel cannot change this policy; it shows the operator why a
+        # local or private source is refused and which server switch allows
+        # it (#370).
+        "allow_private_hosts": _app(request).allow_private_hosts,
     }
     try:
         import toolregistry_server
