@@ -66,7 +66,8 @@ least `id`, `kind`, `detail`, `namespace`, `status` and `last_error`, plus
 
 `payload` can carry an auth token, request headers, `env` values or command
 arguments. A hook must neither log nor echo it, and it must redact whatever it
-stores for display. The panel never logs `payload` itself.
+stores for display. The panel never logs `payload` itself, and the change's
+`repr` omits it, so logging the object cannot print credentials.
 
 ## Registration response
 
@@ -124,7 +125,8 @@ Sources tab reads only `sources`, so an installed hook does not change it.
 
 A hook that raises from `statuses()` or `writable()` does not break the
 listing: the failure is logged, `source_status` is empty and
-`config_writable` is `false`.
+`config_writable` is `false`. A single record that cannot be serialised is
+logged and skipped; the rest are still served.
 
 ## Failure behaviour
 
