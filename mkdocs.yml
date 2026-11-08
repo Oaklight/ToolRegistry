@@ -158,6 +158,7 @@ nav:
           - Tool: api/core/tool.md
           - Executor: api/core/executor.md
           - Runtimes (PTC): api/core/runtimes.md
+          - Outbound Address Policy: api/core/netpolicy.md
           - Events: api/events.md
           - Permissions: api/permissions.md
       - Integrations:

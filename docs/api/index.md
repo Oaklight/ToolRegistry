@@ -9,6 +9,7 @@ Fundamental classes and base components:
 - [**ToolRegistry**](core/toolregistry.md) — Central orchestrator for tool management
 - [**Tool**](core/tool.md) — Individual tool with metadata and execution logic
 - [**Executor**](core/executor.md) — Pluggable execution backends (thread/process)
+- [**Outbound Address Policy**](core/netpolicy.md) — Refuses a URL whose host is not globally reachable
 - [**Events**](events.md) — Change event types and callback mechanism
 - [**Permissions**](permissions.md) — Rule-based authorization framework
 

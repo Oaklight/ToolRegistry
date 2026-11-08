@@ -45,6 +45,33 @@ The admin panel has its own switch. Start it with
 reach a local API. `GET /api/info` reports the value as `allow_private_hosts`, and
 the OpenAPI form shows a hint when the server refuses private addresses.
 
+### Security baseline: 0.20.1
+
+0.20.0 checked `ipaddress.is_global` and nothing else. That flag is not a
+reliable allowlist: several special-purpose ranges report `True` on
+interpreter versions this project supports, so 0.20.0 let them through. 0.20.1
+adds explicit refusals and is the first release whose policy is safe to rely
+on:
+
+- `::/96` (IPv4-compatible, deprecated) is refused. `ipaddress` reports
+  `::7f00:1` as globally routable, so 0.20.0 accepted it even though it reaches
+  `127.0.0.1`.
+- `192.88.99.0/24` (6to4 relay anycast), `2001:20::/28` (ORCHIDv2) and
+  `5f00::/16` (SRV6 SIDs) are refused for the same reason. The remaining
+  special-purpose blocks are pinned so a later interpreter table change cannot
+  silently reopen them.
+- The NAT64 local-use prefix `64:ff9b:1::/48` is refused as a whole. Its IPv4
+  address sits at a deployment-dependent position, so reading the low 32 bits
+  would judge the wrong bits: `64:ff9b:1::808:808` looks like `8.8.8.8` there
+  while its embedded target is `0.0.0.0`.
+- The NAT64 well-known prefix `64:ff9b::/96` is unwrapped and judged by the
+  IPv4 address in its low 32 bits, so `64:ff9b::7f00:1` no longer reaches
+  `127.0.0.1` while NAT64 access to a public address still works.
+
+0.20.1 also publishes the policy as `toolregistry.netpolicy`;
+`toolregistry._netpolicy` stays importable and resolves to the same objects.
+The full contract is in [Outbound Address Policy](../api/core/netpolicy.md).
+
 ## Redirects
 
 `load_openapi_spec()`, `load_openapi_spec_async()` and `determine_urls()` no

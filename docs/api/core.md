@@ -9,6 +9,7 @@ The core classes provide the fundamental abstractions for tool management, execu
 | [ToolRegistry](core/toolregistry.md) | Central orchestrator for tool registration, execution, and schema generation | Primary entry point |
 | [Tool](core/tool.md) | Represents an individual tool with metadata, parameters, and execution logic | Tool abstraction |
 | [Executor](core/executor.md) | Pluggable execution backends (thread/process) with cancellation and timeout | Execution engine |
+| [Outbound Address Policy](core/netpolicy.md) | Refuses a URL whose host is not globally reachable before a connection opens | SSRF defense |
 | [Events](events.md) | Change event types and callback mechanism for registry state changes | Event infrastructure |
 | [Permissions](permissions.md) | Rule-based authorization framework for controlling tool execution | Permission system |
 
