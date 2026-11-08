@@ -55,6 +55,27 @@
     info = registry.enable_admin(allow_private_hosts=True)
     ```
 
+## OpenAPI 规范检查
+
+预览（`POST /api/sources/preview`）与注册（`POST /api/sources/register`）在列出
+或注册工具之前，会编译文档中的每一个 schema 正则。
+
+- 集成会转成工具的操作（`get`、`post`、`put`、`delete`）中的 `pattern` 关键字和
+  每个 `patternProperties` 键都会被编译。只检查 `parameters[].schema` 与
+  `application/json` 请求体——也就是会变成已发布工具参数的部分。
+- 无法编译的正则会被拒绝，返回 `400 Bad Request`。消息会指出工具名与 schema
+  路径（例如 `tool 'api_get_item' parameters['id'].schema.pattern: ...`），并且
+  注册表保持不变。
+- 安装了可选的 `regex` 包时使用它（请求时校验用的同一引擎），否则使用标准库
+  `re`。回退更严格：只有 `regex` 才接受的正则（如变长后行断言或 `\p{...}`）会在
+  注册时被拒绝，而不是之后被静默忽略。
+- 名称恰好是数据关键字（`default`、`enum`、`example` 等）的属性仍会作为 schema
+  遍历，因此其下的错误正则仍会被发现。schema 对象上的数据值不是正则，不会被
+  编译。
+
+需要这项检查，是因为失败过去出现得更晚：安装 `regex` 时每次调用都会返回 500，
+未安装时约束则被静默丢弃。
+
 ## AdminInfo 对象
 
 `enable_admin()` 方法返回一个 `AdminInfo` 对象，包含以下属性：
