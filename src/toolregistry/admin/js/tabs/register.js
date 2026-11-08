@@ -66,6 +66,7 @@ function registerFieldsTemplate(kind) {
             <div class="form-hint" data-i18n="register.orCommand">or start a local server</div>
             <label class="form-label" data-i18n="register.command">Command</label>
             <input class="input" id="rf-command" placeholder="npx -y @modelcontextprotocol/server-filesystem /tmp">
+            <div class="form-hint" id="rf-stdio-prefill-hint" style="display:none;"></div>
             <label class="form-label">
                 <input type="checkbox" id="rf-allow-private">
                 <span data-i18n="register.allowPrivate">Allow private network hosts</span>
@@ -384,6 +385,26 @@ async function confirmRegisterSelection() {
 }
 
 
+// Decide what a source card can safely pre-fill.  A stdio command's arguments
+// may carry secrets and are never sent to the browser, so the command field
+// stays empty; only the program name feeds the hint.  Take the first token:
+// current details are program-only, but a legacy detail that still carries
+// arguments must not put them in the hint either.
+function sourcePrefill(kind, detail, namespace) {
+    const stdio = kind === 'mcp' && detail.startsWith('stdio:');
+    return {
+        namespace: namespace === 'default' ? '' : namespace,
+        url: kind === 'mcp' && /^https?:\/\//i.test(detail) ? detail : '',
+        specUrl: kind === 'openapi' ? detail : '',
+        command: '',
+        stdioProgram: stdio
+            ? (detail.slice('stdio:'.length).trim().split(/\s+/)[0] || '')
+            : '',
+        stdioCommandHidden: stdio,
+    };
+}
+
+
 // Reached from a Sources card: open the form for the same kind of source and
 // pre-fill what the registry already knows about it.  The card passes its data
 // through dataset attributes, so nothing needs quoting into an inline handler.
@@ -401,13 +422,24 @@ function openRegisterFromSource(button) {
         if (el && value) el.value = value;
     };
     const detail = (button.dataset.detail || '').trim();
-    const namespace = button.dataset.namespace || '';
-    set('rf-namespace', namespace === 'default' ? '' : namespace);
-    if (kind === 'mcp') {
-        if (/^https?:\/\//i.test(detail)) set('rf-url', detail);
-        else if (detail.startsWith('stdio:')) set('rf-command', detail.slice('stdio:'.length).trim());
-    } else if (kind === 'openapi') {
-        set('rf-spec-url', detail);
+    const prefill = sourcePrefill(kind, detail, button.dataset.namespace || '');
+    set('rf-namespace', prefill.namespace);
+    set('rf-url', prefill.url);
+    set('rf-spec-url', prefill.specUrl);
+
+    const hint = document.getElementById('rf-stdio-prefill-hint');
+    if (hint) {
+        if (prefill.stdioCommandHidden) {
+            // textContent, never innerHTML: the program name comes from config.
+            hint.textContent = t('register.stdioHidden').replace(
+                '{command}',
+                () => prefill.stdioProgram,
+            );
+            hint.style.display = '';
+        } else {
+            hint.textContent = '';
+            hint.style.display = 'none';
+        }
     }
 }
 

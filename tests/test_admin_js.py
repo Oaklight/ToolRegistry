@@ -335,6 +335,7 @@ def test_register_ui_copy_is_translated_and_wired() -> None:
     for key in (
         "register.overridesKept",
         "register.stdioNeedsAuth",
+        "register.stdioHidden",
         "register.privateHostsRefused",
     ):
         assert i18n.count(f"'{key}':") == 2, key
@@ -347,10 +348,141 @@ def test_register_ui_copy_is_translated_and_wired() -> None:
     assert "preserved_overrides" in register_js
     assert "register.overridesKept" in register_js
     assert "register.stdioNeedsAuth" in register_js
+    assert "register.stdioHidden" in register_js
+    assert "sourcePrefill" in register_js
     assert "updateStdioHint" in register_js
     assert "register.privateHostsRefused" in register_js
     assert "updatePrivateHostsHint" in register_js
     assert "register-private-hint" in register_js
+
+
+_REGISTER_PREFILL_HARNESS = """
+const vm = require('vm');
+const fs = require('fs');
+
+const code = fs.readFileSync(process.argv[2], 'utf8');
+const scenario = process.argv[3];
+
+const fields = {};
+function field(id) {
+  if (!fields[id]) {
+    const f = { value: '', style: { display: 'none' }, textContent: '' };
+    Object.defineProperty(f, 'innerHTML', {
+      set() { throw new Error('innerHTML used'); },
+    });
+    fields[id] = f;
+  }
+  return fields[id];
+}
+
+globalThis.document = { getElementById: (id) => field(id) };
+globalThis.t = (key) => (key === 'register.stdioHidden' ? 'HINT {command}' : key);
+globalThis.switchTab = () => {};
+
+vm.runInContext(code, vm.createContext(globalThis));
+globalThis.openAddSource = () => {};
+globalThis.renderRegisterForm = () => {};
+
+const detail =
+  scenario === 'xss' ? 'stdio:<img/src=x/onerror=alert(1)>'
+  : scenario === 'stdio' ? 'stdio:uvx --api-key SECRET'
+  : scenario === 'http' ? 'http://example.com/mcp'
+  : '';
+globalThis.openRegisterFromSource({
+  dataset: { kind: 'mcp', detail, namespace: scenario === 'stdio' ? 'ns' : '' },
+});
+
+const hint = field('rf-stdio-prefill-hint');
+process.stdout.write(JSON.stringify({
+  command: field('rf-command').value,
+  url: field('rf-url').value,
+  namespace: field('rf-namespace').value,
+  hintDisplay: hint.style.display,
+  hintText: hint.textContent,
+}));
+"""
+
+
+@pytest.mark.parametrize(
+    ("scenario", "expected"),
+    [
+        (
+            "stdio",
+            {
+                "command": "",
+                "url": "",
+                "namespace": "ns",
+                "hintDisplay": "",
+                "hintText": "HINT uvx",
+            },
+        ),
+        (
+            "xss",
+            {
+                "command": "",
+                "url": "",
+                "namespace": "",
+                "hintDisplay": "",
+                "hintText": "HINT <img/src=x/onerror=alert(1)>",
+            },
+        ),
+        (
+            "http",
+            {
+                "command": "",
+                "url": "http://example.com/mcp",
+                "namespace": "",
+                "hintDisplay": "none",
+                "hintText": "",
+            },
+        ),
+        (
+            "empty",
+            {
+                "command": "",
+                "url": "",
+                "namespace": "",
+                "hintDisplay": "none",
+                "hintText": "",
+            },
+        ),
+    ],
+)
+def test_register_stdio_prefill_keeps_the_command_empty(
+    tmp_path: Path, scenario: str, expected: dict
+) -> None:
+    """A masked stdio detail must not become a command value or unsafe HTML."""
+    code_path = tmp_path / "register.js"
+    code_path.write_text(
+        files("toolregistry.admin")
+        .joinpath("js/tabs/register.js")
+        .read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    harness = tmp_path / "harness_prefill.js"
+    harness.write_text(_REGISTER_PREFILL_HARNESS, encoding="utf-8")
+
+    result = subprocess.run(
+        [NODE, str(harness), str(code_path), scenario],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == expected
+    # The stdio detail carries a secret argument on purpose: neither the
+    # command field nor the hint may reproduce it.
+    assert "SECRET" not in result.stdout
+
+
+def test_register_prefill_never_copies_source_detail_into_command() -> None:
+    """``source_detail`` carries only the program name; it must not fill the field."""
+    register_js = (
+        files("toolregistry.admin")
+        .joinpath("js/tabs/register.js")
+        .read_text(encoding="utf-8")
+    )
+    assert "set('rf-command', detail.slice" not in register_js
 
 
 _ESCAPE_HARNESS = """
