@@ -91,16 +91,20 @@ _SPECIAL_PURPOSE_NETWORKS = tuple(
         "2002::/16",  # 6to4; embeds an IPv4 address.
         "3fff::/20",  # documentation; is_global=False today.
         "5f00::/16",  # SRv6 SIDs; is_global=True.
+        # NAT64 local-use prefix (RFC 8215): refused as a whole.  Unlike the
+        # well-known prefix, its IPv4 address does not sit in the low 32 bits,
+        # so unwrapping would judge the wrong bits - 64:ff9b:1::808:808 has
+        # 8.8.8.8 in the low 32 bits while its embedded target is 0.0.0.0.
+        "64:ff9b:1::/48",
     )
 )
 
-#: Prefixes that carry an IPv4 address in their low 32 bits: the NAT64
-#: well-known prefix (RFC 6052) and the local-use prefix (RFC 8215).  Their
-#: IPv6 form is reported as public, so the embedded address decides.
-_NAT64_NETWORKS = (
-    ipaddress.ip_network("64:ff9b::/96"),
-    ipaddress.ip_network("64:ff9b:1::/48"),
-)
+#: The NAT64 well-known prefix (RFC 6052).  Its IPv6 form is reported as
+#: public, so the IPv4 address in the low 32 bits decides whether the target
+#: is allowed.  The local-use prefix is handled by refusing it as a whole
+#: (see :data:`_SPECIAL_PURPOSE_NETWORKS`), because its embedding layout
+#: differs and cannot be unwrapped the same way.
+_NAT64_WELL_KNOWN = ipaddress.ip_network("64:ff9b::/96")
 
 
 class UnsafeAddressError(ValueError):
@@ -182,26 +186,29 @@ def _embedded_ipv4(
 ) -> ipaddress.IPv4Address | None:
     """Return the IPv4 address *ip* encodes, when it encodes one.
 
-    An IPv4-mapped address (``::ffff:a.b.c.d``) and both NAT64 prefixes reach
-    the IPv4 host whose address occupies the low 32 bits.  ``is_global``
-    judges the IPv6 prefix instead: it reports ``64:ff9b::/96`` as public,
-    which makes ``64:ff9b::7f00:1`` look like a public target although it
-    reaches 127.0.0.1.
+    An IPv4-mapped address (``::ffff:a.b.c.d``) and the NAT64 well-known
+    prefix (``64:ff9b::/96``) reach the IPv4 host whose address occupies the
+    low 32 bits.  ``is_global`` judges the IPv6 prefix instead: it reports
+    ``64:ff9b::/96`` as public, which makes ``64:ff9b::7f00:1`` look like a
+    public target although it reaches 127.0.0.1.
+
+    The NAT64 local-use prefix (``64:ff9b:1::/48``) is not unwrapped here:
+    RFC 8215 places the IPv4 address elsewhere, so this function would read
+    the wrong bits.  That prefix is refused as a whole instead.
 
     Args:
         ip: A parsed IPv4 or IPv6 address.
 
     Returns:
         The embedded IPv4 address, or ``None`` when *ip* is not a mapped or
-        NAT64 address.
+        well-known NAT64 address.
     """
     if not isinstance(ip, ipaddress.IPv6Address):
         return None
     if ip.ipv4_mapped is not None:
         return ip.ipv4_mapped
-    for network in _NAT64_NETWORKS:
-        if ip in network:
-            return ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF)
+    if ip in _NAT64_WELL_KNOWN:
+        return ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF)
     return None
 
 
