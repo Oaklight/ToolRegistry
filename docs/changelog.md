@@ -53,7 +53,7 @@ hide:
   spec = load_openapi_spec("http://127.0.0.1:8000/openapi.json", allow_private_hosts=True)
   ```
 
-  `load_openapi_spec*()` 默认不跟随重定向（`follow_redirects=False`），`determine_urls()` 同样如此：下一跳无法按策略检查，因此 3xx 会返回可操作的错误，必须改用最终 URL。管理面板使用同一套加载器，因此同样拒绝重定向；它会把自身的开关透传到预览与注册流程——使用本机 API 时以 `registry.enable_admin(allow_private_hosts=True)` 启动面板，被拒绝的地址会在错误中指明该开关。工具调用仍会跟随重定向，因为 vendored 客户端无法暴露每一跳供校验；调用路径的重定向复检与 DNS rebinding、跨 origin 重定向凭据问题一并记录在 #399。MCP 的 HTTP/SSE 传输见 #398。
+  `load_openapi_spec*()` 默认不跟随重定向（`follow_redirects=False`），`determine_urls()` 同样如此：下一跳无法按策略检查，因此 3xx 会返回可操作的错误，必须改用最终 URL。管理面板在自身的抓取调用上显式声明同一策略，而不是沿用默认值；它同样拒绝重定向，并把自身的开关透传到预览与注册流程——使用本机 API 时以 `registry.enable_admin(allow_private_hosts=True)` 启动面板，被拒绝的地址会在错误中指明该开关。`GET /api/info` 会返回 `allow_private_hosts`，OpenAPI 表单在服务器拒绝私有地址时显示提示，因此在失败之前就能发现该开关。工具调用仍会跟随重定向，因为 vendored 客户端无法暴露每一跳供校验；调用路径的重定向复检与 DNS rebinding、跨 origin 重定向凭据问题一并记录在 #399。MCP 的 HTTP/SSE 传输见 #398。
 
 ### 安全
 
