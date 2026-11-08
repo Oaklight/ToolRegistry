@@ -224,18 +224,21 @@ class TestMutationBatching:
                 metadata=ToolMetadata(defer=True, tags={ToolTag.SLOW}),
             )
         )
-        calls: list[int] = []
-        reconcile = registry._apply_tool_discovery_sync
+        # Discovery must still be on after each disable and stop only once
+        # the whole loop has finished.  A per-disable reconciliation would
+        # turn it off after ``slow_hidden``.
+        states: list[bool] = []
+        disable = registry.disable
 
-        def counting_reconcile() -> None:
-            calls.append(1)
-            reconcile()
+        def record(name: str, reason: str = "") -> None:
+            disable(name, reason=reason)
+            states.append(registry.tool_discovery_enabled)
 
-        monkeypatch.setattr(registry, "_apply_tool_discovery_sync", counting_reconcile)
+        monkeypatch.setattr(registry, "disable", record)
 
         registry.disable_by_tags({ToolTag.SLOW})
 
-        assert calls == [1]
+        assert states == [True, True]
         assert registry.tool_discovery_enabled is False
 
     def test_on_mode_ignores_the_deferred_set(self) -> None:
