@@ -370,11 +370,13 @@ class TestSpecPatternCompilation:
             assert f"properties.{name}.pattern" in data["message"]
         assert server.registry.list_tools(include_disabled=True) == []
 
-    @pytest.mark.parametrize("keyword", ["$defs", "definitions"])
-    def test_a_definition_named_like_a_data_keyword_is_walked(
+    @pytest.mark.parametrize(
+        "keyword", ["$defs", "definitions", "dependentSchemas", "dependencies"]
+    )
+    def test_a_name_map_entry_named_like_a_data_keyword_is_walked(
         self, server, keyword: str
     ) -> None:
-        """``$defs`` / ``definitions`` keys are component names (#430)."""
+        """Name-map keys are names, not data keywords (#430)."""
         spec = _spec_with_pattern("^[a-z]+$")
         spec["paths"]["/pets"]["get"]["requestBody"] = {
             "content": {
@@ -388,6 +390,48 @@ class TestSpecPatternCompilation:
 
         assert status == 400
         assert f"{keyword}.default.pattern" in data["message"]
+
+    def test_a_property_dependency_is_walked(self, server) -> None:
+        """``dependencies`` may map a name to a schema; its keys are names."""
+        spec = _spec_with_pattern("^[a-z]+$")
+        spec["paths"]["/pets"]["get"]["requestBody"] = {
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "type": "object",
+                        "dependencies": {"enum": {"pattern": "("}},
+                    }
+                }
+            }
+        }
+
+        status, data = server.request(
+            "/api/sources/register", "POST", {"kind": "openapi", "spec": spec}
+        )
+
+        assert status == 400
+        assert "dependencies.enum.pattern" in data["message"]
+
+    def test_a_property_dependency_array_is_not_a_schema(self, server) -> None:
+        """``dependencies`` also holds arrays of names, which are not schemas."""
+        spec = _spec_with_pattern("^[a-z]+$")
+        spec["paths"]["/pets"]["get"]["requestBody"] = {
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "type": "object",
+                        "dependencies": {"name": ["limit", "default"]},
+                    }
+                }
+            }
+        }
+
+        status, data = server.request(
+            "/api/sources/register", "POST", {"kind": "openapi", "spec": spec}
+        )
+
+        assert status == 200
+        assert data["registered"] == ["list_pets"]
 
     def test_a_data_value_that_looks_like_a_pattern_is_not_compiled(
         self, server
