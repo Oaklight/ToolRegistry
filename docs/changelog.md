@@ -18,6 +18,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+#### Core
+
+- **Tool metadata can be declared at definition time** (#442): `@tool_metadata(...)` stores a `ToolMetadata` declaration on the function, and `Tool.from_function` applies it. Class registration passes no metadata to the constructor, so this is the only channel for tags, deferral, hints or a title on class members; bound methods delegate attribute access to the function, so no new class scan is needed. An explicit `metadata=` argument wins, and the decorator fills only the fields it left at their dataclass default. `is_async` is always detected from the function, and the pipeline-owned source and schema fields cannot be declared. See [Tool](api/core/tool.md).
+
 #### Admin panel
 
 - **Admin panel extensions (contract v1)** (#435): `AdminServer(..., extensions=[...])` mounts operator-installed extensions. Each one declares `name`, `title` and `requires_api`, registers routes under `/ext/<name>` through `AdminContext` (`get`, `post`, `put`, `patch`, `delete`), and may add a tab by declaring `nav` together with `assets` and `entry` (plus optional `styles` and `icon`). An extension without `nav` is API-only and needs no assets. `GET /api/extensions` serves the manifest, extension assets are served from `/assets/ext/<name>/` through the existing suffix whitelist and traversal guard, and the shell imports the entry module and calls its `register({container, api, i18n})` export. `requires_api` is checked at startup and in the browser; a mismatch refuses the extension with its name in the message. Extension routes inherit panel authentication, and state-changing `/ext/` requests get the same cross-site guard as `/api/`. See [Admin Panel Extensions](admin/extensions.md).

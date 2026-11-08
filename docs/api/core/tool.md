@@ -48,6 +48,14 @@ The Tool class follows a data-transfer-object pattern with the following key com
         show_root_toc_entry: false
         merge_init_into_class: true
 
+## Metadata Declaration
+
+::: toolregistry.tool_metadata
+    options:
+        show_source: false
+        show_root_heading: true
+        show_root_toc_entry: false
+
 ## Usage Examples
 
 ### Basic Tool Creation
@@ -188,6 +196,43 @@ explicit = Tool.from_function(
 )
 print(explicit.declared_execution_hints)  # {'read_only_hint': True, 'destructive_hint': False}
 ```
+
+### Declaring Metadata at Definition Time
+
+`@tool_metadata` stores the declaration on the function itself, and
+`Tool.from_function` applies it. Every registration path therefore carries it,
+including class registration, which passes no metadata to the constructor.
+
+```python
+from toolregistry import ToolRegistry, tool_metadata
+
+class Search:
+    @staticmethod
+    @tool_metadata(defer=True, tags={"network"}, title="Web Search")
+    def web_search(query: str) -> list[str]:
+        """Search the web."""
+        return [query]
+
+registry = ToolRegistry()
+registry.register(Search)
+tool = registry.get_tool("web_search")
+print(tool.metadata.defer)          # True
+print(tool.metadata.tags)           # {"network"}
+```
+
+An explicit `metadata=` argument to `Tool.from_function` wins: the decorator
+only fills the fields that argument left at their dataclass default. A field
+that defaults to `False` (`defer`, for example) cannot be held at `False`
+against a decorator that declares `True`; pass the explicit value and do not
+declare that field. `is_async` is always detected from the function, and the
+pipeline-owned fields (`is_async`, `source`, `source_detail`, `schema_hash`,
+`last_refreshed_at`) cannot be declared — decoration raises `TypeError`.
+
+Stacking decorators merges the declarations, and the outer one wins on a
+conflict. Bound methods delegate attribute access to the underlying function,
+so no extra class scan is needed. `@tool_metadata` must sit below
+`@staticmethod`, because the outer `staticmethod` object does not accept the
+attribute.
 
 ### Replacing a Parameter Schema
 
