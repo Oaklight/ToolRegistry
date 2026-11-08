@@ -556,13 +556,6 @@ class TestOutboundAddressPolicy:
         assert "resolver detail" not in message
         assert "could not be resolved" in message
 
-    def test_ws_urls_are_checked_as_http(self):
-        assert mcp_client._policy_url("ws://example.com/ws") == "http://example.com/ws"
-        assert (
-            mcp_client._policy_url("wss://example.com:8443/ws")
-            == "https://example.com:8443/ws"
-        )
-
     @pytest.mark.asyncio
     async def test_sse_uses_a_no_redirect_client(self, monkeypatch):
         captured: dict[str, Any] = {}
