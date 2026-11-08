@@ -30,6 +30,10 @@ hide:
 
 ### 修复
 
+#### 核心
+
+- **auto 模式不再从 change callback 内修改工具表**（#428）：`_sync_tool_discovery` 作为 change callback 运行，而启停 discovery 会写 `_tools`。`disable_by_tags()` 在遍历该表时禁用最后一个 deferred 工具，或在自身循环内更新元数据的 reload 流程，都会抛出 `RuntimeError: dictionary changed size during iteration`——回调内部无法捕获，因为抛出者是外层迭代器。现在 registry 的修改都在 `_mutation()` 批次内执行：回调只记录待处理标记，最外层修改在所有事件派发完毕后统一处理一次。启停 discovery 还会先分离 `_tools` 再写入，使已经在迭代的调用方继续持有自己的快照；只有启停付出这次复制成本。`auto` 仍跟随 deferred 集合，`on` / `off` 行为不变。
+
 #### Admin 面板
 
 - **无法编译的 spec 正则会在注册时被拒绝**（#421）：`preview_source()` 与来源注册在加载 OpenAPI 文档时都没有编译其中的 `pattern` 与 `patternProperties`，因此坏 pattern 会被接受，直到第一次调用才暴露——安装了可选的 `regex` 包时是 500，未安装时约束被静默忽略。现在两条路径都会在注册任何工具之前调用 `_check_spec_patterns`；坏 pattern 会抛出面板现有的 `SourceError`，信息中带上工具名与 schema 路径，HTTP 层据此返回 400，注册表保持为空。引擎优先使用已安装的 `regex`（与请求期校验一致），否则回退到标准库 `re`；回退更严格，会拒绝只有 `regex` 才接受的写法，例如变长后行断言或 `\p{...}`。
