@@ -81,6 +81,8 @@ hide:
 
 ### 修复
 
+- **「从此来源继续注册」不再生成缺少参数的 stdio 来源**（#400）：`source_detail` 只保留程序名，用它预填命令框会丢掉全部参数。stdio 来源卡片现在打开表单时命令框为空，并显示带程序名的提示；操作者需重新填写完整命令。HTTP MCP 与 OpenAPI 来源的预填不变。提示通过 `textContent` 写入，因此来自配置的程序名无法注入 HTML。
+- **异步 OpenAPI 调用不再在事件循环上解析 base URL 的主机**（#406）：`_BaseUrlAsyncClient` 过去用同步的 `validate_outbound_url()` 检查 base URL，因此缓存未命中时 `getaddrinfo` 会阻塞事件循环上的其他任务。现在每个异步动词都会 `await validate_outbound_url_async()`，它通过事件循环解析，并保持相同的 5 秒上限；路径与 origin 检查仍为同步，因为它们不做 I/O。仅缓存成功结果、60 秒 TTL 均不变，`_BaseUrlClient` 仍使用同步检查。
 - **重新注册来源会保留已有覆写**（#366）：批量注册路径对每个工具调用 `register()`，而普通注册
   会丢弃覆写记录，导致操作者编辑的描述消失、`restore_override` 失效。现在重注册会恢复覆写并
   记录来源当前提供的定义，因此恢复操作回到来源当前的定义；响应通过 `preserved_overrides`
