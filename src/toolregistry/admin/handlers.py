@@ -8,6 +8,7 @@ management and monitoring.
 import json
 import math
 import os
+import threading
 import urllib.parse
 from dataclasses import asdict
 from typing import TYPE_CHECKING, Any, cast
@@ -277,7 +278,10 @@ def _client_source(request: Request) -> str:
     """Return the rate-limit key for *request*.
 
     The peer address alone is used.  The port changes with every connection,
-    so keying on it would let a client rotate keys by reconnecting.
+    so keying on it would let a client rotate keys by reconnecting.  A
+    forwarding header is not consulted: it is client-controlled, and a
+    trusted-proxy setting does not exist yet (#431).  Behind a reverse proxy
+    every client therefore shares one key.
 
     Args:
         request: The incoming request.
@@ -292,12 +296,18 @@ def _client_source(request: Request) -> str:
     return str(address[0])
 
 
+#: Guards creation of the per-app limiter.  Before-request hooks run through
+#: ``asyncio.to_thread``, so two requests can enter this function at once.
+_AUTH_LIMITER_INIT_LOCK = threading.Lock()
+
+
 def _auth_limiter(app: "AdminApp") -> AuthFailureLimiter:
     """Return *app*'s authentication failure limiter, creating it on demand.
 
     The limiter lives on the app so two servers in one process do not share
     a failure budget.  Apps built without :meth:`AdminServer.start` get one
-    on their first authenticated request.
+    on their first authenticated request; the assignment is done under a
+    lock so concurrent first requests cannot each install their own.
 
     Args:
         app: The admin application.
@@ -307,8 +317,11 @@ def _auth_limiter(app: "AdminApp") -> AuthFailureLimiter:
     """
     limiter = getattr(app, "auth_limiter", None)
     if limiter is None:
-        limiter = AuthFailureLimiter()
-        app.auth_limiter = limiter
+        with _AUTH_LIMITER_INIT_LOCK:
+            limiter = getattr(app, "auth_limiter", None)
+            if limiter is None:
+                limiter = AuthFailureLimiter()
+                app.auth_limiter = limiter
     return limiter
 
 
