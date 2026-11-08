@@ -22,6 +22,8 @@ hide:
 
 - **管理面板扩展（契约 v1）**（#435）：`AdminServer(..., extensions=[...])` 可挂载运维方安装的扩展。每个扩展声明 `name`、`title` 与 `requires_api`，通过 `AdminContext`（`get`、`post`、`put`、`patch`、`delete`）在 `/ext/<name>` 下注册路由；若需标签页，再声明 `nav` 与 `assets`、`entry`（可选 `styles` 与 `icon`）。没有 `nav` 的扩展是纯 API 扩展，无需资源目录。`GET /api/extensions` 提供清单；扩展资源经现有的后缀白名单与路径穿越防护从 `/assets/ext/<name>/` 提供；页面外壳导入入口模块并调用其 `register({container, api, i18n})` 导出。`requires_api` 在服务端启动时与浏览器中都会校验，不匹配会拒绝该扩展并在消息中给出扩展名。扩展路由继承面板认证，`/ext/` 的状态变更请求与 `/api/` 一样受跨站防护。见[管理面板扩展](admin/extensions.md)。
 
+- **下游服务可持久化来源变更并暴露来源状态**（#436）：`AdminServer(..., source_hook=...)` 与 `enable_admin(source_hook=...)` 接受可选的钩子，提供 `persist(change)`、`writable()` 与 `statuses()`。注册时会向钩子传递结构化的 `SourceChange`（动作、类型、声明、命名空间、选择）；持久化失败返回 `200`，带 `persisted: false`、`persist_error` 与已生效的名称，因为工具已经生效。安装钩子后，`GET /api/sources` 在 `source_status` 中原样附带钩子记录，并给出 `config_writable`；由工具推导的 `sources` 数组与未安装钩子时的响应结构保持不变。见[源持久化钩子](admin/source-hooks.md)。
+
 ## [0.20.1] - 2026-11-08
 
 ### 新增

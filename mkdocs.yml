@@ -187,6 +187,7 @@ nav:
           - REST API: admin/rest-api.md
           - Web UI 指南: admin/web-ui.md
           - 扩展: admin/extensions.md
+          - 源持久化钩子: admin/source-hooks.md
           - 安全考虑: admin/security.md
           - 示例: admin/examples.md
   - 生态系统:
