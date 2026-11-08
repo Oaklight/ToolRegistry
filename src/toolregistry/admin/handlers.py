@@ -369,8 +369,9 @@ def _auth_check(request: Request) -> Response | None:
         return None
 
     # The shell is useless without its stylesheets and scripts, and the browser
-    # requests them without credentials.  ``read_asset`` serves only the css/
-    # and js/ files shipped in the package, so this exposes no registry data.
+    # requests them without credentials.  ``read_asset`` serves the package's
+    # css/ and js/ files plus the declared assets of a mounted extension, so
+    # this exposes no registry data and no asset may carry a secret.
     if (
         request.method in ("GET", "HEAD")
         and request.path.startswith("/assets/")
@@ -1035,16 +1036,31 @@ def _get_sources(request: Request) -> Response:
 def _source_status_records(
     hook: "SourcePersistenceHook",
 ) -> list[dict[str, Any]]:
-    """Return the hook's source records, or an empty list when it fails.
+    """Return the hook's source records that can be serialised.
 
-    A broken status hook must not take the Sources tab down; the failure is
-    logged and the tool-derived list is still served.
+    A broken status hook must not take the Sources tab down, and neither must
+    one record with a value the response cannot serialise: a failing call or
+    an unserialisable record is logged, and the rest of the listing is served.
     """
     try:
-        return [dict(record) for record in hook.statuses()]
+        records = list(hook.statuses())
     except Exception:
         logger.warning("Source status hook failed", exc_info=True)
         return []
+
+    safe: list[dict[str, Any]] = []
+    for record in records:
+        try:
+            mapping = dict(record)
+            json.dumps(mapping, cls=ToolResultJSONEncoder, allow_nan=False)
+        except Exception:
+            logger.warning(
+                "Skipping a source status record that cannot be serialised",
+                exc_info=True,
+            )
+            continue
+        safe.append(mapping)
+    return safe
 
 
 def _source_hook_writable(hook: "SourcePersistenceHook") -> bool:

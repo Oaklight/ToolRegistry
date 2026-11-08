@@ -236,6 +236,24 @@ class TestListing:
         assert body["source_status"] == []
         assert body["sources"][0]["tools"] == ["isleap"]
 
+    def test_unserialisable_record_is_skipped(self, server) -> None:
+        info, hook = server
+        good = {
+            "id": "src_good",
+            "kind": "python",
+            "detail": "calendar",
+            "namespace": None,
+            "status": "applied",
+            "last_error": None,
+            "names": [],
+        }
+        hook.records = [good, {**good, "id": "src_bad", "detail": object()}]
+
+        status, body = _request(f"{info.url}/api/sources")
+
+        assert status == 200
+        assert [record["id"] for record in body["source_status"]] == ["src_good"]
+
     def test_writable_failure_is_reported_as_false(self, server) -> None:
         info, hook = server
         hook.writable_error = RuntimeError("cannot stat")
@@ -279,3 +297,14 @@ class TestHookContract:
 
     def test_hook_matches_the_protocol(self) -> None:
         assert isinstance(RecordingHook(), SourcePersistenceHook)
+
+    def test_repr_hides_the_payload(self) -> None:
+        change = SourceChange(
+            action="add",
+            kind="mcp",
+            payload={"headers": {"Authorization": "Bearer SECRET-TOKEN"}},
+            namespace=None,
+        )
+
+        assert "SourceChange" in repr(change)
+        assert "SECRET-TOKEN" not in repr(change)
