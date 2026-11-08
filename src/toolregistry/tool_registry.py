@@ -222,6 +222,11 @@ class ToolRegistry(
         # start/stop writes ``_tools``; doing that from a change callback
         # could resize a map an enclosing frame is iterating, so the callback
         # only marks it pending and the outermost mutation applies it.
+        #
+        # Neither field is thread-safe: ``+=`` is not atomic for an int
+        # attribute, and the registry does not support concurrent mutation.
+        # The copy-on-write swap in discovery start/stop is the backstop that
+        # keeps an in-flight iterator safe.
         self._mutation_depth = 0
         self._discovery_sync_pending = False
         self._ptc = PtcController(self)
@@ -684,9 +689,15 @@ class ToolRegistry(
 
     def _apply_tool_discovery_sync(self) -> None:
         """Reconcile discovery with the deferred set, at most once per batch."""
+        if self._tool_discovery_mode != "auto":
+            # A mode change inside the batch wins: the request was recorded
+            # while ``auto`` was in force and must not undo it now.
+            self._discovery_sync_pending = False
+            return
         if not self._tool_discovery_sync_lock.acquire(blocking=False):
-            # A reconciliation started by an enclosing call is still running
-            # and observes the same registry state; leave the request pending.
+            # Another reconciliation is already running.  This request is
+            # dropped, which only matters to a caller mutating from several
+            # threads; the registry does not support concurrent mutation.
             return
         try:
             self._discovery_sync_pending = False

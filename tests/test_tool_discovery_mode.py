@@ -241,6 +241,30 @@ class TestMutationBatching:
         assert states == [True, True]
         assert registry.tool_discovery_enabled is False
 
+    def test_mode_change_inside_a_hook_cancels_the_pending_sync(self) -> None:
+        """A disable performed inside a post-register hook must win.
+
+        The hook runs inside the registration's mutation, so it both records
+        a deferred tool (pending) and switches the mode off.  Flushing the
+        pending request after the hook would start discovery in ``off`` mode
+        and never converge.
+        """
+        registry = ToolRegistry()
+
+        def hook(tool_name: str, tool: Tool, reg: ToolRegistry) -> None:
+            if tool_name != "visible":
+                return
+            reg.register(_hidden())
+            reg.disable_tool_discovery()
+
+        registry.add_post_register_hook(hook)
+        registry.register(_visible())
+
+        assert registry.tool_discovery_mode == "off"
+        assert registry.tool_discovery_enabled is False
+        assert TOOL_DISCOVERY_NAME not in registry._tools
+        assert TOOL_CALL_DEFERRED_NAME not in registry._tools
+
     def test_on_mode_ignores_the_deferred_set(self) -> None:
         registry = ToolRegistry()
         registry.enable_tool_discovery()
