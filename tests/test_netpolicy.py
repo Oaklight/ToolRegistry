@@ -269,6 +269,16 @@ class TestSpecialPurposeRanges:
         assert validate_outbound_url(url, allow_private_hosts=True) == url
 
 
+#: Vectors for the NAT64 local-use prefix.  The first one is the reviewer's:
+#: under the RFC 6052 /48 layout, bits 48-63 (0x7f00) and bits 72-87 (0x0100)
+#: encode 127.0.0.1, while the low 32 bits (8.8.8.8) are a decoy.
+LOCAL_USE_VECTORS = [
+    "64:ff9b:1:7f00:0:100:808:808",
+    "64:ff9b:1:7f:0:100:808:808",
+    "64:ff9b:1::808:808",
+]
+
+
 class TestNat64:
     """The well-known prefix is unwrapped; the local-use prefix is refused."""
 
@@ -282,18 +292,15 @@ class TestNat64:
         url = _url("64:ff9b::808:808")  # 8.8.8.8
         assert validate_outbound_url(url) == url
 
-    @pytest.mark.parametrize(
-        "host",
-        [
-            # The low 32 bits are 8.8.8.8, but the local-use layout does not
-            # put the target there, so this must not pass on that basis.
-            "64:ff9b:1:7f:0:100:808:808",
-            "64:ff9b:1::808:808",
-        ],
-    )
+    @pytest.mark.parametrize("host", LOCAL_USE_VECTORS)
     def test_local_use_prefix_is_refused_as_a_whole(self, host):
         with pytest.raises(PrivateAddressError):
             validate_outbound_url(_url(host))
+
+    @pytest.mark.parametrize("host", LOCAL_USE_VECTORS)
+    def test_local_use_prefix_opt_out_still_allows(self, host):
+        url = _url(host)
+        assert validate_outbound_url(url, allow_private_hosts=True) == url
 
 
 class TestPublicModule:
