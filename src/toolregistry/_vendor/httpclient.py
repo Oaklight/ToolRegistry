@@ -1,5 +1,5 @@
 # /// zerodep
-# version = "0.7.1"
+# version = "0.7.2"
 # deps = []
 # tier = "subsystem"
 # category = "network"
@@ -40,6 +40,17 @@ Redirects:
     original origin, because the redirect chain keeps one header set.
     Digest auth is disabled at the same time, so a 401 challenge from a new
     origin cannot harvest the configured username and password.
+
+    Set ``follow_redirects=False`` (on a client or a single request) to
+    receive the first 3xx response unchanged: status, headers -- including
+    ``Location`` -- and body as received, with no connection to the target
+    opened.  The caller can validate the next hop and issue its own request.
+    This differs from ``max_redirects=0``, which raises
+    :class:`TooManyRedirects` and exposes neither the response nor its
+    ``Location``.  The rule covers ``stream=True`` responses (the 3xx is
+    returned unread; drain or close it before the connection returns to the
+    pool) and a redirect reached after a Digest-auth retry.  The default
+    follows redirects up to ``max_redirects``.
 """
 
 # ── Imports ──
@@ -2728,6 +2739,7 @@ def _sync_request(
     params: dict[str, Any] | None = None,
     timeout: float = DEFAULT_TIMEOUT,
     max_redirects: int = DEFAULT_MAX_REDIRECTS,
+    follow_redirects: bool = True,
     verify: bool = True,
     stream: bool = False,
     auth: tuple[str, str] | Auth | None = None,
@@ -2746,6 +2758,11 @@ def _sync_request(
            b. Send request + read response
            c. Handle redirects / digest auth / response construction
            d. Connection lifecycle (pool release or close)
+
+    With ``follow_redirects=False`` a 3xx is returned like any other
+    response instead of being followed, so the caller can read ``Location``
+    and validate the next hop.  The decision is taken after a Digest-auth
+    retry as well, and it applies to ``stream=True`` responses.
     """
     _validate_max_response_size(max_response_size)
     timing_start = time.perf_counter()
@@ -2818,7 +2835,7 @@ def _sync_request(
                 resp_headers = CaseInsensitiveDict(raw_headers)
                 status = resp.status
 
-                if _is_redirect(status, resp_headers):
+                if follow_redirects and _is_redirect(status, resp_headers):
                     _sync_read_capped(resp, url, max_response_size)
                     completed = True
                     url, method, body = _compute_redirect(
@@ -3350,6 +3367,7 @@ async def _async_request(
     params: dict[str, Any] | None = None,
     timeout: float = DEFAULT_TIMEOUT,
     max_redirects: int = DEFAULT_MAX_REDIRECTS,
+    follow_redirects: bool = True,
     verify: bool = True,
     stream: bool = False,
     auth: tuple[str, str] | Auth | None = None,
@@ -3368,6 +3386,11 @@ async def _async_request(
            b. Send raw HTTP/1.1 request + read response headers
            c. Handle redirects / digest auth / response construction
            d. Connection lifecycle (pool release or close)
+
+    With ``follow_redirects=False`` a 3xx is returned like any other
+    response instead of being followed, so the caller can read ``Location``
+    and validate the next hop.  The decision is taken after a Digest-auth
+    retry as well, and it applies to ``stream=True`` responses.
     """
     _validate_max_response_size(max_response_size)
     timing_start = time.perf_counter()
@@ -3443,7 +3466,7 @@ async def _async_request(
                 continue
             accumulated_set_cookies.extend(iter_set_cookies)
 
-            if _is_redirect(status, resp_headers):
+            if follow_redirects and _is_redirect(status, resp_headers):
                 await _async_read_body(
                     reader,
                     resp_headers,
@@ -3808,6 +3831,13 @@ class Client:
     unbounded behaviour.  A ``stream=True`` response is not buffered and is
     therefore not limited.
 
+    ``follow_redirects=False`` returns the first 3xx response unchanged
+    instead of following it, so the caller can read ``Location`` and
+    validate the next hop; unlike ``max_redirects=0``, the response is
+    returned rather than an exception.  A ``stream=True`` 3xx is unread --
+    drain or close it to return the connection to the pool.  The keyword is
+    also accepted per request.
+
     Usage::
 
         with Client(headers={"Authorization": "Bearer token"}) as c:
@@ -3821,6 +3851,7 @@ class Client:
         cookies: dict[str, str] | None = None,
         timeout: float = DEFAULT_TIMEOUT,
         max_redirects: int = DEFAULT_MAX_REDIRECTS,
+        follow_redirects: bool = True,
         verify: bool = True,
         auth: tuple[str, str] | Auth | None = None,
         proxy: str | None = None,
@@ -3833,6 +3864,7 @@ class Client:
         self._cookies: dict[str, str] = dict(cookies) if cookies else {}
         self._timeout = timeout
         self._max_redirects = max_redirects
+        self._follow_redirects = follow_redirects
         self._verify = verify
         self._auth = auth
         self._proxy = proxy
@@ -3856,6 +3888,7 @@ class Client:
         kwargs["cookies"] = merged_cookies or None
         kwargs.setdefault("timeout", self._timeout)
         kwargs.setdefault("max_redirects", self._max_redirects)
+        kwargs.setdefault("follow_redirects", self._follow_redirects)
         kwargs.setdefault("verify", self._verify)
         kwargs.setdefault("auth", self._auth)
         kwargs.setdefault("proxy", self._proxy)
@@ -3925,6 +3958,13 @@ class AsyncClient:
     unbounded behaviour.  A ``stream=True`` response is not buffered and is
     therefore not limited.
 
+    ``follow_redirects=False`` returns the first 3xx response unchanged
+    instead of following it, so the caller can read ``Location`` and
+    validate the next hop; unlike ``max_redirects=0``, the response is
+    returned rather than an exception.  A ``stream=True`` 3xx is unread --
+    drain or close it to return the connection to the pool.  The keyword is
+    also accepted per request.
+
     Usage::
 
         async with AsyncClient(headers={"Authorization": "Bearer token"}) as c:
@@ -3938,6 +3978,7 @@ class AsyncClient:
         cookies: dict[str, str] | None = None,
         timeout: float = DEFAULT_TIMEOUT,
         max_redirects: int = DEFAULT_MAX_REDIRECTS,
+        follow_redirects: bool = True,
         verify: bool = True,
         auth: tuple[str, str] | Auth | None = None,
         proxy: str | None = None,
@@ -3950,6 +3991,7 @@ class AsyncClient:
         self._cookies: dict[str, str] = dict(cookies) if cookies else {}
         self._timeout = timeout
         self._max_redirects = max_redirects
+        self._follow_redirects = follow_redirects
         self._verify = verify
         self._auth = auth
         self._proxy = proxy
@@ -3973,6 +4015,7 @@ class AsyncClient:
         kwargs["cookies"] = merged_cookies or None
         kwargs.setdefault("timeout", self._timeout)
         kwargs.setdefault("max_redirects", self._max_redirects)
+        kwargs.setdefault("follow_redirects", self._follow_redirects)
         kwargs.setdefault("verify", self._verify)
         kwargs.setdefault("auth", self._auth)
         kwargs.setdefault("proxy", self._proxy)
