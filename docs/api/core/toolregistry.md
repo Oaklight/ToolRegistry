@@ -119,13 +119,13 @@ registry = ToolRegistry()
 
 # 默认行为（traverse_mro=True）：包含从 BaseCalculator 继承的方法
 registry.register(AdvancedCalculator)
-print(registry.get_available_tools())
+print(registry.list_tools())
 # 输出：['advanced_calculator-add', 'advanced_calculator-multiply']
 
 # 使用 traverse_mro=False：仅注册直接定义在 AdvancedCalculator 上的方法
 registry2 = ToolRegistry()
 registry2.register(AdvancedCalculator, traverse_mro=False)
-print(registry2.get_available_tools())
+print(registry2.list_tools())
 # 输出：['advanced_calculator-multiply']
 ```
 
@@ -139,8 +139,10 @@ registry = ToolRegistry()
 # 使用自定义命名空间注册
 registry.register(my_function, namespace="math_utils")
 
-# 使用命名空间访问工具
-available_tools = registry.get_available_tools(namespace="math_utils")
+# 按命名空间访问工具——名称带有前缀
+available_tools = [
+    name for name in registry.list_tools() if name.startswith("math_utils-")
+]
 ```
 
 ### 变更回调
@@ -208,7 +210,7 @@ print(disabled_tools)
 ### 基于标签的批量禁用
 
 ```python
-from toolregistry import ToolRegistry, ToolMetadata, ToolTag
+from toolregistry import Tool, ToolRegistry, ToolMetadata, ToolTag
 
 registry = ToolRegistry()
 
@@ -224,9 +226,24 @@ def send_email(to: str, body: str) -> None:
     """发送电子邮件。"""
     ...
 
-registry.register(read_file, metadata=ToolMetadata(tags={ToolTag.FILE_SYSTEM, ToolTag.READ_ONLY}))
-registry.register(delete_file, metadata=ToolMetadata(tags={ToolTag.FILE_SYSTEM, ToolTag.DESTRUCTIVE}))
-registry.register(send_email, metadata=ToolMetadata(tags={ToolTag.NETWORK}))
+registry.register(
+    Tool.from_function(
+        read_file,
+        metadata=ToolMetadata(tags={ToolTag.FILE_SYSTEM, ToolTag.READ_ONLY}),
+    )
+)
+registry.register(
+    Tool.from_function(
+        delete_file,
+        metadata=ToolMetadata(tags={ToolTag.FILE_SYSTEM, ToolTag.DESTRUCTIVE}),
+    )
+)
+registry.register(
+    Tool.from_function(
+        send_email,
+        metadata=ToolMetadata(tags={ToolTag.NETWORK}),
+    )
+)
 
 # match="any"（默认）：工具拥有至少一个指定标签即被禁用
 disabled = registry.disable_by_tags(
@@ -238,8 +255,18 @@ print(disabled)  # ['delete_file', 'send_email']
 
 # match="all"：工具携带全部指定标签才被禁用
 registry2 = ToolRegistry()
-registry2.register(read_file, metadata=ToolMetadata(tags={ToolTag.FILE_SYSTEM, ToolTag.READ_ONLY}))
-registry2.register(delete_file, metadata=ToolMetadata(tags={ToolTag.FILE_SYSTEM, ToolTag.DESTRUCTIVE}))
+registry2.register(
+    Tool.from_function(
+        read_file,
+        metadata=ToolMetadata(tags={ToolTag.FILE_SYSTEM, ToolTag.READ_ONLY}),
+    )
+)
+registry2.register(
+    Tool.from_function(
+        delete_file,
+        metadata=ToolMetadata(tags={ToolTag.FILE_SYSTEM, ToolTag.DESTRUCTIVE}),
+    )
+)
 
 disabled2 = registry2.disable_by_tags(
     {ToolTag.FILE_SYSTEM, ToolTag.DESTRUCTIVE},
@@ -252,7 +279,7 @@ print(disabled2)  # ['delete_file']
 ### 注册后钩子
 
 ```python
-from toolregistry import ToolRegistry, PostRegisterHook, ToolMetadata, ToolTag
+from toolregistry import PostRegisterHook, Tool, ToolRegistry, ToolMetadata, ToolTag
 
 registry = ToolRegistry()
 
@@ -269,7 +296,9 @@ def sudo_command(cmd: str) -> str:
     """以提升的权限运行命令。"""
     ...
 
-registry.register(sudo_command, metadata=ToolMetadata(tags={ToolTag.PRIVILEGED}))
+registry.register(
+    Tool.from_function(sudo_command, metadata=ToolMetadata(tags={ToolTag.PRIVILEGED}))
+)
 
 print(registry.is_enabled("sudo_command"))     # False
 print(registry.get_disable_reason("sudo_command"))

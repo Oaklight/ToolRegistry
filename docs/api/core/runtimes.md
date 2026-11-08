@@ -9,9 +9,11 @@
     `CodeResult`、`SubprocessRuntime`、`IpcSubprocessRuntime` 和验证器由
     `codecell` 包提供：`pip install toolregistry[ptc]`
 
-## CodeExecutionTool
+## PtcTool
 
-内置 PTC 元工具，让 LLM 编写 Python 代码并在命名空间中调用已注册的工具。通过 `registry.ptc.enable()` 注册。
+`PtcTool` 是内置的 PTC 元工具，让 LLM 编写 Python 代码并在命名空间中调用已注册的工具。
+它以 `programmatic_tool_call` 注册，并通过 `registry.ptc.enable()` 启用。导入方式为
+`from toolregistry.runtimes import PtcTool`（需要 `pip install toolregistry[ptc]`）。
 
 ```python
 from toolregistry import ToolRegistry
@@ -37,8 +39,7 @@ registry.ptc.enable()
 **调用追踪：** 每次 `execute()` 调用生成一个 `tr_ptc_` 调用 ID。该执行中的所有工具调用共享同一个 ID：
 
 ```python
-# registry.ptc.last_invocation_id
-executor.execute("print(add(a=1, b=2))")
+registry.invoke("programmatic_tool_call", {"code": "print(add(a=1, b=2))"})
 
 # 查询此次执行的所有工具调用：
 log = registry.get_execution_log()

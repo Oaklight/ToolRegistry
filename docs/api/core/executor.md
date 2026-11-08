@@ -96,7 +96,7 @@ def long_running_task(data: list, _ctx: ExecutionContext) -> str:
 |------|------|
 | `result(timeout)` | 阻塞直到获取结果或超时 |
 | `cancel()` | 请求取消 |
-| `status()` | 返回 `ExecutionStatus`（PENDING、RUNNING、COMPLETED、FAILED、CANCELLED） |
+| `status()` | 返回 `HandleStatus`（PENDING、RUNNING、COMPLETED、FAILED、CANCELLED） |
 | `on_progress(callback)` | 注册进度监听器 |
 | `execution_id` | 此次执行的唯一标识 |
 

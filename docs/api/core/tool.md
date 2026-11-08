@@ -303,7 +303,8 @@ registry = ToolRegistry()
 registry.register(tool_instance)
 
 # Execute tool through registry
-result = registry.execute_tool("tool_name", param1="value1", param2="value2")
+result = registry.invoke("tool_name", {"param1": "value1", "param2": "value2"})
+print(result.result)  # 调用失败时为 result.message
 ```
 
 Tool 类为 ToolRegistry 生态系统中的所有工具操作提供了基础，确保在不同工具来源和执行环境中具有一致的行为。
