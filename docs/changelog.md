@@ -16,6 +16,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+#### Admin panel
+
+- **Admin panel extensions (contract v1)** (#435): `AdminServer(..., extensions=[...])` mounts operator-installed extensions. Each one declares `name`, `title`, `assets`, `entry`, `requires_api` and optionally `styles`, `icon` and `nav`, and registers routes under `/ext/<name>` through `AdminContext` (`get`, `post`, `put`, `patch`, `delete`). `GET /api/extensions` serves the manifest, extension assets are served from `/assets/ext/<name>/` through the existing suffix whitelist and traversal guard, and the shell imports the entry module and calls its `register({container, api, i18n})` export. `requires_api` is checked at startup and in the browser; a mismatch refuses the extension with its name in the message. Extension routes inherit panel authentication, and state-changing `/ext/` requests get the same cross-site guard as `/api/`. See [Admin Panel Extensions](admin/extensions.md).
+
 ## [0.20.1] - 2026-11-08
 
 ### Added

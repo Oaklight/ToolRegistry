@@ -186,6 +186,7 @@ nav:
           - Execution Logging: admin/execution-logging.md
           - REST API: admin/rest-api.md
           - Web UI Guide: admin/web-ui.md
+          - Extensions: admin/extensions.md
           - Security: admin/security.md
           - Examples: admin/examples.md
   - Ecosystem:
