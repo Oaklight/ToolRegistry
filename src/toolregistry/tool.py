@@ -680,6 +680,139 @@ class ToolMetadata:
 ToolMetadata.__hash__ = None  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
 
 
+#: Metadata fields the registration pipeline owns.  A ``@tool_metadata``
+#: declaration may not set them: ``is_async`` is detected from the function,
+#: and the source/schema fields describe where a tool came from rather than
+#: what it is.
+_PIPELINE_METADATA_FIELDS: frozenset[str] = frozenset(
+    {"is_async", "source", "source_detail", "schema_hash", "last_refreshed_at"}
+)
+
+#: Fields a ``@tool_metadata`` decorator may declare.
+DECLARABLE_TOOL_METADATA_FIELDS: frozenset[str] = (
+    frozenset(f.name for f in dataclasses.fields(ToolMetadata))
+    - _PIPELINE_METADATA_FIELDS
+)
+
+
+def _field_default(f: dataclasses.Field[Any]) -> Any:
+    """Return the default value a dataclass field would take."""
+    if f.default is not dataclasses.MISSING:
+        return f.default
+    factory = f.default_factory
+    if factory is dataclasses.MISSING:
+        raise RuntimeError(f"field {f.name!r} has no default")
+    return factory()
+
+
+#: Default value of every :class:`ToolMetadata` field, used to tell a field
+#: an explicit ``metadata=`` argument left unset from one it chose.
+_TOOL_METADATA_DEFAULTS: dict[str, Any] = {
+    f.name: _field_default(f) for f in dataclasses.fields(ToolMetadata)
+}
+
+#: Function attribute holding the stacked ``@tool_metadata`` declarations.
+_TOOL_METADATA_ATTR = "__tool_metadata__"
+
+_F = TypeVar("_F", bound=Callable[..., Any])
+
+
+def tool_metadata(**fields: Any) -> Callable[[_F], _F]:
+    """Declare :class:`ToolMetadata` values on a tool function.
+
+    The declaration lives on the function (``__tool_metadata__``), so class
+    registration picks it up without a separate scan: bound methods delegate
+    attribute access to the underlying function.  :meth:`Tool.from_function`
+    applies it when it builds the tool.
+
+    Args:
+        **fields: Any declarable :class:`ToolMetadata` field, for example
+            ``tags={"read_only"}``, ``defer=True``, ``title="Web Search"``
+            or ``read_only_hint=True``.  ``is_async``, ``source``,
+            ``source_detail``, ``schema_hash`` and ``last_refreshed_at`` are
+            owned by the registration pipeline and cannot be declared.
+
+    Returns:
+        A decorator that stores the declaration and returns the function
+        unchanged.
+
+    Raises:
+        TypeError: If a field is not part of :class:`ToolMetadata`, is owned
+            by the registration pipeline, or the decorated object does not
+            accept attributes.
+
+    Example:
+        ```python
+        from toolregistry import tool_metadata
+
+        class Search:
+            @staticmethod
+            @tool_metadata(defer=True, tags={"network"}, read_only_hint=True)
+            def web_search(query: str) -> list[str]:
+                ...
+        ```
+
+    Note:
+        Stacking decorators merges the declarations; the outer decorator
+        wins on a conflict.  An explicit ``metadata=`` argument passed to
+        :meth:`Tool.from_function` wins over the declaration: the decorator
+        fills only the fields that argument left at their dataclass default.
+        A boolean field whose default is ``False`` therefore cannot be held
+        at ``False`` against a decorator that declares ``True``; do not
+        declare that field in that case.
+    """
+    unknown = set(fields) - DECLARABLE_TOOL_METADATA_FIELDS
+    if unknown:
+        raise TypeError(
+            "Cannot declare tool metadata field(s): "
+            + ", ".join(sorted(unknown))
+            + ". Declarable fields are: "
+            + ", ".join(sorted(DECLARABLE_TOOL_METADATA_FIELDS))
+        )
+    declared = dict(fields)
+
+    def decorator(func: _F) -> _F:
+        existing = getattr(func, _TOOL_METADATA_ATTR, None)
+        merged = {**(existing or {}), **declared}
+        try:
+            setattr(func, _TOOL_METADATA_ATTR, merged)
+        except (AttributeError, TypeError) as exc:
+            raise TypeError(
+                "tool_metadata can only decorate a function or method"
+            ) from exc
+        return func
+
+    return decorator
+
+
+def _declared_tool_metadata(func: Callable[..., Any]) -> dict[str, Any]:
+    """Return the metadata declared on *func*, limited to declarable fields."""
+    declared = getattr(func, _TOOL_METADATA_ATTR, None)
+    if not isinstance(declared, dict):
+        return {}
+    return {
+        name: value
+        for name, value in declared.items()
+        if name in DECLARABLE_TOOL_METADATA_FIELDS
+    }
+
+
+def _merge_declared_metadata(
+    metadata: ToolMetadata, declared: dict[str, Any]
+) -> ToolMetadata:
+    """Fill every field *metadata* left at its default from *declared*."""
+    if not declared:
+        return metadata
+    updates = {
+        name: value
+        for name, value in declared.items()
+        if getattr(metadata, name) == _TOOL_METADATA_DEFAULTS[name]
+    }
+    if not updates:
+        return metadata
+    return dataclasses.replace(metadata, **updates)
+
+
 @dataclass(frozen=True, init=False)
 class Tool:
     """Base class representing an executable tool/function.
@@ -987,10 +1120,14 @@ class Tool:
 
         # Build metadata: start from caller-supplied or default, then
         # force is_async to the auto-detected value.
+        declared = _declared_tool_metadata(func)
         if metadata is None:
-            metadata = ToolMetadata(is_async=is_async)
+            metadata = ToolMetadata(is_async=is_async, **declared)
         else:
-            metadata = dataclasses.replace(metadata, is_async=is_async)
+            metadata = dataclasses.replace(
+                _merge_declared_metadata(metadata, declared),
+                is_async=is_async,
+            )
 
         parameters_model = None
         try:
