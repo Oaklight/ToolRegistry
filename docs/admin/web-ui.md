@@ -137,6 +137,10 @@ offers **before anything is registered**:
 5. Tick the tools to keep and press **Register selected**. Only the ticked
    names are sent, so a source can never add a tool nobody asked for.
 
+Reopening a source card pre-fills the kind and address it knows. For a stdio
+source the command field stays empty: its arguments may contain secrets and are
+not sent to the browser, so enter the full command again.
+
 The panel fetches a spec from the server, not from your browser, so it applies
 the outbound address policy itself: a loopback, link-local or private address
 is refused, and an HTTP redirect is not followed, because the next hop would
