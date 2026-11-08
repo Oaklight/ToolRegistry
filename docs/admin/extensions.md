@@ -19,7 +19,7 @@ An extension is an object with the attributes below and a `register` method.
 | `assets` | with a tab | Directory on disk that `entry` and `styles` are read from. Required when the extension declares `nav` or any asset. |
 | `entry` | with a tab | Browser module path under `assets/ext/<name>/`, ending in `.js`. Required when `nav` is present. |
 | `requires_api` | yes | Contract version the extension targets. Must equal `ADMIN_EXTENSION_API` (`1`). |
-| `styles` | no | Sequence of `.css` paths under `assets/ext/<name>/`. |
+| `styles` | with a tab | Sequence of `.css` paths under `assets/ext/<name>/`. Requires `nav`. |
 | `icon` | no | SVG markup for the navigation item. The default is a grid glyph. |
 | `nav` | no | Mapping with an optional `group` translation key and an integer `order` (default `100`). |
 | `register` | yes | Called once with an `AdminContext`. |
@@ -32,6 +32,10 @@ half-mounted extension.
 An extension that only contributes HTTP routes omits `nav`, `assets`, `entry`
 and `styles`. Its routes are mounted and `GET /api/extensions` reports
 `"nav": null` and `"entry": null`; the panel shows no tab for it.
+
+`styles` requires `nav`: the loader skips an API-only extension entirely, so a
+stylesheet declared without a tab would never be applied and is refused at
+startup.
 
 Paths that do not start with `assets/ext/<name>/`, contain dot segments, or
 use a suffix outside `.css` / `.js` are refused.
