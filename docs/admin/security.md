@@ -23,6 +23,31 @@ successful request issues an `HttpOnly` session cookie so the prompt appears
 once per browser session. Concurrent API calls share a single prompt, and a
 rejected token is retried only once, so a typo cannot loop the dialog.
 
+### Authentication Throttling
+
+Failed authentication is throttled per client source. Five failed attempts
+from one peer address inside 60 seconds get `429 Too Many Requests` with a
+`Retry-After` header (whole seconds, at least 1), and the check runs **before**
+the token comparison, so guessing a low-entropy operator-supplied token costs
+a window of wait rather than one comparison per attempt.
+
+- A malformed `Authorization` header and a wrong token each count as one
+  failure. A request with no credentials does not count, because a browser
+  that has not logged in yet is not guessing.
+- A successful request — a valid Bearer token or a valid session cookie —
+  clears the record for that source.
+- The table holds at most 1024 sources. Expired entries are pruned when a
+  source is accessed, and the least recently used source is evicted when a new
+  one would exceed the bound, so varying the source address cannot grow memory
+  without limit.
+
+The rate-limit key is the TCP peer address. A forwarding header is not
+consulted: it is client-controlled, and the panel has no trusted-proxy
+setting (#431). Behind a reverse proxy every client therefore shares one key
+and is throttled together. Terminate authentication at the proxy, or keep the
+proxy's own rate limit, rather than expecting the panel to distinguish
+clients it cannot see.
+
 ## Cross-Origin Access
 
 The panel only answers `Access-Control-Allow-Origin` for same-origin requests

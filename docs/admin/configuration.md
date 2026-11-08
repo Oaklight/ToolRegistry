@@ -55,6 +55,34 @@ The `enable_admin()` method accepts the following parameters:
     info = registry.enable_admin(allow_private_hosts=True)
     ```
 
+## OpenAPI Spec Checks
+
+Preview (`POST /api/sources/preview`) and registration
+(`POST /api/sources/register`) compile every schema pattern in the document
+before listing or registering a tool.
+
+- A `pattern` keyword and every `patternProperties` key in an operation the
+  integration turns into a tool (`get`, `post`, `put`, `delete`) are compiled.
+  Only `parameters[].schema` and the `application/json` request body are
+  inspected — the parts that become published tool parameters.
+- A pattern that does not compile is refused with `400 Bad Request`. The
+  message names the tool and the schema path (for example
+  `tool 'api_get_item' parameters['id'].schema.pattern: ...`), and the
+  registry is left untouched.
+- The engine is `regex` when that optional package is installed — the same
+  engine request-time validation uses — and the standard library `re`
+  otherwise. The fallback is stricter: a pattern that only `regex` accepts,
+  such as a variable-length lookbehind or `\p{...}`, is rejected at
+  registration instead of being silently ignored later.
+- Property names that happen to be data keywords (`default`, `enum`,
+  `example`, ...) are walked as schemas, so a bad pattern under them is still
+  caught. Data values on a schema object are not patterns and are not
+  compiled.
+
+This check exists because the failure used to arrive later: with `regex`
+installed every call to the tool failed with a 500, and without it the
+constraint was silently dropped.
+
 ## AdminInfo Object
 
 The `enable_admin()` method returns an `AdminInfo` object with the following attributes:
