@@ -555,6 +555,62 @@ class TestSpecUrlScheme:
         assert "http://example.com/openapi.json" in message
 
 
+class TestPanelPolicy:
+    """The panel states its fetch policy instead of inheriting a default."""
+
+    def test_info_reports_the_server_policy(self, server, server_private) -> None:
+        status, data = server.request("/api/info")
+        assert status == 200
+        assert data["allow_private_hosts"] is False
+
+        status, data = server_private.request("/api/info")
+        assert status == 200
+        assert data["allow_private_hosts"] is True
+
+    def test_preview_pins_redirect_refusal_and_the_switch(self, server, monkeypatch):
+        import toolregistry.integrations.openapi.utils as openapi_utils
+
+        seen: dict[str, object] = {}
+
+        def fake_load(url: str, **kwargs: object) -> dict:
+            seen.update(kwargs)
+            return _SPEC
+
+        monkeypatch.setattr(openapi_utils, "load_openapi_spec", fake_load)
+
+        status, data = server.request(
+            "/api/sources/preview",
+            "POST",
+            {"kind": "openapi", "spec_url": "http://spec.example/openapi.json"},
+        )
+
+        assert status == 200, data
+        assert seen == {"allow_private_hosts": False, "follow_redirects": False}
+
+    def test_preview_carries_the_switch_when_the_server_allows_it(
+        self, server_private, monkeypatch
+    ) -> None:
+        import toolregistry.integrations.openapi.utils as openapi_utils
+
+        seen: dict[str, object] = {}
+
+        def fake_load(url: str, **kwargs: object) -> dict:
+            seen.update(kwargs)
+            return _SPEC
+
+        monkeypatch.setattr(openapi_utils, "load_openapi_spec", fake_load)
+
+        status, data = server_private.request(
+            "/api/sources/preview",
+            "POST",
+            {"kind": "openapi", "spec_url": "http://spec.example/openapi.json"},
+        )
+
+        assert status == 200, data
+        assert seen["allow_private_hosts"] is True
+        assert seen["follow_redirects"] is False
+
+
 class TestStateChangingGuards:
     """Cross-site and content-type guards on state-changing API calls."""
 

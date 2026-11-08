@@ -252,7 +252,14 @@ def _load_openapi(
             raise SourceError("Provide either 'spec_url' or an inline 'spec'")
         spec_url = _validate_spec_url(spec_url, allow_private_hosts=allow_private_hosts)
         try:
-            spec = load_openapi_spec(spec_url, allow_private_hosts=allow_private_hosts)
+            spec = load_openapi_spec(
+                spec_url,
+                allow_private_hosts=allow_private_hosts,
+                # The panel states its own policy instead of inheriting the
+                # loader default: a redirect would be a second request to an
+                # address the panel never validated.
+                follow_redirects=False,
+            )
         except Exception as exc:  # noqa: BLE001 - surfaced to the operator
             detail = redact_url_userinfo(str(exc))
             raise SourceError(f"Could not load the OpenAPI spec: {detail}") from exc

@@ -332,7 +332,11 @@ def test_register_ui_copy_is_translated_and_wired() -> None:
         .joinpath("js/core/i18n.js")
         .read_text(encoding="utf-8")
     )
-    for key in ("register.overridesKept", "register.stdioNeedsAuth"):
+    for key in (
+        "register.overridesKept",
+        "register.stdioNeedsAuth",
+        "register.privateHostsRefused",
+    ):
         assert i18n.count(f"'{key}':") == 2, key
 
     register_js = (
@@ -344,6 +348,9 @@ def test_register_ui_copy_is_translated_and_wired() -> None:
     assert "register.overridesKept" in register_js
     assert "register.stdioNeedsAuth" in register_js
     assert "updateStdioHint" in register_js
+    assert "register.privateHostsRefused" in register_js
+    assert "updatePrivateHostsHint" in register_js
+    assert "register-private-hint" in register_js
 
 
 _ESCAPE_HARNESS = """

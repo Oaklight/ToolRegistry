@@ -25,6 +25,12 @@ function closeAddSource() {
     if (card) card.style.display = 'none';
 }
 
+// The server decides whether a private or local address is allowed; the
+// panel only explains the refusal before the operator types a URL.  The
+// policy is read from /api/info, and stays unknown (null) until it arrives
+// or when that request fails, so no hint claims the wrong policy.
+let _serverPolicy = null;
+
 function refreshRegisterPanel() {
     // Re-render only when the panel is empty: switching away and back must
     // not discard a spec URL or the preview that was just loaded.
@@ -32,6 +38,17 @@ function refreshRegisterPanel() {
     if (!body || !body.querySelector('.register-form')) {
         renderRegisterForm();
     }
+    api.getInfo().then((info) => {
+        _serverPolicy = info;
+        updatePrivateHostsHint();
+    }).catch(() => {});
+}
+
+function updatePrivateHostsHint() {
+    const hint = document.getElementById('register-private-hint');
+    if (!hint) return;
+    const refused = !!_serverPolicy && _serverPolicy.allow_private_hosts === false;
+    hint.style.display = refused ? '' : 'none';
 }
 
 function setRegisterKind(kind) {
@@ -71,6 +88,9 @@ function registerFieldsTemplate(kind) {
         <input class="input" id="rf-spec-url" placeholder="https://api.example.com/openapi.json">
         <label class="form-label" data-i18n="register.baseUrl">Base URL (optional)</label>
         <input class="input" id="rf-base-url" placeholder="defaults to servers[] in the spec" data-i18n-placeholder="register.baseUrlHint">
+        <div class="register-warning" id="register-private-hint" style="display:none;">
+            <span data-i18n="register.privateHostsRefused"></span>
+        </div>
     `;
 }
 
@@ -149,6 +169,7 @@ function renderRegisterForm() {
     onAuthTypeChange();
     applyI18n(document.getElementById('register-body'));
     updateStdioHint();
+    updatePrivateHostsHint();
 }
 
 function parseHeaderLines(text) {
