@@ -30,7 +30,7 @@ Example:
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
 #: Actions a hook may be asked to persist.  The admin panel emits ``add``;
@@ -66,7 +66,8 @@ class SourceChange:
 
     action: str
     kind: str
-    payload: Mapping[str, Any]
+    #: Hidden from ``repr``: a stray log must not print credentials.
+    payload: Mapping[str, Any] = field(repr=False)
     namespace: str | None
     selected: tuple[str, ...] | None = None
     source_id: str | None = None

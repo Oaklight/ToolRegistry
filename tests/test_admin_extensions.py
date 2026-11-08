@@ -393,6 +393,14 @@ class TestExtensionValidation:
         with pytest.raises(AdminExtensionError, match="lower-case key"):
             self._prepare(LabelGroup(assets_dir))
 
+    def test_styles_without_nav_is_refused(self, assets_dir: Path) -> None:
+        class StylesOnly(ClockExtension):
+            nav = None
+            entry = None
+
+        with pytest.raises(AdminExtensionError, match="styles but no nav"):
+            self._prepare(StylesOnly(assets_dir))
+
     def test_unknown_nav_key_is_refused(self, assets_dir: Path) -> None:
         class BadNav(ClockExtension):
             nav = {"order": 1, "colour": "red"}
@@ -471,3 +479,26 @@ def test_extension_names_are_regex_checked(assets_dir: Path) -> None:
 
     with pytest.raises(AdminExtensionError, match="must match"):
         prepare_extensions([Upper(assets_dir)])
+
+
+def test_assets_are_validated_once(
+    monkeypatch: pytest.MonkeyPatch, assets_dir: Path
+) -> None:
+    """A mount reuses the validated description instead of re-reading files."""
+    from toolregistry.admin import extensions as extension_module
+
+    calls: list[object] = []
+    original = extension_module._require_asset_path
+
+    def counting(value: object, name: str, root: Path, field: str) -> str:
+        calls.append(value)
+        return original(value, name, root, field)
+
+    monkeypatch.setattr(extension_module, "_require_asset_path", counting)
+
+    admin = AdminServer(ToolRegistry(), port=0, extensions=[ClockExtension(assets_dir)])
+    admin.start()
+    admin.stop()
+
+    assert calls.count("assets/ext/clock/main.js") == 1
+    assert calls.count("assets/ext/clock/style.css") == 1

@@ -90,7 +90,8 @@ class AdminExtension(Protocol):
         entry: Browser module path under ``assets/ext/<name>/``.  Required
             with ``nav``; the module exports
             ``register({container, api, i18n})`` and optionally ``unmount()``.
-        styles: Stylesheet paths under ``assets/ext/<name>/``.
+        styles: Stylesheet paths under ``assets/ext/<name>/``.  Requires
+            ``nav``; an API-only extension has no panel to style.
         icon: SVG markup for the navigation item.
         nav: Mapping with an optional ``group`` translation key and an
             integer ``order``.  Its presence makes the extension a tab.
@@ -397,7 +398,7 @@ def _require_asset_path(value: object, name: str, assets_dir: Path, field: str) 
     if path.parts[:3] != ("assets", "ext", name) or len(path.parts) < 4:
         raise AdminExtensionError(
             f"extension '{name}' {field} must start with "
-            f"'assets/{EXTENSION_ASSET_PREFIX}/{name}/': {value!r}"
+            f"'{EXTENSION_ASSET_PREFIX}/{name}/': {value!r}"
         )
     if content_type_for(path.suffix) is None:
         raise AdminExtensionError(
@@ -449,7 +450,12 @@ def _require_nav(extension: object, name: str) -> tuple[bool, str | None, int]:
 
 
 def _prepare_one(extension: object) -> MountedExtension:
-    """Validate one extension and return its mounted description."""
+    """Validate one extension and return its mounted description.
+
+    A tab requires ``entry`` and an assets directory.  ``styles`` requires a
+    tab too: the loader skips an API-only extension entirely, so a stylesheet
+    declared without ``nav`` would never be applied.
+    """
     name = _require_name(extension)
     requires_api = getattr(extension, "requires_api", None)
     if requires_api != ADMIN_EXTENSION_API:
@@ -477,6 +483,10 @@ def _prepare_one(extension: object) -> MountedExtension:
     if has_nav and entry_value is None:
         raise AdminExtensionError(
             f"extension '{name}' declares a nav section but no entry module"
+        )
+    if styles_values and not has_nav:
+        raise AdminExtensionError(
+            f"extension '{name}' declares styles but no nav section"
         )
     if (entry_value is not None or styles_values) and assets_dir is None:
         raise AdminExtensionError(
@@ -510,6 +520,34 @@ def _prepare_one(extension: object) -> MountedExtension:
     )
 
 
+def _prepare_all(
+    extensions: Iterable[object] | None,
+) -> tuple[tuple[object, MountedExtension], ...]:
+    """Validate *extensions* once and pair each with its mounted description.
+
+    Args:
+        extensions: Extension instances, or ``None``.
+
+    Returns:
+        ``(extension, description)`` pairs in declaration order.
+
+    Raises:
+        AdminExtensionError: If an extension breaks the contract or two share
+            a name.
+    """
+    if extensions is None:
+        return ()
+    prepared: list[tuple[object, MountedExtension]] = []
+    seen: set[str] = set()
+    for extension in extensions:
+        name = _require_name(extension)
+        if name in seen:
+            raise AdminExtensionError(f"duplicate extension name '{name}'")
+        seen.add(name)
+        prepared.append((extension, _prepare_one(extension)))
+    return tuple(prepared)
+
+
 def prepare_extensions(extensions: Iterable[object] | None) -> tuple[object, ...]:
     """Validate *extensions* without touching an app.
 
@@ -523,17 +561,7 @@ def prepare_extensions(extensions: Iterable[object] | None) -> tuple[object, ...
         AdminExtensionError: If an extension breaks the contract or two share
             a name.
     """
-    if extensions is None:
-        return ()
-    prepared = tuple(extensions)
-    seen: set[str] = set()
-    for extension in prepared:
-        name = _require_name(extension)
-        if name in seen:
-            raise AdminExtensionError(f"duplicate extension name '{name}'")
-        seen.add(name)
-        _prepare_one(extension)
-    return prepared
+    return tuple(extension for extension, _info in _prepare_all(extensions))
 
 
 def mount_extensions(
@@ -556,10 +584,9 @@ def mount_extensions(
             name, or ``register`` raises.  The message always names the
             extension.
     """
-    instances = prepare_extensions(extensions)
+    prepared = _prepare_all(extensions)
     mounted: list[MountedExtension] = []
-    for extension in instances:
-        info = _prepare_one(extension)
+    for extension, info in prepared:
         context = AdminContext(app, info.name)
         try:
             cast(AdminExtension, extension).register(context)
