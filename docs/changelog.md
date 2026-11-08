@@ -16,6 +16,12 @@ hide:
 
 ## [Unreleased]
 
+### 新增
+
+#### 管理面板
+
+- **管理面板扩展（契约 v1）**（#435）：`AdminServer(..., extensions=[...])` 可挂载运维方安装的扩展。每个扩展声明 `name`、`title`、`assets`、`entry`、`requires_api`，可选 `styles`、`icon` 与 `nav`，并通过 `AdminContext`（`get`、`post`、`put`、`patch`、`delete`）在 `/ext/<name>` 下注册路由。`GET /api/extensions` 提供清单；扩展资源经现有的后缀白名单与路径穿越防护从 `/assets/ext/<name>/` 提供；页面外壳导入入口模块并调用其 `register({container, api, i18n})` 导出。`requires_api` 在服务端启动时与浏览器中都会校验，不匹配会拒绝该扩展并在消息中给出扩展名。扩展路由继承面板认证，`/ext/` 的状态变更请求与 `/api/` 一样受跨站防护。见[管理面板扩展](admin/extensions.md)。
+
 ## [0.20.1] - 2026-11-08
 
 ### 新增
