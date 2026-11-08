@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from toolregistry.config import ToolConfig
 
     from .extensions import AdminExtension, MountedExtension
+    from .source_hook import SourcePersistenceHook
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +135,8 @@ class AdminApp(App):
     extensions: tuple["MountedExtension", ...] = ()
     #: Extension name → resolved asset directory, read by ``read_asset``.
     extension_assets: dict[str, Path] | None = None
+    #: Optional downstream hook that persists source changes.
+    source_hook: "SourcePersistenceHook | None" = None
 
 
 class AdminServer:
@@ -178,6 +181,7 @@ class AdminServer:
         allowed_hosts: Iterable[str] | None = None,
         allow_private_hosts: bool = False,
         extensions: Iterable["AdminExtension"] | None = None,
+        source_hook: "SourcePersistenceHook | None" = None,
     ) -> None:
         """Initialize admin server.
 
@@ -219,6 +223,11 @@ class AdminServer:
                 starts; a contract violation raises
                 :class:`~toolregistry.admin.extensions.AdminExtensionError`
                 naming the extension.  Defaults to no extensions.
+            source_hook: Optional persistence and status hook for tool
+                sources.  The panel hands every registered source to it and
+                exposes its records in ``GET /api/sources``; without one the
+                response shapes are unchanged and nothing is persisted.  See
+                :class:`~toolregistry.admin.source_hook.SourcePersistenceHook`.
         """
         self._registry = registry
         self._host = "0.0.0.0" if remote else host
@@ -229,6 +238,7 @@ class AdminServer:
         self._ssl_context = ssl_context
         self._allow_private_hosts = allow_private_hosts
         self._extensions = tuple(extensions) if extensions is not None else ()
+        self._source_hook = source_hook
         # By default a loopback-bound panel answers only to loopback names;
         # a wildcard bind has no predictable name and relies on token auth.
         if allowed_hosts is None:
@@ -333,6 +343,7 @@ class AdminServer:
         self._app.allowed_hosts = self._allowed_hosts
         self._app.allow_private_hosts = self._allow_private_hosts
         self._app.secure_cookies = self._ssl_context is not None
+        self._app.source_hook = self._source_hook
 
         # Validate extensions and register their routes before the listener
         # starts: a contract violation must fail start(), not a request.

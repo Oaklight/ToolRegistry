@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-    from ..admin import AdminExtension, AdminInfo, AdminServer
+    from ..admin import AdminExtension, AdminInfo, AdminServer, SourcePersistenceHook
     from ..config import ToolConfig
     from ..tool_registry import ToolRegistry
 
@@ -29,6 +29,7 @@ class AdminMixin:
         config: ToolConfig | None = None,
         allow_private_hosts: bool = False,
         extensions: Iterable[AdminExtension] | None = None,
+        source_hook: SourcePersistenceHook | None = None,
     ) -> AdminInfo:
         """Enable the admin panel.
 
@@ -55,6 +56,11 @@ class AdminMixin:
                 validated before the listener starts; a contract violation
                 raises ``AdminExtensionError`` naming the extension.
                 Defaults to no extensions.
+            source_hook: Optional persistence and status hook for tool
+                sources.  The panel hands every registered source to it and
+                exposes its records in ``GET /api/sources``.  Defaults to
+                none: nothing is persisted and the response shapes are
+                unchanged.
 
         Returns:
             AdminInfo containing server details including URL and token.
@@ -88,6 +94,7 @@ class AdminMixin:
             config=config,
             allow_private_hosts=allow_private_hosts,
             extensions=extensions,
+            source_hook=source_hook,
         )
         return self._admin_server.start()
 
