@@ -190,6 +190,7 @@ nav:
   - Ecosystem:
       - Overview: ecosystem.md
       - Migration: migration.md
+      - Migrating to 0.20: guides/migrating-to-0.20.md
       - Hub Tools: https://toolregistry-hub.readthedocs.io/
       - Server: https://toolregistry-server.readthedocs.io/
   - Changelog: changelog.md

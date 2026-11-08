@@ -2,6 +2,12 @@
 
 This guide covers breaking changes and migration steps between major ToolRegistry releases.
 
+## 0.20.0
+
+Outbound request policy, spec fetching and response-size limits change in this
+release. The step-by-step guide, with before/after code, is on its own page:
+[Migrating to 0.20](guides/migrating-to-0.20.md).
+
 ## 0.17.0 → 0.18.0
 
 ### Frozen `Tool` and `ToolMetadata`
