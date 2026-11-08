@@ -195,10 +195,14 @@ class TestClientOrigin:
         client = HttpClientConfig(
             base_url=BASE, headers={"Authorization": "Bearer SECRET"}
         ).to_client(use_async=True)
-        try:
+
+        async def _check() -> None:
             with pytest.raises(ValueError, match="non-relative path"):
-                client._url("http://attacker.example/collect")
-            assert client._url("/pets") == f"{BASE}/pets"
+                await client._url("http://attacker.example/collect")
+            assert await client._url("/pets") == f"{BASE}/pets"
+
+        try:
+            asyncio.run(_check())
         finally:
             asyncio.run(client.aclose())
 
