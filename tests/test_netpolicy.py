@@ -253,6 +253,7 @@ SPECIAL_PURPOSE_LITERALS = [
     "3fff::1",  # documentation
     "5f00::1",  # SRv6 SIDs, is_global=True
     "ff02::1",  # IPv6 multicast
+    "64:ff9b:1::808:808",  # NAT64 local-use prefix, refused as a whole
 ]
 
 
@@ -269,25 +270,30 @@ class TestSpecialPurposeRanges:
 
 
 class TestNat64:
-    """A NAT64 prefix is judged by the IPv4 address it embeds."""
+    """The well-known prefix is unwrapped; the local-use prefix is refused."""
 
-    def test_embedded_loopback_is_refused(self):
+    def test_well_known_prefix_embedded_loopback_is_refused(self):
         # 64:ff9b::7f00:1 reaches 127.0.0.1; is_global reports the prefix as
         # public, which is the bypass this check closes.
         with pytest.raises(PrivateAddressError):
             validate_outbound_url(_url("64:ff9b::7f00:1"))
 
-    def test_local_use_prefix_embedded_loopback_is_refused(self):
-        with pytest.raises(PrivateAddressError):
-            validate_outbound_url(_url("64:ff9b:1::7f00:1"))
-
-    def test_embedded_public_address_is_allowed(self):
+    def test_well_known_prefix_embedded_public_address_is_allowed(self):
         url = _url("64:ff9b::808:808")  # 8.8.8.8
         assert validate_outbound_url(url) == url
 
-    def test_local_use_prefix_embedded_public_address_is_allowed(self):
-        url = _url("64:ff9b:1::808:808")
-        assert validate_outbound_url(url) == url
+    @pytest.mark.parametrize(
+        "host",
+        [
+            # The low 32 bits are 8.8.8.8, but the local-use layout does not
+            # put the target there, so this must not pass on that basis.
+            "64:ff9b:1:7f:0:100:808:808",
+            "64:ff9b:1::808:808",
+        ],
+    )
+    def test_local_use_prefix_is_refused_as_a_whole(self, host):
+        with pytest.raises(PrivateAddressError):
+            validate_outbound_url(_url(host))
 
 
 class TestPublicModule:

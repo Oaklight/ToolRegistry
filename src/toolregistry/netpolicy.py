@@ -5,8 +5,10 @@ this URL be dialed?  The host is resolved, and every answer must be a
 globally routable unicast address.  Loopback, link-local, private, multicast,
 reserved and the special-purpose transition ranges are refused unless the
 caller passes ``allow_private_hosts=True``.  A NAT64 or IPv4-mapped address is
-judged by the IPv4 address it embeds, so a NAT64 prefix cannot be used to
-reach a private host.
+judged by the IPv4 address it embeds: the well-known prefix
+``64:ff9b::/96`` is unwrapped and re-checked, while the local-use prefix
+``64:ff9b:1::/48`` is refused as a whole because its embedding layout differs
+and cannot be read from the low 32 bits.
 
 The policy ends at the dial.  It does not follow redirects, it does not pin
 the resolved address to the connection (a second resolution at connect time
