@@ -48,6 +48,14 @@ Tool 类遵循数据传输对象模式，包含以下关键组件：
         show_root_toc_entry: false
         merge_init_into_class: true
 
+## 元数据声明
+
+::: toolregistry.tool_metadata
+    options:
+        show_source: false
+        show_root_heading: true
+        show_root_toc_entry: false
+
 ## 使用示例
 
 ### 基本工具创建
@@ -187,6 +195,39 @@ explicit = Tool.from_function(
 )
 print(explicit.declared_execution_hints)  # {'read_only_hint': True, 'destructive_hint': False}
 ```
+
+### 在定义处声明元数据
+
+`@tool_metadata` 把声明保存在函数本身上，由 `Tool.from_function` 应用。因此
+每条注册路径都会带上它，包括不向构造函数传递元数据的类注册。
+
+```python
+from toolregistry import ToolRegistry, tool_metadata
+
+class Search:
+    @staticmethod
+    @tool_metadata(defer=True, tags={"network"}, title="Web Search")
+    def web_search(query: str) -> list[str]:
+        """Search the web."""
+        return [query]
+
+registry = ToolRegistry()
+registry.register(Search)
+tool = registry.get_tool("web_search")
+print(tool.metadata.defer)          # True
+print(tool.metadata.tags)           # {"network"}
+```
+
+显式传给 `Tool.from_function` 的 `metadata=` 优先：装饰器只填充该参数留在
+dataclass 默认值上的字段。默认值为 `False` 的字段（例如 `defer`）无法在装饰器
+声明 `True` 时保持 `False`；此时请传入显式值，并不要在装饰器中声明该字段。
+`is_async` 始终由函数自动检测；由流水线拥有的字段（`is_async`、`source`、
+`source_detail`、`schema_hash`、`last_refreshed_at`）不可声明，声明会抛出
+`TypeError`。
+
+叠加多个装饰器会合并声明，冲突时外层优先。绑定方法会把属性访问委托给底层函数，
+因此不需要额外的类扫描。`@tool_metadata` 必须位于 `@staticmethod` 之下，因为
+外层的 `staticmethod` 对象不接受该属性。
 
 ### 替换参数字段
 
