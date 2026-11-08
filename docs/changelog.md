@@ -24,6 +24,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **The outbound address policy is public** (#425): `toolregistry.netpolicy` exposes `validate_outbound_url()`, `validate_outbound_url_async()`, `UnsafeAddressError`, `PrivateAddressError`, `SCHEMES` and `clear_address_cache()`. `toolregistry._netpolicy` stays importable and resolves to the same objects, so existing imports keep working. The module docstring states the contract: the policy decides whether a URL may be dialed; redirects, connection-time address pinning and cross-origin credential handling remain the caller's responsibility.
 
+### Changed
+
+#### Core
+
+- **The vendored HTTP client is now zerodep 0.7.2**: the bundled `httpclient` moved from 0.7.1 to 0.7.2 and gains a `follow_redirects` switch (default `True`). With `follow_redirects=False` a request returns the 3xx response unchanged, so a caller can validate each hop itself. No other vendored module changed; the zerodep source ref is `0665306b940e6f5d86f2f44048b927710f6e6690` (`v2026.11.8`).
+
 ### Security
 
 #### Core
