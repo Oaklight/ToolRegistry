@@ -16,6 +16,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.20.1] - 2026-11-08
+
 ### Added
 
 #### Core
@@ -27,6 +29,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 #### Core
 
 - **Special-purpose ranges are refused explicitly** (#425, stricter than 0.20.0): beyond the `is_global` allowlist, the policy now refuses `192.0.0.0/24`, `192.88.99.0/24`, `198.18.0.0/15`, `240.0.0.0/4`, `::/96`, `100::/64`, `2001::/32`, `2001:2::/48`, `2001:10::/28`, `2001:20::/28`, `2001:db8::/32`, `2002::/16`, `3fff::/20`, `5f00::/16` and the NAT64 local-use prefix `64:ff9b:1::/48`. `::/96`, `192.88.99.0/24`, `2001:20::/28` and `5f00::/16` are reported as globally routable by `ipaddress` on every supported interpreter, so `is_global` alone let them through; the others are pinned so a future interpreter table change cannot reopen them. The NAT64 well-known prefix (`64:ff9b::/96`) is judged by the IPv4 address in its low 32 bits, so `64:ff9b::7f00:1` no longer reaches `127.0.0.1` while NAT64 access to a public IPv4 address still works. The local-use prefix is not unwrapped: it is refused as a whole, because its IPv4 embedding position is deployment-dependent and reading the low 32 bits would judge the wrong bits — `64:ff9b:1::808:808` looks like `8.8.8.8` there while its embedded target is `0.0.0.0`. `allow_private_hosts=True` keeps its opt-out.
+
+#### Admin panel
+
+- **Admin authentication is throttled per source** (#405): five failed `Authorization` guesses from one peer address inside 60 seconds now get 429 with `Retry-After`, and the check runs before the token comparison, so a low-entropy operator token cannot be guessed at full speed. A success clears the counter; a request without credentials does not count. The table tracks at most 1024 sources, pruning expired entries and evicting the least recently used.
 
 ### Fixed
 
