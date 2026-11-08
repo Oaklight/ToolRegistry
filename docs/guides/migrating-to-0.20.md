@@ -34,7 +34,7 @@ registry.register(..., source="mcp", allow_private_hosts=True)
 
 ## 重定向
 
-`load_openapi_spec()`、`load_openapi_spec_async()` 与 `determine_urls()` 默认不再跟随重定向。下一跳无法按出站策略检查，因此 3xx 会被拒绝，错误信息会给出最终 URL。
+`load_openapi_spec()`、`load_openapi_spec_async()` 与 `determine_urls()` 默认不再跟随重定向。下一跳无法按出站策略检查，且 vendored 客户端不暴露 `Location`，因此 3xx 会被拒绝，错误信息不会回显重定向目标，只要求调用方改用最终 URL。
 
 ```python
 # 之前：302 会被跟随到无人校验的地址
