@@ -18,6 +18,7 @@ from toolregistry import (
     Tool,
     ToolMetadata,
     ToolRegistry,
+    ToolTag,
 )
 from toolregistry.events import ChangeEventType
 from toolregistry.llm.discovery import TOOL_CALL_DEFERRED_NAME, TOOL_DISCOVERY_NAME
@@ -143,6 +144,110 @@ class TestExplicitModes:
 
         assert (ChangeEventType.UNREGISTER, TOOL_DISCOVERY_NAME) in seen
         assert (ChangeEventType.UNREGISTER, TOOL_CALL_DEFERRED_NAME) in seen
+
+
+class TestMutationBatching:
+    """Discovery reconciliation must not mutate a map an iterator is reading.
+
+    ``_sync_tool_discovery`` runs as a change callback; starting or stopping
+    discovery writes ``_tools``.  The callback only marks reconciliation
+    pending while a registry mutation is in progress, and discovery start and
+    stop detach the map, so a frame iterating it keeps a stable snapshot.
+    """
+
+    def test_hub_reload_sequence_keeps_discovery_off(self) -> None:
+        """build → pin off → register a deferred tool: on stays off, no error."""
+        registry = ToolRegistry()
+        registry.set_tool_discovery_mode("off")
+
+        registry.register(_hidden())
+
+        assert registry.tool_discovery_mode == "off"
+        assert registry.tool_discovery_enabled is False
+        assert TOOL_DISCOVERY_NAME not in registry._tools
+
+    def test_disable_by_tags_stops_discovery_after_the_loop(self) -> None:
+        def slow_hidden(x: int = 1) -> int:
+            """A deferred tool that carries a tag."""
+            return x
+
+        registry = ToolRegistry()
+        registry.register(
+            Tool.from_function(
+                slow_hidden,
+                name="slow_hidden",
+                metadata=ToolMetadata(defer=True, tags={ToolTag.SLOW}),
+            )
+        )
+        assert registry.tool_discovery_enabled is True
+
+        disabled = registry.disable_by_tags({ToolTag.SLOW})
+
+        assert "slow_hidden" in disabled
+        assert registry.tool_discovery_enabled is False
+        assert TOOL_DISCOVERY_NAME not in registry._tools
+        assert TOOL_CALL_DEFERRED_NAME not in registry._tools
+
+    def test_metadata_update_during_iteration_starts_discovery_safely(self) -> None:
+        """The direct acceptance for the map detach in ``_start_discovery``."""
+        registry = ToolRegistry()
+        registry.register(_visible())
+        sizes: list[int] = []
+
+        for _name in registry._tools:
+            sizes.append(len(registry._tools))
+            registry.update_tool_metadata("visible", defer=True)
+
+        assert sizes == [1]
+        assert registry.tool_discovery_enabled is True
+        assert TOOL_DISCOVERY_NAME in registry._tools
+
+    def test_auto_reconciles_once_for_a_batched_operation(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def slow_visible(x: int = 1) -> int:
+            """A visible tool that carries a tag."""
+            return x
+
+        registry = ToolRegistry()
+        registry.register(
+            Tool.from_function(
+                slow_visible,
+                name="slow_visible",
+                metadata=ToolMetadata(tags={ToolTag.SLOW}),
+            )
+        )
+        registry.register(
+            Tool.from_function(
+                lambda x=1: x,
+                name="slow_hidden",
+                metadata=ToolMetadata(defer=True, tags={ToolTag.SLOW}),
+            )
+        )
+        calls: list[int] = []
+        reconcile = registry._apply_tool_discovery_sync
+
+        def counting_reconcile() -> None:
+            calls.append(1)
+            reconcile()
+
+        monkeypatch.setattr(registry, "_apply_tool_discovery_sync", counting_reconcile)
+
+        registry.disable_by_tags({ToolTag.SLOW})
+
+        assert calls == [1]
+        assert registry.tool_discovery_enabled is False
+
+    def test_on_mode_ignores_the_deferred_set(self) -> None:
+        registry = ToolRegistry()
+        registry.enable_tool_discovery()
+        registry.register(_hidden())
+
+        registry.disable("hidden")
+
+        assert registry.tool_discovery_mode == "on"
+        assert registry.tool_discovery_enabled is True
+        assert TOOL_DISCOVERY_NAME in registry._tools
 
 
 class TestCallDeferredPolicy:

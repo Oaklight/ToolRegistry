@@ -6,6 +6,7 @@ import dataclasses
 import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
+from contextlib import AbstractContextManager
 from collections.abc import Callable
 
 from ..events import ChangeEvent, ChangeEventType, RefreshResult
@@ -132,6 +133,8 @@ class RegistrationMixin:
     if TYPE_CHECKING:
 
         def _emit_change(self, event: ChangeEvent) -> None: ...
+
+        def _mutation(self) -> AbstractContextManager[None]: ...
 
         def _run_post_register_hooks(self, tool_name: str, tool: Tool) -> None: ...
 
@@ -382,44 +385,47 @@ class RegistrationMixin:
         replaced = existing is not None and existing != registered_tool
         was_overridden = registered_name in self._overrides
 
-        self._tools[registered_name] = registered_tool
+        with self._mutation():
+            self._tools[registered_name] = registered_tool
 
-        # A plain registration onto an overridden name supersedes the
-        # override: the newly registered tool is now the current definition,
-        # so the displaced record (and its restore path) no longer applies.
-        self._overrides.pop(registered_name, None)
+            # A plain registration onto an overridden name supersedes the
+            # override: the newly registered tool is now the current
+            # definition, so the displaced record (and its restore path) no
+            # longer applies.
+            self._overrides.pop(registered_name, None)
 
-        self._run_post_register_hooks(registered_name, registered_tool)
+            self._run_post_register_hooks(registered_name, registered_tool)
 
-        self._emit_change(
-            ChangeEvent(
-                event_type=ChangeEventType.REGISTER,
-                tool_name=registered_name,
-            )
-        )
-
-        if replaced:
             self._emit_change(
                 ChangeEvent(
-                    event_type=ChangeEventType.REPLACE,
+                    event_type=ChangeEventType.REGISTER,
                     tool_name=registered_name,
-                    metadata={"replaced_tool": existing},
                 )
             )
 
-        # Emit the warning last.  When warnings are configured as errors
-        # (e.g. ``-W error``), the exception must not skip the post-register
-        # hook or the change events above: listeners would otherwise be left
-        # with the old tool in their caches and no event to correct it.
-        if replaced and not allow_replace:
-            replacement_warning = (
-                f"Tool {registered_name!r} was already registered; the "
-                "previous definition was discarded. Pass allow_replace=True "
-                "to acknowledge replacement."
-            )
-            if was_overridden:
-                replacement_warning += " The recorded override was also discarded."
-            warn_at_user_frame(replacement_warning, UserWarning)
+            if replaced:
+                self._emit_change(
+                    ChangeEvent(
+                        event_type=ChangeEventType.REPLACE,
+                        tool_name=registered_name,
+                        metadata={"replaced_tool": existing},
+                    )
+                )
+
+            # Emit the warning last.  When warnings are configured as errors
+            # (e.g. ``-W error``), the exception must not skip the
+            # post-register hook or the change events above: listeners would
+            # otherwise be left with the old tool in their caches and no
+            # event to correct it.
+            if replaced and not allow_replace:
+                replacement_warning = (
+                    f"Tool {registered_name!r} was already registered; the "
+                    "previous definition was discarded. Pass allow_replace=True "
+                    "to acknowledge replacement."
+                )
+                if was_overridden:
+                    replacement_warning += " The recorded override was also discarded."
+                warn_at_user_frame(replacement_warning, UserWarning)
 
         return tool_or_func
 
@@ -432,17 +438,18 @@ class RegistrationMixin:
         Returns:
             True if the tool was found and removed, False otherwise.
         """
-        tool = self._tools.pop(name, None)
-        if tool is None:
-            return False
-        self._disabled.pop(name, None)
-        self._overrides.pop(name, None)
-        self._emit_change(
-            ChangeEvent(
-                event_type=ChangeEventType.UNREGISTER,
-                tool_name=name,
+        with self._mutation():
+            tool = self._tools.pop(name, None)
+            if tool is None:
+                return False
+            self._disabled.pop(name, None)
+            self._overrides.pop(name, None)
+            self._emit_change(
+                ChangeEvent(
+                    event_type=ChangeEventType.UNREGISTER,
+                    tool_name=name,
+                )
             )
-        )
         return True
 
     def _replace_tool(self, name: str, **updates: object) -> Tool:
@@ -542,18 +549,19 @@ class RegistrationMixin:
             raise KeyError(f"Tool not registered: {name}")
 
         new_tool = self._coerce_override_tool(name, tool)
-        if existing is not None and name not in self._overrides:
-            self._overrides[name] = existing
+        with self._mutation():
+            if existing is not None and name not in self._overrides:
+                self._overrides[name] = existing
 
-        self._tools[name] = new_tool
-        if created:
-            self._run_post_register_hooks(name, new_tool)
+            self._tools[name] = new_tool
+            if created:
+                self._run_post_register_hooks(name, new_tool)
+                self._emit_change(
+                    ChangeEvent(event_type=ChangeEventType.REGISTER, tool_name=name)
+                )
             self._emit_change(
-                ChangeEvent(event_type=ChangeEventType.REGISTER, tool_name=name)
+                ChangeEvent(event_type=ChangeEventType.OVERRIDE, tool_name=name)
             )
-        self._emit_change(
-            ChangeEvent(event_type=ChangeEventType.OVERRIDE, tool_name=name)
-        )
         return new_tool
 
     def restore_override(self, name: str) -> Tool:
@@ -581,14 +589,15 @@ class RegistrationMixin:
                 f"under that name."
             )
         del self._overrides[name]
-        self._tools[name] = displaced
-        self._emit_change(
-            ChangeEvent(
-                event_type=ChangeEventType.OVERRIDE,
-                tool_name=name,
-                metadata={"restored": True},
+        with self._mutation():
+            self._tools[name] = displaced
+            self._emit_change(
+                ChangeEvent(
+                    event_type=ChangeEventType.OVERRIDE,
+                    tool_name=name,
+                    metadata={"restored": True},
+                )
             )
-        )
         return displaced
 
     def list_overrides(self) -> dict[str, Tool]:

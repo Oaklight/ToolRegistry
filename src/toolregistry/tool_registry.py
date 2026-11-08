@@ -6,9 +6,10 @@ import threading
 import time
 import traceback as tb_module
 import warnings
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 
 from .executor import InlineBackend, ProcessPoolBackend, ThreadBackend
 from .tool import ToolTag
@@ -216,6 +217,13 @@ class ToolRegistry(
         self._tool_discovery: ToolDiscoveryTool | None = None
         self._tool_discovery_mode: Literal["auto", "on", "off"] = "auto"
         self._tool_discovery_sync_lock = threading.Lock()
+        # Depth of the mutation currently in progress, and whether an auto
+        # reconciliation was requested while it was running.  Discovery
+        # start/stop writes ``_tools``; doing that from a change callback
+        # could resize a map an enclosing frame is iterating, so the callback
+        # only marks it pending and the outermost mutation applies it.
+        self._mutation_depth = 0
+        self._discovery_sync_pending = False
         self._ptc = PtcController(self)
 
         # In auto mode discovery follows the deferred set, so it has to hear
@@ -454,6 +462,8 @@ class ToolRegistry(
         if mode not in ("auto", "on", "off"):
             raise ValueError("tool discovery mode must be 'auto', 'on' or 'off'")
         self._tool_discovery_mode = mode
+        # A request recorded under the previous mode must not fire later.
+        self._discovery_sync_pending = False
         if mode == "on":
             return self._start_discovery()
         if mode == "off":
@@ -524,6 +534,13 @@ class ToolRegistry(
             )
             return self._tool_discovery
 
+        # Detach the current map before adding the discovery tools.  A frame
+        # that is iterating ``_tools`` keeps the snapshot it started with, so
+        # this start cannot raise "dictionary changed size during iteration".
+        # Only a start or stop pays for the copy; ordinary registration does
+        # not, which keeps bulk registration linear.
+        self._tools = dict(self._tools)
+
         options: dict[str, float] = {}
         if min_score_ratio is not None:
             options["min_score_ratio"] = min_score_ratio
@@ -593,6 +610,11 @@ class ToolRegistry(
         if self._tool_discovery is None:
             return
 
+        # Detach the map before removing the discovery tools, for the same
+        # reason as in ``_start_discovery``: an in-flight iteration keeps its
+        # snapshot instead of seeing this pop.
+        self._tools = dict(self._tools)
+
         # Close first: the discoverer listens to registry changes and must
         # not react to the removals below.
         self._tool_discovery.close()
@@ -618,20 +640,56 @@ class ToolRegistry(
                 return True
         return False
 
-    def _sync_tool_discovery(self, event: ChangeEvent | None = None) -> None:
-        """Reconcile discovery with the deferred set in ``auto`` mode.
+    @contextmanager
+    def _mutation(self) -> Iterator[None]:
+        """Batch one registry mutation so auto-sync runs outside callbacks.
 
-        Runs as a change callback.  Starting or stopping discovery registers
-        or removes tools, which emits further change events; those re-enter
-        here while the lock is held and return immediately.
+        Discovery reconciliation starts or stops discovery, and both write
+        ``self._tools``.  Running that from inside a change callback could
+        resize a map an enclosing frame is still iterating.  While a mutation
+        is in progress the callback only marks reconciliation pending; the
+        outermost mutation applies it once, after every event has been
+        dispatched.
+
+        ``_tools`` stays a private structure: this does not promise a stable
+        view across mutations, only that a start or stop triggered by a
+        callback never mutates the map an in-flight iteration is reading.
+
+        Nested mutations are counted, so a registration that runs hooks or
+        integrations which mutate again still reconciles once at the end.
+        """
+        self._mutation_depth += 1
+        try:
+            yield
+        finally:
+            self._mutation_depth -= 1
+            if self._mutation_depth == 0 and self._discovery_sync_pending:
+                self._apply_tool_discovery_sync()
+
+    def _sync_tool_discovery(self, event: ChangeEvent | None = None) -> None:
+        """Request a discovery/deferred-set reconciliation in ``auto`` mode.
+
+        Runs as a change callback.  Inside a mutation it only records the
+        request; :meth:`_mutation` applies it once the outermost mutation
+        finishes.  Elsewhere it reconciles immediately.
         """
         if self._tool_discovery_mode != "auto":
             return
         if event is not None and event.event_type not in _DISCOVERY_SYNC_EVENTS:
             return
+        if self._mutation_depth > 0:
+            self._discovery_sync_pending = True
+            return
+        self._apply_tool_discovery_sync()
+
+    def _apply_tool_discovery_sync(self) -> None:
+        """Reconcile discovery with the deferred set, at most once per batch."""
         if not self._tool_discovery_sync_lock.acquire(blocking=False):
+            # A reconciliation started by an enclosing call is still running
+            # and observes the same registry state; leave the request pending.
             return
         try:
+            self._discovery_sync_pending = False
             if self._has_enabled_deferred_tools():
                 if self._tool_discovery is None:
                     self._start_discovery()
@@ -640,6 +698,9 @@ class ToolRegistry(
         except Exception:  # noqa: BLE001 - never break a registry mutation
             logger.warning("tool discovery auto-sync failed", exc_info=True)
         finally:
+            # Nested registrations see the lock held and re-set the flag;
+            # this pass already reconciled the state they would have seen.
+            self._discovery_sync_pending = False
             self._tool_discovery_sync_lock.release()
 
     # ============== PTC (Programmatic Tool Calling) ==============

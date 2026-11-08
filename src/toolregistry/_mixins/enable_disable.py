@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 
+from contextlib import AbstractContextManager
 from typing import TYPE_CHECKING, Literal
 
 from .._validation import HINT_METADATA_FIELDS, validate_metadata_field
@@ -23,6 +24,8 @@ class EnableDisableMixin:
 
         def _emit_change(self, event: ChangeEvent) -> None: ...
 
+        def _mutation(self) -> AbstractContextManager[None]: ...
+
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self._disabled: dict[str, str] = {}
@@ -34,14 +37,15 @@ class EnableDisableMixin:
             name: The tool name or namespace to disable.
             reason: Optional reason for disabling.
         """
-        self._disabled[name] = reason
-        self._emit_change(
-            ChangeEvent(
-                event_type=ChangeEventType.DISABLE,
-                tool_name=name,
-                reason=reason or None,
+        with self._mutation():
+            self._disabled[name] = reason
+            self._emit_change(
+                ChangeEvent(
+                    event_type=ChangeEventType.DISABLE,
+                    tool_name=name,
+                    reason=reason or None,
+                )
             )
-        )
 
     def enable(self, name: str) -> None:
         """Re-enable a tool or namespace.
@@ -49,13 +53,14 @@ class EnableDisableMixin:
         Args:
             name: The tool name or namespace to re-enable.
         """
-        self._disabled.pop(name, None)
-        self._emit_change(
-            ChangeEvent(
-                event_type=ChangeEventType.ENABLE,
-                tool_name=name,
+        with self._mutation():
+            self._disabled.pop(name, None)
+            self._emit_change(
+                ChangeEvent(
+                    event_type=ChangeEventType.ENABLE,
+                    tool_name=name,
+                )
             )
-        )
 
     def is_enabled(self, tool_name: str) -> bool:
         """Check if a tool is enabled (not disabled at method or group level).
@@ -118,20 +123,24 @@ class EnableDisableMixin:
         tag_strs: set[str] = {t if isinstance(t, str) else t.value for t in tags}
 
         disabled: list[str] = []
-        for name, tool in self._tools.items():
-            if tool.metadata is None:
-                continue
-            # Skip tools that are already disabled.
-            if not self.is_enabled(name):
-                continue
-            tool_tags = tool.metadata.all_tags
-            if match == "any":
-                matched = bool(tool_tags & tag_strs)
-            else:
-                matched = tag_strs.issubset(tool_tags)
-            if matched:
-                self.disable(name, reason=reason)
-                disabled.append(name)
+        # Hold one mutation across the loop.  Disabling the last enabled
+        # deferred tool stops discovery from the DISABLE callback, and that
+        # removal would otherwise land in the map this loop is iterating.
+        with self._mutation():
+            for name, tool in self._tools.items():
+                if tool.metadata is None:
+                    continue
+                # Skip tools that are already disabled.
+                if not self.is_enabled(name):
+                    continue
+                tool_tags = tool.metadata.all_tags
+                if match == "any":
+                    matched = bool(tool_tags & tag_strs)
+                else:
+                    matched = tag_strs.issubset(tool_tags)
+                if matched:
+                    self.disable(name, reason=reason)
+                    disabled.append(name)
         return disabled
 
     # Fields safe to update at runtime via update_tool_metadata()
@@ -196,14 +205,15 @@ class EnableDisableMixin:
             raise KeyError(f"Tool not found: {tool_name}")
         self._check_metadata_updates(kwargs)
         new_meta = dataclasses.replace(tool.metadata, **kwargs)
-        self._tools[tool_name] = dataclasses.replace(tool, metadata=new_meta)
-        self._emit_change(
-            ChangeEvent(
-                event_type=ChangeEventType.METADATA_UPDATE,
-                tool_name=tool_name,
-                metadata=dict(kwargs),
+        with self._mutation():
+            self._tools[tool_name] = dataclasses.replace(tool, metadata=new_meta)
+            self._emit_change(
+                ChangeEvent(
+                    event_type=ChangeEventType.METADATA_UPDATE,
+                    tool_name=tool_name,
+                    metadata=dict(kwargs),
+                )
             )
-        )
 
     def update_namespace_metadata(self, namespace: str, **kwargs: object) -> None:
         """Update mutable metadata fields for all tools in a namespace.
@@ -223,13 +233,14 @@ class EnableDisableMixin:
         if not tools:
             raise KeyError(f"Namespace not found: {namespace}")
         self._check_metadata_updates(kwargs)
-        for tool in tools:
-            new_meta = dataclasses.replace(tool.metadata, **kwargs)
-            self._tools[tool.name] = dataclasses.replace(tool, metadata=new_meta)
-            self._emit_change(
-                ChangeEvent(
-                    event_type=ChangeEventType.METADATA_UPDATE,
-                    tool_name=tool.name,
-                    metadata=dict(kwargs),
+        with self._mutation():
+            for tool in tools:
+                new_meta = dataclasses.replace(tool.metadata, **kwargs)
+                self._tools[tool.name] = dataclasses.replace(tool, metadata=new_meta)
+                self._emit_change(
+                    ChangeEvent(
+                        event_type=ChangeEventType.METADATA_UPDATE,
+                        tool_name=tool.name,
+                        metadata=dict(kwargs),
+                    )
                 )
-            )
