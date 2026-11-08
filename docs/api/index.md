@@ -9,6 +9,7 @@ ToolRegistry 中所有类和方法的全面 API 文档，从源代码自动生�
 - [**ToolRegistry**](core/toolregistry.md) — 工具管理的中央协调器
 - [**Tool**](core/tool.md) — 包含元数据和执行逻辑的单个工具
 - [**Executor**](core/executor.md) — 可插拔的执行后端（线程/进程）
+- [**出站地址策略**](core/netpolicy.md) — 拒绝主机非全球可达的 URL
 - [**Events**](events.md) — 变更事件类型和回调机制
 - [**Permissions**](permissions.md) — 基于规则的授权框架
 

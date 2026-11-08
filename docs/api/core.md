@@ -9,6 +9,7 @@
 | [ToolRegistry](core/toolregistry.md) | 工具注册、执行和 Schema 生成的中央编排器 | 主入口 |
 | [Tool](core/tool.md) | 表示一个具有元数据、参数和执行逻辑的独立工具 | 工具抽象 |
 | [Executor](core/executor.md) | 可插拔的执行后端（线程/进程），支持取消和超时 | 执行引擎 |
+| [出站地址策略](core/netpolicy.md) | 在建立连接前拒绝主机非全球可达的 URL | SSRF 防护 |
 | [Events](events.md) | 变更事件类型和注册表状态变化的回调机制 | 事件基础设施 |
 | [Permissions](permissions.md) | 基于规则的授权框架，用于控制工具执行 | 权限系统 |
 

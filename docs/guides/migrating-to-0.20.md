@@ -32,6 +32,17 @@ registry.register(..., source="mcp", allow_private_hosts=True)
 
 管理面板有自己的开关：以 `registry.enable_admin(allow_private_hosts=True)` 启动，预览与注册才能访问本机 API。`GET /api/info` 以 `allow_private_hosts` 返回该值；服务器拒绝私有地址时，OpenAPI 表单会给出提示。
 
+### 安全基线：0.20.1
+
+0.20.0 只检查 `ipaddress.is_global`，而该标记并不是可靠的白名单：若干特殊用途网段在本项目支持的解释器版本上都报告为 `True`，因此 0.20.0 会放行它们。0.20.1 增加了显式拒绝，是第一个可以放心依赖其策略的版本：
+
+- 拒绝 `::/96`（已废弃的 IPv4 兼容地址）。`ipaddress` 把 `::7f00:1` 报告为全球可达，因此 0.20.0 放行了它，而它实际到达 `127.0.0.1`。
+- 出于同样原因拒绝 `192.88.99.0/24`（6to4 中继任播）、`2001:20::/28`（ORCHIDv2）和 `5f00::/16`（SRv6 SID）。其余特殊用途网段被固定下来，后续解释器地址表变化无法悄悄重新放开它们。
+- NAT64 本地使用前缀 `64:ff9b:1::/48` 整段拒绝。它的 IPv4 地址位于与部署相关的位置，读取低 32 位会判定错误的位：`64:ff9b:1::808:808` 在那里看起来是 `8.8.8.8`，实际内嵌目标是 `0.0.0.0`。
+- NAT64 知名前缀 `64:ff9b::/96` 会被解开，并按低 32 位中的 IPv4 地址判定，因此 `64:ff9b::7f00:1` 不再到达 `127.0.0.1`，而通过 NAT64 访问公网地址仍然可用。
+
+0.20.1 还把该策略公开为 `toolregistry.netpolicy`；`toolregistry._netpolicy` 仍可导入，并解析到相同的对象。完整约定见[出站地址策略](../api/core/netpolicy.md)。
+
 ## 重定向
 
 `load_openapi_spec()`、`load_openapi_spec_async()` 与 `determine_urls()` 默认不再跟随重定向。下一跳无法按出站策略检查，且 vendored 客户端不暴露 `Location`，因此 3xx 会被拒绝，错误信息不会回显重定向目标，只要求调用方改用最终 URL。
