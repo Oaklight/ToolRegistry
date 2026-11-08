@@ -38,6 +38,8 @@ hide:
 
 - **无法编译的 spec 正则会在注册时被拒绝**（#421）：`preview_source()` 与来源注册在加载 OpenAPI 文档时都没有编译其中的 `pattern` 与 `patternProperties`，因此坏 pattern 会被接受，直到第一次调用才暴露——安装了可选的 `regex` 包时是 500，未安装时约束被静默忽略。现在两条路径都会在注册任何工具之前调用 `_check_spec_patterns`；坏 pattern 会抛出面板现有的 `SourceError`，信息中带上工具名与 schema 路径，HTTP 层据此返回 400，注册表保持为空。引擎优先使用已安装的 `regex`（与请求期校验一致），否则回退到标准库 `re`；回退更严格，会拒绝只有 `regex` 才接受的写法，例如变长后行断言或 `\p{...}`。
 
+- **名称形如数据关键字的属性也会检查 pattern**（#430）：spec walker 在遍历的每个映射上都跳过 `example`、`examples`、`default`、`enum`、`const`、`pattern` 与 `patternProperties`，因此名称恰为这些关键字的**属性**从未被检查——`{"properties": {"default": {"pattern": "("}}}` 可以注册成功，安装 `regex` 后每次调用都会失败（未安装时约束被静默忽略）。现在 `properties`、`patternProperties`、`$defs` 与 `definitions` 下的键一律按 schema 遍历；schema 对象上的数据关键字仍然跳过，因此 `default` 值里恰好出现 `(` 不会被当成正则。preview 与注册结论一致，集成不会注册成工具的 `patch` 操作也不再被检查。
+
 ## [0.20.0] - 2026-11-08
 
 ### 破坏性变更
