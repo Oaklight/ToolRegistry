@@ -60,17 +60,22 @@ _cache_lock = threading.Lock()
 #: ``is_global`` is the allowlist, but the IANA special-purpose table behind it
 #: changes between interpreter releases, so a range's verdict is not stable
 #: across the versions this project supports.  Measured with the interpreters
-#: available locally (3.10, 3.11, 3.14) and re-checked by CI on 3.10-3.13:
+#: available locally (3.10, 3.11, 3.14); CI runs the policy tests on its
+#: 3.10-3.13 matrix, but those tests assert the policy's answer, not the
+#: ``is_global`` value itself.
 #:
-#: * ``192.88.99.0/24`` (6to4 relay anycast), ``64:ff9b::/96`` (NAT64),
-#:   ``2001:20::/28`` (ORCHIDv2) and ``5f00::/16`` (SRv6 SIDs) report
-#:   ``is_global=True`` on every version measured - those are live bypasses.
+#: * ``::/96`` (IPv4-compatible), ``192.88.99.0/24`` (6to4 relay anycast),
+#:   ``64:ff9b::/96`` (NAT64), ``2001:20::/28`` (ORCHIDv2) and ``5f00::/16``
+#:   (SRv6 SIDs) report ``is_global=True`` on every version measured - those
+#:   are live bypasses.
 #: * The remaining ranges already report ``False``, but they are pinned here
 #:   so a later CPython table change (the 3.13 release added several
 #:   special-purpose blocks) cannot silently open them again.
 #:
-#: NAT64 is handled separately: its prefix is public by design, so the
-#: embedded IPv4 address is what decides.
+#: NAT64 is handled separately: the well-known prefix is public by design, so
+#: its embedded IPv4 address decides; the local-use prefix has a
+#: deployment-specific layout, so no fixed bit position can be trusted and the
+#: prefix is refused instead.
 _SPECIAL_PURPOSE_NETWORKS = tuple(
     ipaddress.ip_network(network)
     for network in (
@@ -91,10 +96,10 @@ _SPECIAL_PURPOSE_NETWORKS = tuple(
         "2002::/16",  # 6to4; embeds an IPv4 address.
         "3fff::/20",  # documentation; is_global=False today.
         "5f00::/16",  # SRv6 SIDs; is_global=True.
-        # NAT64 local-use prefix (RFC 8215): refused as a whole.  Unlike the
-        # well-known prefix, its IPv4 address does not sit in the low 32 bits,
-        # so unwrapping would judge the wrong bits - 64:ff9b:1::808:808 has
-        # 8.8.8.8 in the low 32 bits while its embedded target is 0.0.0.0.
+        # NAT64 local-use prefix (RFC 8215): refused as a whole.  Its IPv4
+        # embedding position depends on the deployment, so no fixed bit range
+        # can be trusted - 64:ff9b:1::808:808 has 8.8.8.8 in the low 32 bits
+        # while its embedded target is 0.0.0.0.
         "64:ff9b:1::/48",
     )
 )
@@ -102,8 +107,8 @@ _SPECIAL_PURPOSE_NETWORKS = tuple(
 #: The NAT64 well-known prefix (RFC 6052).  Its IPv6 form is reported as
 #: public, so the IPv4 address in the low 32 bits decides whether the target
 #: is allowed.  The local-use prefix is handled by refusing it as a whole
-#: (see :data:`_SPECIAL_PURPOSE_NETWORKS`), because its embedding layout
-#: differs and cannot be unwrapped the same way.
+#: (see :data:`_SPECIAL_PURPOSE_NETWORKS`): its IPv4 embedding position is
+#: deployment-dependent, so no fixed bit range can be trusted.
 _NAT64_WELL_KNOWN = ipaddress.ip_network("64:ff9b::/96")
 
 

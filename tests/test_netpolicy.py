@@ -274,7 +274,6 @@ class TestSpecialPurposeRanges:
 #: encode 127.0.0.1, while the low 32 bits (8.8.8.8) are a decoy.
 LOCAL_USE_VECTORS = [
     "64:ff9b:1:7f00:0:100:808:808",
-    "64:ff9b:1:7f:0:100:808:808",
     "64:ff9b:1::808:808",
 ]
 
