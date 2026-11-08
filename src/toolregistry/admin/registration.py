@@ -282,6 +282,140 @@ def _load_openapi(
     return spec, str(base_url), spec_url
 
 
+try:  # optional dependency: the engine the server validates requests with
+    import regex as _PATTERN_ENGINE
+except ImportError:  # pragma: no cover - exercised by the fallback test
+    _PATTERN_ENGINE = re
+
+#: Schema keywords whose values are data, not subschemas.  A ``pattern``
+#: inside them is a literal value, so it is not compiled.
+_DATA_KEYWORDS = frozenset({"example", "examples", "default", "enum", "const"})
+
+
+def _pattern_schemas(operation: dict[str, Any]) -> list[tuple[str, Any]]:
+    """Return the schemas an operation turns into published tool parameters.
+
+    Only the parts ``OpenAPITool.from_openapi_spec`` reads are included: each
+    ``parameters[].schema`` and the ``application/json`` request body.  A
+    pattern anywhere else in the document never reaches the tool schema.
+
+    Args:
+        operation: One OpenAPI operation object.
+
+    Returns:
+        ``(schema_path, schema)`` pairs, the path being relative to the
+        operation and usable in an operator-facing message.
+    """
+    schemas: list[tuple[str, Any]] = []
+    parameters = operation.get("parameters")
+    if isinstance(parameters, list):
+        for index, param in enumerate(parameters):
+            if not isinstance(param, dict):
+                continue
+            label = param.get("name", index)
+            schemas.append((f"parameters[{label!r}].schema", param.get("schema")))
+    request_body = operation.get("requestBody")
+    content = request_body.get("content") if isinstance(request_body, dict) else None
+    body = content.get("application/json") if isinstance(content, dict) else None
+    if isinstance(body, dict):
+        schemas.append(
+            ("requestBody.content['application/json'].schema", body.get("schema"))
+        )
+    return schemas
+
+
+def _record_pattern(
+    pattern: Any, path: str, tool_name: str, seen: set[str], failures: list[str]
+) -> None:
+    """Compile *pattern* and record a failure once per distinct value."""
+    if not isinstance(pattern, str) or pattern in seen:
+        return
+    seen.add(pattern)
+    try:
+        _PATTERN_ENGINE.compile(pattern)
+    except _PATTERN_ENGINE.error as exc:
+        failures.append(f"tool '{tool_name}' {path}: {exc}")
+
+
+def _walk_patterns(
+    node: Any,
+    path: str,
+    tool_name: str,
+    seen: set[str],
+    failures: list[str],
+) -> None:
+    """Collect uncompilable patterns under *node*, as validation sees them."""
+    if isinstance(node, dict):
+        _record_pattern(
+            node.get("pattern"), f"{path}.pattern", tool_name, seen, failures
+        )
+        pattern_properties = node.get("patternProperties")
+        if isinstance(pattern_properties, dict):
+            for key, sub in pattern_properties.items():
+                _record_pattern(
+                    key,
+                    f"{path}.patternProperties[{key!r}]",
+                    tool_name,
+                    seen,
+                    failures,
+                )
+                _walk_patterns(
+                    sub, f"{path}.patternProperties.{key}", tool_name, seen, failures
+                )
+        for key, value in node.items():
+            if key in ("pattern", "patternProperties") or key in _DATA_KEYWORDS:
+                continue
+            _walk_patterns(value, f"{path}.{key}", tool_name, seen, failures)
+    elif isinstance(node, list):
+        for index, value in enumerate(node):
+            _walk_patterns(value, f"{path}[{index}]", tool_name, seen, failures)
+
+
+def _check_spec_patterns(
+    spec: dict[str, Any], namespace: str | None, registry: ToolRegistry
+) -> None:
+    """Reject an OpenAPI document whose schemas carry an uncompilable regex.
+
+    A malformed ``pattern`` or ``patternProperties`` key must not reach the
+    registry: with the optional ``regex`` package installed every call fails
+    closed at request time, and without it the constraint is silently
+    ignored.  Preview and registration both call this, so they agree.
+
+    The engine is ``regex`` when installed and stdlib ``re`` otherwise.  The
+    fallback is stricter than request-time behaviour without ``regex``: a
+    pattern that only ``regex`` accepts (variable-length lookbehind,
+    ``\\p{...}``) is rejected rather than later ignored.
+
+    Args:
+        spec: The parsed OpenAPI document.
+        namespace: Explicit namespace the source was given, if any.
+        registry: Registry whose separator shapes the reported tool names.
+
+    Raises:
+        SourceError: Naming each tool and schema path with a bad pattern.
+    """
+    from .._names import qualified_tool_name
+    from ..integrations.openapi.integration import _operation_id
+
+    seen: set[str] = set()
+    failures: list[str] = []
+    for path, operations in spec.get("paths", {}).items():
+        if not isinstance(operations, dict):
+            continue
+        for method, operation in operations.items():
+            if method.lower() not in _HTTP_METHODS or not isinstance(operation, dict):
+                continue
+            tool_name = qualified_tool_name(
+                _operation_id(operation, path, method), namespace, registry.name_sep
+            )
+            for label, schema in _pattern_schemas(operation):
+                _walk_patterns(schema, label, tool_name, seen, failures)
+    if failures:
+        raise SourceError(
+            "The OpenAPI spec has patterns that do not compile: " + "; ".join(failures)
+        )
+
+
 def _openapi_entries(
     payload: dict[str, Any],
     registry: ToolRegistry,
@@ -299,6 +433,7 @@ def _openapi_entries(
         allow_private_hosts=allow_private_hosts,
     )
     namespace = _namespace(payload)
+    _check_spec_patterns(spec, namespace, registry)
     entries: list[dict[str, Any]] = []
     for path, operations in spec.get("paths", {}).items():
         if not isinstance(operations, dict):
@@ -612,6 +747,7 @@ def _register_openapi_source(
     spec, base_url, spec_url = _load_openapi(
         data, allow_private_hosts=allow_private_hosts
     )
+    _check_spec_patterns(spec, namespace, registry)
     client = HttpClientConfig(
         base_url=base_url,
         headers=_request_headers(data),

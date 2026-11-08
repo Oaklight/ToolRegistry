@@ -232,6 +232,149 @@ class TestSourcePreview:
         assert "MCP 'url'" in data["message"]
 
 
+def _spec_with_pattern(pattern: str) -> dict:
+    """A one-operation spec whose ``name`` query parameter uses *pattern*."""
+    return {
+        "openapi": "3.0.0",
+        "info": {"title": "Pets", "version": "1.0"},
+        "servers": [{"url": "https://pets.example/api"}],
+        "paths": {
+            "/pets": {
+                "get": {
+                    "operationId": "listPets",
+                    "parameters": [
+                        {
+                            "name": "name",
+                            "in": "query",
+                            "schema": {"type": "string", "pattern": pattern},
+                        }
+                    ],
+                }
+            }
+        },
+    }
+
+
+class TestSpecPatternCompilation:
+    """A spec regex that does not compile is refused when the source is added.
+
+    With the optional ``regex`` package installed the same pattern would fail
+    on every call; without it the constraint would be ignored.  Either way
+    the operator must see the defect before the tool is registered.
+    """
+
+    def test_preview_rejects_an_uncompilable_pattern(self, server) -> None:
+        status, data = server.request(
+            "/api/sources/preview",
+            "POST",
+            {"kind": "openapi", "spec": _spec_with_pattern("(")},
+        )
+
+        assert status == 400
+        assert "list_pets" in data["message"]
+        assert "parameters['name'].schema.pattern" in data["message"]
+        assert server.registry.list_tools() == []
+
+    def test_register_rejects_an_uncompilable_pattern(self, server) -> None:
+        status, data = server.request(
+            "/api/sources/register",
+            "POST",
+            {"kind": "openapi", "spec": _spec_with_pattern("(")},
+        )
+
+        assert status == 400
+        assert "list_pets" in data["message"]
+        assert server.registry.list_tools(include_disabled=True) == []
+
+    def test_preview_rejects_a_bad_pattern_properties_key(self, server) -> None:
+        spec = _spec_with_pattern("^[a-z]+$")
+        spec["paths"]["/pets"]["get"]["requestBody"] = {
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "type": "object",
+                        "patternProperties": {"(": {"type": "string"}},
+                    }
+                }
+            }
+        }
+
+        status, data = server.request(
+            "/api/sources/preview", "POST", {"kind": "openapi", "spec": spec}
+        )
+
+        assert status == 400
+        assert "patternProperties['(']" in data["message"]
+
+    def test_a_nested_pattern_is_checked(self, server) -> None:
+        spec = _spec_with_pattern("^[a-z]+$")
+        spec["paths"]["/pets"]["get"]["requestBody"] = {
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "filter": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {"type": "string", "pattern": "("}
+                                },
+                            }
+                        },
+                    }
+                }
+            }
+        }
+
+        status, data = server.request(
+            "/api/sources/preview", "POST", {"kind": "openapi", "spec": spec}
+        )
+
+        assert status == 400
+        assert "properties.filter.properties.name.pattern" in data["message"]
+
+    def test_valid_patterns_register(self, server) -> None:
+        status, data = server.request(
+            "/api/sources/register",
+            "POST",
+            {"kind": "openapi", "spec": _spec_with_pattern("^[a-z]+$")},
+        )
+
+        assert status == 200
+        assert data["registered"] == ["list_pets"]
+
+    def test_fallback_engine_is_stdlib_re(self, server, monkeypatch) -> None:
+        """Without the optional package the check falls back to ``re``."""
+        import re
+
+        from toolregistry.admin import registration
+
+        monkeypatch.setattr(registration, "_PATTERN_ENGINE", re)
+        # Python's re rejects a variable-length lookbehind; `regex` accepts it.
+        status, data = server.request(
+            "/api/sources/preview",
+            "POST",
+            {"kind": "openapi", "spec": _spec_with_pattern("(?<=a{1,3})b")},
+        )
+
+        assert status == 400
+        assert "list_pets" in data["message"]
+
+    def test_regex_engine_accepts_a_variable_length_lookbehind(self, server) -> None:
+        from toolregistry.admin import registration
+
+        if getattr(registration._PATTERN_ENGINE, "__name__", "") != "regex":
+            pytest.skip("the optional 'regex' package is not installed")
+
+        status, data = server.request(
+            "/api/sources/preview",
+            "POST",
+            {"kind": "openapi", "spec": _spec_with_pattern("(?<=a{1,3})b")},
+        )
+
+        assert status == 200
+
+
 @contextlib.contextmanager
 def _serve_spec():
     """Serve ``_SPEC`` as JSON over HTTP on an ephemeral loopback port."""
