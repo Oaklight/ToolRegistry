@@ -24,6 +24,12 @@ hide:
 
 - **出站地址策略公开**（#425）：`toolregistry.netpolicy` 导出 `validate_outbound_url()`、`validate_outbound_url_async()`、`UnsafeAddressError`、`PrivateAddressError`、`SCHEMES` 与 `clear_address_cache()`。`toolregistry._netpolicy` 仍可导入且指向同一对象，现有导入不受影响。模块 docstring 写明契约：策略只回答该 URL 能否被拨号；重定向、连接时的地址固定与跨 origin 凭据处理仍由调用方负责。
 
+### 变更
+
+#### 核心
+
+- **内置 HTTP 客户端升级到 zerodep 0.7.2**：`httpclient` 从 0.7.1 升到 0.7.2，新增 `follow_redirects` 开关（默认 `True`）。设为 `False` 时请求原样返回 3xx 响应，调用方可自行逐跳校验。其它 vendored 模块未变；zerodep source ref 为 `0665306b940e6f5d86f2f44048b927710f6e6690`（`v2026.11.8`）。
+
 ### 安全
 
 #### 核心
