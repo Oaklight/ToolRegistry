@@ -6,10 +6,12 @@ management and monitoring.
 """
 
 import json
+import logging
 import math
 import os
 import threading
 import urllib.parse
+from collections.abc import Mapping
 from dataclasses import asdict
 from typing import TYPE_CHECKING, Any, cast
 
@@ -19,12 +21,16 @@ from ..utils import ToolResultJSONEncoder
 from .auth import AuthFailureLimiter
 from .extensions import ADMIN_EXTENSION_API
 from .server import _host_name
+from .source_hook import SourceChange
 from .static import read_asset, read_shell
 
 if TYPE_CHECKING:
     from toolregistry import ToolRegistry
 
     from .server import AdminApp
+    from .source_hook import SourcePersistenceHook
+
+logger = logging.getLogger(__name__)
 
 
 # ============== CORS Constants ==============
@@ -1011,7 +1017,43 @@ def _get_sources(request: Request) -> Response:
         groups[key]["tools"].append(tool_name)
 
     sources = sorted(groups.values(), key=lambda s: (s["type"], s["namespace"]))
-    return _json_response({"sources": sources})
+    hook = _app(request).source_hook
+    if hook is None:
+        return _json_response({"sources": sources})
+    # The tool-derived list stays exactly as it was; the hook's records are a
+    # sibling array so a failed source with no tools is still visible and a
+    # client can join on the record id.
+    return _json_response(
+        {
+            "sources": sources,
+            "source_status": _source_status_records(hook),
+            "config_writable": _source_hook_writable(hook),
+        }
+    )
+
+
+def _source_status_records(
+    hook: "SourcePersistenceHook",
+) -> list[dict[str, Any]]:
+    """Return the hook's source records, or an empty list when it fails.
+
+    A broken status hook must not take the Sources tab down; the failure is
+    logged and the tool-derived list is still served.
+    """
+    try:
+        return [dict(record) for record in hook.statuses()]
+    except Exception:
+        logger.warning("Source status hook failed", exc_info=True)
+        return []
+
+
+def _source_hook_writable(hook: "SourcePersistenceHook") -> bool:
+    """Return the hook's writable flag, defaulting to ``False`` on failure."""
+    try:
+        return bool(hook.writable())
+    except Exception:
+        logger.warning("Source hook writable() failed", exc_info=True)
+        return False
 
 
 def _export_state(request: Request) -> Response:
@@ -1558,7 +1600,46 @@ def _register_source(request: Request) -> Response:
         )
     except SourceError as e:
         return _error_response(400, "Bad Request", str(e))
-    return _json_response(result)
+
+    hook = app.source_hook
+    if hook is None:
+        return _json_response(result)
+
+    change = SourceChange(
+        action="add",
+        kind=kind,
+        payload=data,
+        namespace=result["namespace"],
+        selected=_selected_names(data),
+    )
+    try:
+        record = hook.persist(change)
+        if not isinstance(record, Mapping):
+            raise TypeError("persistence hook returned no source record")
+    except Exception as e:
+        # The tools are live; a 5xx would claim the registration failed.  The
+        # operator sees the persistence failure and the names that did land.
+        logger.warning("Source persistence hook failed", exc_info=True)
+        return _json_response(
+            {
+                **result,
+                "persisted": False,
+                "persist_error": str(e) or type(e).__name__,
+            }
+        )
+    return _json_response({**result, "persisted": True, "source": dict(record)})
+
+
+def _selected_names(data: dict[str, Any]) -> tuple[str, ...] | None:
+    """Return the validated ``selected`` list as a tuple, or ``None``.
+
+    ``register_tools`` has already rejected a malformed value, so this only
+    normalises it for :class:`SourceChange`.
+    """
+    selected = data.get("selected")
+    if isinstance(selected, list):
+        return tuple(name for name in selected if isinstance(name, str))
+    return None
 
 
 def _override_summary(tool: Any) -> dict[str, Any]:

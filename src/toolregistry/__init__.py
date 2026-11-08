@@ -9,6 +9,9 @@ from .admin import (
     ExecutionLogEntry,
     ExecutionStatus,
     RequestMetrics,
+    SourceChange,
+    SourcePersistenceError,
+    SourcePersistenceHook,
     TokenAuth,
 )
 from .errors import (
@@ -76,6 +79,9 @@ __all__ = [
     "PermissionRule",
     "PostRegisterHook",
     "RequestMetrics",
+    "SourceChange",
+    "SourcePersistenceError",
+    "SourcePersistenceHook",
     "ProcessPoolBackend",
     "ProgressReport",
     "ThreadBackend",

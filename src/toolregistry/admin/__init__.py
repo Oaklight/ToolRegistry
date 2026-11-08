@@ -20,6 +20,11 @@ from .extensions import (
 )
 from .metrics import RequestMetrics
 from .server import AdminInfo, AdminServer
+from .source_hook import (
+    SourceChange,
+    SourcePersistenceError,
+    SourcePersistenceHook,
+)
 
 __all__ = [
     "ADMIN_EXTENSION_API",
@@ -34,6 +39,9 @@ __all__ = [
     "MountedExtension",
     "RequestMetrics",
     "SessionCookie",
+    "SourceChange",
+    "SourcePersistenceError",
+    "SourcePersistenceHook",
     "TokenAuth",
     "warning_collector",
 ]
