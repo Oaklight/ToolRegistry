@@ -105,7 +105,7 @@ const I18N = {
     'toast.detailFailed':'Failed to load tool details: {error}',
     'tab.schema':'Schema',
     'nav.manage':'Manage', 'nav.observe':'Observe',
-    'nav.sections':'Sections',
+    'nav.sections':'Sections', 'nav.extensions':'Extensions',
     'theme.scheme':'Colour scheme', 'theme.paper':'Paper', 'theme.slate':'Slate',
     'theme.toggleMode':'Toggle dark mode', 'theme.toDark':'Switch to dark', 'theme.toLight':'Switch to light',
     'btn.menu':'Sections', 'btn.collapse':'Collapse', 'btn.expand':'Expand',
@@ -330,7 +330,7 @@ const I18N = {
     'toast.detailFailed':'\u52a0\u8f7d\u5de5\u5177\u8be6\u60c5\u5931\u8d25\uff1a{error}',
     'tab.schema':'Schema',
     'nav.manage':'\u7ba1\u7406', 'nav.observe':'\u89c2\u5bdf',
-    'nav.sections':'\u5206\u533a',
+    'nav.sections':'\u5206\u533a', 'nav.extensions':'\u6269\u5c55',
     'theme.scheme':'\u914d\u8272\u65b9\u6848', 'theme.paper':'\u7eb8\u5f20', 'theme.slate':'\u77f3\u677f',
     'theme.toggleMode':'\u5207\u6362\u6df1\u6d45\u8272', 'theme.toDark':'\u5207\u6362\u5230\u6df1\u8272', 'theme.toLight':'\u5207\u6362\u5230\u6d45\u8272',
     'btn.menu':'\u5bfc\u822a', 'btn.collapse':'\u6536\u8d77', 'btn.expand':'\u5c55\u5f00',
@@ -468,6 +468,8 @@ function setLang(lang) {
     localStorage.setItem('toolregistry-lang', lang);
     document.getElementById('langSwitcher').value = lang;
     applyI18n();
+    // Extension titles come from each manifest, not the shared map above.
+    if (typeof AdminExtensions !== 'undefined') AdminExtensions.applyLanguage();
 }
 
 // Translate the data-i18n attributes under *root*.  A scoped call only

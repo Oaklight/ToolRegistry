@@ -17,6 +17,7 @@ from .._vendor.httpserver import HTTPException, Request, Response
 from ..utils import ToolResultJSONEncoder
 
 from .auth import AuthFailureLimiter
+from .extensions import ADMIN_EXTENSION_API
 from .server import _host_name
 from .static import read_asset, read_shell
 
@@ -232,6 +233,18 @@ def _request_media_type(request: Request) -> str:
     return request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
 
 
+def _is_guarded_api_path(path: str) -> bool:
+    """Whether *path* is one of the panel's state-changing API namespaces.
+
+    Args:
+        path: The request path.
+
+    Returns:
+        True for ``/api/...`` and for the extension namespace ``/ext/...``.
+    """
+    return path.startswith("/api/") or path == "/ext" or path.startswith("/ext/")
+
+
 def _reject_cross_site(request: Request) -> Response | None:
     """Reject state-changing API requests a browser sent from another site.
 
@@ -242,11 +255,12 @@ def _reject_cross_site(request: Request) -> Response | None:
     submission can only choose ``text/plain``, ``application/x-www-form-urlencoded``
     or ``multipart/form-data`` without triggering a preflight.
 
-    Only ``/api/`` is guarded.  The UI shell and its assets are static
-    documents with no registry data, and reads stay available so the existing
-    same-origin CORS behaviour is unchanged.
+    Only the API namespaces are guarded: ``/api/`` and ``/ext/`` (extension
+    routes).  The UI shell and its assets are static documents with no
+    registry data, and reads stay available so the existing same-origin CORS
+    behaviour is unchanged.
     """
-    if not request.path.startswith("/api/") or request.method not in _UNSAFE_METHODS:
+    if not _is_guarded_api_path(request.path) or request.method not in _UNSAFE_METHODS:
         return None
 
     origin = request.headers.get("origin")
@@ -489,10 +503,11 @@ def _handle_root(request: Request) -> Response:
 
 
 def _serve_asset(request: Request, name: str) -> Response:
-    """Serve one shipped stylesheet or script from ``/assets/<name>``."""
-    if not _app(request).serve_ui:
+    """Serve one stylesheet or script from ``/assets/<name>``."""
+    app = _app(request)
+    if not app.serve_ui:
         raise HTTPException(404, "Not Found")
-    asset = read_asset(name)
+    asset = read_asset(name, app.extension_assets)
     if asset is None:
         raise HTTPException(404, "Not Found")
     body, content_type = asset
@@ -501,6 +516,21 @@ def _serve_asset(request: Request, name: str) -> Response:
         status_code=200,
         content_type=content_type,
         headers={"Cache-Control": "no-cache"},
+    )
+
+
+def _get_extensions(request: Request) -> Response:
+    """Return the manifest of the mounted admin extensions.
+
+    The response carries the contract version so a client can refuse a
+    manifest it does not understand, and one entry per extension in
+    declaration order.
+    """
+    return _json_response(
+        {
+            "api_version": ADMIN_EXTENSION_API,
+            "extensions": [mounted.manifest() for mounted in _app(request).extensions],
+        }
     )
 
 
@@ -1798,6 +1828,7 @@ def setup_routes(app: "AdminApp") -> None:
     # Routes
     app.get("/")(_handle_root)
     app.get("/assets/<path:name>")(_serve_asset)
+    app.get("/api/extensions")(_get_extensions)
     app.post("/api/sources/preview")(_preview_source)
     app.post("/api/sources/register")(_register_source)
     app.get("/api/overrides")(_list_overrides)

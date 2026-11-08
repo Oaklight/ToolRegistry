@@ -10,8 +10,9 @@ the panel the server actually served.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from importlib.resources import files
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 
 _ADMIN_PACKAGE = files("toolregistry.admin")
 
@@ -41,26 +42,52 @@ _CONTENT_TYPES = {
 }
 
 
-def read_asset(relative: str) -> tuple[str, str] | None:
-    """Read a shipped asset by its ``assets/``-relative path.
+def content_type_for(suffix: str) -> str | None:
+    """Return the media type served for *suffix*, or ``None``.
 
     Args:
-        relative: Path such as ``css/base.css`` or ``js/core/theme.js``.
+        suffix: A file suffix including the leading dot, such as ``.js``.
+
+    Returns:
+        The media type when the suffix is on the asset whitelist.
+    """
+    return _CONTENT_TYPES.get(suffix)
+
+
+def read_asset(
+    relative: str,
+    extension_assets: Mapping[str, Path] | None = None,
+) -> tuple[str, str] | None:
+    """Read an asset by its ``assets/``-relative path.
+
+    Library assets live under ``css/`` and ``js/`` inside the package.
+    Extension assets live under ``ext/<name>/`` in the directory the extension
+    declared; *extension_assets* maps a name to that directory.
+
+    Args:
+        relative: Path such as ``css/base.css``, ``js/core/theme.js`` or
+            ``ext/clock/main.js``.
+        extension_assets: Extension name → resolved asset directory.  Names
+            absent from the mapping are refused.
 
     Returns:
         ``(text, content_type)`` when *relative* names a file that ships with
-        the package, otherwise ``None``.  Requests that try to leave the asset
-        directories (``..``, absolute paths, backslashes) return ``None``
-        rather than raising.
+        the package or belongs to a mounted extension, otherwise ``None``.
+        Requests that try to leave the asset directories (``..``, absolute
+        paths, backslashes) return ``None`` rather than raising.
     """
     if not relative or "\\" in relative or relative.startswith("/"):
         return None
     path = PurePosixPath(relative)
     if path.is_absolute() or any(part in ("..", ".") for part in path.parts):
         return None
+
+    if path.parts[:1] == ("ext",):
+        return _read_extension_asset(path, extension_assets or {})
+
     if len(path.parts) < 2 or path.parts[0] not in _ASSET_DIRS:
         return None
-    content_type = _CONTENT_TYPES.get(path.suffix)
+    content_type = content_type_for(path.suffix)
     if content_type is None:
         return None
 
@@ -68,3 +95,34 @@ def read_asset(relative: str) -> tuple[str, str] | None:
     if not resource.is_file():
         return None
     return resource.read_text(encoding="utf-8"), content_type
+
+
+def _read_extension_asset(
+    path: PurePosixPath,
+    extension_assets: Mapping[str, Path],
+) -> tuple[str, str] | None:
+    """Read ``ext/<name>/...`` from the extension's asset directory.
+
+    Args:
+        path: The parsed asset path; its first part is ``ext``.
+        extension_assets: Extension name → resolved asset directory.
+
+    Returns:
+        ``(text, content_type)`` for a file inside the extension directory,
+        otherwise ``None``.  The resolved candidate must stay inside the
+        directory, so a symlink cannot escape it.
+    """
+    if len(path.parts) < 3:
+        return None
+    root = extension_assets.get(path.parts[1])
+    if root is None:
+        return None
+    content_type = content_type_for(path.suffix)
+    if content_type is None:
+        return None
+
+    resolved_root = Path(root).resolve()
+    candidate = resolved_root.joinpath(*path.parts[2:]).resolve()
+    if not candidate.is_relative_to(resolved_root) or not candidate.is_file():
+        return None
+    return candidate.read_text(encoding="utf-8"), content_type
