@@ -125,6 +125,7 @@ client_config = HttpClientConfig(
 2. **提供文件路径**：如果你提供文件路径（例如 `./openapi_spec.json`），函数将直接从文件加载 OpenAPI 规范。本地路径或 `file://` URI 默认被拒绝，必须显式传入 `allow_local_files=True`；默认值为 `False`，因为由他人提供的位置可能被用来读取任意本地文件。仅当路径来自可信的本地来源时才开启该标志。与简单的直接加载不同，该功能包括展开 OpenAPI 规范中常见的 `$ref` 块。这确保了返回的字典中所有模式引用都已完全解析。
 3. **大小与嵌套预算**：加载器以流式读取文档，默认最多读取 10 MiB（`DEFAULT_MAX_SPEC_BYTES`），并拒绝嵌套超过 100 层的文档（`DEFAULT_MAX_SPEC_DEPTH`）。传入 `max_bytes=` 或 `max_depth=` 可调整预算。超过字节预算会抛出 `SpecTooLargeError`；超过深度预算会抛出 `SpecTooDeepError`；两者都是 `ValueError` 的子类。声明的 `Content-Length` 超限时会在读取正文前拒绝，无上限的流会在达到限制时中止，自动发现探测只读取响应头。
 4. **地址策略**：任何请求发出前都会解析主机；回环、链路本地、私有、组播与保留地址，以及无法解析的主机，一律拒绝。本机或内网 API 需传入 `allow_private_hosts=True`。默认拒绝重定向（`follow_redirects=False`）：下一跳无法按策略检查，因此 3xx 会抛出 `ValueError`，请改用最终 URL。规范加载与刷新遵循同一规则；工具*调用*仍会跟随重定向，因为 vendored 客户端无法暴露每一跳供校验——见 #399。
+5. **工具响应大小**：工具调用会缓冲响应，因此 `HttpClientConfig` 默认将其限制为 10 MiB（`DEFAULT_MAX_TOOL_RESPONSE_BYTES`，可从 `toolregistry.utils` 导入）。传入 `max_response_size=` 可调高上限，传入 `max_response_size=None` 可关闭；超过上限会抛出 `ResponseTooLargeError`，该异常由 `toolregistry.errors` 重新导出。
 
 ```python
 from toolregistry.integrations.openapi import load_openapi_spec

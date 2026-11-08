@@ -190,6 +190,7 @@ nav:
   - 生态系统:
       - 概览: ecosystem.md
       - 迁移指南: migration.md
+      - 迁移到 0.20: guides/migrating-to-0.20.md
       - Hub 工具: https://toolregistry-hub.readthedocs.io/
       - Server: https://toolregistry-server.readthedocs.io/
   - 更新日志: changelog.md

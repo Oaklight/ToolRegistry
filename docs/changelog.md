@@ -14,33 +14,61 @@ hide:
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，并在需要时保留项目自身的分类方式。
 
-## [未发布]
+## [0.20.0] - 2026-11-08
+
+### 破坏性变更
+
+- **默认拒绝非公网主机**（#370、#398）：出站请求、规范下载与 MCP HTTP/SSE 传输现在拒绝回环、链路本地与私有地址，除非显式传入 `allow_private_hosts=True`。见[出站地址策略](guides/migrating-to-0.20.md)。
+- **规范下载默认不跟随重定向**（#370）：`load_openapi_spec*()` 与 `determine_urls()` 在调用方未传入 `follow_redirects=True` 时拒绝 3xx。见[重定向](guides/migrating-to-0.20.md)。
+- **下载的规范有上限**（#377）：默认最多 10 MiB 与 100 层容器；可用 `max_bytes=` 与 `max_depth=` 调高。见[规范大小与深度](guides/migrating-to-0.20.md)。
+- **工具响应上限 10 MiB**（#391）：`HttpClientConfig` 接受 `max_response_size`；传入 `None` 可关闭上限。见[工具响应大小](guides/migrating-to-0.20.md)。
+- **本地规范文件需要显式开启**（#376）：`load_openapi_spec*()` 对本地路径或 `file://` URI 抛出 `ValueError`，除非传入 `allow_local_files=True`。见[本地规范文件](guides/migrating-to-0.20.md)。
 
 ### 新增
+
+#### 核心
+
+- **工具发现有三种模式**：`tool_discovery_mode` 与 `set_tool_discovery_mode()` 决定两个发现工具如何跟随注册表。默认的 `auto` 只在至少一个已启用工具被设为 deferred 时开启——注册 deferred 工具现在会同时让 `discover_tools` 与 `call_deferred` 可用，而不是让它不可达。`enable_tool_discovery()` 与 `disable_tool_discovery()` 会把模式固定为 `on` 与 `off`，之后的注册不会覆盖。`GET /api/discovery` 返回模式，`POST /api/discovery/mode` 设置模式，设置分区在状态旁提供 自动 / 开启 / 关闭。
+
+- **全面接受规范的 API 格式名称**：`get_schema()`、`get_schemas()` 与 `GET /api/schema` 现在接受 llm-rosetta 的中立写法——`chat_completions`、`open_responses`、`messages`、`google_generate`、`google_interactions`、`rosetta_ir`——同时保留原有的 `openai-chat` / `anthropic` / `gemini` / `rosetta-ir`。管理面板的 Schema 选择器使用规范名称。
+
+- **`declared_execution_hints` 将策略标签与线上声明分开**（#353）：`ToolMetadata.declared_execution_hints`（以及 `Tool` 上的同名代理）只返回显式声明的提示，并补上显式 `read_only_hint=True` 所蕴含的 `destructive_hint=False`。`execution_hints` 为兼容性保持不变，但它会从 `ToolTag.READ_ONLY` / `ToolTag.DESTRUCTIVE` 推导值，而这两个标签同时驱动内置权限规则；发布推导结果会让一个为本地策略选择的标签变成面向客户端的自动批准声明。传输层应发布 declared 映射，并把空结果视为“不作声明”。
+
+- **`Tool.with_parameters()`**（#356）：一步替换工具的参数字段并重新计算 `metadata.schema_hash`。旧参数校验模型默认被丢弃，因为它描述的是旧 schema，并会发出 `UserWarning`；当新 schema 等价时可传入 `parameters_model=` 保留。没有模型时，`validate_parameters()` 变为直通：它不检查类型、`required` 字段与未知键，因此违反已发布 schema 的参数也会被接受。
+
+#### 管理面板
+
 - **覆写按钮移到工具名旁**：详情弹窗原本以「覆写工具」区块结尾，操作者打开弹窗要做的事
   位于长列表底部。现在按钮（以及「已覆写」徽标）位于弹窗标题栏、紧邻工具名。
   超长名称会先省略，按钮不会被挤出屏幕；宽度小于 560 px 时，按钮换到独立一行。
+
 - **覆写表单覆盖接口接受的全部字段**：除描述、标签与自定义标签外，详情弹窗现在可编辑
   `title` 与四个执行提示（`read_only_hint`、`destructive_hint`、`idempotent_hint`、
   `open_world_hint`）。提示为三态，**默认（推导）** 表示字段未设置；
   `GET /api/tools/{name}` 会在已解析的 `execution_hints` 旁返回原始字段。
-- **工具发现有三种模式**：`tool_discovery_mode` 与 `set_tool_discovery_mode()` 决定两个发现工具如何跟随注册表。默认的 `auto` 只在至少一个已启用工具被设为 deferred 时开启——注册 deferred 工具现在会同时让 `discover_tools` 与 `call_deferred` 可用，而不是让它不可达。`enable_tool_discovery()` 与 `disable_tool_discovery()` 会把模式固定为 `on` 与 `off`，之后的注册不会覆盖。`GET /api/discovery` 返回模式，`POST /api/discovery/mode` 设置模式，设置分区在状态旁提供 自动 / 开启 / 关闭。
+
 - **「状态」分区升级为「设置」**：注册表设置（含工具发现开关）、状态导出/导入与 **关于** 卡片合并到同一分区。「关于」卡片显示当前使用的 `toolregistry`、`toolregistry-server` 与 `toolregistry-hub` 版本，并链接到仓库、PyPI 与文档，取代了顶栏的版本弹窗。顶栏只保留配色方案、明暗切换、语言切换与连接状态点；全局刷新按钮已移除，因为各分区会自行刷新，连接状态点也会自行轮询。
+
 - **可在面板中开关工具发现**：工具页的提示条与 Schema 分区的 Discover 子标签都提供「启用工具发现」，启用后子标签提供带确认的「关闭」；该操作属于注册表级变更（立即生效、不持久化），同时以 `GET /api/discovery`、`POST /api/discovery/enable`、`POST /api/discovery/disable` 暴露，并会报告关闭后将有多少 deferred 工具失去可达性。`ToolRegistry.tool_discovery_enabled` 暴露当前状态。
+
 - **面板会解释"已被 deferred 却无法取回"的工具**：`discover_tools` 与 `call_deferred` 只在调用 `enable_tool_discovery()` 时注册，因此在未启用工具发现时把工具设为 deferred 会让它无法被调用。工具分区现在会在表格上方说明这一点，Schema 分区的 Discover Tools 子标签也不再隐藏，而是给出解释。顶栏 logo 改为锤子图标。
-- **全面接受规范的 API 格式名称**：`get_schema()`、`get_schemas()` 与 `GET /api/schema` 现在接受 llm-rosetta 的中立写法——`chat_completions`、`open_responses`、`messages`、`google_generate`、`google_interactions`、`rosetta_ir`——同时保留原有的 `openai-chat` / `anthropic` / `gemini` / `rosetta-ir`。管理面板的 Schema 选择器使用规范名称。
+
 - **面板由六个分区收敛为四个**：独立的命名空间页面并入工具列表——命名空间本就是分组，批量控制放在分组头、计数留在概览条——「注册」则成为「来源」分区里的 **添加来源**，与它产生的来源并列。刷新不再强制展开所有分组，操作者的折叠/展开选择得以保留。
+
 - **工具、命名空间、来源与注册四个分区互相连通**：概览卡片、命名空间面板的名称与计数、来源徽章、工具表中的命名空间标题以及来源卡片上的操作，都会跳转到解释该数字的分区并带好对应过滤条件。注册结束后会给出指向新工具的链接，来源卡片也能以已知的类型、地址与命名空间预填注册表单。
+
 - **来源可携带凭据，不合规名称会被标记**：「注册」分区为 OpenAPI 与 MCP 来源支持 Bearer Token、Basic 账号密码或额外请求头；显式填写 `Authorization` 请求头优先于面板建模的字段。部分模型 API 不接受的名称（例如 MCP 服务器提供的 `fs/file_search_glob`）会在预览中列出，并在工具表中显示 `!` 标记——注册表会如实保存这类名称，而生成的 provider schema 会在之后被拒绝。概览卡片现在可以跳转：已启用/已禁用打开按状态过滤的工具列表，命名空间数量打开命名空间面板。预览支持全选、全不选、反选与刷新。
+
 - **管理面板改为带主题的控制台**：分区切换从顶部标签栏移到左侧固定导轨——可折叠为图标，小于 900px 时变为抽屉；标题栏与导轨使用同一底色，两者看上去像包裹内容的同一个框架。外观拆成**配色**（取值，按配色与模式声明在 `css/base.css`）与**组件**（结构，`css/components.css`），内置 Paper 与 Slate 两套配色，各有浅色与深色。配色区块只能声明自定义属性，不得包含深入组件的选择器；这两条规则以及“各配色声明相同的 token 集合”由 `tests/test_admin_theme.py` 保证。所选配色与模式在首次绘制前应用，因此刷新不会闪现默认值。
+
 - **可在面板中注册工具**：「注册」分区可连接 OpenAPI 规范（地址或路径）、MCP 服务器（地址或 stdio 命令）或 Python 模块，在**注册任何工具之前**列出该来源提供的全部工具，然后只注册被勾选的工具——所选名称会作为注册表自身的 `include` 过滤器传入，因此来源无法注册任何未经选择的工具。后端为 `POST /api/sources/preview` 与 `POST /api/sources/register`；无法连接的服务器与无法导入的模块会在面板中报告，而不是静默失败。
+
 - **可在面板中按工具覆写**：可在工具详情弹窗中编辑描述、`ToolTag` 与自定义标签。覆写会安装一份编辑副本并保留被替换的定义，因此 **恢复原始定义** 可以放回来源的定义；注册表的键与可调用对象保持不变，调用、日志与权限行为与之前一致。后端为 `POST`/`DELETE /api/tools/{name}/override` 与 `GET /api/overrides`。
-- **`declared_execution_hints` 将策略标签与线上声明分开**（#353）：`ToolMetadata.declared_execution_hints`（以及 `Tool` 上的同名代理）只返回显式声明的提示，并补上显式 `read_only_hint=True` 所蕴含的 `destructive_hint=False`。`execution_hints` 为兼容性保持不变，但它会从 `ToolTag.READ_ONLY` / `ToolTag.DESTRUCTIVE` 推导值，而这两个标签同时驱动内置权限规则；发布推导结果会让一个为本地策略选择的标签变成面向客户端的自动批准声明。传输层应发布 declared 映射，并把空结果视为“不作声明”。
-- **`Tool.with_parameters()`**（#356）：一步替换工具的参数字段并重新计算 `metadata.schema_hash`。旧参数校验模型默认被丢弃，因为它描述的是旧 schema，并会发出 `UserWarning`；当新 schema 等价时可传入 `parameters_model=` 保留。没有模型时，`validate_parameters()` 变为直通：它不检查类型、`required` 字段与未知键，因此违反已发布 schema 的参数也会被接受。
 
 ### 变更
 
-- **读取本地 OpenAPI 规范文件需要显式开启**（**破坏性变更**）（#376）：`load_openapi_spec()` 与 `load_openapi_spec_async()` 过去会把任何无 scheme 或 `file` scheme 的 URI 当作本地路径读取，因此把别人提供的位置传进来的调用方可能被诱导读取任意本地文件。现在两者对本地路径与 `file://` URI 一律抛出 `ValueError`，除非调用方传入 `allow_local_files=True`；检查发生在任何文件 I/O 之前。需要读取本地规范的代码显式传入该参数：`load_openapi_spec(path, allow_local_files=True)`。管理面板不受影响——它的 `spec_url` 此前已限定为 http(s)（#373）。
+#### 核心
+
 - **出站请求默认拒绝非公网主机**（**破坏性变更**）（#370）：OpenAPI 文档的 `servers[].url`、`spec_url` 以及每次工具调用，都会在建立连接前解析主机，并拒绝回环、链路本地、私有、组播与保留地址。检查先于任何 I/O，解析失败即拒绝；成功结果缓存 60 秒，失败不缓存。`validate_spec_url()`、`load_openapi_spec*()`、`extract_base_url_from_specs()`、`HttpClientConfig` 与 base URL 客户端都接受 `allow_private_hosts: bool = False`，`OpenAPISource` 同样支持该键。本机或内网 API 必须显式开启：
 
   ```python
@@ -55,65 +83,107 @@ hide:
 
   `load_openapi_spec*()` 默认不跟随重定向（`follow_redirects=False`），`determine_urls()` 同样如此：下一跳无法按策略检查，因此 3xx 会返回可操作的错误，必须改用最终 URL。管理面板与远程刷新都在自身的抓取调用上显式声明同一策略，而不是沿用默认值；两者同样拒绝重定向，且面板会把自身的开关透传到预览与注册流程——使用本机 API 时以 `registry.enable_admin(allow_private_hosts=True)` 启动面板，被拒绝的地址会在错误中指明该开关。`GET /api/info` 会返回 `allow_private_hosts`，OpenAPI 表单在服务器拒绝私有地址时显示提示，因此在失败之前就能发现该开关。工具调用仍会跟随重定向，因为 vendored 客户端无法暴露每一跳供校验；调用路径的重定向复检与 DNS rebinding、跨 origin 重定向凭据问题一并记录在 #399。MCP 的 HTTP/SSE 传输见 #398。
 
+#### 集成（OpenAPI / MCP）
+
+- **读取本地 OpenAPI 规范文件需要显式开启**（**破坏性变更**）（#376）：`load_openapi_spec()` 与 `load_openapi_spec_async()` 过去会把任何无 scheme 或 `file` scheme 的 URI 当作本地路径读取，因此把别人提供的位置传进来的调用方可能被诱导读取任意本地文件。现在两者对本地路径与 `file://` URI 一律抛出 `ValueError`，除非调用方传入 `allow_local_files=True`；检查发生在任何文件 I/O 之前。需要读取本地规范的代码显式传入该参数：`load_openapi_spec(path, allow_local_files=True)`。管理面板不受影响——它的 `spec_url` 此前已限定为 http(s)（#373）。
+
 ### 安全
 
-- **MCP 的 URL 传输默认拒绝非公网主机**（**破坏性变更**）（#398）：`MCPClient` 现在会在建立传输前解析 `http(s)://` 或 `ws(s)://` 来源，并拒绝回环、链路本地、私有、组播与保留地址。可通过 `register_mcp_tools*()`、`register(..., source="mcp")`、管理面板注册请求或 `MCPSource` 的 `allow_private_hosts=True` 显式开启。配置文件中的同名键只有在 server 转发后才生效（core ≥ 0.20；toolregistry-server #168）。mcp v1 的 HTTP 客户端以 `follow_redirects=False` 创建，mcp v2 只跟随同源重定向，因此重定向无法到达未经校验的主机。错误信息会点名 `allow_private_hosts`，且不回显解析到的地址。
+#### 管理面板
+
 - **跨站请求无法改变管理状态**（#366）：所有 `/api/` 下的 `POST`、`PUT`、`PATCH` 与 `DELETE`
   现在要求 `Origin` 同源，并对 `Sec-Fetch-Site: cross-site` 返回 403；这些方法还必须携带
   `Content-Type: application/json`，否则返回 415。`text/plain` POST 正是跨站表单无需预检即可
   发出的请求，而 `POST /api/sources/preview` 过去会执行其中的 stdio 命令。守卫位于中间件，
   因此所有状态改变接口都会继承。
+
 - **未配置令牌的面板不会运行本地命令**（#366）：当服务器没有认证令牌时，
   `POST /api/sources/preview` 与 `POST /api/sources/register` 对 stdio MCP 来源——命令、
   脚本路径或任何非 `http(s)://` 传输——返回 403。请用 `auth_token=...`（或 `remote=True`）
   启动服务器以允许本地命令；注册表单会在请求前说明这一点。
+
+- **管理凭据不再进入日志、配置响应或导入**（#390）：`AdminServer.start()` 过去会以 INFO 级别记录 Bearer 令牌；现在只记录已启用认证，令牌仍通过 `AdminInfo` 返回给调用方。`GET /api/config` 与 `PUT` 响应会把 MCP 的 `env`、`headers`、Python 的 `kwargs` 以及 URL userinfo 全部显示为 `***`；`save_config` 仍写入真实值。`python` 来源的预览与注册现在也要求令牌，因为 `importlib.import_module` 会执行模块的顶层代码。
+
+- **stdio 命令参数不再出现在配置响应中**（#396）：`GET /api/config` 与 `PUT` 响应过去原样返回 stdio MCP 的 `command` 列表，因此以 `--api-key secret` 传入的密钥可见。现在可执行文件之后的每个参数都显示为 `***`——`["mcp-server", "***", "***"]`——`argv[0]` 仍然可见，因为它用于标识来源。`save_config` 仍写入真实参数。
+
+#### 集成（OpenAPI / MCP）
+
+- **MCP 的 URL 传输默认拒绝非公网主机**（**破坏性变更**）（#398）：`MCPClient` 现在会在建立传输前解析 `http(s)://` 或 `ws(s)://` 来源，并拒绝回环、链路本地、私有、组播与保留地址。可通过 `register_mcp_tools*()`、`register(..., source="mcp")`、管理面板注册请求或 `MCPSource` 的 `allow_private_hosts=True` 显式开启。配置文件中的同名键只有在 server 转发后才生效（core ≥ 0.20；toolregistry-server #168）。mcp v1 的 HTTP 客户端以 `follow_redirects=False` 创建，mcp v2 只跟随同源重定向，因此重定向无法到达未经校验的主机。错误信息会点名 `allow_private_hosts`，且不回显解析到的地址。
+
 - **下载的 OpenAPI 文档在字节数与嵌套深度上受限**（#377）：加载器以流式读取文档，默认最多缓冲
   10 MiB（`DEFAULT_MAX_SPEC_BYTES`）；声明的 `Content-Length` 超限时会在读取正文前拒绝，
   无上限的流会在达到限制时中止。在解析 `$ref` 之前，嵌套深度被限制为 100 层
   （`DEFAULT_MAX_SPEC_DEPTH`）；解析器递归溢出会抛出 `SpecTooDeepError`，而不是通用的
   `ValueError`。自动发现探测现在只读取响应头。两个预算都可分别通过 `max_bytes=` 与
   `max_depth=` 配置。
+
 - **规范 URL 中的凭据不再进入工具元数据或警告**（#378）：`ToolMetadata.source_detail` 过去直接由 `HttpClientConfig.base_url` 以及刷新时的已存 spec URL 拼接，因此 `servers[].url` 或 spec URL 形如 `https://user:secret@api.example.com` 时，密码会出现在管理接口返回的工具列表中。现在 `source_detail` 会经过 `redact_url_userinfo()`。`$ref` 解析器的警告会原样回显被丢弃的 `$ref`；现在重发时会去掉其中的 userinfo，解析结果本身不变。
+
 - **OpenAPI 操作路径不能离开 base origin**（#375）：`paths` 的 key 过去会原样交给 HTTP 客户端，因此文档把某个操作命名为 `http://attacker.example/...` 时，每次调用都会把配置的 `Authorization` 头或 Basic 凭据发往该 origin。`OpenAPITool.from_openapi_spec()` 现在要求路径是以单个 `/` 开头的相对路径；`_BaseUrlClient` / `_BaseUrlAsyncClient` 只把这类路径拼到 `base_url`，并校验结果中的 scheme 与 netloc。注册前会先检查整个文档，因此坏 key 不会留下半注册的来源。
+
 - **MCP 的 `source_detail` 不再携带凭据**（#394）：HTTP/SSE 传输地址形如 `https://user:secret@mcp.example.com/sse` 时，密码会进入 `ToolMetadata.source_detail`，而管理接口会返回该字段；现在地址会经过 `redact_url_userinfo()`。stdio 传输过去会拼接全部参数，因此以 `--api-key secret` 传入的密钥同样会被保存。现在无论注册还是刷新，该值只保留程序名——`stdio:uvx`，比原来的 `stdio:uvx my-server` 更短。`redact_url_userinfo()` 已移到 `toolregistry.utils`，并由 OpenAPI 模块重新导出。
-- **管理凭据不再进入日志、配置响应或导入**（#390）：`AdminServer.start()` 过去会以 INFO 级别记录 Bearer 令牌；现在只记录已启用认证，令牌仍通过 `AdminInfo` 返回给调用方。`GET /api/config` 与 `PUT` 响应会把 MCP 的 `env`、`headers`、Python 的 `kwargs` 以及 URL userinfo 全部显示为 `***`；`save_config` 仍写入真实值。`python` 来源的预览与注册现在也要求令牌，因为 `importlib.import_module` 会执行模块的顶层代码。
-- **stdio 命令参数不再出现在配置响应中**（#396）：`GET /api/config` 与 `PUT` 响应过去原样返回 stdio MCP 的 `command` 列表，因此以 `--api-key secret` 传入的密钥可见。现在可执行文件之后的每个参数都显示为 `***`——`["mcp-server", "***", "***"]`——`argv[0]` 仍然可见，因为它用于标识来源。`save_config` 仍写入真实参数。
 
 ### 修复
 
-- **「从此来源继续注册」不再生成缺少参数的 stdio 来源**（#400）：`source_detail` 只保留程序名，用它预填命令框会丢掉全部参数。stdio 来源卡片现在打开表单时命令框为空，并显示带程序名的提示；操作者需重新填写完整命令。HTTP MCP 与 OpenAPI 来源的预填不变。提示通过 `textContent` 写入，因此来自配置的程序名无法注入 HTML。
+#### 核心
+
 - **异步 OpenAPI 调用不再在事件循环上解析 base URL 的主机**（#406）：`_BaseUrlAsyncClient` 过去用同步的 `validate_outbound_url()` 检查 base URL，因此缓存未命中时 `getaddrinfo` 会阻塞事件循环上的其他任务。现在每个异步动词都会 `await validate_outbound_url_async()`，它通过事件循环解析，并保持相同的 5 秒上限；路径与 origin 检查仍为同步，因为它们不做 I/O。仅缓存成功结果、60 秒 TTL 均不变，`_BaseUrlClient` 仍使用同步检查。
+
 - **重新注册来源会保留已有覆写**（#366）：批量注册路径对每个工具调用 `register()`，而普通注册
   会丢弃覆写记录，导致操作者编辑的描述消失、`restore_override` 失效。现在重注册会恢复覆写并
   记录来源当前提供的定义，因此恢复操作回到来源当前的定义；响应通过 `preserved_overrides`
   列出保留的工具，面板会报告数量。
+
+- **关闭工具发现现在会通知传输层**：`disable_tool_discovery()` 移除 `discover_tools` 与 `call_deferred` 时没有发出变更事件，导致基于注册表构建的路由表仍在广播它们，MCP 客户端也收不到 `tools/list_changed`。现在每个被移除的工具都会发出一个 `UNREGISTER` 事件；路由表随之刷新，MCP 适配器通知各会话，OpenAPI SSE 流也会报告该变化。由 `toolregistry-server` 中的 `tests/test_discovery_refresh.py` 固定。
+
+- **`call_deferred` 无法绕过目标工具的权限策略**：代理会用目标工具自身的参数，走与直接调用相同的访问检查，因此依赖参数的规则同样决定代理调用的结果；代理调用与被派发的调用都会出现在执行日志中。由 `tests/test_tool_discovery_mode.py` 固定。
+
+- **裸容器保留类型，重复的联合分支被合并**（#354）：裸 `list`、`dict`、`set`、`frozenset` 没有像裸 `tuple` 那样被规范化（#269），因此 `Optional[list]` 渲染成 `{"default": null}`，联合中的裸 `list` 变成一个匹配任意值的 `{}` 分支。现在所有裸容器（包括 `__args__` 为空的 `typing` 别名）都会以 `Any` 参数化，完全相同的联合分支会被去重，而仍然渲染为无类型的参数会发出 `UserWarning` 并指出函数与参数名。可空清理现在也会遍历嵌套 schema（数组 `items`、嵌套对象、`$defs`），并且只在“省略”已能表达该情况时才移除 null 分支：可选属性仍渲染为 `{"type": "integer"}`，而必填属性、数组元素与映射值会保留 `null` 分支——这些位置工具确实接受 `None`，禁止 `null` 的 schema 已不能描述该工具。Gemini 收到等价的 `{type: T, nullable: true}`，因为它的 `Schema` 方言没有类型数组；字面量多类型列表在 Gemini 上会变成 `anyOf`，而注解产生的多分支联合由 provider converter 生成，保持其原有写法。
+
+- **`ToolMetadata` 在构造时复制可变容器**（#355）：`tags`、`custom_tags` 与 `extra` 会在 `dataclasses.replace()` 副本之间共享，修改副本会改到原对象。现在每个实例拥有自己的容器：`extra` 中每个值都单独深拷贝，因此嵌套容器同样隔离。不可变标量直接共享；无法深拷贝的值（锁、生成器、模块）保留引用并发出 `UserWarning`，而不再连带让本可复制的同级值也变成共享。就地修改仍不受支持，因为它会绕过变更事件；请使用 `ToolRegistry.update_tool_metadata()` / `update_namespace_metadata()`。
+
+- **过期的 `schema_hash` 不再静默**（#356）：`Tool.__init__` 会原样保留显式传入的哈希（作为运维锁定值），但与规范化参数不一致时会发出警告，因此对外报告的始终是传入的那一个指纹。因此 `dataclasses.replace(tool, parameters=...)` 不会再无提示地留下描述旧 schema 的指纹；需要重算时请使用 `Tool.with_parameters()`。
+
+#### 管理面板
+
+- **「从此来源继续注册」不再生成缺少参数的 stdio 来源**（#400）：`source_detail` 只保留程序名，用它预填命令框会丢掉全部参数。stdio 来源卡片现在打开表单时命令框为空，并显示带程序名的提示；操作者需重新填写完整命令。HTTP MCP 与 OpenAPI 来源的预填不变。提示通过 `textContent` 写入，因此来自配置的程序名无法注入 HTML。
+
 - **工具行的标签不再被拆开**：名称与标签原本是同一段行内内容，窄行可能把单个标签换到名称下方，
   其余标签仍留在同行。现在分为两个弹性区块：标签组要么与名称同行，要么整体换到下一行；
   宽度小于 900 px 时固定为名称在上、标签在下。超长且无空格的名称会在单元格内换行，
   不再挤入下一列。
+
 - **命名空间开关现在会禁用其中的工具**：分组开关调用的是面板未定义的 `enableNamespace`
   与 `showDisableNamespaceModal`，点击只抛出 `ReferenceError`，所有工具仍保持启用。
   面板现在会调用 `POST /api/namespaces/{ns}/enable` 与 `/disable`（可带原因），
   并报告受影响的工具数量；新增测试会校验每个行内处理器都能在随包脚本中找到定义。
-- **关闭工具发现现在会通知传输层**：`disable_tool_discovery()` 移除 `discover_tools` 与 `call_deferred` 时没有发出变更事件，导致基于注册表构建的路由表仍在广播它们，MCP 客户端也收不到 `tools/list_changed`。现在每个被移除的工具都会发出一个 `UNREGISTER` 事件；路由表随之刷新，MCP 适配器通知各会话，OpenAPI SSE 流也会报告该变化。由 `toolregistry-server` 中的 `tests/test_discovery_refresh.py` 固定。
-- **`call_deferred` 无法绕过目标工具的权限策略**：代理会用目标工具自身的参数，走与直接调用相同的访问检查，因此依赖参数的规则同样决定代理调用的结果；代理调用与被派发的调用都会出现在执行日志中。由 `tests/test_tool_discovery_mode.py` 固定。
+
 - **名称分隔符选择器只提供连字符**：OpenAI 与 Anthropic 的工具名规则拒绝点号，因此面板不再提供 `.`；已使用 `.` 的注册表仍会显示该值并标注为当前值，便于改回。库本身为兼容已有配置仍接受两者。
 
 - **Discover 子标签的说明合并为一个区块**：启用按钮与说明原本是两个元素，按钮会压在提示文字上。现在说明、按钮与长描述警告都是 `.notice` 区块，正文中提到的工具名（`discover_tools`、`call_deferred`）也改为行内代码。
+
 - **面板字号统一为四档**：display、body、small、micro 四档字号只在 `css/base.css` 中声明一次，所有组件与内联样式都引用它们，各分区不再大小不一——标题、卡片操作与日志行都与相邻内容对齐。`tests/test_admin_typography.py` 防止硬编码字号再次混入。
+
 - **分区刷新不再报错**：左侧导轨取代标签栏后，`refreshAll()` 仍在查找旧的 `.tab.active`，导致顶栏刷新以及导入/保存设置后的刷新抛出 `TypeError`。
+
 - **面板已完整翻译**：绕过 i18n 的字符串——注册表单的提示占位符与来源类型标签、导轨提示、位置与警告提示、API 错误消息以及工具发现卡片——现在都来自词典；注册表单在渲染时即翻译，而不是等到切换语言之后。语言切换时下拉框不再随文字宽度变化，已移除的命名空间页面遗留的键也已从两种语言中删除。
-- **裸容器保留类型，重复的联合分支被合并**（#354）：裸 `list`、`dict`、`set`、`frozenset` 没有像裸 `tuple` 那样被规范化（#269），因此 `Optional[list]` 渲染成 `{"default": null}`，联合中的裸 `list` 变成一个匹配任意值的 `{}` 分支。现在所有裸容器（包括 `__args__` 为空的 `typing` 别名）都会以 `Any` 参数化，完全相同的联合分支会被去重，而仍然渲染为无类型的参数会发出 `UserWarning` 并指出函数与参数名。可空清理现在也会遍历嵌套 schema（数组 `items`、嵌套对象、`$defs`），并且只在“省略”已能表达该情况时才移除 null 分支：可选属性仍渲染为 `{"type": "integer"}`，而必填属性、数组元素与映射值会保留 `null` 分支——这些位置工具确实接受 `None`，禁止 `null` 的 schema 已不能描述该工具。Gemini 收到等价的 `{type: T, nullable: true}`，因为它的 `Schema` 方言没有类型数组；字面量多类型列表在 Gemini 上会变成 `anyOf`，而注解产生的多分支联合由 provider converter 生成，保持其原有写法。
-- **`ToolMetadata` 在构造时复制可变容器**（#355）：`tags`、`custom_tags` 与 `extra` 会在 `dataclasses.replace()` 副本之间共享，修改副本会改到原对象。现在每个实例拥有自己的容器：`extra` 中每个值都单独深拷贝，因此嵌套容器同样隔离。不可变标量直接共享；无法深拷贝的值（锁、生成器、模块）保留引用并发出 `UserWarning`，而不再连带让本可复制的同级值也变成共享。就地修改仍不受支持，因为它会绕过变更事件；请使用 `ToolRegistry.update_tool_metadata()` / `update_namespace_metadata()`。
-- **过期的 `schema_hash` 不再静默**（#356）：`Tool.__init__` 会原样保留显式传入的哈希（作为运维锁定值），但与规范化参数不一致时会发出警告，因此对外报告的始终是传入的那一个指纹。因此 `dataclasses.replace(tool, parameters=...)` 不会再无提示地留下描述旧 schema 的指纹；需要重算时请使用 `Tool.with_parameters()`。
+
 - **管理面板的响应始终是合法 JSON**（#348）：面板自己用 `json.dumps` 构造响应体，会把 `NaN` 与 `Infinity` 写成裸常量——那并不是 JSON。当工具返回由空集合计算出的指标（如 `loss`、比值）时，浏览器里的 `JSON.parse` 会拒绝整个响应，页面直接空白，而不是只显示某个字段有问题。现在响应体统一走 `ToolResultJSONEncoder` 并设置 `allow_nan=False`：非有限浮点数写成 `null`，而任何绕过编码器直接进入 `json` 的值都会显式失败，而不是产出一个无法解析的 200。
+
 - **启用令牌时管理界面重新可用**（#363）：浏览器无法在顶层导航中发送 `Authorization` 头，因此 `GET /` 在任何脚本加载前就返回 JSON 401。现在当 `serve_ui=True` 时静态外壳无需令牌即可加载（其中不含注册表数据），`GET` 与 `HEAD` 行为一致，所有 `/api` 路由仍需凭证；禁用 UI 时根路径的 API 索引仍受保护。由于外壳已经公开，它必须不可被嵌入：所有管理响应都带有 `X-Frame-Options: DENY` 与 `Content-Security-Policy: frame-ancestors 'none'`，其他页面无法用 iframe 载入面板并借存储的令牌操作其控件。并发 401 共享同一个令牌提示框，且重试现在会发送提示框刚返回的令牌（此前的头合并会重发被拒绝的旧令牌，导致存储令牌过期时即使用户输入正确令牌也会失败一次）。
+
 - **格式错误的状态导入在修改前被拒绝**（#363）：`POST /api/state` 收到非对象的 `disabled` 时，在 `registry._disabled.clear()` 执行之后才抛出异常并返回 500，导致所有已禁用工具被静默重新启用。现在会先完整校验请求体，格式错误返回 400 且不改动状态；由于导入是整体替换，名称必须能解析到已注册工具或命名空间，否则返回 400，而不是悄悄清空现有集合；上传对话框也会在显示虚假条目计数之前拒绝无效文件。
+
 - **管理面板拒绝跨源浏览器访问**（#363）：默认的本地面板没有鉴权，响应却带有 `Access-Control-Allow-Origin: *`，任何网站都能通过用户浏览器读取工具元数据与日志，并 POST 工具开关。现在只有同源请求（`Origin` 的 netloc 等于 `Host`）才会回显该头，所有响应都带有 `Vary: Origin`；非浏览器客户端不受影响。
+
 - **日志视图显示真实参数、超时与调用栈**（#363）：详情面板读取 `entry.args`，而 API 序列化的是 `arguments`，因此所有条目都显示 `{}`；超时条目既不在过滤选项中，也不计入任何统计卡片；异常类型与调用栈从未渲染。以上问题均已修复，且 `Result` 只在成功调用时显示。
+
 - **工具过滤条件在刷新后保持有效，空状态说明更准确**（#363）：`refreshTools()` 直接渲染未过滤列表，导致刷新或任何启用/禁用操作后搜索与状态过滤悄悄失效，而控件仍显示原值。现在面板自身的刷新与启停操作会重新应用过滤；被过滤空时提供“清除筛选”，而不是声称没有注册任何工具。整页重新加载仍会重置这些控件（未做持久化）。
+
 - **名称分隔符的更改会明确提示**（#363）：状态面板原称分隔符“仅影响新注册工具”，但应用后会重新键控所有带命名空间的工具（`math_utils-square` → `math_utils.square`）。提示文案已改为真实行为，应用前要求确认，之后刷新所有标签页。
+
 - **管理面板的移动端布局与小问题**（#363）：在 768px 以下，换行的页头被固定的 56px 高度裁切，标签栏在 390px 视口下把文档撑到 619px；现在页头会自动增高、标签栏可横向滚动。此外：内联 favicon 消除了 `/favicon.ico` 的 404，Esc 可关闭版本信息弹窗，日志过滤框支持回车，命名空间 THINK/DEFER 复选框显示部分选中状态，状态指示点会定时轮询，Sources 中的工具芯片与工具页使用相同的短名称。
+
 - **实际提供服务的 UI 就是源文件**（#363）：`admin/static.py` 内嵌了 `admin.html` 的第二份副本，两者已经漂移——#237 的运行时警告 UI 从未出现在服务器实际提供的面板中。`static.py` 现在从包数据加载 `admin.html`，并配有校验两者一致的测试。
 
 ## [0.19.1] - 2026-10-28
