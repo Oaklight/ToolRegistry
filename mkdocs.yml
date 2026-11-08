@@ -187,6 +187,7 @@ nav:
           - REST API: admin/rest-api.md
           - Web UI Guide: admin/web-ui.md
           - Extensions: admin/extensions.md
+          - Source persistence hook: admin/source-hooks.md
           - Security: admin/security.md
           - Examples: admin/examples.md
   - Ecosystem:
