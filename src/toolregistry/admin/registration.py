@@ -35,7 +35,11 @@ if TYPE_CHECKING:
     from ..tool_registry import ToolRegistry
 
 _SUPPORTED_KINDS = ("openapi", "mcp", "python")
-_HTTP_METHODS = {"get", "post", "put", "patch", "delete"}
+#: Operations the OpenAPI integration turns into tools.  It registers
+#: ``get``/``post``/``put``/``delete`` only, so preview and registration both
+#: ignore the other methods; a ``patch`` operation would create no tool and
+#: its schema is not inspected (#430).
+_HTTP_METHODS = {"get", "post", "put", "delete"}
 
 
 class SourceError(ValueError):
@@ -291,6 +295,17 @@ except ImportError:  # pragma: no cover - exercised by the fallback test
 #: inside them is a literal value, so it is not compiled.
 _DATA_KEYWORDS = frozenset({"example", "examples", "default", "enum", "const"})
 
+#: Schema keywords whose values are maps of *names* to subschemas.  The keys
+#: are property names (any string, including ``default`` or ``enum``), so
+#: the data-keyword skip must not be applied to them.
+_NAME_MAP_KEYWORDS = frozenset(
+    {"properties", "patternProperties", "$defs", "definitions"}
+)
+
+#: Keywords ``_walk_patterns`` handles itself, so the generic child walk must
+#: not visit them a second time.
+_HANDLED_KEYWORDS = _NAME_MAP_KEYWORDS | {"pattern"}
+
 
 def _pattern_schemas(operation: dict[str, Any]) -> list[tuple[str, Any]]:
     """Return the schemas an operation turns into published tool parameters.
@@ -337,6 +352,50 @@ def _record_pattern(
         failures.append(f"tool '{tool_name}' {path}: {exc}")
 
 
+def _walk_pattern_properties(
+    node: dict[str, Any],
+    path: str,
+    tool_name: str,
+    seen: set[str],
+    failures: list[str],
+) -> None:
+    """Check a ``patternProperties`` map: both its keys and its schemas."""
+    pattern_properties = node.get("patternProperties")
+    if not isinstance(pattern_properties, dict):
+        return
+    for key, sub in pattern_properties.items():
+        _record_pattern(
+            key,
+            f"{path}.patternProperties[{key!r}]",
+            tool_name,
+            seen,
+            failures,
+        )
+        _walk_patterns(
+            sub, f"{path}.patternProperties.{key}", tool_name, seen, failures
+        )
+
+
+def _walk_name_map(
+    node: dict[str, Any],
+    keyword: str,
+    path: str,
+    tool_name: str,
+    seen: set[str],
+    failures: list[str],
+) -> None:
+    """Walk a ``properties`` / ``$defs`` / ``definitions`` map.
+
+    The keys of these maps are names, not schema keywords, so every value is
+    walked as a schema even when the name is ``default`` or ``enum``.
+    """
+    name_map = node.get(keyword)
+    if not isinstance(name_map, dict):
+        return
+    for name, sub in name_map.items():
+        _walk_patterns(sub, f"{path}.{keyword}.{name}", tool_name, seen, failures)
+
+
 def _walk_patterns(
     node: Any,
     path: str,
@@ -349,21 +408,11 @@ def _walk_patterns(
         _record_pattern(
             node.get("pattern"), f"{path}.pattern", tool_name, seen, failures
         )
-        pattern_properties = node.get("patternProperties")
-        if isinstance(pattern_properties, dict):
-            for key, sub in pattern_properties.items():
-                _record_pattern(
-                    key,
-                    f"{path}.patternProperties[{key!r}]",
-                    tool_name,
-                    seen,
-                    failures,
-                )
-                _walk_patterns(
-                    sub, f"{path}.patternProperties.{key}", tool_name, seen, failures
-                )
+        _walk_pattern_properties(node, path, tool_name, seen, failures)
+        for keyword in ("properties", "$defs", "definitions"):
+            _walk_name_map(node, keyword, path, tool_name, seen, failures)
         for key, value in node.items():
-            if key in ("pattern", "patternProperties") or key in _DATA_KEYWORDS:
+            if key in _HANDLED_KEYWORDS or key in _DATA_KEYWORDS:
                 continue
             _walk_patterns(value, f"{path}.{key}", tool_name, seen, failures)
     elif isinstance(node, list):

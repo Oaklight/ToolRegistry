@@ -343,6 +343,98 @@ class TestSpecPatternCompilation:
         assert status == 200
         assert data["registered"] == ["list_pets"]
 
+    @pytest.mark.parametrize(
+        "name", ["default", "enum", "const", "example", "examples", "pattern"]
+    )
+    def test_a_property_named_like_a_data_keyword_is_walked(
+        self, server, name: str
+    ) -> None:
+        """Keys under ``properties`` are names, not data keywords (#430)."""
+        spec = _spec_with_pattern("^[a-z]+$")
+        spec["paths"]["/pets"]["get"]["requestBody"] = {
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "type": "object",
+                        "properties": {name: {"type": "string", "pattern": "("}},
+                    }
+                }
+            }
+        }
+
+        for route in ("/api/sources/preview", "/api/sources/register"):
+            status, data = server.request(
+                route, "POST", {"kind": "openapi", "spec": spec}
+            )
+            assert status == 400, route
+            assert f"properties.{name}.pattern" in data["message"]
+        assert server.registry.list_tools(include_disabled=True) == []
+
+    @pytest.mark.parametrize("keyword", ["$defs", "definitions"])
+    def test_a_definition_named_like_a_data_keyword_is_walked(
+        self, server, keyword: str
+    ) -> None:
+        """``$defs`` / ``definitions`` keys are component names (#430)."""
+        spec = _spec_with_pattern("^[a-z]+$")
+        spec["paths"]["/pets"]["get"]["requestBody"] = {
+            "content": {
+                "application/json": {"schema": {keyword: {"default": {"pattern": "("}}}}
+            }
+        }
+
+        status, data = server.request(
+            "/api/sources/preview", "POST", {"kind": "openapi", "spec": spec}
+        )
+
+        assert status == 400
+        assert f"{keyword}.default.pattern" in data["message"]
+
+    def test_a_data_value_that_looks_like_a_pattern_is_not_compiled(
+        self, server
+    ) -> None:
+        """A ``default`` string is data; a ``(`` inside it is not a regex."""
+        spec = _spec_with_pattern("^[a-z]+$")
+        spec["paths"]["/pets"]["get"]["requestBody"] = {
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "type": "object",
+                        "properties": {"name": {"type": "string", "default": "("}},
+                    }
+                }
+            }
+        }
+
+        status, data = server.request(
+            "/api/sources/register", "POST", {"kind": "openapi", "spec": spec}
+        )
+
+        assert status == 200
+        assert data["registered"] == ["list_pets"]
+
+    def test_a_patch_operation_creates_no_tool_and_is_not_inspected(
+        self, server
+    ) -> None:
+        """Preview and registration agree that ``patch`` is not a tool (#430)."""
+        spec = _spec_with_pattern("^[a-z]+$")
+        spec["paths"]["/pets"]["patch"] = {
+            "operationId": "patchPets",
+            "parameters": [
+                {
+                    "name": "name",
+                    "in": "query",
+                    "schema": {"type": "string", "pattern": "("},
+                }
+            ],
+        }
+
+        status, data = server.request(
+            "/api/sources/preview", "POST", {"kind": "openapi", "spec": spec}
+        )
+
+        assert status == 200
+        assert [tool["name"] for tool in data["tools"]] == ["list_pets"]
+
     def test_fallback_engine_is_stdlib_re(self, server, monkeypatch) -> None:
         """Without the optional package the check falls back to ``re``."""
         import re
