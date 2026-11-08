@@ -6,6 +6,7 @@ management and monitoring.
 """
 
 import json
+import math
 import os
 import urllib.parse
 from dataclasses import asdict
@@ -14,6 +15,7 @@ from typing import TYPE_CHECKING, Any, cast
 from .._vendor.httpserver import HTTPException, Request, Response
 from ..utils import ToolResultJSONEncoder
 
+from .auth import AuthFailureLimiter
 from .server import _host_name
 from .static import read_asset, read_shell
 
@@ -271,6 +273,45 @@ def _reject_cross_site(request: Request) -> Response | None:
     return None
 
 
+def _client_source(request: Request) -> str:
+    """Return the rate-limit key for *request*.
+
+    The peer address alone is used.  The port changes with every connection,
+    so keying on it would let a client rotate keys by reconnecting.
+
+    Args:
+        request: The incoming request.
+
+    Returns:
+        The peer address, or ``"unknown"`` when the transport does not
+        report one.
+    """
+    address = getattr(request, "client_addr", None)
+    if not address:
+        return "unknown"
+    return str(address[0])
+
+
+def _auth_limiter(app: "AdminApp") -> AuthFailureLimiter:
+    """Return *app*'s authentication failure limiter, creating it on demand.
+
+    The limiter lives on the app so two servers in one process do not share
+    a failure budget.  Apps built without :meth:`AdminServer.start` get one
+    on their first authenticated request.
+
+    Args:
+        app: The admin application.
+
+    Returns:
+        The app's :class:`AuthFailureLimiter`.
+    """
+    limiter = getattr(app, "auth_limiter", None)
+    if limiter is None:
+        limiter = AuthFailureLimiter()
+        app.auth_limiter = limiter
+    return limiter
+
+
 def _auth_check(request: Request) -> Response | None:
     """Check authentication via Bearer token or session cookie.
 
@@ -307,17 +348,37 @@ def _auth_check(request: Request) -> Response | None:
     session = app.session
     auth_header = request.headers.get("authorization", "")
 
+    # Refuse a source that has produced too many failures before the token
+    # comparison runs, so guessing a low-entropy token costs a window of
+    # wait rather than one comparison per attempt.  A success clears the
+    # record; a missing credential does not count, because a browser that
+    # has not logged in yet is not guessing.
+    limiter = _auth_limiter(app)
+    source = _client_source(request)
+    retry_after = limiter.retry_after(source)
+    if retry_after is not None:
+        resp = _error_response(
+            429,
+            "Too Many Requests",
+            "Too many failed authentication attempts; retry later",
+        )
+        resp.headers["Retry-After"] = str(max(1, math.ceil(retry_after)))
+        return _add_cors(request, resp)
+
     # Try Bearer token first
     if auth_header:
         parts = auth_header.split(" ", 1)
         if len(parts) != 2 or parts[0].lower() != "bearer":
+            limiter.record_failure(source)
             resp = _error_response(401, "Unauthorized", "Invalid Authorization format")
             resp.headers["WWW-Authenticate"] = 'Bearer realm="admin"'
             return _add_cors(request, resp)
         if not auth.verify(parts[1]):
+            limiter.record_failure(source)
             resp = _error_response(401, "Unauthorized", "Invalid token")
             resp.headers["WWW-Authenticate"] = 'Bearer realm="admin"'
             return _add_cors(request, resp)
+        limiter.clear(source)
         setattr(request.state, "set_session_cookie", True)
         return None
 
@@ -325,6 +386,7 @@ def _auth_check(request: Request) -> Response | None:
     if session is not None:
         cookie_val = request.cookies.get(session.cookie_name, "")
         if cookie_val and session.verify(cookie_val):
+            limiter.clear(source)
             setattr(request.state, "set_session_cookie", True)
             return None
 
