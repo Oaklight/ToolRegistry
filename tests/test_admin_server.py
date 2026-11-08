@@ -759,6 +759,66 @@ class TestAdminServerAuth:
         for name in referenced:
             assert read_asset(name) is not None, f"missing asset: {name}"
 
+    @staticmethod
+    def _attempt(url: str, token: str | None, method: str = "GET") -> int:
+        """Request *url* with *token* and return the status code."""
+        req = urllib.request.Request(url, method=method)
+        if token is not None:
+            req.add_header("Authorization", f"Bearer {token}")
+        try:
+            with urllib.request.urlopen(req, timeout=5) as response:
+                return response.status
+        except urllib.error.HTTPError as e:
+            return e.code
+
+    def test_repeated_wrong_tokens_are_throttled(self) -> None:
+        """Five failures block the source before the token is compared (#405)."""
+        from toolregistry.admin.auth import AUTH_FAILURE_LIMIT
+
+        server = AdminServer(ToolRegistry(), port=18120, auth_token="correct-token")
+        try:
+            info = server.start()
+            time.sleep(0.1)
+            url = f"{info.url}/api/tools"
+
+            for _ in range(AUTH_FAILURE_LIMIT):
+                assert self._attempt(url, "wrong") == 401
+
+            # The throttle answers before the comparison, so even the right
+            # token is refused while the window is full.
+            for token in ("wrong", "correct-token"):
+                req = urllib.request.Request(url)
+                req.add_header("Authorization", f"Bearer {token}")
+                try:
+                    urllib.request.urlopen(req, timeout=5)
+                    pytest.fail("the source should be throttled")
+                except urllib.error.HTTPError as e:
+                    assert e.code == 429
+                    assert int(e.headers["Retry-After"]) >= 1
+        finally:
+            server.stop()
+
+    def test_a_success_resets_the_failure_count(self) -> None:
+        """A successful login clears the source's failures (#405)."""
+        from toolregistry.admin.auth import AUTH_FAILURE_LIMIT
+
+        server = AdminServer(ToolRegistry(), port=18121, auth_token="correct-token")
+        try:
+            info = server.start()
+            time.sleep(0.1)
+            url = f"{info.url}/api/tools"
+
+            for _ in range(AUTH_FAILURE_LIMIT - 1):
+                assert self._attempt(url, "wrong") == 401
+            assert self._attempt(url, "correct-token") == 200
+
+            # The counter is back to zero: the next failures are 401 again.
+            for _ in range(AUTH_FAILURE_LIMIT):
+                assert self._attempt(url, "wrong") == 401
+            assert self._attempt(url, "wrong") == 429
+        finally:
+            server.stop()
+
     def test_api_index_is_protected_when_ui_is_disabled(self) -> None:
         """With serve_ui=False, "/" is an API index and requires a token."""
         registry = ToolRegistry()

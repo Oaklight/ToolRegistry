@@ -4,10 +4,148 @@ This module provides simple token-based authentication for the admin panel,
 using constant-time comparison to prevent timing attacks.
 """
 
+import collections
 import hashlib
 import hmac
 import secrets
 import time
+from collections.abc import Callable
+
+#: Failed admin authentications a single client source may make inside
+#: :data:`AUTH_FAILURE_WINDOW_SECONDS` before the panel answers 429.
+AUTH_FAILURE_LIMIT = 5
+
+#: Length of the sliding window over failed authentications, in seconds.
+AUTH_FAILURE_WINDOW_SECONDS = 60.0
+
+#: Maximum number of client sources tracked at once.  A remote address is
+#: cheap to vary, so the table must not grow with the number of sources seen.
+AUTH_FAILURE_MAX_SOURCES = 1024
+
+
+class AuthFailureLimiter:
+    """Sliding-window throttle over failed admin authentications.
+
+    The admin token is a low-entropy shared secret when an operator supplies
+    one by hand, so an unthrottled endpoint lets a client try candidates at
+    the speed of the network.  This limiter records the time of each failed
+    attempt per client source (the peer address) and reports the source as
+    blocked once the window holds :data:`AUTH_FAILURE_LIMIT` failures.  A
+    blocked request is answered with 429 before the token comparison runs.
+
+    Memory is bounded.  At most ``max_sources`` sources are tracked: expired
+    entries are pruned when a source is accessed, and the least recently used
+    source is evicted when a new one would exceed the bound.  Only a bounded
+    number of timestamps per source is kept, because older entries can no
+    longer affect the decision.
+
+    Args:
+        limit: Failures inside *window* that block a source.
+        window: Length of the sliding window, in seconds.
+        max_sources: Maximum number of sources kept.
+        clock: Monotonic clock, injectable for tests.
+
+    Example:
+        >>> limiter = AuthFailureLimiter()
+        >>> limiter.retry_after("203.0.113.7") is None
+        True
+        >>> for _ in range(AUTH_FAILURE_LIMIT):
+        ...     limiter.record_failure("203.0.113.7")
+        >>> limiter.retry_after("203.0.113.7") is not None
+        True
+        >>> limiter.clear("203.0.113.7")
+        >>> limiter.retry_after("203.0.113.7") is None
+        True
+    """
+
+    def __init__(
+        self,
+        *,
+        limit: int = AUTH_FAILURE_LIMIT,
+        window: float = AUTH_FAILURE_WINDOW_SECONDS,
+        max_sources: int = AUTH_FAILURE_MAX_SOURCES,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        if limit < 1:
+            raise ValueError("limit must be at least 1")
+        if window <= 0:
+            raise ValueError("window must be positive")
+        if max_sources < 1:
+            raise ValueError("max_sources must be at least 1")
+        self._limit = limit
+        self._window = window
+        self._max_sources = max_sources
+        self._clock = clock
+        self._failures: collections.OrderedDict[str, collections.deque[float]] = (
+            collections.OrderedDict()
+        )
+
+    def retry_after(self, source: str) -> float | None:
+        """Return the seconds *source* must wait, or ``None`` if it may try.
+
+        Accessing a source prunes its expired failures, so a window that has
+        passed always unblocks it.
+
+        Args:
+            source: Client source key, normally the peer address.
+
+        Returns:
+            Seconds until the oldest counted failure leaves the window, or
+            ``None`` when the source is not blocked.
+        """
+        failures = self._failures.get(source)
+        if failures is None:
+            return None
+        self._prune(source, failures)
+        if not failures:
+            return None
+        self._failures.move_to_end(source)
+        if len(failures) < self._limit:
+            return None
+        wait = failures[0] + self._window - self._clock()
+        return wait if wait > 0 else None
+
+    def record_failure(self, source: str) -> None:
+        """Record one failed authentication for *source*.
+
+        Args:
+            source: Client source key, normally the peer address.
+        """
+        now = self._clock()
+        failures = self._failures.get(source)
+        if failures is None:
+            if len(self._failures) >= self._max_sources:
+                self._evict(now)
+            failures = collections.deque()
+            self._failures[source] = failures
+        else:
+            self._failures.move_to_end(source)
+        failures.append(now)
+        while len(failures) > self._limit:
+            failures.popleft()
+
+    def clear(self, source: str) -> None:
+        """Forget the failures recorded for *source*, after a success.
+
+        Args:
+            source: Client source key, normally the peer address.
+        """
+        self._failures.pop(source, None)
+
+    def _prune(self, source: str, failures: collections.deque[float]) -> None:
+        """Drop timestamps that have left the window."""
+        cutoff = self._clock() - self._window
+        while failures and failures[0] <= cutoff:
+            failures.popleft()
+        if not failures:
+            self._failures.pop(source, None)
+
+    def _evict(self, now: float) -> None:
+        """Make room for one more source, preferring expired entries."""
+        for source in list(self._failures):
+            self._prune(source, self._failures[source])
+        if len(self._failures) >= self._max_sources:
+            self._failures.popitem(last=False)
 
 
 class TokenAuth:
@@ -63,7 +201,7 @@ class TokenAuth:
         # Use constant-time comparison to prevent timing attacks
         expected_hash = hashlib.sha256(self._token.encode()).digest()
         provided_hash = hashlib.sha256(provided_token.encode()).digest()
-        return secrets.compare_digest(expected_hash, provided_hash)
+        return hmac.compare_digest(expected_hash, provided_hash)
 
 
 class SessionCookie:
@@ -130,7 +268,7 @@ class SessionCookie:
             return False
         payload = f"{ts_str}.{_nonce}"
         expected = self._sign(payload)
-        return secrets.compare_digest(sig, expected)
+        return hmac.compare_digest(sig, expected)
 
     def _sign(self, data: str) -> str:
         """Compute HMAC-SHA256 of *data* with the secret."""

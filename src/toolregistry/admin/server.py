@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from .._vendor.httpserver import App
-from .auth import SessionCookie, TokenAuth
+from .auth import AuthFailureLimiter, SessionCookie, TokenAuth
 from .metrics import RequestMetrics
 
 if TYPE_CHECKING:
@@ -120,6 +120,7 @@ class AdminApp(App):
     registry: "ToolRegistry"
     auth: TokenAuth | None
     session: SessionCookie | None
+    auth_limiter: AuthFailureLimiter | None = None
     serve_ui: bool
     config: "ToolConfig | None"
     metrics: RequestMetrics | None = None
@@ -312,6 +313,7 @@ class AdminServer:
         self._app.registry = self._registry
         self._app.auth = self._auth
         self._app.session = self._session
+        self._app.auth_limiter = AuthFailureLimiter()
         self._app.serve_ui = self._serve_ui
         self._app.config = self._config
         self._app.allowed_hosts = self._allowed_hosts
