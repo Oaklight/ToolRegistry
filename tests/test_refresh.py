@@ -331,6 +331,38 @@ class TestOpenAPIRefresh:
 
 class TestOpenAPIConditionalFetch:
     @pytest.mark.asyncio
+    async def test_refresh_states_the_redirect_policy(self, monkeypatch):
+        """A refresh pins its policy instead of inheriting the loader default."""
+        import toolregistry.integrations.openapi.utils as openapi_utils
+
+        seen: dict[str, object] = {}
+
+        async def fake_conditional(url, etag=None, headers=None, **kwargs):
+            seen.update(kwargs)
+            return SPEC_V1, '"etag"'
+
+        async def fake_validate(url, **kwargs):
+            return url
+
+        monkeypatch.setattr(
+            openapi_utils, "load_openapi_spec_conditional_async", fake_conditional
+        )
+        monkeypatch.setattr(openapi_utils, "validate_spec_url_async", fake_validate)
+
+        integration = OpenAPIIntegration(ToolRegistry())
+        integration.register_openapi_tools(
+            HttpClientConfig(base_url="https://api.example.com"),
+            SPEC_V1,
+            spec_url="http://test.example.com/openapi.json",
+        )
+
+        spec, skipped = await integration._resolve_spec(None)
+
+        assert skipped is False
+        assert spec == SPEC_V1
+        assert seen == {"allow_private_hosts": False, "follow_redirects": False}
+
+    @pytest.mark.asyncio
     async def test_etag_304(self):
         from toolregistry._vendor.httpclient import Response
 

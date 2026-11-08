@@ -549,6 +549,9 @@ class OpenAPIIntegration:
                 self._spec_url,
                 self._etag,
                 allow_private_hosts=allow_private_hosts,
+                # State the policy here too: a refresh must not start following
+                # redirects if the loader default ever changes.
+                follow_redirects=False,
             )
             if spec is None:
                 return None, True
