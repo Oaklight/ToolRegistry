@@ -12,6 +12,7 @@ import threading
 import time
 from collections.abc import Iterable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .._vendor.httpserver import App
@@ -21,6 +22,8 @@ from .metrics import RequestMetrics
 if TYPE_CHECKING:
     from toolregistry import ToolRegistry
     from toolregistry.config import ToolConfig
+
+    from .extensions import AdminExtension, MountedExtension
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +130,10 @@ class AdminApp(App):
     allowed_hosts: tuple[str, ...] = ()
     secure_cookies: bool = False
     allow_private_hosts: bool = False
+    #: Extensions mounted on this app, in declaration order.
+    extensions: tuple["MountedExtension", ...] = ()
+    #: Extension name → resolved asset directory, read by ``read_asset``.
+    extension_assets: dict[str, Path] | None = None
 
 
 class AdminServer:
@@ -170,6 +177,7 @@ class AdminServer:
         ssl_context: ssl.SSLContext | None = None,
         allowed_hosts: Iterable[str] | None = None,
         allow_private_hosts: bool = False,
+        extensions: Iterable["AdminExtension"] | None = None,
     ) -> None:
         """Initialize admin server.
 
@@ -206,6 +214,11 @@ class AdminServer:
                 on the operator's host and must not become a probe of the
                 local network.  Set it to register an API on the same host
                 or a private network.
+            extensions: Admin panel extensions to mount.  Each one is
+                validated and has its routes registered before the listener
+                starts; a contract violation raises
+                :class:`~toolregistry.admin.extensions.AdminExtensionError`
+                naming the extension.  Defaults to no extensions.
         """
         self._registry = registry
         self._host = "0.0.0.0" if remote else host
@@ -215,6 +228,7 @@ class AdminServer:
         self._config = config
         self._ssl_context = ssl_context
         self._allow_private_hosts = allow_private_hosts
+        self._extensions = tuple(extensions) if extensions is not None else ()
         # By default a loopback-bound panel answers only to loopback names;
         # a wildcard bind has no predictable name and relies on token auth.
         if allowed_hosts is None:
@@ -319,6 +333,18 @@ class AdminServer:
         self._app.allowed_hosts = self._allowed_hosts
         self._app.allow_private_hosts = self._allow_private_hosts
         self._app.secure_cookies = self._ssl_context is not None
+
+        # Validate extensions and register their routes before the listener
+        # starts: a contract violation must fail start(), not a request.
+        # The app is discarded on failure so a later start() begins clean.
+        from .extensions import mount_extensions
+
+        app = self._app
+        try:
+            app.extensions = mount_extensions(app, self._extensions)
+        except Exception:
+            self._app = None
+            raise
 
         # Collect HTTP metrics from the lifecycle signals.  Register the
         # timing hook before setup_routes so it runs before CORS/auth and

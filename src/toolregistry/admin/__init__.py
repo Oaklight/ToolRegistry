@@ -11,15 +11,27 @@ from .execution_log import (
     ExecutionStatus,
     warning_collector,
 )
+from .extensions import (
+    ADMIN_EXTENSION_API,
+    AdminContext,
+    AdminExtension,
+    AdminExtensionError,
+    MountedExtension,
+)
 from .metrics import RequestMetrics
 from .server import AdminInfo, AdminServer
 
 __all__ = [
+    "ADMIN_EXTENSION_API",
+    "AdminContext",
+    "AdminExtension",
+    "AdminExtensionError",
     "AdminInfo",
     "AdminServer",
     "ExecutionLog",
     "ExecutionLogEntry",
     "ExecutionStatus",
+    "MountedExtension",
     "RequestMetrics",
     "SessionCookie",
     "TokenAuth",

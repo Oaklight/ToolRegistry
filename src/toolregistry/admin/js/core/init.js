@@ -15,6 +15,9 @@ document.addEventListener('DOMContentLoaded', () => {
     initTheme();
     document.getElementById('langSwitcher').value = currentLang;
     applyI18n();
+    // Extensions load after the shell is usable: a slow or failing extension
+    // must not delay the tools view.
+    if (typeof AdminExtensions !== 'undefined') AdminExtensions.load();
     refreshTools();
     refreshStats();
     setInterval(checkConnection, 30000);

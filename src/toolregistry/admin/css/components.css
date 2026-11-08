@@ -127,6 +127,14 @@
     width: 100%;
 }
 
+/* An extension panel supplies its own markup; the host only gives it the
+   same vertical rhythm as the built-in sections. */
+.ext-container {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
 /* ============== Grid Layout ============== */
 .grid {
     display: grid;

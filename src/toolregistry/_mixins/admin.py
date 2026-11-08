@@ -5,7 +5,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..admin import AdminInfo, AdminServer
+    from collections.abc import Iterable
+
+    from ..admin import AdminExtension, AdminInfo, AdminServer
     from ..config import ToolConfig
     from ..tool_registry import ToolRegistry
 
@@ -26,6 +28,7 @@ class AdminMixin:
         auth_token: str | None = None,
         config: ToolConfig | None = None,
         allow_private_hosts: bool = False,
+        extensions: Iterable[AdminExtension] | None = None,
     ) -> AdminInfo:
         """Enable the admin panel.
 
@@ -48,6 +51,10 @@ class AdminMixin:
                 that resolves to a loopback, link-local or private address.
                 Defaults to ``False``; set it to register an API on the same
                 host or a private network.
+            extensions: Admin panel extensions to mount.  Each one is
+                validated before the listener starts; a contract violation
+                raises ``AdminExtensionError`` naming the extension.
+                Defaults to no extensions.
 
         Returns:
             AdminInfo containing server details including URL and token.
@@ -80,6 +87,7 @@ class AdminMixin:
             auth_token=auth_token,
             config=config,
             allow_private_hosts=allow_private_hosts,
+            extensions=extensions,
         )
         return self._admin_server.start()
 
