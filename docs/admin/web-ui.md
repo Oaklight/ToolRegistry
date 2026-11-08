@@ -137,6 +137,15 @@ offers **before anything is registered**:
 5. Tick the tools to keep and press **Register selected**. Only the ticked
    names are sent, so a source can never add a tool nobody asked for.
 
+The panel fetches a spec from the server, not from your browser, so it applies
+the outbound address policy itself: a loopback, link-local or private address
+is refused, and an HTTP redirect is not followed, because the next hop would
+be a request the policy never checked. The OpenAPI form says so above the
+fields instead of failing after the fact. To register an API on this machine
+or a private network, start the server with
+`registry.enable_admin(allow_private_hosts=True)`; the MCP form additionally
+offers a per-source **Allow private network hosts** checkbox.
+
 Errors — an unreachable server, an unimportable module, a spec without
 `servers[]` — are reported in the panel instead of being registered silently.
 A server that requires a token reports an empty error; the panel says so and
