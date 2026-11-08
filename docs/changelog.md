@@ -28,6 +28,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **Special-purpose ranges are refused explicitly** (#425, stricter than 0.20.0): beyond the `is_global` allowlist, the policy now refuses `192.0.0.0/24`, `192.88.99.0/24`, `198.18.0.0/15`, `240.0.0.0/4`, `::/96`, `100::/64`, `2001::/32`, `2001:2::/48`, `2001:10::/28`, `2001:20::/28`, `2001:db8::/32`, `2002::/16`, `3fff::/20`, `5f00::/16` and the NAT64 local-use prefix `64:ff9b:1::/48`. `192.88.99.0/24`, `2001:20::/28` and `5f00::/16` are reported as globally routable by `ipaddress` on every supported interpreter, so `is_global` alone let them through; the others are pinned so a future interpreter table change cannot reopen them. The NAT64 well-known prefix (`64:ff9b::/96`) is judged by the IPv4 address in its low 32 bits, so `64:ff9b::7f00:1` no longer reaches `127.0.0.1` while NAT64 access to a public IPv4 address still works. The local-use prefix is refused as a whole instead: RFC 8215 places the IPv4 address elsewhere, and reading the low 32 bits would judge the wrong bits — `64:ff9b:1::808:808` looks like `8.8.8.8` there while its embedded target is `0.0.0.0`. `allow_private_hosts=True` keeps its opt-out.
 
+### Fixed
+
+#### Admin panel
+
+- **A spec regex that does not compile is refused at registration** (#421): `preview_source()` and source registration loaded an OpenAPI document without compiling its `pattern` or `patternProperties`, so a malformed pattern was accepted and surfaced only on the first call — a 500 with the optional `regex` package installed, a silently ignored constraint without it. Both paths now call `_check_spec_patterns` before anything is registered; a bad pattern raises the panel's `SourceError` with the tool name and schema path, so the HTTP layer answers 400 and the registry stays untouched. The engine is `regex` when installed (the one request-time validation uses) and stdlib `re` otherwise; the fallback is stricter, rejecting patterns that only `regex` accepts, such as a variable-length lookbehind or `\p{...}`.
+
 ## [0.20.0] - 2026-11-08
 
 ### Breaking changes
