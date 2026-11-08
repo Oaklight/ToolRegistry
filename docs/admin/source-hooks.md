@@ -55,7 +55,7 @@ server = AdminServer(
 | `selected` | 运维者保留的工具名，或 `None` 表示全部。 |
 | `source_id` | remove 与 replace 使用的现有来源 id；add 为 `None`。 |
 
-`payload` 可能带有认证令牌、请求头、`env` 值或命令参数。钩子不得记录或回显它，并且展示时必须脱敏。面板自身从不记录 `payload`。
+`payload` 可能带有认证令牌、请求头、`env` 值或命令参数。钩子不得记录或回显它，并且展示时必须脱敏。面板自身从不记录 `payload`；变更对象的 `repr` 也省略该字段，因此记录对象不会打印凭据。
 
 ## 注册响应
 
@@ -104,7 +104,7 @@ server = AdminServer(
 
 `source_status` 原样透传，因此没有注册工具的失败或排除来源仍然可见。可用记录中的 `id` 与 `sources` 关联；没有 id 时按 `kind`/`detail`/`namespace` 关联。内置的来源页只读取 `sources`，安装钩子不会改变它的行为。
 
-`statuses()` 或 `writable()` 抛出异常不会破坏列表：记录日志后，`source_status` 为空、`config_writable` 为 `false`。
+`statuses()` 或 `writable()` 抛出异常不会破坏列表：记录日志后，`source_status` 为空、`config_writable` 为 `false`。单条无法序列化的记录会被记录并跳过，其余记录照常返回。
 
 ## 失败行为
 
