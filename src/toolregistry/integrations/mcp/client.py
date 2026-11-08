@@ -33,20 +33,6 @@ from ._compat import (
 #: URL schemes that reach the network and therefore pass the address policy.
 _URL_SCHEMES = ("http://", "https://", "ws://", "wss://")
 
-#: ``_netpolicy`` accepts only HTTP(S), while ``ws``/``wss`` use the same host
-#: and default ports. Map them for the check; see #407 for teaching the policy
-#: the WS schemes so this mapping can be removed.
-_POLICY_SCHEMES = {"ws": "http", "wss": "https"}
-
-
-def _policy_url(url: str) -> str:
-    """Return the HTTP(S) spelling the outbound policy can evaluate."""
-    parsed = urlparse(url)
-    scheme = _POLICY_SCHEMES.get(parsed.scheme.lower())
-    if scheme is None:
-        return url
-    return parsed._replace(scheme=scheme).geturl()
-
 
 def _resolution_error(url: str) -> UnsafeAddressError:
     """Build a refusal for an unresolvable name without exposing DNS detail."""
@@ -125,9 +111,8 @@ class MCPClient:
         """Open the appropriate transport based on the source type.
 
         Every URL transport passes the outbound address policy before a
-        connection is opened. ``ws``/``wss`` are checked as ``http``/``https``
-        because the policy accepts only the latter; both use the same host and
-        default ports (see #407).
+        connection is opened; the policy's ``SCHEMES`` covers ``http(s)`` and
+        ``ws(s)``.
 
         Yields:
             Tuple of (read_stream, write_stream) for ClientSession.
@@ -136,7 +121,7 @@ class MCPClient:
         if isinstance(src, str) and src.startswith(_URL_SCHEMES):
             try:
                 await validate_outbound_url_async(
-                    _policy_url(src),
+                    src,
                     allow_private_hosts=self._allow_private_hosts,
                 )
             except PrivateAddressError:
