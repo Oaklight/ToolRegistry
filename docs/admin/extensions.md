@@ -15,7 +15,7 @@
 | `assets` | 有标签页时必需 | 磁盘目录，`entry` 与 `styles` 从中读取。声明 `nav` 或任何资源时必须提供。 |
 | `entry` | 有标签页时必需 | `assets/ext/<name>/` 下的浏览器模块路径，以 `.js` 结尾。存在 `nav` 时必需。 |
 | `requires_api` | 是 | 扩展面向的契约版本，必须等于 `ADMIN_EXTENSION_API`（`1`）。 |
-| `styles` | 否 | `assets/ext/<name>/` 下 `.css` 路径的序列。 |
+| `styles` | 有标签页时必需 | `assets/ext/<name>/` 下 `.css` 路径的序列。需要 `nav`。 |
 | `icon` | 否 | 导航项的 SVG 标记。默认为网格图标。 |
 | `nav` | 否 | 映射，可含 `group` 翻译键与整数 `order`（默认 `100`）。 |
 | `register` | 是 | 以 `AdminContext` 调用一次。 |
@@ -23,6 +23,8 @@
 `name`、`title`、`requires_api` 与 `register` 在监听器启动前校验。违反契约会抛出带扩展名的 `AdminExtensionError`，`AdminServer.start()` 失败；面板不会运行只挂载了一半的扩展。
 
 只提供 HTTP 路由的扩展可省略 `nav`、`assets`、`entry` 与 `styles`。其路由照常挂载，`GET /api/extensions` 报告 `"nav": null` 与 `"entry": null`，面板不为它显示标签页。
+
+`styles` 需要 `nav`：加载器会完全跳过纯 API 扩展，未声明标签页的样式表永远不会被应用，因此启动时会被拒绝。
 
 不以 `assets/ext/<name>/` 开头、含点段、或后缀不在 `.css` / `.js` 之内的路径一律拒绝。
 
