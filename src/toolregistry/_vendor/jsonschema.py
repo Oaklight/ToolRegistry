@@ -1,5 +1,5 @@
 # /// zerodep
-# version = "0.4.3"
+# version = "0.4.4"
 # deps = []
 # tier = "subsystem"
 # category = "validation"
@@ -69,7 +69,7 @@ import dataclasses
 import math
 import re
 import warnings
-from typing import Any
+from typing import Any, Callable
 
 __all__ = [
     # Schema transformation
@@ -85,6 +85,7 @@ __all__ = [
     # Schema validation
     "schema_validate",
     "iter_errors",
+    "PatternMatcher",
     "SchemaErrorDetail",
     "SchemaValidationError",
 ]
@@ -881,6 +882,16 @@ def _type_name(instance: Any) -> str:
 # -- Keyword handlers -------------------------------------------------------
 
 
+#: A ``(pattern, text) -> bool`` callable with ``re.search`` semantics:
+#: a partial match, not a full match.
+PatternMatcher = Callable[[str, str], bool]
+
+
+def _search_matcher(pattern: str, text: str) -> bool:
+    """Return whether *pattern* matches *text* using :func:`re.search`."""
+    return re.search(pattern, text) is not None
+
+
 def _check_type(
     instance: Any,
     type_val: str | list[str],
@@ -945,6 +956,7 @@ def _check_string(
     errors: list[SchemaErrorDetail],
     path: str,
     schema_path: str,
+    pattern_matcher: PatternMatcher,
 ) -> None:
     if not isinstance(instance, str):
         return
@@ -966,15 +978,17 @@ def _check_string(
                 message=f"String at '{path or '$'}' is too long (length {len(instance)} > {schema['maxLength']})",
             )
         )
-    if "pattern" in schema and not re.search(schema["pattern"], instance):
-        errors.append(
-            SchemaErrorDetail(
-                path=path or "$",
-                schema_path=_jp(schema_path, "pattern"),
-                validator="pattern",
-                message=f"String {instance!r} at '{path or '$'}' does not match pattern {schema['pattern']!r}",
+    if "pattern" in schema:
+        pattern = schema["pattern"]
+        if not pattern_matcher(pattern, instance):
+            errors.append(
+                SchemaErrorDetail(
+                    path=path or "$",
+                    schema_path=_jp(schema_path, "pattern"),
+                    validator="pattern",
+                    message=f"String {instance!r} at '{path or '$'}' does not match pattern {pattern!r}",
+                )
             )
-        )
 
 
 def _check_number(
@@ -1052,6 +1066,7 @@ def _check_object_props(
     errors: list[SchemaErrorDetail],
     path: str,
     schema_path: str,
+    pattern_matcher: PatternMatcher,
 ) -> set[str]:
     """Validate properties and patternProperties, return covered key names."""
     covered_keys: set[str] = set()
@@ -1068,21 +1083,30 @@ def _check_object_props(
                     errors,
                     _jp(path, prop_name),
                     _jp(schema_path, f"properties.{prop_name}"),
+                    pattern_matcher,
                 )
 
     for pattern, pat_schema in pattern_properties.items():
-        compiled = re.compile(pattern)
+        # Check the pattern even when the object has no keys.  A malformed
+        # pattern is a schema error, so it must not depend on the instance:
+        # the pre-hook implementation compiled the regex before iterating,
+        # and dropping that made an invalid pattern pass silently for ``{}``.
+        # The result is discarded; only compilation errors and exceptions
+        # raised by the matcher matter here.
+        pattern_matcher(pattern, "")
         for key in instance:
-            if compiled.search(key):
-                covered_keys.add(key)
-                if isinstance(pat_schema, (dict, bool)):
-                    _validate_schema(
-                        instance[key],
-                        pat_schema,
-                        errors,
-                        _jp(path, key),
-                        _jp(schema_path, f"patternProperties.{pattern}"),
-                    )
+            if not pattern_matcher(pattern, key):
+                continue
+            covered_keys.add(key)
+            if isinstance(pat_schema, (dict, bool)):
+                _validate_schema(
+                    instance[key],
+                    pat_schema,
+                    errors,
+                    _jp(path, key),
+                    _jp(schema_path, f"patternProperties.{pattern}"),
+                    pattern_matcher,
+                )
 
     return covered_keys
 
@@ -1093,6 +1117,7 @@ def _check_object(
     errors: list[SchemaErrorDetail],
     path: str,
     schema_path: str,
+    pattern_matcher: PatternMatcher,
 ) -> None:
     if not isinstance(instance, dict):
         return
@@ -1109,7 +1134,9 @@ def _check_object(
                     )
                 )
 
-    covered_keys = _check_object_props(instance, schema, errors, path, schema_path)
+    covered_keys = _check_object_props(
+        instance, schema, errors, path, schema_path, pattern_matcher
+    )
 
     if "additionalProperties" in schema:
         additional = schema["additionalProperties"]
@@ -1132,6 +1159,7 @@ def _check_object(
                     errors,
                     _jp(path, key),
                     _jp(schema_path, "additionalProperties"),
+                    pattern_matcher,
                 )
 
     if "minProperties" in schema and len(instance) < schema["minProperties"]:
@@ -1160,6 +1188,7 @@ def _check_array_items(
     errors: list[SchemaErrorDetail],
     path: str,
     schema_path: str,
+    pattern_matcher: PatternMatcher,
 ) -> None:
     """Validate prefixItems and items keywords."""
     prefix_items = schema.get("prefixItems")
@@ -1175,6 +1204,7 @@ def _check_array_items(
                     errors,
                     _jp(path, i),
                     _jp(schema_path, f"prefixItems[{i}]"),
+                    pattern_matcher,
                 )
 
     if items_schema is not None:
@@ -1197,6 +1227,7 @@ def _check_array_items(
                     errors,
                     _jp(path, i),
                     _jp(schema_path, "items"),
+                    pattern_matcher,
                 )
 
 
@@ -1249,11 +1280,12 @@ def _check_array(
     errors: list[SchemaErrorDetail],
     path: str,
     schema_path: str,
+    pattern_matcher: PatternMatcher,
 ) -> None:
     if not isinstance(instance, list):
         return
 
-    _check_array_items(instance, schema, errors, path, schema_path)
+    _check_array_items(instance, schema, errors, path, schema_path, pattern_matcher)
 
     if "minItems" in schema and len(instance) < schema["minItems"]:
         errors.append(
@@ -1282,7 +1314,7 @@ def _check_array(
         found = False
         for item in instance:
             trial: list[SchemaErrorDetail] = []
-            _validate_schema(item, contains_schema, trial, "", "")
+            _validate_schema(item, contains_schema, trial, "", "", pattern_matcher)
             if not trial:
                 found = True
                 break
@@ -1306,11 +1338,17 @@ def _check_allof(
     errors: list[SchemaErrorDetail],
     path: str,
     schema_path: str,
+    pattern_matcher: PatternMatcher,
 ) -> None:
     for i, sub in enumerate(schemas):
         if isinstance(sub, (dict, bool)):
             _validate_schema(
-                instance, sub, errors, path, _jp(schema_path, f"allOf[{i}]")
+                instance,
+                sub,
+                errors,
+                path,
+                _jp(schema_path, f"allOf[{i}]"),
+                pattern_matcher,
             )
 
 
@@ -1320,11 +1358,12 @@ def _check_anyof(
     errors: list[SchemaErrorDetail],
     path: str,
     schema_path: str,
+    pattern_matcher: PatternMatcher,
 ) -> None:
     for sub in schemas:
         if isinstance(sub, (dict, bool)):
             trial: list[SchemaErrorDetail] = []
-            _validate_schema(instance, sub, trial, path, "")
+            _validate_schema(instance, sub, trial, path, "", pattern_matcher)
             if not trial:
                 return
     errors.append(
@@ -1343,12 +1382,13 @@ def _check_oneof(
     errors: list[SchemaErrorDetail],
     path: str,
     schema_path: str,
+    pattern_matcher: PatternMatcher,
 ) -> None:
     match_indices: list[int] = []
     for i, sub in enumerate(schemas):
         if isinstance(sub, (dict, bool)):
             trial: list[SchemaErrorDetail] = []
-            _validate_schema(instance, sub, trial, path, "")
+            _validate_schema(instance, sub, trial, path, "", pattern_matcher)
             if not trial:
                 match_indices.append(i)
     if len(match_indices) == 0:
@@ -1377,9 +1417,10 @@ def _check_not(
     errors: list[SchemaErrorDetail],
     path: str,
     schema_path: str,
+    pattern_matcher: PatternMatcher,
 ) -> None:
     trial: list[SchemaErrorDetail] = []
-    _validate_schema(instance, not_schema, trial, path, "")
+    _validate_schema(instance, not_schema, trial, path, "", pattern_matcher)
     if not trial:
         errors.append(
             SchemaErrorDetail(
@@ -1397,22 +1438,33 @@ def _check_if_then_else(
     errors: list[SchemaErrorDetail],
     path: str,
     schema_path: str,
+    pattern_matcher: PatternMatcher,
 ) -> None:
     """Handle ``if``/``then``/``else`` conditional keywords."""
     if_schema = schema["if"]
     trial: list[SchemaErrorDetail] = []
-    _validate_schema(instance, if_schema, trial, path, "")
+    _validate_schema(instance, if_schema, trial, path, "", pattern_matcher)
     if not trial:
         then_schema = schema.get("then")
         if then_schema is not None:
             _validate_schema(
-                instance, then_schema, errors, path, _jp(schema_path, "then")
+                instance,
+                then_schema,
+                errors,
+                path,
+                _jp(schema_path, "then"),
+                pattern_matcher,
             )
     else:
         else_schema = schema.get("else")
         if else_schema is not None:
             _validate_schema(
-                instance, else_schema, errors, path, _jp(schema_path, "else")
+                instance,
+                else_schema,
+                errors,
+                path,
+                _jp(schema_path, "else"),
+                pattern_matcher,
             )
 
 
@@ -1425,6 +1477,7 @@ def _validate_schema(
     errors: list[SchemaErrorDetail],
     path: str,
     schema_path: str,
+    pattern_matcher: PatternMatcher,
 ) -> None:
     """Validate *instance* against a single schema node, collecting errors."""
     if schema is True or schema == {}:
@@ -1448,20 +1501,28 @@ def _validate_schema(
         _check_enum(instance, schema["enum"], errors, path, schema_path)
     if "const" in schema:
         _check_const(instance, schema["const"], errors, path, schema_path)
-    _check_string(instance, schema, errors, path, schema_path)
+    _check_string(instance, schema, errors, path, schema_path, pattern_matcher)
     _check_number(instance, schema, errors, path, schema_path)
-    _check_object(instance, schema, errors, path, schema_path)
-    _check_array(instance, schema, errors, path, schema_path)
+    _check_object(instance, schema, errors, path, schema_path, pattern_matcher)
+    _check_array(instance, schema, errors, path, schema_path, pattern_matcher)
     if "allOf" in schema and isinstance(schema["allOf"], list):
-        _check_allof(instance, schema["allOf"], errors, path, schema_path)
+        _check_allof(
+            instance, schema["allOf"], errors, path, schema_path, pattern_matcher
+        )
     if "anyOf" in schema and isinstance(schema["anyOf"], list):
-        _check_anyof(instance, schema["anyOf"], errors, path, schema_path)
+        _check_anyof(
+            instance, schema["anyOf"], errors, path, schema_path, pattern_matcher
+        )
     if "oneOf" in schema and isinstance(schema["oneOf"], list):
-        _check_oneof(instance, schema["oneOf"], errors, path, schema_path)
+        _check_oneof(
+            instance, schema["oneOf"], errors, path, schema_path, pattern_matcher
+        )
     if "not" in schema:
-        _check_not(instance, schema["not"], errors, path, schema_path)
+        _check_not(instance, schema["not"], errors, path, schema_path, pattern_matcher)
     if "if" in schema:
-        _check_if_then_else(instance, schema, errors, path, schema_path)
+        _check_if_then_else(
+            instance, schema, errors, path, schema_path, pattern_matcher
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1474,6 +1535,7 @@ def iter_errors(
     schema: dict[str, Any] | bool,
     *,
     resolved: bool = False,
+    pattern_matcher: PatternMatcher | None = None,
 ) -> list[SchemaErrorDetail]:
     """Validate *instance* against JSON Schema *schema* and return all errors.
 
@@ -1496,6 +1558,15 @@ def iter_errors(
             passing an unresolved schema with ``resolved=True`` silently
             skips ``$ref`` targets — the validator would ignore them and
             report no errors for the referenced sub-schemas.
+        pattern_matcher: Callable applied as ``pattern_matcher(pattern,
+            text)`` for every ``pattern`` and ``patternProperties`` check.
+            It must have ``re.search`` semantics: a partial match, not a
+            full match.  ``None`` (the default) uses :func:`re.search`.
+            Supply a bounded matcher — for example one backed by the
+            ``regex`` package's ``timeout`` argument — when the schema is
+            untrusted.  Exceptions raised by the matcher propagate
+            unchanged; a matcher failure is never reported as a schema
+            validation error.
 
     Returns:
         A list of :class:`SchemaErrorDetail`; empty if valid.
@@ -1504,12 +1575,13 @@ def iter_errors(
         RefExpansionLimitError: If the schema's ``$ref`` graph exceeds the
             default expansion budget (see :func:`resolve_refs`).
     """
+    matcher = _search_matcher if pattern_matcher is None else pattern_matcher
     errors: list[SchemaErrorDetail] = []
     if isinstance(schema, bool):
-        _validate_schema(instance, schema, errors, "", "")
+        _validate_schema(instance, schema, errors, "", "", matcher)
         return errors
     effective = schema if resolved else resolve_refs(schema)
-    _validate_schema(instance, effective, errors, "", "")
+    _validate_schema(instance, effective, errors, "", "", matcher)
     return errors
 
 
@@ -1518,6 +1590,7 @@ def schema_validate(
     schema: dict[str, Any] | bool,
     *,
     resolved: bool = False,
+    pattern_matcher: PatternMatcher | None = None,
 ) -> None:
     """Validate *instance* against JSON Schema *schema*.
 
@@ -1528,12 +1601,19 @@ def schema_validate(
             called :func:`resolve_refs`).  Must not be set to ``True``
             unless the schema has been resolved — unresolved ``$ref``
             nodes would be silently ignored.
+        pattern_matcher: Callable applied as ``pattern_matcher(pattern,
+            text)`` for every ``pattern`` and ``patternProperties`` check,
+            with ``re.search`` semantics.  ``None`` (the default) uses
+            :func:`re.search`.  Exceptions raised by the matcher propagate
+            unchanged.
 
     Raises:
         SchemaValidationError: If validation fails, with all errors collected.
         RefExpansionLimitError: If the schema's ``$ref`` graph exceeds the
             default expansion budget (see :func:`resolve_refs`).
     """
-    errors = iter_errors(instance, schema, resolved=resolved)
+    errors = iter_errors(
+        instance, schema, resolved=resolved, pattern_matcher=pattern_matcher
+    )
     if errors:
         raise SchemaValidationError(errors)

@@ -1,5 +1,5 @@
 # /// zerodep
-# version = "0.7.0"
+# version = "0.7.1"
 # deps = []
 # tier = "subsystem"
 # category = "network"
@@ -697,6 +697,9 @@ def _decompress_body(
 ) -> bytes:
     """Decompress a response body based on Content-Encoding.
 
+    A gzip body may concatenate several members.  They are one stream and
+    every member is decoded; ``max_size`` bounds their combined output.
+
     Args:
         body: The raw response body bytes.
         encoding: The Content-Encoding value.
@@ -716,16 +719,17 @@ def _decompress_body(
     if encoding not in ("gzip", "x-gzip", "deflate"):
         return body
 
+    if encoding in ("gzip", "x-gzip"):
+        return _decompress_gzip_members(body, max_size=max_size, url=url)
+
     # ``max_length=0`` tells zlib to apply no limit.
     max_length = max_size + 1 if max_size is not None else 0
-    decompressors: list[zlib._Decompress] = []
-    primary = _make_decompressor(encoding)
-    if primary is not None:
-        decompressors.append(primary)
-    if encoding == "deflate":
-        # Some servers send a zlib-wrapped stream under "deflate"; try the
-        # wrapped form when the raw attempt rejects the bytes.
-        decompressors.append(zlib.decompressobj())
+    # Some servers send a zlib-wrapped stream under "deflate"; try the
+    # wrapped form when the raw attempt rejects the bytes.
+    decompressors: list[zlib._Decompress] = [
+        zlib.decompressobj(-zlib.MAX_WBITS),
+        zlib.decompressobj(),
+    ]
 
     last_error: zlib.error | None = None
     for decompressor in decompressors:
@@ -754,6 +758,62 @@ def _decompress_body(
     raise DecompressionError(
         f"Incomplete or truncated {encoding} response body from {url}"
     ) from last_error
+
+
+def _decompress_gzip_members(
+    body: bytes,
+    *,
+    max_size: int | None = None,
+    url: str = "",
+) -> bytes:
+    """Decode every member of a concatenated gzip stream.
+
+    ``zlib.decompressobj`` stops at the end of the first member and keeps
+    the bytes that follow in ``unused_data``.  RFC 1952 allows a gzip stream
+    to carry any number of members, and a response assembled from several
+    compressed parts relies on every one being decoded.
+
+    Args:
+        body: The raw response body bytes.
+        max_size: Optional cap on the total decompressed size.  The budget
+            spans all members, so several small members cannot combine past
+            it.
+        url: Response URL, used in the size error.
+
+    Returns:
+        The concatenation of every member's decompressed content.
+
+    Raises:
+        ResponseTooLargeError: If the total decompressed body exceeds
+            *max_size*.
+        DecompressionError: If a member is truncated or does not decode.
+    """
+    message = f"Incomplete or truncated gzip response body from {url}"
+    out = bytearray()
+    data = body
+    while True:
+        decompressor = zlib.decompressobj(16 + zlib.MAX_WBITS)
+        # Leave room for one byte past the budget, so crossing it is visible.
+        max_length = 0 if max_size is None else max_size - len(out) + 1
+        if max_size is not None and max_length <= 0:
+            raise ResponseTooLargeError(url, max_size, received=len(out) + 1)
+        try:
+            out += decompressor.decompress(data, max_length)
+        except zlib.error as exc:
+            raise DecompressionError(message) from exc
+        if max_size is not None and len(out) > max_size:
+            raise ResponseTooLargeError(url, max_size, received=len(out))
+        try:
+            out += decompressor.flush()
+        except zlib.error as exc:
+            raise DecompressionError(message) from exc
+        if max_size is not None and len(out) > max_size:
+            raise ResponseTooLargeError(url, max_size, received=len(out))
+        if not decompressor.eof:
+            raise DecompressionError(message)
+        data = decompressor.unused_data
+        if not data:
+            return bytes(out)
 
 
 def _make_decompressor(encoding: str) -> zlib._Decompress | None:
@@ -962,6 +1022,33 @@ class StreamingResponse:
 
     # ── Sync iteration ──
 
+    def _decompress_chunk(self, chunk: bytes) -> bytes:
+        """Expand *chunk* and continue past gzip member boundaries.
+
+        A ``decompressobj`` stops at the end of the first member and keeps
+        the following bytes in ``unused_data``.  A gzip stream may carry
+        several members, so each boundary starts a fresh decompressor for
+        the rest of the bytes.  Non-gzip encodings keep one member.
+        """
+        decompressor = self._decompressor
+        if decompressor is None:
+            return chunk
+        out = bytearray()
+        while True:
+            out += decompressor.decompress(chunk)
+            if not decompressor.eof:
+                return bytes(out)
+            chunk = decompressor.unused_data
+            if not chunk:
+                return bytes(out)
+            encoding = self.headers.get("content-encoding", "").lower()
+            if encoding not in ("gzip", "x-gzip"):
+                return bytes(out)
+            decompressor = _make_decompressor(encoding)
+            if decompressor is None:
+                return bytes(out)
+            self._decompressor = decompressor
+
     def iter_bytes(self, chunk_size: int = 4096) -> Iterator[bytes]:
         """Yield response body in chunks as soon as they arrive.
 
@@ -985,9 +1072,7 @@ class StreamingResponse:
                 if not chunk:
                     break
                 self._sync_received = getattr(self, "_sync_received", 0) + len(chunk)
-                if self._decompressor:
-                    chunk = self._decompressor.decompress(chunk)
-                yield chunk
+                yield self._decompress_chunk(chunk)
             if self._decompressor:
                 remaining = self._decompressor.flush()
                 if remaining:
@@ -1031,9 +1116,7 @@ class StreamingResponse:
         try:
             raw_iter = self._select_raw_iterator(chunk_size)
             async for chunk in raw_iter:
-                if self._decompressor:
-                    chunk = self._decompressor.decompress(chunk)
-                yield chunk
+                yield self._decompress_chunk(chunk)
             if self._decompressor:
                 remaining = self._decompressor.flush()
                 if remaining:
