@@ -297,9 +297,29 @@ _DATA_KEYWORDS = frozenset({"example", "examples", "default", "enum", "const"})
 
 #: Schema keywords whose values are maps of *names* to subschemas.  The keys
 #: are property names (any string, including ``default`` or ``enum``), so
-#: the data-keyword skip must not be applied to them.
+#: the data-keyword skip must not be applied to them.  ``dependentSchemas``
+#: is the JSON Schema 2020-12 spelling and ``dependencies`` the draft-04 one;
+#: a ``dependencies`` value may also be an array of property names, which the
+#: walker ignores because it is not a schema.
 _NAME_MAP_KEYWORDS = frozenset(
-    {"properties", "patternProperties", "$defs", "definitions"}
+    {
+        "properties",
+        "patternProperties",
+        "dependentSchemas",
+        "dependencies",
+        "$defs",
+        "definitions",
+    }
+)
+
+#: Name maps walked by value, in a fixed order for deterministic messages.
+#: ``patternProperties`` is absent because its keys are checked as patterns.
+_NAME_MAP_WALK = (
+    "properties",
+    "dependentSchemas",
+    "dependencies",
+    "$defs",
+    "definitions",
 )
 
 #: Keywords ``_walk_patterns`` handles itself, so the generic child walk must
@@ -384,10 +404,12 @@ def _walk_name_map(
     seen: set[str],
     failures: list[str],
 ) -> None:
-    """Walk a ``properties`` / ``$defs`` / ``definitions`` map.
+    """Walk a name map such as ``properties`` or ``$defs``.
 
     The keys of these maps are names, not schema keywords, so every value is
     walked as a schema even when the name is ``default`` or ``enum``.
+    ``dependencies`` may also hold an array of property names, which the walk
+    ignores because a string is not a schema.
     """
     name_map = node.get(keyword)
     if not isinstance(name_map, dict):
@@ -409,7 +431,7 @@ def _walk_patterns(
             node.get("pattern"), f"{path}.pattern", tool_name, seen, failures
         )
         _walk_pattern_properties(node, path, tool_name, seen, failures)
-        for keyword in ("properties", "$defs", "definitions"):
+        for keyword in _NAME_MAP_WALK:
             _walk_name_map(node, keyword, path, tool_name, seen, failures)
         for key, value in node.items():
             if key in _HANDLED_KEYWORDS or key in _DATA_KEYWORDS:
