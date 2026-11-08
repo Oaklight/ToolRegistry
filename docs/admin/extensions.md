@@ -12,15 +12,17 @@
 |------|------|------|
 | `name` | 是 | 匹配 `^[a-z][a-z0-9_-]*$` 的小写标识符。它同时是 URL 段 `/ext/<name>` 与资源目录的键。 |
 | `title` | 是 | 导航标签的多语言映射，例如 `{"en": "Clock", "zh": "时钟"}`。 |
-| `assets` | 是 | 磁盘目录，`entry` 与 `styles` 从中读取。 |
-| `entry` | 是 | `assets/ext/<name>/` 下的浏览器模块路径，以 `.js` 结尾。 |
+| `assets` | 有标签页时必需 | 磁盘目录，`entry` 与 `styles` 从中读取。声明 `nav` 或任何资源时必须提供。 |
+| `entry` | 有标签页时必需 | `assets/ext/<name>/` 下的浏览器模块路径，以 `.js` 结尾。存在 `nav` 时必需。 |
 | `requires_api` | 是 | 扩展面向的契约版本，必须等于 `ADMIN_EXTENSION_API`（`1`）。 |
 | `styles` | 否 | `assets/ext/<name>/` 下 `.css` 路径的序列。 |
 | `icon` | 否 | 导航项的 SVG 标记。默认为网格图标。 |
-| `nav` | 否 | 映射，可含 `group` 标签与整数 `order`（默认 `100`）。 |
+| `nav` | 否 | 映射，可含 `group` 翻译键与整数 `order`（默认 `100`）。 |
 | `register` | 是 | 以 `AdminContext` 调用一次。 |
 
-`name`、`title`、`entry`、`requires_api` 与 `register` 在监听器启动前校验。违反契约会抛出带扩展名的 `AdminExtensionError`，`AdminServer.start()` 失败；面板不会运行只挂载了一半的扩展。
+`name`、`title`、`requires_api` 与 `register` 在监听器启动前校验。违反契约会抛出带扩展名的 `AdminExtensionError`，`AdminServer.start()` 失败；面板不会运行只挂载了一半的扩展。
+
+只提供 HTTP 路由的扩展可省略 `nav`、`assets`、`entry` 与 `styles`。其路由照常挂载，`GET /api/extensions` 报告 `"nav": null` 与 `"entry": null`，面板不为它显示标签页。
 
 不以 `assets/ext/<name>/` 开头、含点段、或后缀不在 `.css` / `.js` 之内的路径一律拒绝。
 
@@ -41,7 +43,7 @@ class ClockExtension:
     styles = ("assets/ext/clock/style.css",)
     requires_api = ADMIN_EXTENSION_API
     assets = Path("/srv/toolregistry/extensions/clock/static")
-    nav = {"group": "Utilities", "order": 20}
+    nav = {"group": "utilities", "order": 20}
 
     def register(self, ctx):
         ctx.get("/now", self.now)
@@ -83,7 +85,7 @@ def status(request):
       "name": "clock",
       "title": {"en": "Clock", "zh": "时钟"},
       "icon": null,
-      "nav": {"group": "Utilities", "order": 20},
+      "nav": {"group": "utilities", "order": 20},
       "entry": "assets/ext/clock/main.js",
       "styles": ["assets/ext/clock/style.css"],
       "api_prefix": "/ext/clock",
@@ -93,7 +95,9 @@ def status(request):
 }
 ```
 
-该端点与管理面板其余部分使用相同的认证。
+该端点与管理面板其余部分使用相同的认证。仅提供 API 的扩展以 `"nav": null` 与 `"entry": null` 出现。
+
+`nav.group` 是翻译键而非显示标签：字典定义了 `group.<key>` 时页面外壳渲染译文，否则显示键本身。分组键与 `name` 使用相同的小写字符集。
 
 ## 浏览器模块
 
@@ -138,11 +142,11 @@ export function unmount() {
 
 `assets` 目录下的文件通过 `/assets/ext/<name>/...` 提供。只提供 `.css` 与 `.js`，请求路径会检查点段，解析后的文件必须位于该目录内，因此符号链接无法逃逸。
 
-启用 UI 时，扩展资源与页面外壳共享认证豁免：浏览器必须先加载面板脚本，才能弹出令牌输入框。因而在启用令牌的面板中扩展资源是公开的。不要在其中放密钥。
+启用 UI 时，扩展资源与页面外壳共享认证豁免：浏览器必须先加载面板脚本，才能弹出令牌输入框。处理器只提供已声明且内容类型在白名单内的文件。因而即使面板启用了令牌，扩展资源也对任何能访问面板端口的人公开。不要在其中放密钥。
 
 ## 安全与版本
 
 - **单一认证级别。** 扩展路由继承面板策略，没有按扩展区分的令牌或角色。
 - **跨站防护同样生效。** 对 `/ext/...` 的状态变更请求与 `/api/...` 遵循相同的来源、`Sec-Fetch-Site` 与 JSON 内容类型规则。
 - **版本握手。** `requires_api` 在服务端启动时校验，浏览器再对照 `api_version` 校验。不匹配会拒绝该扩展并在消息中给出扩展名，绝不会静默挂载。
-- **信任。** 扩展是运维方安装的代码。其浏览器模块以面板权限运行，`icon` 字符串按 SVG 标记插入。只安装你信任的扩展。
+- **信任。** 扩展是运维方安装的代码。其浏览器模块以面板权限运行，`icon` 字符串按 SVG 标记插入。扩展没有沙箱，因此面板的 XSS 边界只取决于扩展自身的正确性。只安装你信任的扩展。
