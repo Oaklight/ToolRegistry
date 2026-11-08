@@ -14,6 +14,20 @@ This page documents all notable changes to the ToolRegistry project since the fi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), with project-specific grouping where useful.
 
+## [Unreleased]
+
+### Added
+
+#### Core
+
+- **The outbound address policy is public** (#425): `toolregistry.netpolicy` exposes `validate_outbound_url()`, `validate_outbound_url_async()`, `UnsafeAddressError`, `PrivateAddressError`, `SCHEMES` and `clear_address_cache()`. `toolregistry._netpolicy` stays importable and resolves to the same objects, so existing imports keep working. The module docstring states the contract: the policy decides whether a URL may be dialed; redirects, connection-time address pinning and cross-origin credential handling remain the caller's responsibility.
+
+### Security
+
+#### Core
+
+- **Special-purpose ranges are refused explicitly** (#425, stricter than 0.20.0): beyond the `is_global` allowlist, the policy now refuses `192.0.0.0/24`, `192.88.99.0/24`, `198.18.0.0/15`, `240.0.0.0/4`, `::/96`, `100::/64`, `2001::/32`, `2001:2::/48`, `2001:10::/28`, `2001:20::/28`, `2001:db8::/32`, `2002::/16`, `3fff::/20` and `5f00::/16`. `192.88.99.0/24`, `2001:20::/28` and `5f00::/16` are reported as globally routable by `ipaddress` on every supported interpreter, so `is_global` alone let them through; the others are pinned so a future interpreter table change cannot reopen them. NAT64 addresses (`64:ff9b::/96`, `64:ff9b:1::/48`) are judged by the IPv4 address they embed, so `64:ff9b::7f00:1` no longer reaches `127.0.0.1` while NAT64 access to a public IPv4 address still works. `allow_private_hosts=True` keeps its opt-out.
+
 ## [0.20.0] - 2026-11-08
 
 ### Breaking changes
