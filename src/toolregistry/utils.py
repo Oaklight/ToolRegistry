@@ -86,12 +86,7 @@ class OpenAPIPathError(ValueError):
     """
 
 
-def _join_base_url(
-    base_url: str,
-    path: str,
-    *,
-    allow_private_hosts: bool = False,
-) -> str:
+def _join_base_url_path(base_url: str, path: str) -> str:
     """Join *path* to *base_url* without allowing the origin to change.
 
     The clients carry credentials (``Authorization``, Basic auth) and custom
@@ -102,12 +97,13 @@ def _join_base_url(
     clients and proxies normalise it to ``/``, which would turn
     ``/\\host`` into a protocol-relative URL.
 
+    This is the synchronous half of :func:`_join_base_url`: it does no name
+    resolution, so an async client can call it on the event loop and then
+    await the address check itself.
+
     Args:
         base_url: The configured base URL.
         path: The request path supplied by the caller.
-        allow_private_hosts: Permit a base URL that resolves to a loopback,
-            link-local or private address.  Defaults to ``False``; a client
-            serving a local API passes ``True``.
 
     Returns:
         ``base_url + path``.
@@ -116,9 +112,6 @@ def _join_base_url(
         OpenAPIPathError: If *path* is not a string rooted at a single ``/``,
             contains a backslash, or the joined URL's scheme or netloc differs
             from the base URL's.
-        UnsafeAddressError: If *base_url* uses a scheme the outbound policy
-            does not accept, names no host, does not resolve, or resolves to
-            a non-public address while *allow_private_hosts* is false.
     """
     if (
         not isinstance(path, str)
@@ -142,6 +135,36 @@ def _join_base_url(
             "Refusing to send a request outside the configured base origin: "
             f"{redact_url_userinfo(url)!r}"
         )
+    return url
+
+
+def _join_base_url(
+    base_url: str,
+    path: str,
+    *,
+    allow_private_hosts: bool = False,
+) -> str:
+    """Join *path* to *base_url* and check the base address synchronously.
+
+    Args:
+        base_url: The configured base URL.
+        path: The request path supplied by the caller.
+        allow_private_hosts: Permit a base URL that resolves to a loopback,
+            link-local or private address.  Defaults to ``False``; a client
+            serving a local API passes ``True``.
+
+    Returns:
+        ``base_url + path``.
+
+    Raises:
+        OpenAPIPathError: If *path* is not a string rooted at a single ``/``,
+            contains a backslash, or the joined URL's scheme or netloc differs
+            from the base URL's.
+        UnsafeAddressError: If *base_url* uses a scheme the outbound policy
+            does not accept, names no host, does not resolve, or resolves to
+            a non-public address while *allow_private_hosts* is false.
+    """
+    url = _join_base_url_path(base_url, path)
     # The origin cannot change from here, so checking the base once per
     # call (a cached decision) bounds every request this client makes.
     validate_outbound_url(base_url, allow_private_hosts=allow_private_hosts)
@@ -211,30 +234,37 @@ class _BaseUrlAsyncClient:
         self._base_url = base_url
         self._allow_private_hosts = allow_private_hosts
 
-    def _url(self, path: str) -> str:
-        return _join_base_url(
+    async def _url(self, path: str) -> str:
+        """Return the request URL after an awaited outbound address check.
+
+        The path and origin checks are synchronous and cheap.  Name
+        resolution is not: it is awaited through the event loop so a cache
+        miss cannot stall the other tasks sharing the loop.
+        """
+        url = _join_base_url_path(self._base_url, path)
+        await validate_outbound_url_async(
             self._base_url,
-            path,
             allow_private_hosts=self._allow_private_hosts,
         )
+        return url
 
     async def get(self, url: str, **kwargs: Any) -> Any:
-        return await self._client.get(self._url(url), **kwargs)
+        return await self._client.get(await self._url(url), **kwargs)
 
     async def request(self, method: str, url: str, **kwargs: Any) -> Any:
-        return await self._client.request(method, self._url(url), **kwargs)
+        return await self._client.request(method, await self._url(url), **kwargs)
 
     async def post(self, url: str, **kwargs: Any) -> Any:
-        return await self._client.post(self._url(url), **kwargs)
+        return await self._client.post(await self._url(url), **kwargs)
 
     async def put(self, url: str, **kwargs: Any) -> Any:
-        return await self._client.put(self._url(url), **kwargs)
+        return await self._client.put(await self._url(url), **kwargs)
 
     async def patch(self, url: str, **kwargs: Any) -> Any:
-        return await self._client.patch(self._url(url), **kwargs)
+        return await self._client.patch(await self._url(url), **kwargs)
 
     async def delete(self, url: str, **kwargs: Any) -> Any:
-        return await self._client.delete(self._url(url), **kwargs)
+        return await self._client.delete(await self._url(url), **kwargs)
 
     async def aclose(self) -> None:
         await self._client.aclose()
