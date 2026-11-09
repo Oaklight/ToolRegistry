@@ -227,6 +227,24 @@ class ToolRegistry(
         super().__init__()
         if name is None:
             name = f"reg_{''.join(random.sample(string.hexdigits.lower(), 4))}"
+        if default_max_result_size is not None and (
+            isinstance(default_max_result_size, bool)
+            or not isinstance(default_max_result_size, int)
+            or default_max_result_size < 0
+        ):
+            raise ValueError(
+                f"Invalid default_max_result_size {default_max_result_size!r}, "
+                "must be a non-negative integer or None"
+            )
+        if default_max_result_tokens is not None and (
+            isinstance(default_max_result_tokens, bool)
+            or not isinstance(default_max_result_tokens, int)
+            or default_max_result_tokens < 0
+        ):
+            raise ValueError(
+                f"Invalid default_max_result_tokens {default_max_result_tokens!r}, "
+                "must be a non-negative integer or None"
+            )
         self.name = name
         self._thread_backend = ThreadBackend()
         self._process_backend = ProcessPoolBackend()

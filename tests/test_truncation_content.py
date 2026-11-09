@@ -91,6 +91,32 @@ class TestTokenBudget:
         assert metadata.max_result_tokens is None
 
 
+class TestResultSizeValidation:
+    def test_negative_and_non_integer_caps_are_refused(self):
+        for value in (-1, True, 1.5, "10"):
+            with pytest.raises(ValueError, match="max_result_size"):
+                ToolMetadata(max_result_size=value)
+
+    def test_zero_and_none_caps_are_allowed(self):
+        assert ToolMetadata(max_result_size=0).max_result_size == 0
+        assert ToolMetadata().max_result_size is None
+
+    def test_registry_refuses_an_invalid_default_cap(self):
+        for value in (-1, True, 1.5, "10"):
+            with pytest.raises(ValueError, match="default_max_result_size"):
+                ToolRegistry(default_max_result_size=value)
+
+    def test_registry_refuses_an_invalid_default_token_budget(self):
+        for value in (-1, True, 1.5, "10"):
+            with pytest.raises(ValueError, match="default_max_result_tokens"):
+                ToolRegistry(default_max_result_tokens=value)
+
+    def test_registry_allows_zero_and_none_caps(self):
+        assert ToolRegistry(default_max_result_size=0)._result_char_budget("x") == 0
+        assert ToolRegistry()._result_char_budget("x") is None
+        assert ToolRegistry(default_max_result_tokens=0)._result_char_budget("x") == 0
+
+
 class TestJsonAwareTruncation:
     def test_a_dict_root_gains_a_truncation_key_with_counts(self):
         text = json.dumps({f"k{index}": index for index in range(10)})
