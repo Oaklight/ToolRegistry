@@ -16,15 +16,19 @@ from toolregistry import Tool, ToolRegistry
 
 def _local_tool():
     """Build the issue's tool with every annotation name local to the factory."""
+    from enum import Enum
     from typing import Annotated
 
     from pydantic import Field
 
-    class LocalModel:
+    class LocalColor(str, Enum):
         """Visible only inside ``_local_tool``."""
 
-    def bounded(x: Annotated[int, Field(ge=0, le=100)], model: LocalModel) -> int:
-        """Take a bounded integer and a local type."""
+        RED = "red"
+        BLUE = "blue"
+
+    def bounded(x: Annotated[int, Field(ge=0, le=100)], color: LocalColor) -> int:
+        """Take a bounded integer and a local enum."""
         return x
 
     return bounded, locals()
@@ -47,7 +51,7 @@ def test_without_localns_the_degradation_is_still_reported() -> None:
     with pytest.warns(UserWarning, match="cannot be represented"):
         tool = Tool.from_function(func, name="bounded")
 
-    assert tool.metadata.unresolved_parameters == ("model", "x")
+    assert tool.metadata.unresolved_parameters == ("color", "x")
     assert "minimum" not in tool.parameters["properties"]["x"]
 
 
@@ -72,7 +76,7 @@ def test_register_without_localns_still_reports_the_degradation() -> None:
 
     tool = registry.get_tool("bounded")
     assert tool is not None
-    assert tool.metadata.unresolved_parameters == ("model", "x")
+    assert tool.metadata.unresolved_parameters == ("color", "x")
 
 
 @pytest.mark.asyncio

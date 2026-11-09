@@ -341,9 +341,10 @@ class ToolMetadata:
             wins. None means no limit. Appended last so positional
             construction of this dataclass keeps working.
         unresolved_parameters: Names of parameters whose annotation could
-            not be resolved, so their published schema is unconstrained.
-            Empty when every annotation resolved. Appended last for the
-            same positional-construction reason.
+            not be resolved to a schema (or resolved to a type with no
+            JSON Schema rendering), so their published schema is
+            unconstrained. Empty when every parameter has a schema.
+            Appended last for the same positional-construction reason.
         tags: Predefined tags from ToolTag enum.
         custom_tags: User-defined free-form string tags.
         source: Origin of the tool (e.g. ``"native"``, ``"mcp"``,
@@ -526,13 +527,14 @@ class ToolMetadata:
     unresolved_parameters: tuple[str, ...] = ()
     """Parameters whose annotation could not be resolved to a schema.
 
-    A function-local type name (or an ``Annotated``/``Field`` pair defined
-    inside the enclosing function) cannot be resolved through the
-    function's globals.  Registration still succeeds and emits a
-    ``UserWarning``, but the parameter is published with an unconstrained
-    schema.  This tuple names those parameters, so a server can report the
-    degradation instead of presenting the empty schema as the contract.
-    Empty when every annotation resolved.  Declared last so positional
+    This covers an annotation that cannot be evaluated (a function-local
+    type name, or an ``Annotated``/``Field`` pair defined inside the
+    enclosing function) and one that evaluates but has no JSON Schema
+    rendering.  Registration still succeeds and emits a ``UserWarning``,
+    but the parameter is published with an unconstrained schema.  This
+    tuple names those parameters, so a server can report the degradation
+    instead of presenting the empty schema as the contract.  Empty when
+    every parameter has a schema.  Declared last so positional
     construction of this dataclass keeps working.
     """
 
