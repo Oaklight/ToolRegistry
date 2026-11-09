@@ -120,3 +120,22 @@ def test_a_resolved_annotation_leaves_the_field_empty() -> None:
     built = Tool.from_function(tool, name="resolved")
 
     assert built.metadata.unresolved_parameters == ()
+
+
+def _plain_local_class_tool():
+    class LocalModel:
+        """Visible only inside this factory."""
+
+    def tool(x: LocalModel) -> int:
+        return 1
+
+    return tool
+
+
+def test_a_plain_local_class_is_reported_and_serialized() -> None:
+    """#469's degradation signal, kept: the class has no schema either way."""
+    with pytest.warns(UserWarning, match="cannot be represented"):
+        tool = Tool.from_function(_plain_local_class_tool(), name="local_class")
+
+    assert tool.metadata.unresolved_parameters == ("x",)
+    assert tool.to_dict()["metadata"]["unresolved_parameters"] == ("x",)
