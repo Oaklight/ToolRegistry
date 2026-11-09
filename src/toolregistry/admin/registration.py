@@ -199,32 +199,48 @@ def _checked_base_url(value: str, *, allow_private_hosts: bool) -> str:
 
 
 def _base_url_from_spec(spec: dict[str, Any], *, allow_private_hosts: bool) -> str:
-    """Return the first ``servers[]`` URL when every entry is allowed.
+    """Return the ``servers[0]`` URL when it is allowed.
+
+    Only the entry registration dials is checked.  A document may list
+    further entries — a generated spec often appends a local development
+    server — and they are never requested, so they must not refuse the
+    source.  This is the same narrow rule a refresh applies to a moved
+    ``servers[0]`` (#460).
+
+    A templated entry (``https://{region}.example.com``) cannot be dialed
+    before substitution, so it is reported as unusable rather than resolved.
+
+    Args:
+        spec: The parsed OpenAPI document.
+        allow_private_hosts: Whether the operator started the panel with
+            ``enable_admin(allow_private_hosts=True)``.
+
+    Returns:
+        ``servers[0]`` without a trailing slash.
 
     Raises:
-        SourceError: When an entry is refused, or the spec has no usable
+        SourceError: When the entry is refused, or the spec has no usable
             ``servers[]`` entry.  The two cases are reported differently,
             because only the first one has a switch.
     """
-    from .._netpolicy import PrivateAddressError, UnsafeAddressError
-    from ..integrations.openapi.utils import (
-        check_spec_servers,
-        extract_base_url_from_specs,
+    from .._netpolicy import (
+        PrivateAddressError,
+        UnsafeAddressError,
+        validate_outbound_url,
     )
+    from ..integrations.openapi.utils import first_server_url
 
+    base_url = first_server_url(spec)
+    if not base_url or "{" in base_url or "}" in base_url:
+        raise SourceError("The spec has no servers[] entry; pass 'base_url' explicitly")
     try:
-        check_spec_servers(spec, allow_private_hosts=allow_private_hosts)
+        validate_outbound_url(base_url, allow_private_hosts=allow_private_hosts)
     except PrivateAddressError:
         raise SourceError(
             "The spec's servers[] URL is refused. " + _PRIVATE_HOSTS_HINT
         ) from None
     except UnsafeAddressError as exc:
         raise SourceError(str(exc)) from exc
-    base_url = extract_base_url_from_specs(
-        spec, allow_private_hosts=allow_private_hosts
-    )
-    if not base_url:
-        raise SourceError("The spec has no servers[] entry; pass 'base_url' explicitly")
     return base_url
 
 

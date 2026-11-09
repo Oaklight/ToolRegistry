@@ -834,6 +834,108 @@ class TestSpecUrlScheme:
         assert "http://example.com/openapi.json" in message
 
 
+class TestServersBaseUrl:
+    """Only ``servers[0]`` is validated when no explicit base URL is given.
+
+    A generated document often appends a local development server.  The
+    panel dials only the first entry, so a later private entry must not
+    refuse the source; the first entry alone decides (#461).
+    """
+
+    _PUBLIC = {"url": "https://pets.example/api"}
+    _LOOPBACK = {"url": "http://127.0.0.1:9/api"}
+
+    def test_a_private_entry_after_the_first_does_not_block_registration(
+        self, server
+    ) -> None:
+        spec = {**_SPEC, "servers": [self._PUBLIC, self._LOOPBACK]}
+
+        status, data = server.request(
+            "/api/sources/preview", "POST", {"kind": "openapi", "spec": spec}
+        )
+
+        assert status == 200, data
+        assert data["info"]["base_url"] == "https://pets.example/api"
+
+        status, data = server.request(
+            "/api/sources/register",
+            "POST",
+            {"kind": "openapi", "spec": spec, "selected": ["list_pets"]},
+        )
+
+        assert status == 200, data
+        assert data["registered"] == ["list_pets"]
+
+    def test_a_private_first_server_is_refused_with_the_switch_name(
+        self, server
+    ) -> None:
+        spec = {**_SPEC, "servers": [self._LOOPBACK, self._PUBLIC]}
+
+        status, data = server.request(
+            "/api/sources/preview", "POST", {"kind": "openapi", "spec": spec}
+        )
+
+        assert status == 400
+        assert "servers[] URL is refused" in data["message"]
+        assert "no servers[] entry" not in data["message"]
+        assert "allow_private_hosts" in data["message"]
+
+    def test_the_switch_still_allows_a_private_first_server(
+        self, server_private
+    ) -> None:
+        spec = {**_SPEC, "servers": [self._LOOPBACK, self._PUBLIC]}
+
+        status, data = server_private.request(
+            "/api/sources/preview", "POST", {"kind": "openapi", "spec": spec}
+        )
+
+        assert status == 200, data
+        assert data["info"]["base_url"] == "http://127.0.0.1:9/api"
+
+    def test_an_explicit_base_url_ignores_a_private_server(self, server) -> None:
+        spec = {**_SPEC, "servers": [self._LOOPBACK]}
+
+        status, data = server.request(
+            "/api/sources/preview",
+            "POST",
+            {
+                "kind": "openapi",
+                "spec": spec,
+                "base_url": "https://pets.example/api",
+            },
+        )
+
+        assert status == 200, data
+        assert data["info"]["base_url"] == "https://pets.example/api"
+
+        status, data = server.request(
+            "/api/sources/register",
+            "POST",
+            {
+                "kind": "openapi",
+                "spec": spec,
+                "base_url": "https://pets.example/api",
+                "selected": ["list_pets"],
+            },
+        )
+
+        assert status == 200, data
+        assert data["registered"] == ["list_pets"]
+
+    def test_a_templated_first_server_asks_for_an_explicit_base_url(
+        self, server
+    ) -> None:
+        spec = {**_SPEC, "servers": [{"url": "https://{region}.example.com"}]}
+
+        status, data = server.request(
+            "/api/sources/preview", "POST", {"kind": "openapi", "spec": spec}
+        )
+
+        assert status == 400
+        assert "no servers[] entry" in data["message"]
+        assert "pass 'base_url' explicitly" in data["message"]
+
+
 class TestPanelPolicy:
     """The panel states its fetch policy instead of inheriting a default."""
 
