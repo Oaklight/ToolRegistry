@@ -36,6 +36,8 @@ hide:
 
 - **大型结果可私有存储并按 id 分页读取**（#418）：`ToolRegistry(persist_large_results=True)` 会把每次截断的完整结果存入私有的按运行目录（目录 `0700`，文件 `0600`），保留 24 小时，目录上限 64 MiB 并最旧优先淘汰，同时注册内置的 `read_result(id, offset=0, limit=8000)` 工具。截断头部只携带不透明的 `res_<12 hex>` id，永不携带文件系统路径；`TruncatedResult.full_path` 仍供程序使用，但不会被渲染。持久化默认关闭，因此除非注册表显式启用，截断结果不再写入磁盘。向 `truncate_result` 传入 `ResultStore` 可指定目录、TTL 与配额。见[结果大小管理](usage/result_management.md)。
 
+- **配置文件可声明按路由的参数 schema**（#465）：`ToolConfig.tool_parameters` 是顶层块，按精确的已注册工具名索引，与 `tool_metadata` 的键相同。每个值必须是 JSON Schema 对象：`type` 可省略、为 `"object"`，或为包含 `"object"` 的列表（例如 `["object", "null"]`）；标量或数组类型会抛出 `ConfigError`，`properties` 出现时必须是映射。`load_config()` 解析并保存该块但不应用它，因为覆盖需要已注册的工具；未注册的名称会被保留，由消费方在注册后应用或跳过。`to_dict()` 仅在块非空时输出，因此现有配置文件的往返结果不变。见[声明式配置](usage/configuration.md)。
+
 #### 管理面板
 
 - **管理面板扩展（契约 v1）**（#435）：`AdminServer(..., extensions=[...])` 可挂载运维方安装的扩展。每个扩展声明 `name`、`title` 与 `requires_api`，通过 `AdminContext`（`get`、`post`、`put`、`patch`、`delete`）在 `/ext/<name>` 下注册路由；若需标签页，再声明 `nav` 与 `assets`、`entry`（可选 `styles` 与 `icon`）。没有 `nav` 的扩展是纯 API 扩展，无需资源目录。`GET /api/extensions` 提供清单；扩展资源经现有的后缀白名单与路径穿越防护从 `/assets/ext/<name>/` 提供；页面外壳导入入口模块并调用其 `register({container, api, i18n})` 导出。`requires_api` 在服务端启动时与浏览器中都会校验，不匹配会拒绝该扩展并在消息中给出扩展名。扩展路由继承面板认证，`/ext/` 的状态变更请求与 `/api/` 一样受跨站防护。见[管理面板扩展](admin/extensions.md)。

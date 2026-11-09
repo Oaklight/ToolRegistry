@@ -255,6 +255,29 @@ snake_case 形式。省略或设为 `null` 表示不过滤；空列表（`includ
 源条目（或 `auth`）下的未知键会在加载时以 `ConfigError` 拒绝，并在错误中指明
 条目与违规键，而不是被静默忽略。
 
+## 按路由的参数覆盖
+
+`tool_parameters` 用于替换单个已注册工具对外发布的参数 schema。它是顶层块，按精确的已注册工具名索引，与 `tool_metadata` 的键相同：
+
+```yaml
+tool_parameters:
+  calculator-evaluate:
+    type: object
+    properties:
+      expression:
+        type: string
+      precision:
+        type: integer
+    required: [expression]
+```
+
+每个值都必须描述一个 JSON 对象。`type` 可省略、为 `"object"`，或为包含 `"object"` 的列表（例如 `["object", "null"]`）；标量或数组类型会抛出 `ConfigError`，因为请求路径只会产生对象，更窄的 schema 会拒绝所有调用。`properties` 出现时必须是映射。
+
+`load_config()` 解析并保存该块但不应用它：覆盖需要工具已注册，因此由消费方在注册后应用；未注册的名称会原样保留，而不是被拒绝。某个覆盖是否与工具自身的 schema 兼容，由消费方判断。该块仅在非空时写回，因此现有配置文件的往返结果不变。
+
+!!! note
+    Core 负责配置 schema，所以该块定义在这里。把它应用到路由、并拒绝工具无法接受的覆盖，是消费方（例如 ToolRegistry 服务器的路由表）的职责。
+
 ## 解析类型
 
 `load_config()` 返回 `ToolConfig` 冻结 dataclass：
