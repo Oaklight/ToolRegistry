@@ -33,12 +33,16 @@ const AdminExtensions = (() => {
     }
 
     // A group is a translation key, not a label: "group.gateway" is rendered
-    // when a dictionary defines it, otherwise the key reads as itself.
+    // when a dictionary defines it, then the shell's own "nav.<key>" so an
+    // extension can reuse the built-in section vocabulary ("manage"), and
+    // otherwise the key reads as itself.
     function groupLabel(key) {
         if (!key) return t('nav.extensions');
         const active = I18N[currentLang] || {};
         const english = I18N.en || {};
-        return active['group.' + key] || english['group.' + key] || key;
+        return active['group.' + key] || english['group.' + key]
+            || active['nav.' + key] || english['nav.' + key]
+            || key;
     }
 
     // A path in the manifest is relative to the panel API prefix; accept both
@@ -254,7 +258,7 @@ const AdminExtensions = (() => {
         });
     }
 
-    return { apiVersion: ADMIN_EXTENSION_API, load, unmount, applyLanguage };
+    return { apiVersion: ADMIN_EXTENSION_API, load, unmount, applyLanguage, groupLabel };
 })();
 
 window.AdminExtensions = AdminExtensions;
