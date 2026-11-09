@@ -1,6 +1,7 @@
 # ToolRegistry
 
 [![PyPI version](https://img.shields.io/pypi/v/toolregistry?color=green)](https://pypi.org/project/toolregistry/)
+[![TestPyPI version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Ftest.pypi.org%2Fpypi%2Ftoolregistry%2Fjson&query=%24.info.version&label=TestPyPI&color=orange)](https://test.pypi.org/project/toolregistry/)
 [![GitHub release](https://img.shields.io/github/v/release/Oaklight/ToolRegistry?color=green)](https://github.com/Oaklight/ToolRegistry/releases/latest)
 [![CI](https://github.com/Oaklight/ToolRegistry/actions/workflows/ci.yml/badge.svg)](https://github.com/Oaklight/ToolRegistry/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
@@ -14,11 +15,11 @@ A protocol-agnostic tool management library for function-calling LLMs.
 
 ## Ecosystem
 
-| Package | Description | PyPI | Docs |
-|---------|-------------|------|------|
-| [**toolregistry**](https://github.com/Oaklight/ToolRegistry) | Core library — tool registration, schema generation, execution | [![PyPI](https://img.shields.io/pypi/v/toolregistry?color=green)](https://pypi.org/project/toolregistry/) | [Docs](https://toolregistry.readthedocs.io/) |
-| [**toolregistry-server**](https://github.com/Oaklight/toolregistry-server) | Server adapters — expose tools via OpenAPI & MCP | [![PyPI](https://img.shields.io/pypi/v/toolregistry-server?color=green)](https://pypi.org/project/toolregistry-server/) | [Docs](https://toolregistry-server.readthedocs.io/) |
-| [**toolregistry-hub**](https://github.com/Oaklight/toolregistry-hub) | Ready-to-use tools — calculator, web search, file ops, etc. | [![PyPI](https://img.shields.io/pypi/v/toolregistry-hub?color=green)](https://pypi.org/project/toolregistry-hub/) | [Docs](https://toolregistry-hub.readthedocs.io/) |
+| Package | Description | PyPI | TestPyPI | Docs |
+|---------|-------------|------|----------|------|
+| [**toolregistry**](https://github.com/Oaklight/ToolRegistry) | Core library — tool registration, schema generation, execution | [![PyPI](https://img.shields.io/pypi/v/toolregistry?color=green)](https://pypi.org/project/toolregistry/) | [![TestPyPI](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Ftest.pypi.org%2Fpypi%2Ftoolregistry%2Fjson&query=%24.info.version&label=TestPyPI&color=orange)](https://test.pypi.org/project/toolregistry/) | [Docs](https://toolregistry.readthedocs.io/) |
+| [**toolregistry-server**](https://github.com/Oaklight/toolregistry-server) | Server adapters — expose tools via OpenAPI & MCP | [![PyPI](https://img.shields.io/pypi/v/toolregistry-server?color=green)](https://pypi.org/project/toolregistry-server/) | [![TestPyPI](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Ftest.pypi.org%2Fpypi%2Ftoolregistry-server%2Fjson&query=%24.info.version&label=TestPyPI&color=orange)](https://test.pypi.org/project/toolregistry-server/) | [Docs](https://toolregistry-server.readthedocs.io/) |
+| [**toolregistry-hub**](https://github.com/Oaklight/toolregistry-hub) | Ready-to-use tools — calculator, web search, file ops, etc. | [![PyPI](https://img.shields.io/pypi/v/toolregistry-hub?color=green)](https://pypi.org/project/toolregistry-hub/) | [![TestPyPI](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Ftest.pypi.org%2Fpypi%2Ftoolregistry-hub%2Fjson&query=%24.info.version&label=TestPyPI&color=orange)](https://test.pypi.org/project/toolregistry-hub/) | [Docs](https://toolregistry-hub.readthedocs.io/) |
 
 ```
 toolregistry (core)
