@@ -150,6 +150,13 @@ or a private network, start the server with
 `registry.enable_admin(allow_private_hosts=True)`; the MCP form additionally
 offers a per-source **Allow private network hosts** checkbox.
 
+For an OpenAPI source the panel derives the base URL from `servers[0]` and
+checks only that entry. Later entries are never requested, so a generated
+document that appends a local development server still registers; pass
+`base_url` explicitly to choose a different entry. A templated `servers[0]`
+(`https://{region}.example.com`) needs an explicit `base_url`, because it
+cannot be resolved before substitution.
+
 Errors — an unreachable server, an unimportable module, a spec without
 `servers[]` — are reported in the panel instead of being registered silently.
 A server that requires a token reports an empty error; the panel says so and

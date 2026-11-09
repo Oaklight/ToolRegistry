@@ -50,6 +50,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 #### Core
 
+- **The admin panel validates only the `servers[0]` entry it will dial** (#461, follow-up to #460): `admin/registration.py` derives the base URL with `first_server_url` and checks that entry alone, so a generated document whose `servers[1]` is a local development server registers instead of being refused. An explicit `base_url` still makes the document's `servers` irrelevant, and a templated first entry asks for an explicit `base_url`. `check_spec_servers` and `extract_base_url_from_specs` keep their all-entries contracts for callers that need them. See [Admin panel](admin/web-ui.md).
+
 - **A refresh validates only the base URL it adopts** (#460, refining #457): `OpenAPIIntegration.refresh()` checks the outbound address policy for the candidate it is about to adopt and nothing else. A document that lists a fallback such as `http://localhost:8080` at `servers[1]` refreshes normally instead of failing every time, an explicit caller base URL makes the document's `servers` irrelevant, and a templated `servers[0]` (`https://{region}.example.com`) is neither validated nor adopted, so the rest of the document still applies. Registration records `servers[0]` through the new unchecked `first_server_url` helper; a refused candidate still raises `UnsafeAddressError` with the tools, the config and the stored document untouched. See [OpenAPI Integration](api/integrations/openapi.md).
 
 #### Admin panel
