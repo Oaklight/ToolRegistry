@@ -81,12 +81,16 @@ OpenAPI 集成旨在基于 OpenAPI 规范自动发现和注册 REST API 端点�
 `last_refreshed_at`。文档发生变化时会与现有工具做 diff：运维手动禁用的名称
 仍保持禁用，已消失的路径会被注销，定义未变的工具保留其注册表状态。
 
-base URL 会跟随文档，但有边界。注册时文档产生的 URL 会被记住；只有当前客户端
-配置仍等于该记忆值时，刷新才会采纳移动后的 `servers[0]`——调用方显式提供的
-base URL 永远不会被替换。采纳会重建每个工具的包装器，包括定义未变的操作；这种
-替换不计入 `updated`，而由 `RefreshResult.base_url_changed` 表示。若新文档的
-`servers[]` 条目被出站地址策略拒绝，则抛出 `UnsafeAddressError`，工具、配置与
-已保存的文档都保持不变。
+base URL 会跟随文档，但有边界。注册时文档在 `servers[0]` 中写明的 URL 会被
+记住；只有当前客户端配置仍等于该记忆值时，刷新才会采纳移动后的
+`servers[0]`——调用方显式提供的 base URL 永远不会被替换。只有刷新真正要采纳的
+那一个条目会接受出站地址策略检查；不会被拨打的条目既不校验也不解析，而显式
+override 会让文档的 `servers` 与本次刷新无关。模板化条目（如
+`https://{region}.example.com`）在替换前无法解析，因此既不会被采纳也不会被
+检查：当前 base URL 保持不变，文档的其余变更照常生效。采纳会重建每个工具的
+包装器，包括定义未变的操作；这种替换不计入 `updated`，而由
+`RefreshResult.base_url_changed` 表示。被拒绝的候选条目会抛出
+`UnsafeAddressError`，工具、配置与已保存的文档都保持不变。
 
 `forget_tracked_tools(names)` 供「在两次刷新之间移除了工具」的调用方使用——例如
 校验步骤丢掉了 schema 无法接受的工具。没有它，下一次刷新会认为该名称仍被跟踪但
