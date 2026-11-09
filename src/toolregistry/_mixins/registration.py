@@ -16,6 +16,7 @@ from ..utils import HttpClientConfig, normalize_tool_name
 from .._warnings import warn_at_user_frame
 
 if TYPE_CHECKING:
+    from ..integrations.openapi.integration import OpenAPIIntegration
     from ..tool_registry import ToolRegistry
 
 
@@ -1008,6 +1009,27 @@ class RegistrationMixin:
             constructor_kwargs=constructor_kwargs,
             **kwargs,
         )
+
+    # ---- Integrations ----
+
+    @property
+    def openapi_integrations(self) -> tuple[OpenAPIIntegration, ...]:
+        """Read-only view of the registered OpenAPI integrations.
+
+        One integration is appended per ``register(..., source="openapi")``
+        call, and per direct ``register_openapi_tools*`` call, in creation
+        order.  The last element is therefore the most recently created
+        integration, which is the one that owns the newest spec URL and
+        ETag.
+
+        The tuple is an immutable snapshot: adding an integration later does
+        not change a tuple already returned.  The integration objects are
+        live, so refreshing one affects the registry.
+
+        Returns:
+            The registered OpenAPI integrations, oldest first.
+        """
+        return tuple(self._openapi_integrations)
 
     # ---- Refresh ----
 
