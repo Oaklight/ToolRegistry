@@ -32,7 +32,7 @@ hide:
 
 #### 核心
 
-- **`utils.py` 按职责拆分**（#437）：工具名标准化与注册过滤器移至 `toolregistry._names`，基础 URL 的 HTTP 客户端与 `HttpClientConfig` 移至 `toolregistry._http`，工具结果编码移至 `toolregistry._serialisation`。`toolregistry.utils` 重新导出此前的所有名称，因此 `compute_schema_hash`、`ToolResultJSONEncoder` 等下游导入保持不变。`api/helpers.md` 记录新的实现位置，`AGENTS.md` 改为描述真实的包结构，并由一个检查其所列每个路径是否存在的测试固定。
+- **`utils.py` 按职责拆分**（#437）：工具名标准化与注册过滤器移至 `toolregistry._names`，基础 URL 的 HTTP 客户端与 `HttpClientConfig` 移至 `toolregistry._http`，工具结果编码移至 `toolregistry._serialisation`。`toolregistry.utils` 重新导出此前的所有名称，因此 `compute_schema_hash`、`ToolResultJSONEncoder` 等下游导入保持不变。`api/helpers.md` 记录新的实现位置，`AGENTS.md` 改为描述真实的包结构，并由一个检查其所列每个路径是否存在的测试固定。注册过滤器的警告现在归属到过滤器所在的 `_names.py`。
 
 ### 修复
 
