@@ -25,6 +25,16 @@ ADMIN_UI_JS = (
     files("toolregistry.admin").joinpath("js/core/ui.js").read_text(encoding="utf-8")
 )
 
+ADMIN_I18N_JS = (
+    files("toolregistry.admin").joinpath("js/core/i18n.js").read_text(encoding="utf-8")
+)
+
+ADMIN_EXTENSIONS_JS = (
+    files("toolregistry.admin")
+    .joinpath("js/core/extensions.js")
+    .read_text(encoding="utf-8")
+)
+
 NODE = shutil.which("node")
 pytestmark = pytest.mark.skipif(NODE is None, reason="Node.js is required")
 
@@ -560,3 +570,83 @@ def test_inline_handler_escaping_survives_entity_decoding(
     assert "'" not in entry["attr"], entry
     assert '"' not in entry["attr"], entry
     assert data["html"] == "&amp;&lt;&gt;&quot;&#39;"
+
+
+_GROUP_HARNESS = """
+const vm = require('vm');
+const fs = require('fs');
+
+const i18nPath = process.argv[2];
+const extensionsPath = process.argv[3];
+
+const stored = {};
+const context = {
+  window: {},
+  console,
+  localStorage: {
+    getItem: (k) => (Object.prototype.hasOwnProperty.call(stored, k) ? stored[k] : null),
+    setItem: (k, v) => { stored[k] = String(v); },
+  },
+};
+vm.createContext(context);
+vm.runInContext(fs.readFileSync(i18nPath, 'utf8'), context, { filename: i18nPath });
+vm.runInContext(fs.readFileSync(extensionsPath, 'utf8'), context, { filename: extensionsPath });
+
+function label(key) {
+  return vm.runInContext(
+    `AdminExtensions.groupLabel(${JSON.stringify(key)})`, context);
+}
+
+const en = {
+  manage: label('manage'),
+  observe: label('observe'),
+  unknown: label('unknown-section'),
+};
+
+vm.runInContext('currentLang = "zh"', context);
+const zh = {
+  manage: label('manage'),
+  observe: label('observe'),
+  unknown: label('unknown-section'),
+};
+
+vm.runInContext(
+  'currentLang = "en";'
+  + 'I18N.en["group.custom"] = "Group custom";'
+  + 'I18N.en["nav.custom"] = "Nav custom";',
+  context);
+const precedence = label('custom');
+
+console.log(JSON.stringify({ en, zh, precedence }));
+"""
+
+
+def test_extension_group_reuses_shell_section_labels(tmp_path: Path) -> None:
+    """nav.group = "manage" renders the built-in Manage label in both languages."""
+    i18n_path = tmp_path / "i18n.js"
+    i18n_path.write_text(ADMIN_I18N_JS, encoding="utf-8")
+    extensions_path = tmp_path / "extensions.js"
+    extensions_path.write_text(ADMIN_EXTENSIONS_JS, encoding="utf-8")
+    harness = tmp_path / "group_harness.js"
+    harness.write_text(_GROUP_HARNESS, encoding="utf-8")
+
+    result = subprocess.run(
+        [NODE, str(harness), str(i18n_path), str(extensions_path)],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == {
+        "en": {
+            "manage": "Manage",
+            "observe": "Observe",
+            "unknown": "unknown-section",
+        },
+        "zh": {
+            "manage": "\u7ba1\u7406",
+            "observe": "\u89c2\u5bdf",
+            "unknown": "unknown-section",
+        },
+        "precedence": "Group custom",
+    }
