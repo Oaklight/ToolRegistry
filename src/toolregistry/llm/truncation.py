@@ -248,19 +248,29 @@ def _truncate_json_value(value: Any, max_size: int) -> str:
 
 
 def _truncate_json_document(text: str, max_size: int) -> str | None:
-    """Return pruned JSON text when *text* parses as JSON, else ``None``.
+    """Return pruned JSON text when *text* parses as JSON and fits.
 
     A malformed document is not an error here: it falls through to the text
-    path.  The returned text always parses with :func:`json.loads`.
+    path.  So does a document whose pruned form still exceeds *max_size*,
+    for example when the omission metadata alone is larger than the budget.
+    The returned text always parses with :func:`json.loads` and is never
+    longer than *max_size*.
+
+    ``RecursionError`` is caught as well: :func:`json.loads` and the
+    recursive string capping both raise it on deeply nested documents, and
+    such a result must fall back to text truncation instead of escaping.
     """
     try:
         value = json.loads(text)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, RecursionError):
         return None
     try:
-        return _truncate_json_value(value, max_size)
-    except (TypeError, ValueError):
+        pruned = _truncate_json_value(value, max_size)
+    except (TypeError, ValueError, RecursionError):
         return None
+    if len(pruned) > max_size:
+        return None
+    return pruned
 
 
 # ---------------------------------------------------------------------------
@@ -343,15 +353,20 @@ def truncate_result(
 ) -> TruncatedResult:
     """Truncate a string result if it exceeds ``max_size`` characters.
 
-    A document that parses as JSON is pruned structurally so the output
-    still parses: a dict root gains a ``_truncation`` key (renamed if the
-    key already exists) with ``omitted_items``/``omitted_chars``, a list
-    root gains one sentinel element with the same counts, and over-long
-    strings inside the structure carry their own omission count.  Other
-    text is truncated on line boundaries when it has useful line structure,
-    with a marker naming the omitted lines and characters; text without
-    line structure falls back to a character head+tail split.  Invalid JSON
-    is treated as plain text and never raises.
+    A document that parses as JSON is pruned structurally when the pruned
+    form fits ``max_size``, so the output still parses: a dict root gains a
+    ``_truncation`` key (renamed if the key already exists) with
+    ``omitted_items``/``omitted_chars``, a list root gains one sentinel
+    element with the same counts, and over-long strings inside the structure
+    carry their own omission count.  When the pruned form cannot fit — for
+    example when the omission metadata alone is larger than the budget — the
+    document is truncated as text and may no longer parse.  Other text is
+    truncated on line boundaries when it has useful line structure, with a
+    marker naming the omitted lines and characters; text without line
+    structure falls back to a character head+tail split.  Invalid JSON and
+    deeply nested JSON are treated as plain text and never raise.
+
+    The returned content is never longer than ``max_size``.
 
     Args:
         result_str: The full result string.
