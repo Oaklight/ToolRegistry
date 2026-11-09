@@ -50,6 +50,8 @@ hide:
 
 #### 核心
 
+- **管理面板只校验它将要拨打的 `servers[0]` 条目**（#461，跟进 #460）：`admin/registration.py` 用 `first_server_url` 推导 base URL，并只检查该条目，因此 `servers[1]` 是本地开发服务器的生成文档也能注册，而不会被拒绝。显式 `base_url` 仍会让文档的 `servers` 无关紧要；模板化的首条目会要求显式 `base_url`。`check_spec_servers` 与 `extract_base_url_from_specs` 仍为需要全条目规则的调用方保留原契约。见[管理面板](admin/web-ui.md)。
+
 - **刷新只校验它要采纳的 base URL**（#460，细化 #457）：`OpenAPIIntegration.refresh()` 只对即将采纳的候选地址执行出站地址策略检查。文档在 `servers[1]` 放置 `http://localhost:8080` 这类回退项时，刷新照常进行，而不是每次都失败；调用方显式提供 base URL 时，文档的 `servers` 与刷新无关；`servers[0]` 为模板（`https://{region}.example.com`）时既不校验也不采纳，文档的其余变更仍然生效。注册时通过新增的、不做策略检查的 `first_server_url` 记录 `servers[0]`；被拒绝的候选仍抛出 `UnsafeAddressError`，工具、配置与已保存的文档都保持不变。见 [OpenAPI 集成](api/integrations/openapi.md)。
 
 #### 管理面板

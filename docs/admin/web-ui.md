@@ -114,6 +114,11 @@ Schema 分区展示发布给模型的 schema。格式选择器使用 llm-rosetta
 要注册本机或内网 API，请以 `registry.enable_admin(allow_private_hosts=True)`
 启动服务器；MCP 表单另外提供按来源的 **允许私有网络主机** 复选框。
 
+对于 OpenAPI 来源，面板从 `servers[0]` 推导 base URL，并只校验该条目。后续条目
+不会被请求，因此附带本地开发服务器的生成文档也能注册；需要选择其他条目时请显式
+传入 `base_url`。模板化的 `servers[0]`（`https://{region}.example.com`）必须显式
+提供 `base_url`，因为它在替换前无法解析。
+
 无法连接服务器、无法导入模块、规范缺少 `servers[]` 等错误会在面板中报告，
 而不是被静默注册。需要 Token 却未提供时服务器返回的错误内容为空，面板会明确提示
 并指向认证字段。
