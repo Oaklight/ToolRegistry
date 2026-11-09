@@ -28,6 +28,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **A downstream server can persist source changes and expose source status** (#436): `AdminServer(..., source_hook=...)` and `enable_admin(source_hook=...)` accept an optional hook with `persist(change)`, `writable()` and `statuses()`. Registration hands the hook a structured `SourceChange` (action, kind, declaration, namespace, selection); a persist failure answers `200` with `persisted: false`, `persist_error` and the names that landed, because the tools are already live. With a hook, `GET /api/sources` adds the hook's records verbatim under `source_status` plus `config_writable`; the tool-derived `sources` array and the no-hook response shapes are unchanged. See [Source persistence hook](admin/source-hooks.md).
 
+### Fixed
+
+#### Admin panel
+
+- **An extension nav group reuses the shell's section label** (#446): an extension declaring `nav.group = "manage"` rendered the literal key in both languages because only `group.<key>` was consulted. `groupLabel` now falls back from `group.<key>` to the shell's `nav.<key>` before the raw key, so the gateway tab's header matches the built-in "Manage" / "管理" section. An unknown key still renders literally.
+
 ## [0.20.1] - 2026-11-08
 
 ### Added

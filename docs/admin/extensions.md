@@ -118,8 +118,10 @@ The endpoint requires the same authentication as the rest of the panel. An
 API-only extension appears with `"nav": null` and `"entry": null`.
 
 `nav.group` is a translation key, not a display label: the shell renders
-`group.<key>` when a dictionary defines it, and otherwise shows the key
-itself. Group keys use the same lower-case charset as `name`.
+`group.<key>` when a dictionary defines it, then the shell's own `nav.<key>`
+so an extension can reuse a built-in section label such as `manage`, and
+otherwise shows the key itself. Group keys use the same lower-case charset as
+`name`.
 
 ## The browser module
 
