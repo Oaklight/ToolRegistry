@@ -14,9 +14,10 @@ author: Oaklight
 
 当工具的结果超过大小限制时，ToolRegistry 会：
 
-1. 将**完整结果**写入临时文件（可选，默认启用）
+1. 当注册表启用 `persist_large_results` 时，将**完整结果**存入私有的按运行目录
+   （默认关闭）
 2. 使用可配置的策略**截断**结果
-3. 在前面添加包含原始大小和文件路径的头部信息
+3. 在前面添加包含原始大小以及（已存储时）不透明结果 id 的头部信息
 4. 将截断后的结果返回给 LLM
 
 限制可以按字符（`max_result_size`）或按 token（`max_result_tokens`）给出。
@@ -109,13 +110,14 @@ token 按每 token 4 个字符的固定估算换算为字符
 发生截断时，发送给 LLM 的结果包含元数据头部：
 
 ```
-[Truncated: 20000 chars -> 2000 chars | full output: /tmp/toolregistry_results/query_database_1711900000_a1b2c3d4e5f6.txt]
+[Truncated: 20000 chars -> 2000 chars | full output: res_0123456789ab (read it with read_result)]
 输出的开头部分...
 ... (truncated 18000 chars) ...
 ...输出的结尾部分
 ```
 
-LLM（或用户）可以通过持久化的文件路径访问完整输出。
+完整结果已存储时，头部给出不透明 id，LLM 可以用内置的 `read_result` 工具分页读取
+完整输出。头部中永远不会出现文件系统路径。
 
 裁剪结果未超出限制时，JSON 结果保持为 JSON。对象根的元数据随文档一起返回
 （计数取决于实际裁剪的内容）：
@@ -126,38 +128,48 @@ LLM（或用户）可以通过持久化的文件路径访问完整输出。
 
 ## 持久化
 
-默认情况下，完整结果在截断前写入 `/tmp/toolregistry_results/` 下的临时文件。文件名包含：
+持久化是可选项。`ToolRegistry(persist_large_results=True)` 会把每次截断的完整结果
+存入私有的按运行目录（目录权限 `0700`，文件权限 `0600`）。头部携带不透明 id
+（`res_<12 hex>`），内置的 `read_result(id, offset=0, limit=8000)` 工具可分页读取
+存储的文本。结果在 24 小时后过期；目录总量上限 64 MiB，超出时按最旧优先淘汰，
+刚写入的文件不会被淘汰，即使它本身就超过配额。
 
-- 工具名称
-- Unix 时间戳
-- 内容哈希（SHA-256，前 12 位）
-
-示例：`query_database_1711900000_a1b2c3d4e5f6.txt`
+不启用该选项时不会写入磁盘：截断结果只包含截断后的文本。
 
 ## 编程接口
 
 截断模块也可直接使用：
 
 ```python
-from toolregistry.truncation import truncate_result, TruncationStrategy
+from toolregistry.llm.truncation import (
+    ResultStore,
+    TruncationStrategy,
+    truncate_result,
+)
 
+store = ResultStore(root="/var/tmp/my-results", ttl=3600, quota=32 * 1024 * 1024)
 result = truncate_result(
     result_str=very_long_string,
     max_size=2000,
     strategy=TruncationStrategy.HEAD_TAIL,
     tool_name="my_tool",
     persist=True,
+    store=store,
 )
 
 print(result.truncated)       # True
 print(result.original_size)   # 20000
-print(result.full_path)       # "/tmp/toolregistry_results/..."
+print(result.result_id)       # "res_0123456789ab"
+print(result.full_path)       # 宿主路径，仅供程序使用
 print(result.content)         # 截断后的内容
-print(str(result))            # 带头部信息的格式化输出
+print(str(result))            # 头部给出 id，绝不给出路径
 ```
 
 `truncate_result` 同样执行内容感知规则；需要自行换算 token 预算的调用方可以使用
-导出的 `CHARS_PER_TOKEN`。
+导出的 `CHARS_PER_TOKEN`。`persist=True` 且未传 `store` 时使用进程级的
+`default_result_store()`；传入自己的 `ResultStore` 可指定目录、TTL 与配额。注册表
+内置的 `read_result` 只读取该注册表存储的结果，因此直接调用 `truncate_result` 时
+必须用同一个 store 读回。
 
 ### TruncatedResult 字段
 
@@ -166,4 +178,5 @@ print(str(result))            # 带头部信息的格式化输出
 | `content` | `str` | （可能截断的）文本内容 |
 | `original_size` | `int` | 原始结果大小（字符数） |
 | `truncated` | `bool` | 是否进行了截断 |
-| `full_path` | `str \| None` | 持久化完整结果的文件路径 |
+| `full_path` | `str \| None` | 存储结果的宿主路径；`str()` 从不渲染它 |
+| `result_id` | `str \| None` | 供 `read_result` 使用的不透明 id；未存储时为 `None` |

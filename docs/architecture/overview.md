@@ -158,7 +158,8 @@ toolregistry/
 | `timeout` | 单次调用超时时间（秒） |
 | `is_concurrency_safe` | 是否可以并行执行 |
 | `locality` | `"local"` / `"remote"` / `"any"` — 执行位置提示 |
-| `max_result_size` | 截断阈值（字符数）；超出部分写入临时文件 |
+| `max_result_size` | 截断阈值（字符数）；只有启用 `persist_large_results` 时才存储完整结果 |
+| `max_result_tokens` | 以 token 计的截断阈值（每 token 固定按 4 字符估算）；两者取较小值 |
 | `defer` | 从初始 prompt 中排除；可通过 `ToolDiscoveryTool` 发现 |
 | `search_hint` | 额外关键词，提升 BM25 可发现性 |
 | `think_augment` | 单工具级别是否暴露 `toolcall_reason` 理由字段的覆盖开关 |
