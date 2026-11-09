@@ -45,6 +45,36 @@ class TestHttpClientConfig:
 
         assert config.base_url == "https://api.example.com"
 
+    def test_with_base_url_preserves_every_option(self):
+        """The copy helper keeps settings and isolates mutable containers."""
+        config = HttpClientConfig(
+            base_url="https://api.example.com",
+            headers={"Authorization": "Bearer token"},
+            timeout=30.0,
+            auth=("username", "password"),
+            cookies={"session": "abc"},
+            allow_private_hosts=True,
+            verify=False,
+            max_redirects=10,
+            max_response_size=1024,
+        )
+
+        copied = config.with_base_url("https://api2.example.com/")
+
+        assert copied is not config
+        assert copied.base_url == "https://api2.example.com"
+        assert copied.headers == {"Authorization": "Bearer token"}
+        assert copied.timeout == 30.0
+        assert copied.auth == ("username", "password")
+        assert copied.cookies == {"session": "abc"}
+        assert copied.allow_private_hosts is True
+        assert copied.extra_options == config.extra_options
+        assert copied.max_response_size == 1024
+        # The containers are copies, not shared references.
+        copied.headers["X-Copy"] = "yes"
+        assert "X-Copy" not in config.headers
+        assert copied._sync_client is None
+
     def test_base_url_multiple_trailing_slashes(self):
         """Test that multiple trailing slashes are removed."""
         config = HttpClientConfig(base_url="https://api.example.com///")

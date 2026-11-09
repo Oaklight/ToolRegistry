@@ -349,6 +349,32 @@ class HttpClientConfig:
                 kwargs[key] = self.extra_options[key]
         return kwargs
 
+    def with_base_url(self, base_url: str) -> HttpClientConfig:
+        """Return a copy of this config that points at *base_url*.
+
+        Headers, auth, timeout, cookies, the private-host policy,
+        ``max_response_size`` and every extra client option are carried
+        over.  Live pooled clients are not: the copy starts without them.
+        The original keeps its pools until the caller closes it.
+
+        Args:
+            base_url: The replacement base URL.
+
+        Returns:
+            A new config with the same settings and the new base URL.
+        """
+        options = dict(self.extra_options)
+        options["max_response_size"] = self.max_response_size
+        return HttpClientConfig(
+            base_url,
+            headers=dict(self.headers),
+            timeout=self.timeout,
+            auth=self.auth,
+            cookies=dict(self.cookies) if self.cookies is not None else None,
+            allow_private_hosts=self.allow_private_hosts,
+            **options,
+        )
+
     def ensure_base_url_allowed(self) -> None:
         """Validate :attr:`base_url` on the calling thread.
 
