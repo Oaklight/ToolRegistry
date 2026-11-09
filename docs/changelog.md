@@ -28,6 +28,12 @@ hide:
 
 - **下游服务可持久化来源变更并暴露来源状态**（#436）：`AdminServer(..., source_hook=...)` 与 `enable_admin(source_hook=...)` 接受可选的钩子，提供 `persist(change)`、`writable()` 与 `statuses()`。注册时会向钩子传递结构化的 `SourceChange`（动作、类型、声明、命名空间、选择）；持久化失败返回 `200`，带 `persisted: false`、`persist_error` 与已生效的名称，因为工具已经生效。安装钩子后，`GET /api/sources` 在 `source_status` 中原样附带钩子记录，并给出 `config_writable`；由工具推导的 `sources` 数组与未安装钩子时的响应结构保持不变。见[源持久化钩子](admin/source-hooks.md)。
 
+### 修复
+
+#### 管理面板
+
+- **扩展导航分组复用外壳的分区标签**（#446）：扩展声明 `nav.group = "manage"` 时，两种语言都显示原始键，因为此前只查 `group.<key>`。`groupLabel` 现在先从 `group.<key>` 回退到外壳的 `nav.<key>`，再回退到原始键，因此网关标签页的分区标题与内置的“Manage”/“管理”一致。未知键仍按原样显示。
+
 ## [0.20.1] - 2026-11-08
 
 ### 新增
