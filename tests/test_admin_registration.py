@@ -2,7 +2,7 @@
 
 These exercise the admin panel's Register section end to end over HTTP, but
 without reaching a real external service: the OpenAPI source is an inline
-spec, the Python source is this repository's own ``toolregistry.utils``, and
+spec, the Python source is this repository's own ``toolregistry._names``, and
 MCP is covered by its transport validation only.
 """
 
@@ -177,7 +177,7 @@ class TestSourcePreview:
         status, data = server_with_auth.request(
             "/api/sources/preview",
             "POST",
-            {"kind": "python", "module": "toolregistry.utils"},
+            {"kind": "python", "module": "toolregistry._names"},
             extra_headers=_AUTH_HEADERS,
         )
 
@@ -201,7 +201,7 @@ class TestSourcePreview:
         status, data = server.request(
             "/api/sources/preview",
             "POST",
-            {"kind": "python", "module": "toolregistry.utils"},
+            {"kind": "python", "module": "toolregistry._names"},
         )
 
         assert status == 403
@@ -211,7 +211,7 @@ class TestSourcePreview:
         status, data = server.request(
             "/api/sources/register",
             "POST",
-            {"kind": "python", "module": "toolregistry.utils"},
+            {"kind": "python", "module": "toolregistry._names"},
         )
 
         assert status == 403
@@ -1026,7 +1026,7 @@ class TestSourceRegistration:
             "POST",
             {
                 "kind": "python",
-                "module": "toolregistry.utils",
+                "module": "toolregistry._names",
                 "selected": ["normalize_tool_name"],
             },
             extra_headers=_AUTH_HEADERS,
@@ -1040,7 +1040,7 @@ class TestSourceRegistration:
         status, data = server_with_auth.request(
             "/api/sources/register",
             "POST",
-            {"kind": "python", "module": "toolregistry.utils", "selected": ["nope"]},
+            {"kind": "python", "module": "toolregistry._names", "selected": ["nope"]},
             extra_headers=_AUTH_HEADERS,
         )
 

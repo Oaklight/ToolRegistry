@@ -67,7 +67,7 @@ def test_bare_thread_falls_back_to_package_frame(monkeypatch) -> None:
     thread.join()
 
     filename, _ = captured["location"]
-    assert filename.endswith("utils.py"), filename
+    assert filename.endswith("_names.py"), filename
     assert "threading.py" not in filename
 
 
