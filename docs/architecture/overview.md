@@ -158,7 +158,8 @@ Metadata enriches tools with classification and behavioral hints:
 | `timeout` | Per-call timeout in seconds |
 | `is_concurrency_safe` | Whether the tool can be run in parallel |
 | `locality` | `"local"` / `"remote"` / `"any"` — execution location hint |
-| `max_result_size` | Truncation threshold (characters); oversized results spill to a temp file |
+| `max_result_size` | Truncation threshold (characters); full results are stored only with `persist_large_results` |
+| `max_result_tokens` | Truncation threshold in tokens (fixed 4-chars-per-token estimate); the smaller limit wins |
 | `defer` | Exclude from initial prompt; discoverable via `ToolDiscoveryTool` |
 | `search_hint` | Extra keywords for BM25 discoverability |
 | `think_augment` | Per-tool override for exposing the `toolcall_reason` rationale field |

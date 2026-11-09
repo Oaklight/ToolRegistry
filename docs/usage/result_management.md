@@ -14,9 +14,10 @@ Some tools produce large outputs — database queries, file reads, API responses
 
 When a tool's result exceeds a size limit, ToolRegistry:
 
-1. Writes the **full result** to a temporary file (optional, enabled by default)
+1. Stores the **full result** in a private per-run directory when the
+   registry enables `persist_large_results` (off by default)
 2. **Truncates** the result using a configurable strategy
-3. Prepends a header with the original size and file path
+3. Prepends a header with the original size and, when stored, an opaque result id
 4. Returns the truncated result to the LLM
 
 A limit can be given in characters (`max_result_size`) or in tokens
@@ -117,13 +118,15 @@ Simply cuts off the result at `max_size` characters. Use when only the beginning
 When truncation occurs, the result sent to the LLM includes a metadata header:
 
 ```
-[Truncated: 20000 chars -> 2000 chars | full output: /tmp/toolregistry_results/query_database_1711900000_a1b2c3d4e5f6.txt]
+[Truncated: 20000 chars -> 2000 chars | full output: res_0123456789ab (read it with read_result)]
 First part of the output...
 ... (truncated 18000 chars) ...
 ...last part of the output
 ```
 
-The LLM (or user) can access the full output at the persisted file path.
+When the full result was stored, the header names an opaque id and the LLM can
+page through the full output with the built-in `read_result` tool. A filesystem
+path is never placed in the header.
 
 When the pruned document fits, JSON results stay JSON. For a dict root the
 metadata rides in the document itself (the counts depend on what was pruned):
@@ -134,38 +137,52 @@ metadata rides in the document itself (the counts depend on what was pruned):
 
 ## Persistence
 
-By default, the full result is written to a temporary file under `/tmp/toolregistry_results/` before truncation. The filename includes:
+Persistence is opt-in. `ToolRegistry(persist_large_results=True)` stores each
+truncated full result in a private per-run directory created with mode `0700`;
+files are created with mode `0600`. The header carries an opaque id
+(`res_<12 hex>`), and the built-in `read_result(id, offset=0, limit=8000)` tool
+pages through the stored text. A result expires after 24 hours, and the
+directory is capped at 64 MiB with the oldest file evicted first; the file just
+written is never evicted, even when it alone exceeds the quota.
 
-- Tool name
-- Unix timestamp
-- Content hash (SHA-256, first 12 chars)
-
-Example: `query_database_1711900000_a1b2c3d4e5f6.txt`
+Without the flag nothing is written to disk: a truncated result is only the
+truncated text.
 
 ## Programmatic Access
 
 The truncation module can also be used directly:
 
 ```python
-from toolregistry.truncation import truncate_result, TruncationStrategy
+from toolregistry.llm.truncation import (
+    ResultStore,
+    TruncationStrategy,
+    truncate_result,
+)
 
+store = ResultStore(root="/var/tmp/my-results", ttl=3600, quota=32 * 1024 * 1024)
 result = truncate_result(
     result_str=very_long_string,
     max_size=2000,
     strategy=TruncationStrategy.HEAD_TAIL,
     tool_name="my_tool",
     persist=True,
+    store=store,
 )
 
 print(result.truncated)       # True
 print(result.original_size)   # 20000
-print(result.full_path)       # "/tmp/toolregistry_results/..."
+print(result.result_id)       # "res_0123456789ab"
+print(result.full_path)       # host path; programmatic use only
 print(result.content)         # truncated content
-print(str(result))            # formatted with header
+print(str(result))            # header names the id, never the path
 ```
 
 `truncate_result` applies the same content-aware rules, and `CHARS_PER_TOKEN`
-is exported for callers that convert a token budget themselves.
+is exported for callers that convert a token budget themselves. `persist=True`
+without a `store` uses the process-wide `default_result_store()`; pass your own
+`ResultStore` to choose the directory, TTL and quota. A registry's built-in
+`read_result` reads only results stored by that registry, so a direct
+`truncate_result` call must be read back through the same store you passed it.
 
 ### TruncatedResult Fields
 
@@ -174,4 +191,5 @@ is exported for callers that convert a token budget themselves.
 | `content` | `str` | The (possibly truncated) text content |
 | `original_size` | `int` | Original result size in characters |
 | `truncated` | `bool` | Whether truncation was applied |
-| `full_path` | `str \| None` | Path to the persisted full result |
+| `full_path` | `str \| None` | Host path to the stored result; never rendered by `str()` |
+| `result_id` | `str \| None` | Opaque id for `read_result`, or `None` when not stored |
