@@ -10,6 +10,7 @@ from toolregistry.events import ChangeEvent, ChangeEventType, RefreshResult
 from toolregistry.integrations.openapi.integration import (
     OpenAPIIntegration,
 )
+from toolregistry.netpolicy import UnsafeAddressError
 from toolregistry.utils import HttpClientConfig
 
 
@@ -120,6 +121,7 @@ class TestRefreshResult:
         assert r.updated == ()
         assert r.unchanged == 0
         assert r.skipped is False
+        assert r.base_url_changed is False
         assert r.changed is False
 
     def test_changed_property(self):
@@ -322,6 +324,149 @@ class TestOpenAPIRefresh:
         assert result.unchanged == 2
         assert not result.added
         assert not result.removed
+
+    def test_forget_tracked_tools_lets_a_dropped_name_return(self):
+        """A caller that unregisters a tool must stop the diff skipping it."""
+        registry = ToolRegistry()
+        self._register(registry)
+        integration = registry.openapi_integrations[0]
+
+        registry._unregister("get_item")
+        integration.forget_tracked_tools(["get_item"])
+        # Unknown names are ignored.
+        integration.forget_tracked_tools(["never_registered"])
+
+        result = registry.refresh_from_openapi(openapi_spec=SPEC_V1)
+
+        assert "get_item" in result.added
+        assert "get_item" in registry._tools
+
+
+# ---------------------------------------------------------------------------
+# OpenAPI base-URL adoption on refresh (#457)
+# ---------------------------------------------------------------------------
+
+
+class TestOpenAPIBaseUrlRefresh:
+    """A moved ``servers[0]`` is adopted only when the config was derived."""
+
+    ORIGIN = "https://1.1.1.1/v1"
+    MOVED = "https://8.8.8.8/v2"
+    PRIVATE = "http://10.0.0.5/internal"
+
+    def _spec(self, url, base=None):
+        return {**(base or SPEC_V1), "servers": [{"url": url}]}
+
+    def _register_derived(self, registry, url=None):
+        """Register the way the admin layer does: base URL from servers[0]."""
+        url = url or self.ORIGIN
+        client = HttpClientConfig(base_url=url)
+        registry.register_from_openapi(client, self._spec(url))
+        return registry.openapi_integrations[-1]
+
+    def test_a_moved_public_server_is_adopted(self):
+        registry = ToolRegistry()
+        integration = self._register_derived(registry)
+        assert integration._spec_base_url == self.ORIGIN
+        before = dict(registry._tools)
+        events: list[ChangeEvent] = []
+        registry.on_change(events.append)
+
+        result = registry.refresh_from_openapi(openapi_spec=self._spec(self.MOVED))
+
+        assert result.base_url_changed is True
+        assert integration._client_config.base_url == self.MOVED
+        assert integration._spec_base_url == self.MOVED
+        # The operation did not change, but every tool must be replaced with
+        # one that points at the adopted origin, and subscribers that mirror
+        # the registry (the server's RouteTable) must be told.
+        for name in ("list_items", "get_item"):
+            tool = registry._tools[name]
+            assert tool is not before[name]
+            assert tool.callable.client_config.base_url == self.MOVED
+        refresh_events = [
+            event for event in events if event.event_type == ChangeEventType.REFRESH
+        ]
+        assert sorted(event.tool_name for event in refresh_events) == [
+            "get_item",
+            "list_items",
+        ]
+        assert all(
+            event.metadata.get("change_kind") == "base_url" for event in refresh_events
+        )
+
+    def test_a_document_derived_url_keeps_following_the_document(self):
+        registry = ToolRegistry()
+        integration = self._register_derived(registry)
+        registry.refresh_from_openapi(openapi_spec=self._spec(self.MOVED))
+
+        third = "https://9.9.9.9/v3"
+        result = registry.refresh_from_openapi(openapi_spec=self._spec(third))
+
+        assert result.base_url_changed is True
+        assert integration._client_config.base_url == third
+
+    def test_a_move_to_a_private_address_is_refused(self):
+        registry = ToolRegistry()
+        integration = self._register_derived(registry)
+        before = dict(registry._tools)
+
+        spec = self._spec(self.PRIVATE, base=SPEC_V2_ADDED)
+        with pytest.raises(UnsafeAddressError) as exc_info:
+            registry.refresh_from_openapi(openapi_spec=spec)
+
+        # A refusal must not travel with a resolved address.
+        assert not hasattr(exc_info.value, "addresses")
+        assert integration._client_config.base_url == self.ORIGIN
+        assert integration._spec_base_url == self.ORIGIN
+        assert set(registry._tools) == set(before)
+        assert registry._tools["list_items"] is before["list_items"]
+
+    @pytest.mark.asyncio
+    async def test_a_304_leaves_the_config_alone(self, monkeypatch):
+        registry = ToolRegistry()
+        integration = self._register_derived(registry)
+
+        async def skipped(openapi_spec):
+            return None, True
+
+        monkeypatch.setattr(integration, "_resolve_spec", skipped)
+
+        result = await integration.refresh_async()
+
+        assert result.skipped is True
+        assert result.base_url_changed is False
+        assert integration._client_config.base_url == self.ORIGIN
+        assert len(integration._client_configs) == 1
+
+    def test_an_explicit_override_survives_a_spec_change(self):
+        registry = ToolRegistry()
+        override = "http://test.example.com"
+        registry.register_from_openapi(
+            HttpClientConfig(base_url=override), self._spec(self.ORIGIN)
+        )
+        integration = registry.openapi_integrations[-1]
+        assert integration._spec_base_url == self.ORIGIN
+
+        result = registry.refresh_from_openapi(openapi_spec=self._spec(self.MOVED))
+
+        assert result.base_url_changed is False
+        assert integration._client_config.base_url == override
+        assert registry._tools["list_items"].callable.client_config.base_url == (
+            override
+        )
+
+    def test_a_spec_without_servers_keeps_the_override(self):
+        registry = ToolRegistry()
+        override = "http://test.example.com"
+        registry.register_from_openapi(HttpClientConfig(base_url=override), SPEC_V1)
+        integration = registry.openapi_integrations[-1]
+        assert integration._spec_base_url is None
+
+        result = registry.refresh_from_openapi(openapi_spec=SPEC_V1)
+
+        assert result.base_url_changed is False
+        assert integration._client_config.base_url == override
 
 
 # ---------------------------------------------------------------------------

@@ -1,10 +1,12 @@
 import logging
 import threading
+from collections.abc import Iterable
 from typing import Any
 
 from ...errors import ResponseTooLargeError
 from ...events import ChangeEvent, ChangeEventType, RefreshResult
 from ...schema_diff import SchemaChangeKind, classify_tool_change
+from ..._netpolicy import UnsafeAddressError
 
 from ..._names import NameSeparator, qualified_tool_name
 from ...tool import Tool, ToolMetadata
@@ -17,7 +19,11 @@ from ...utils import (
     normalize_tool_name,
     utc_iso_now,
 )
-from .utils import redact_url_userinfo
+from .utils import (
+    check_spec_servers,
+    extract_base_url_from_specs,
+    redact_url_userinfo,
+)
 
 
 def _operation_id(spec: dict[str, Any], path: str, method: str) -> str:
@@ -349,6 +355,12 @@ class OpenAPIIntegration:
         self._allow_replace: bool = False
         self._openapi_spec: dict[str, Any] | None = None
         self._etag: str | None = None
+        #: Base URL the registration spec produced, or ``None`` when the
+        #: document named none.  A refresh adopts a moved ``servers[0]``
+        #: only while the client config still points at this value, which
+        #: distinguishes a document-derived base URL from an explicit
+        #: override by the caller.
+        self._spec_base_url: str | None = None
         self._refresh_lock = threading.Lock()
         self._poll_timer: threading.Timer | None = None
         self._poll_interval: float | None = None
@@ -420,6 +432,13 @@ class OpenAPIIntegration:
             self._persistent = persistent
             self._spec_url = spec_url
             self._openapi_spec = openapi_spec
+            # Remember the URL the document itself produced.  A refresh
+            # adopts a moved ``servers[0]`` only while the client config
+            # still equals this value; an explicit override never does.
+            self._spec_base_url = extract_base_url_from_specs(
+                openapi_spec,
+                allow_private_hosts=client_config.allow_private_hosts,
+            )
 
             resolved_ns = (
                 namespace
@@ -602,8 +621,18 @@ class OpenAPIIntegration:
     def _apply_diff(
         self,
         new_tools: dict[str, OpenAPITool],
+        *,
+        base_url_changed: bool = False,
     ) -> tuple[list[str], list[str], list[str], list[str], list[str], int, list[str]]:
         """Diff *new_tools* against registered tools and apply changes.
+
+        Args:
+            new_tools: Tools built from the refreshed document.
+            base_url_changed: When true, every unchanged tool is still
+                replaced, because its wrapper points at the previous base
+                URL.  Such a replacement is not reported as an update: the
+                operation itself did not change, and
+                :attr:`RefreshResult.base_url_changed` carries the signal.
 
         Returns:
             ``(added, removed, updated, breaking, compatible, unchanged,
@@ -648,33 +677,17 @@ class OpenAPIIntegration:
         for name in old_tracked & new_tracked:
             candidate = new_tools[name]
             existing = self.registry._tools.get(name)
-            if existing and (
-                existing.metadata.schema_hash != candidate.metadata.schema_hash
-                or existing.description != candidate.description
-            ):
-                kind, summary = classify_tool_change(
-                    existing.metadata.schema_hash,
-                    candidate.metadata.schema_hash,
-                    existing.parameters,
-                    candidate.parameters,
-                )
-                candidate = candidate.with_refreshed_at(now)
-                self.registry._tools[name] = candidate
-                self.registry._emit_change(
-                    ChangeEvent(
-                        event_type=ChangeEventType.REFRESH,
-                        tool_name=name,
-                        metadata={"change_kind": kind.value, "diff_summary": summary},
-                    )
-                )
+            if existing is not None and self._tool_changed(existing, candidate):
+                kind = self._apply_updated(name, candidate, now)
                 updated.append(name)
                 (breaking if kind == SchemaChangeKind.BREAKING else compatible).append(
                     name
                 )
-            elif existing:
-                self.registry._replace_tool_metadata(name, last_refreshed_at=now)
-                unchanged += 1
             else:
+                if existing is not None:
+                    self._keep_tool(
+                        name, candidate, now, base_url_changed=base_url_changed
+                    )
                 unchanged += 1
 
         # Overridden names the remote still lists: keep the override, but
@@ -706,11 +719,133 @@ class OpenAPIIntegration:
             overridden_names,
         )
 
+    @staticmethod
+    def _tool_changed(existing: Tool, candidate: Tool) -> bool:
+        """Whether a matched tool's schema or description changed."""
+        return (
+            existing.metadata.schema_hash != candidate.metadata.schema_hash
+            or existing.description != candidate.description
+        )
+
+    def _apply_updated(
+        self, name: str, candidate: OpenAPITool, now: str
+    ) -> SchemaChangeKind:
+        """Replace a changed tool, emit the refresh event, return the kind."""
+        existing = self.registry._tools[name]
+        kind, summary = classify_tool_change(
+            existing.metadata.schema_hash,
+            candidate.metadata.schema_hash,
+            existing.parameters,
+            candidate.parameters,
+        )
+        self.registry._tools[name] = candidate.with_refreshed_at(now)
+        self.registry._emit_change(
+            ChangeEvent(
+                event_type=ChangeEventType.REFRESH,
+                tool_name=name,
+                metadata={"change_kind": kind.value, "diff_summary": summary},
+            )
+        )
+        return kind
+
+    def _keep_tool(
+        self,
+        name: str,
+        candidate: OpenAPITool,
+        now: str,
+        *,
+        base_url_changed: bool,
+    ) -> None:
+        """Leave a matched tool in place, swapping it if the origin moved.
+
+        A tool whose wrapper still points at the previous base URL must be
+        replaced even though the operation did not change; the replacement
+        is not reported as an update.  The swap still emits ``REFRESH``,
+        because subscribers that mirror the registry — the server's
+        ``RouteTable`` among them — rebuild a route from that event.  Without
+        it a base-URL-only refresh would leave every route holding the old
+        ``Tool`` and the old origin.
+        """
+        if not base_url_changed:
+            self.registry._replace_tool_metadata(name, last_refreshed_at=now)
+            return
+        self.registry._tools[name] = candidate.with_refreshed_at(now)
+        self.registry._emit_change(
+            ChangeEvent(
+                event_type=ChangeEventType.REFRESH,
+                tool_name=name,
+                metadata={
+                    "change_kind": "base_url",
+                    "diff_summary": "base URL adopted from servers[0]",
+                },
+            )
+        )
+
+    def _config_for_refresh(
+        self,
+        openapi_spec: dict[str, Any],
+        client_config: HttpClientConfig,
+    ) -> tuple[HttpClientConfig, bool]:
+        """Return the client config a refresh should build tools against.
+
+        A moved ``servers[0]`` is adopted only when the stored config's base
+        URL was itself derived from the registration document — that is,
+        when it still equals the URL that document produced.  A caller's
+        explicit base URL differs and is kept.  The rule is evaluated on
+        every refresh, so a document-derived URL keeps following the
+        document.
+
+        Args:
+            openapi_spec: The spec obtained for this refresh.
+            client_config: The config stored at registration or the last
+                adopted one.
+
+        Returns:
+            ``(config, changed)``; *config* is *client_config* when no move
+            applies, and *changed* is true when a replacement config is
+            returned.  The caller commits the replacement only after the new
+            tool map has been applied.
+
+        Raises:
+            UnsafeAddressError: If the new document's ``servers[]`` entry is
+                refused by the outbound address policy.  The refresh must
+                leave the tools and the config untouched, and the caller
+                must surface the refusal rather than report "no changes".
+                The raised error is the base class, so no resolved address
+                travels with it.
+        """
+        try:
+            check_spec_servers(
+                openapi_spec,
+                allow_private_hosts=client_config.allow_private_hosts,
+            )
+        except UnsafeAddressError as exc:
+            raise UnsafeAddressError(str(exc)) from exc
+        candidate = extract_base_url_from_specs(
+            openapi_spec,
+            allow_private_hosts=client_config.allow_private_hosts,
+        )
+        if (
+            candidate is None
+            or candidate == client_config.base_url
+            or client_config.base_url != self._spec_base_url
+        ):
+            return client_config, False
+        return client_config.with_base_url(candidate), True
+
     async def refresh_async(
         self,
         openapi_spec: dict[str, Any] | None = None,
     ) -> RefreshResult:
         """Re-fetch the OpenAPI spec and synchronise registered tools.
+
+        A ``servers[0]`` that moved is adopted as the new base URL, but only
+        when the current base URL was itself derived from the document (it
+        still equals the URL the registration spec produced).  An explicit
+        base URL passed by the caller is kept.  If the new document's
+        ``servers[]`` entry is refused by the outbound address policy, this
+        raises :class:`~toolregistry.netpolicy.UnsafeAddressError` and leaves
+        both the tools and the base URL untouched.
 
         Args:
             openapi_spec: A pre-parsed spec dict.  When ``None``, the spec is
@@ -722,6 +857,8 @@ class OpenAPIIntegration:
 
         Raises:
             ValueError: If no spec can be obtained (no URL and no stored spec).
+            UnsafeAddressError: If the refreshed document names a
+                ``servers[]`` entry the outbound address policy refuses.
         """
         # The spec URL and the configured base URL can both carry userinfo.
         # The value is returned to callers and shown in the admin panel, so
@@ -737,7 +874,6 @@ class OpenAPIIntegration:
                 source="openapi", source_detail=source_detail, skipped=True
             )
         assert resolved is not None
-        self._openapi_spec = resolved
 
         if self._client_config is None:
             raise ValueError(
@@ -745,7 +881,11 @@ class OpenAPIIntegration:
                 "Call register_openapi_tools() first."
             )
 
-        new_tools = self._build_tool_map(resolved, self._client_config)
+        client_config, base_url_changed = self._config_for_refresh(
+            resolved, self._client_config
+        )
+
+        new_tools = self._build_tool_map(resolved, client_config)
         (
             added,
             removed,
@@ -754,7 +894,18 @@ class OpenAPIIntegration:
             compatible,
             unchanged,
             overridden,
-        ) = self._apply_diff(new_tools)
+        ) = self._apply_diff(new_tools, base_url_changed=base_url_changed)
+
+        if base_url_changed:
+            # Commit the adoption only after the new map applied cleanly: a
+            # failure while building or diffing must leave the old config,
+            # and with it the old tools, in place.
+            self._client_configs.append(client_config)
+            self._client_config = client_config
+            self._spec_base_url = client_config.base_url
+        # Store the document last, so a refused or failed refresh leaves the
+        # previous stored spec in place too.
+        self._openapi_spec = resolved
 
         return RefreshResult(
             source="openapi",
@@ -766,6 +917,7 @@ class OpenAPIIntegration:
             compatible=tuple(compatible),
             overridden=tuple(overridden),
             unchanged=unchanged,
+            base_url_changed=base_url_changed,
         )
 
     def refresh(
@@ -777,6 +929,24 @@ class OpenAPIIntegration:
 
         with self._refresh_lock:
             return AsyncRuntime.run_sync(self.refresh_async(openapi_spec))
+
+    def forget_tracked_tools(self, names: Iterable[str]) -> None:
+        """Stop tracking *names*, so the next refresh registers them again.
+
+        Use this when a caller removes a tracked tool between refreshes —
+        for example because a validation step rejected it.  The refresh diff
+        treats a tracked name that the document still lists as unchanged
+        when the registry no longer holds it, so without this call the tool
+        would never come back, even after the document that caused the drop
+        is fixed.
+
+        Only the tracked-name set changes.  The registry is untouched and no
+        event is emitted, because the caller has already handled both.
+
+        Args:
+            names: Tool names to stop tracking.  Unknown names are ignored.
+        """
+        self._registered_tool_names.difference_update(names)
 
     # ---- Background polling ----
 

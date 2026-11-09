@@ -107,6 +107,10 @@ class RefreshResult:
             refresh suppressed the remote's definition rather than matching
             it.  A name the remote dropped keeps the last-served definition,
             so it is not a signal that a newer remote definition exists.
+        base_url_changed: ``True`` when the refresh adopted a new base URL
+            from the document's ``servers[]``.  Only a base URL previously
+            derived from the document is replaced; an explicit override is
+            kept and reports ``False``.
 
     Note:
         *overridden* names are excluded from :attr:`changed`, because the
@@ -123,6 +127,7 @@ class RefreshResult:
     unchanged: int = 0
     skipped: bool = False
     overridden: tuple[str, ...] = ()
+    base_url_changed: bool = False
 
     @property
     def changed(self) -> bool:
