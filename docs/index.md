@@ -16,6 +16,7 @@ hide:
 
 <p class="tr-badges">
   <a href="https://pypi.org/project/toolregistry/"><img alt="PyPI version" src="https://img.shields.io/pypi/v/toolregistry?labelColor=475569&color=075985"></a>
+  <a href="https://test.pypi.org/project/toolregistry/"><img alt="TestPyPI version" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Ftest.pypi.org%2Fpypi%2Ftoolregistry%2Fjson&query=%24.info.version&label=TestPyPI&labelColor=475569&color=c2410c"></a>
   <a href="https://github.com/Oaklight/ToolRegistry/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Oaklight/ToolRegistry/ci.yml?branch=master&label=CI&labelColor=475569&color=0c4a6e"></a>
   <a href="https://opensource.org/licenses/MIT"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-0c4a6e?labelColor=475569"></a>
   <a href="https://arxiv.org/abs/2507.10593"><img alt="arXiv" src="https://img.shields.io/badge/arXiv-2507.10593-64748b?labelColor=475569"></a>
@@ -81,11 +82,11 @@ pip install "toolregistry[mcp,openapi]"
 
 ## 生态系统
 
-| 包名 | 适用场景 |
-|------|----------|
-| **toolregistry** | 核心注册、schema 生成、执行、权限和元数据管理 |
-| [toolregistry-server](https://toolregistry-server.readthedocs.io/) | 将 registry 服务化为 OpenAPI 或 MCP 服务 |
-| [toolregistry-hub](https://toolregistry-hub.readthedocs.io/) | 搜索、网页抓取、日期时间、单位转换等现成工具 |
+| 包名 | 适用场景 | TestPyPI |
+|------|----------|----------|
+| **toolregistry** | 核心注册、schema 生成、执行、权限和元数据管理 | [![TestPyPI](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Ftest.pypi.org%2Fpypi%2Ftoolregistry%2Fjson&query=%24.info.version&label=TestPyPI&color=orange)](https://test.pypi.org/project/toolregistry/) |
+| [toolregistry-server](https://toolregistry-server.readthedocs.io/) | 将 registry 服务化为 OpenAPI 或 MCP 服务 | [![TestPyPI](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Ftest.pypi.org%2Fpypi%2Ftoolregistry-server%2Fjson&query=%24.info.version&label=TestPyPI&color=orange)](https://test.pypi.org/project/toolregistry-server/) |
+| [toolregistry-hub](https://toolregistry-hub.readthedocs.io/) | 搜索、网页抓取、日期时间、单位转换等现成工具 | [![TestPyPI](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Ftest.pypi.org%2Fpypi%2Ftoolregistry-hub%2Fjson&query=%24.info.version&label=TestPyPI&color=orange)](https://test.pypi.org/project/toolregistry-hub/) |
 
 ## 引用
 
