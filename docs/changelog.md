@@ -16,6 +16,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **A function-local annotation can be resolved at registration** (#466): `Tool.from_function`, `ToolRegistry.register` and `register_async` accept a keyword-only `localns` — typically `locals()` from the function that defines the tool — and pass it to `get_type_hints`, so an annotation that names a function-local type or an `Annotated`/`Field` pair publishes its real schema instead of an unconstrained one. `@registry.register(localns=...)` returns a decorator; `register_async` is a coroutine and must be awaited, so only the synchronous form has that decorator shape. Without `localns`, resolution is unchanged.
+- **A degraded annotation is named in the tool metadata** (#466): `ToolMetadata.unresolved_parameters` lists the parameters whose annotation could not be resolved to a schema and whose published schema is therefore unconstrained — an unresolvable function-local name, or a type with no JSON projection such as a plain class. It is empty when every parameter got a schema, so a server can report the degradation instead of presenting the empty schema as the contract.
+
+### Changed
+
+- **Breaking:** `set_permission_policy()` requires a `PermissionPolicy` (#467). Any other object raises `TypeError` at the setter. Previously a duck-typed policy was enforced by the in-process path and ignored by `toolregistry-server`, which could allow a call the policy meant to deny; the server's instance check is now a defensive duplicate of one rule rather than a second one.
+
 ## [0.21.0] - 2026-11-09
 
 ### Added
