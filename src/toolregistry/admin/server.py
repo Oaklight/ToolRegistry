@@ -10,13 +10,19 @@ import socket
 import ssl
 import threading
 import time
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .._vendor.httpserver import App
-from .auth import AuthFailureLimiter, SessionCookie, TokenAuth
+from .auth import (
+    AuthFailureLimiter,
+    SessionCookie,
+    TokenAuth,
+    IPNetwork,
+    parse_trusted_proxies,
+)
 from .metrics import RequestMetrics
 
 if TYPE_CHECKING:
@@ -137,6 +143,9 @@ class AdminApp(App):
     extension_assets: dict[str, Path] | None = None
     #: Optional downstream hook that persists source changes.
     source_hook: "SourcePersistenceHook | None" = None
+    #: Reverse proxies whose ``X-Forwarded-For`` header the auth throttle
+    #: trusts.  Empty keeps the peer address as the throttle key.
+    trusted_proxies: tuple[IPNetwork, ...] = ()
 
 
 class AdminServer:
@@ -182,6 +191,7 @@ class AdminServer:
         allow_private_hosts: bool = False,
         extensions: Iterable["AdminExtension"] | None = None,
         source_hook: "SourcePersistenceHook | None" = None,
+        trusted_proxies: Sequence[str] = (),
     ) -> None:
         """Initialize admin server.
 
@@ -228,6 +238,18 @@ class AdminServer:
                 exposes its records in ``GET /api/sources``; without one the
                 response shapes are unchanged and nothing is persisted.  See
                 :class:`~toolregistry.admin.source_hook.SourcePersistenceHook`.
+            trusted_proxies: Addresses or CIDR ranges of reverse proxies
+                whose ``X-Forwarded-For`` header is trusted for the
+                authentication throttle key.  The header is walked right to
+                left, trusted hops are skipped, and the first untrusted
+                address becomes the key, so a client cannot choose its own
+                key by prepending entries.  Empty (the default) keeps the
+                peer address as the key, which is what a directly connected
+                client sees.  Entries are validated at construction.
+
+        Raises:
+            ValueError: If *trusted_proxies* contains an entry that is not
+                an IP address or CIDR range.
         """
         self._registry = registry
         self._host = "0.0.0.0" if remote else host
@@ -239,6 +261,7 @@ class AdminServer:
         self._allow_private_hosts = allow_private_hosts
         self._extensions = tuple(extensions) if extensions is not None else ()
         self._source_hook = source_hook
+        self._trusted_proxies = parse_trusted_proxies(trusted_proxies)
         # By default a loopback-bound panel answers only to loopback names;
         # a wildcard bind has no predictable name and relies on token auth.
         if allowed_hosts is None:
@@ -298,6 +321,11 @@ class AdminServer:
         return self._ssl_context
 
     @property
+    def trusted_proxies(self) -> tuple[IPNetwork, ...]:
+        """Get the parsed trusted-proxy networks."""
+        return self._trusted_proxies
+
+    @property
     def metrics(self) -> RequestMetrics | None:
         """Get the running server's request metrics, if available."""
         return self._app.metrics if self._app is not None else None
@@ -344,6 +372,7 @@ class AdminServer:
         self._app.allow_private_hosts = self._allow_private_hosts
         self._app.secure_cookies = self._ssl_context is not None
         self._app.source_hook = self._source_hook
+        self._app.trusted_proxies = self._trusted_proxies
 
         # Validate extensions and register their routes before the listener
         # starts: a contract violation must fail start(), not a request.
