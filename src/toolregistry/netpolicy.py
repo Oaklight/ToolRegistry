@@ -10,9 +10,17 @@ judged by the IPv4 address it embeds: the well-known prefix
 ``64:ff9b:1::/48`` is refused as a whole because its embedding position is
 deployment-dependent and no fixed bit range can be trusted.
 
+:func:`resolve_outbound_url` (and its async twin) apply the same policy and
+also return the addresses that were checked, so a caller with a connection
+layer that can pin one can use them instead of resolving the name again.  The
+two functions differ in one place: with ``allow_private_hosts=True`` the
+``validate`` pair returns without any DNS lookup, while the ``resolve`` pair
+still resolves because the caller needs the addresses.
+
 The policy ends at the dial.  It does not follow redirects, it does not pin
 the resolved address to the connection (a second resolution at connect time
-can return a different answer, #399), and it does not strip credentials from
+can return a different answer, #399; :func:`resolve_outbound_url` supplies the
+addresses a pinning layer needs), and it does not strip credentials from
 a cross-origin redirect.  A caller that fetches a URL someone else supplied
 owns those decisions.
 
@@ -27,6 +35,8 @@ from ._netpolicy import (
     PrivateAddressError,
     UnsafeAddressError,
     clear_address_cache,
+    resolve_outbound_url,
+    resolve_outbound_url_async,
     validate_outbound_url,
     validate_outbound_url_async,
 )
@@ -36,6 +46,8 @@ __all__ = [
     "PrivateAddressError",
     "UnsafeAddressError",
     "clear_address_cache",
+    "resolve_outbound_url",
+    "resolve_outbound_url_async",
     "validate_outbound_url",
     "validate_outbound_url_async",
 ]

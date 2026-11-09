@@ -16,6 +16,8 @@ from toolregistry._netpolicy import (
     PrivateAddressError,
     UnsafeAddressError,
     clear_address_cache,
+    resolve_outbound_url,
+    resolve_outbound_url_async,
     validate_outbound_url,
     validate_outbound_url_async,
 )
@@ -302,6 +304,106 @@ class TestNat64:
         assert validate_outbound_url(url, allow_private_hosts=True) == url
 
 
+class TestResolvedAddresses:
+    """The resolve pair returns the addresses the policy checked (#305)."""
+
+    def test_literal_returns_the_literal(self):
+        url = "https://8.8.8.8/spec"
+        assert resolve_outbound_url(url) == (url, ("8.8.8.8",))
+
+    def test_private_literal_with_opt_out_returns_it(self):
+        url = "https://127.0.0.1/spec"
+        assert resolve_outbound_url(url, allow_private_hosts=True) == (
+            url,
+            ("127.0.0.1",),
+        )
+
+    def test_name_returns_what_the_resolver_returned(self, resolver):
+        resolver["addresses"].extend(["93.184.216.34", "93.184.216.35"])
+        url, addresses = resolve_outbound_url("https://example.com/spec")
+        assert url == "https://example.com/spec"
+        # The stub stands in for ``getaddrinfo``; the policy must hand back
+        # exactly the answers it judged, in order.
+        assert addresses == ("93.184.216.34", "93.184.216.35")
+        assert resolver["calls"] == 1
+
+    def test_cache_hit_returns_addresses_without_a_second_resolution(self, resolver):
+        resolver["addresses"].append("93.184.216.34")
+        first = resolve_outbound_url("https://example.com/spec")
+        # A rebinding answer inside the cache window must not be returned.
+        resolver["addresses"][:] = ["10.0.0.1"]
+        second = resolve_outbound_url("https://example.com/spec")
+        assert first == second
+        assert second[1] == ("93.184.216.34",)
+        assert resolver["calls"] == 1
+
+    def test_private_name_still_raises(self, resolver):
+        resolver["addresses"].append("10.0.0.7")
+        with pytest.raises(PrivateAddressError):
+            resolve_outbound_url("https://internal.example/spec")
+
+    def test_opt_out_still_resolves(self, resolver):
+        resolver["addresses"].append("10.0.0.7")
+        url, addresses = resolve_outbound_url(
+            "https://internal.example/spec", allow_private_hosts=True
+        )
+        assert url == "https://internal.example/spec"
+        assert addresses == ("10.0.0.7",)
+        assert resolver["calls"] == 1
+
+    def test_opt_out_result_does_not_satisfy_a_later_check(self, resolver):
+        """An unchecked lookup must never enter the cache."""
+        resolver["addresses"].append("10.0.0.7")
+        resolve_outbound_url("https://internal.example/spec", allow_private_hosts=True)
+        with pytest.raises(PrivateAddressError):
+            resolve_outbound_url("https://internal.example/spec")
+        assert resolver["calls"] == 2
+
+    def test_validate_still_returns_only_the_url(self, resolver):
+        resolver["addresses"].append("93.184.216.34")
+        result = validate_outbound_url("https://example.com/spec")
+        assert result == "https://example.com/spec"
+        assert isinstance(result, str)
+
+
+class TestResolvedAddressesAsync:
+    """The async resolve twin matches the sync one."""
+
+    def test_async_literal_returns_the_literal(self):
+        url = "https://8.8.8.8/spec"
+        assert asyncio.run(resolve_outbound_url_async(url)) == (url, ("8.8.8.8",))
+
+    def test_async_name_returns_addresses_and_caches(self, resolver):
+        resolver["addresses"].append("93.184.216.34")
+        first = asyncio.run(resolve_outbound_url_async("https://example.com/spec"))
+        second = asyncio.run(resolve_outbound_url_async("https://example.com/spec"))
+        assert first == second == ("https://example.com/spec", ("93.184.216.34",))
+        assert resolver["calls"] == 1
+
+    def test_async_private_name_still_raises(self, resolver):
+        resolver["addresses"].append("10.0.0.7")
+        with pytest.raises(PrivateAddressError):
+            asyncio.run(resolve_outbound_url_async("https://internal.example/spec"))
+
+    def test_async_opt_out_still_resolves(self, resolver):
+        resolver["addresses"].append("10.0.0.7")
+        url, addresses = asyncio.run(
+            resolve_outbound_url_async(
+                "https://internal.example/spec", allow_private_hosts=True
+            )
+        )
+        assert addresses == ("10.0.0.7",)
+        assert resolver["calls"] == 1
+
+    def test_async_validate_does_not_resolve_with_opt_out(self, resolver):
+        url = "https://internal.example/spec"
+        assert (
+            asyncio.run(validate_outbound_url_async(url, allow_private_hosts=True))
+            == url
+        )
+        assert resolver["calls"] == 0
+
+
 class TestPublicModule:
     """``toolregistry.netpolicy`` is the public name for the policy."""
 
@@ -317,6 +419,11 @@ class TestPublicModule:
         assert netpolicy.PrivateAddressError is _netpolicy.PrivateAddressError
         assert netpolicy.SCHEMES is _netpolicy.SCHEMES
         assert netpolicy.clear_address_cache is _netpolicy.clear_address_cache
+        assert netpolicy.resolve_outbound_url is _netpolicy.resolve_outbound_url
+        assert (
+            netpolicy.resolve_outbound_url_async
+            is _netpolicy.resolve_outbound_url_async
+        )
 
     def test_public_import_enforces_the_policy(self):
         from toolregistry.netpolicy import PrivateAddressError as PublicError
