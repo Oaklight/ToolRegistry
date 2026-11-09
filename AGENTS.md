@@ -39,11 +39,22 @@ Key standalone modules:
 | Module | Purpose |
 |--------|---------|
 | `tool.py` | `Tool`, `ToolMetadata`, `ToolTag`, `TOOLCALL_REASON_PROPERTY` |
-| `tool_discovery.py` | BM25-based fuzzy tool search (`ToolDiscoveryTool`) |
+| `tool_registry.py` | `ToolRegistry` (composes the 7 mixins) |
+| `tool_wrapper.py` | Tool wrapper base classes |
 | `parameter_models.py` | JSON Schema generation from Python signatures |
-| `_rosetta.py` | Multi-provider schema bridge (via `llm-rosetta`) |
-| `truncation.py` | Result truncation with temp file persistence |
-| `admin/` | HTTP server, REST handlers, execution log, auth, static assets |
+| `schema_diff.py` | Compatible/breaking classification of schema changes |
+| `events.py` | ChangeEvent types |
+| `errors.py` | Validation and schema error types |
+| `netpolicy.py` | Public outbound address policy (`_netpolicy.py` implements it) |
+| `_names.py` | Tool-name normalization, namespace rules, registration filter |
+| `_http.py` | Base-URL HTTP clients and `HttpClientConfig` |
+| `_serialisation.py` | Tool-result JSON encoding |
+| `_validation.py` | Shared metadata field validation |
+| `_async_runtime.py` | Persistent event loop for sync→async bridging |
+| `_warnings.py` | Warning attribution to the caller's frame |
+| `llm/` | Tool discovery, result truncation, provider tool calls, Rosetta bridge |
+| `runtimes/` | PTC (Programmatic Tool Calling) bridge |
+| `admin/` | HTTP server, REST handlers, extension contract, source hook, UI |
 | `executor/` | Thread/process pool execution backends |
 | `permissions/` | Policy engine, handler protocol, built-in rules |
 | `config/` | Declarative JSONC/YAML config loader |
@@ -56,30 +67,39 @@ src/toolregistry/
 ├── __init__.py              # Exports, __version__
 ├── tool.py                  # Tool, ToolMetadata, ToolTag
 ├── tool_registry.py         # ToolRegistry (composes 7 mixins)
-├── tool_discovery.py        # BM25 fuzzy search
+├── tool_wrapper.py          # Tool wrapper base classes
 ├── parameter_models.py      # JSON Schema from signatures
-├── _rosetta.py              # llm-rosetta bridge
-├── truncation.py            # Result size management
+├── schema_diff.py           # Schema compatibility classification
 ├── events.py                # ChangeEvent types
-├── utils.py                 # Tool name normalization, etc.
+├── errors.py                # Validation and schema errors
+├── netpolicy.py             # Public outbound address policy
+├── utils.py                 # Compatibility surface (re-exports the helpers below)
+├── _names.py                # Tool-name rules + registration filter
+├── _http.py                 # Base-URL HTTP clients and config
+├── _serialisation.py        # Tool-result JSON encoding
+├── _validation.py           # Shared metadata field validation
+├── _async_runtime.py        # Sync→async bridge event loop
+├── _warnings.py             # Caller-attributed warnings
+├── _netpolicy.py            # Outbound address policy implementation
 ├── _mixins/                 # 7 mixin classes (see Architecture)
-├── admin/                   # Web admin panel (server, handlers, UI)
+├── llm/                     # Discovery, truncation, tool calls, Rosetta bridge
+├── runtimes/                # PTC (Programmatic Tool Calling) bridge
+├── admin/                   # Web admin panel (server, handlers, extensions, UI)
 │   ├── server.py            # Async HTTP server
 │   ├── handlers.py          # REST API endpoints
+│   ├── extensions.py        # Admin extension contract
+│   ├── source_hook.py       # Source persistence and status hook
 │   ├── admin.html           # Single-file SPA (i18n: EN/ZH)
 │   ├── execution_log.py     # Call history
-│   ├── auth.py              # Token auth
+│   ├── auth.py              # Token auth and failure limiter
 │   └── static.py            # Asset serving
 ├── executor/                # Pluggable execution backends
 ├── permissions/             # Policy engine + built-in rules
 ├── config/                  # JSONC/YAML config loader
 ├── integrations/            # MCP, OpenAPI, LangChain, native
-├── types/                   # Provider-specific schema types
-│   ├── common.py            # API_FORMATS, ToolCall, ToolCallResult
-│   └── openai/, anthropic/, gemini/
 └── _vendor/                 # Vendored zero-dep modules (DO NOT EDIT)
 
-tests/                       # 39 test files, pytest
+tests/                       # pytest suite
 examples/                    # Usage examples
 docs_en/, docs_zh/           # Documentation (git worktrees, orphan branches)
 ```
@@ -183,7 +203,7 @@ those branches have no `.pre-commit-config.yaml`.
 
 ## Escalation
 
-- Schema generation mismatch → check `_rosetta.py` and `llm-rosetta` version
+- Schema generation mismatch → check `llm/_rosetta.py` and `llm-rosetta` version
 - Rosetta compat failure → see `rosetta-compat.yml` CI, check upstream release
 - `_vendor/` issues → never fix in-place; update in zerodep repo, re-vendor
 - Pre-existing CI failure (complexipy on `_update_config`) → known, not blocking
