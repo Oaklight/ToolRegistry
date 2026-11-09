@@ -56,6 +56,12 @@ The Tool class follows a data-transfer-object pattern with the following key com
         show_root_heading: true
         show_root_toc_entry: false
 
+::: toolregistry.copy_tool_metadata
+    options:
+        show_source: false
+        show_root_heading: true
+        show_root_toc_entry: false
+
 ## Usage Examples
 
 ### Basic Tool Creation
@@ -233,6 +239,40 @@ conflict. Bound methods delegate attribute access to the underlying function,
 so no extra class scan is needed. `@tool_metadata` must sit below
 `@staticmethod`, because the outer `staticmethod` object does not accept the
 attribute.
+
+### Copying a Declaration onto a Rebuilt Function
+
+`functools.wraps` keeps the declaration because it copies the wrapped
+function's `__dict__`. A wrapper that builds a new function object instead —
+to bind a literal, drop a parameter, or wrap a bound method — loses it.
+`copy_tool_metadata(source, target)` applies the source's declaration to the
+new function:
+
+```python
+from toolregistry import copy_tool_metadata, tool_metadata
+
+@tool_metadata(tags={"network"}, title="Web Search")
+def search(query: str) -> list[str]:
+    """Search the web."""
+    return [query]
+
+def search_site(site: str):
+    def wrapped(query: str) -> list[str]:
+        """Search one site."""
+        return search(f"site:{site} {query}")
+
+    return copy_tool_metadata(search, wrapped)
+
+print(getattr(search_site("example.com"), "__tool_metadata__"))
+# {'tags': {'network'}, 'title': 'Web Search'}
+```
+
+The declaration is merged into whatever `target` already declares, and
+`source` wins on a conflict — the same result as stacking `source`'s decorator
+on top of `target`'s. A source that declares nothing leaves `target`
+unchanged and adds no attribute. A target that rejects attributes raises
+`TypeError`. Values are copied by reference, so a mutable declaration value
+(a `tags` set) is shared with the source; do not mutate it after copying.
 
 ### Replacing a Parameter Schema
 
