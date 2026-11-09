@@ -5,7 +5,7 @@ import warnings
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, ClassVar, Literal, TypeVar, get_type_hints
-from collections.abc import Callable, Set as AbstractSet
+from collections.abc import Callable, Mapping, Set as AbstractSet
 
 from ._names import NameSeparator, qualify_name
 from ._validation import HINT_METADATA_FIELDS, validate_metadata_field
@@ -1189,6 +1189,8 @@ class Tool:
         method_name: str | None = None,
         metadata: ToolMetadata | None = None,
         sep: NameSeparator = "-",
+        *,
+        localns: Mapping[str, Any] | None = None,
     ) -> "Tool":
         """Factory method to create Tool from callable.
 
@@ -1208,6 +1210,15 @@ class Tool:
             sep: Separator between *namespace* and the tool name.  Pass the
                 registry's ``name_sep`` so the resulting name matches the
                 registry key.
+            localns: Names visible only to the function that defined the
+                annotations, typically ``locals()`` from that function.  An
+                annotation that names a function-local type or
+                ``Annotated``/``Field`` pair cannot be resolved through the
+                function's globals; passing the namespace lets it resolve.
+                ``None`` (default) resolves through the globals alone, and
+                an annotation that still cannot resolve keeps the existing
+                fallback warning and ``metadata.unresolved_parameters``
+                entry.
 
         Returns:
             Tool: Configured Tool instance.
@@ -1242,7 +1253,7 @@ class Tool:
 
         parameters_model = None
         try:
-            parameters_model = _generate_parameters_model(func)
+            parameters_model = _generate_parameters_model(func, localns=localns)
         except Exception as e:
             warnings.warn(
                 f"Failed to generate parameter model for '{func_name}': {e}. "

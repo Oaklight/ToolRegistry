@@ -5,7 +5,7 @@ import typing
 import warnings
 from enum import Enum
 from typing import Any, Literal, Union, get_type_hints
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 
 from ._vendor.validate import (
     Doc,
@@ -28,7 +28,11 @@ class InvalidSignature(Exception):
     """
 
 
-def _get_typed_annotation(annotation: Any, globalns: dict[str, Any]) -> Any:
+def _get_typed_annotation(
+    annotation: Any,
+    globalns: dict[str, Any],
+    localns: Mapping[str, Any] | None = None,
+) -> Any:
     """Evaluate type annotation, handling forward references.
 
     Uses Python's public get_type_hints function rather than relying on
@@ -37,6 +41,9 @@ def _get_typed_annotation(annotation: Any, globalns: dict[str, Any]) -> Any:
     Args:
         annotation (Any): The annotation to evaluate (can be string forward reference).
         globalns (Dict[str, Any]): The global namespace to use for evaluating the annotation.
+        localns (Mapping[str, Any] | None): Names visible only inside the
+            function that defined the annotation, typically ``locals()``
+            from that function.  ``None`` resolves through *globalns* alone.
 
     Returns:
         Any: The evaluated annotation.
@@ -52,7 +59,9 @@ def _get_typed_annotation(annotation: Any, globalns: dict[str, Any]) -> Any:
 
         dummy.__annotations__ = {"a": annotation}
         try:
-            hints = get_type_hints(dummy, globalns, include_extras=True)
+            hints = get_type_hints(
+                dummy, globalns, localns=localns, include_extras=True
+            )
             return hints["a"]
         except Exception as e:
             raise InvalidSignature(
@@ -244,6 +253,7 @@ def _field_def_for_parameter(
     globalns: dict[str, Any],
     resolved_hints: dict[str, Any],
     degraded: set[str] | None = None,
+    localns: Mapping[str, Any] | None = None,
 ) -> tuple[Any, Any]:
     """Create a schema-safe field definition for one parameter.
 
@@ -255,6 +265,8 @@ def _field_def_for_parameter(
         degraded: Optional set that receives the names of parameters whose
             annotation already produced a fallback warning, so the later
             untyped-schema diagnostic does not repeat the symptom.
+        localns: Names visible only inside the function that defined the
+            annotation, typically ``locals()`` from that function.
     """
     if param.annotation is inspect.Parameter.empty:
         field_def = _create_field(param, Any)
@@ -264,7 +276,7 @@ def _field_def_for_parameter(
         try:
             annotation = resolved_hints.get(param.name)
             if annotation is None:
-                annotation = _get_typed_annotation(param.annotation, globalns)
+                annotation = _get_typed_annotation(param.annotation, globalns, localns)
             annotation = _normalize_bare_containers(annotation)
             annotation = _resolve_enum(annotation)
             annotation = _translate_annotated_metadata(annotation)
@@ -512,7 +524,11 @@ def _create_parameters_model(
         return None
 
 
-def _generate_parameters_model(func: Callable) -> type | None:
+def _generate_parameters_model(
+    func: Callable,
+    *,
+    localns: Mapping[str, Any] | None = None,
+) -> type | None:
     """Generate a type from a function's parameters for validation and schema.
 
     Creates a TypedDict-based type that can validate the function's parameters
@@ -520,6 +536,10 @@ def _generate_parameters_model(func: Callable) -> type | None:
 
     Args:
         func (Callable): The function to generate the parameter model for.
+        localns (Mapping[str, Any] | None): Names visible only inside the
+            function that defined the annotations, typically ``locals()``
+            from that function.  ``None`` resolves through the function's
+            globals alone.
 
     Returns:
         Optional[type]: TypedDict type for the parameters, or None on error.
@@ -534,7 +554,9 @@ def _generate_parameters_model(func: Callable) -> type | None:
 
     globalns = getattr(func, "__globals__", {})
     try:
-        resolved_hints = get_type_hints(func, globalns, include_extras=True)
+        resolved_hints = get_type_hints(
+            func, globalns, localns=localns, include_extras=True
+        )
     except Exception:
         resolved_hints = {}
 
@@ -558,6 +580,7 @@ def _generate_parameters_model(func: Callable) -> type | None:
             globalns,
             resolved_hints,
             degraded=degraded,
+            localns=localns,
         )
 
     model = _create_parameters_model(
