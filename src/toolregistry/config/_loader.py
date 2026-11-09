@@ -191,6 +191,7 @@ def _build_config(data: dict[str, Any], source: str) -> ToolConfig:
         profiles[name] = _build_profile_config(profile_data, name)
 
     tool_metadata = _build_tool_metadata(data)
+    tool_parameters = _build_tool_parameters(data)
 
     return ToolConfig(
         mode=mode,
@@ -200,6 +201,7 @@ def _build_config(data: dict[str, Any], source: str) -> ToolConfig:
         source=source,
         profiles=profiles,
         tool_metadata=tool_metadata,
+        tool_parameters=tool_parameters,
     )
 
 
@@ -342,6 +344,80 @@ def _optional_bool(entry: dict[str, Any], tool_name: str, key: str) -> bool | No
             f"'tool_metadata.{tool_name}.{key}' must be a boolean."
         ) from None
     return value
+
+
+# --- tool_parameters section ------------------------------------------------
+
+
+def _build_tool_parameters(data: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Parse the ``tool_parameters`` section of a config file.
+
+    Each entry replaces the published parameter schema for one route, keyed
+    by the exact registered tool name.  The block is parsed here but applied
+    by the consumer, after registration: this module has no registry, so a
+    name that is not registered yet is kept as written rather than rejected.
+    A consumer decides whether to apply, warn about, or skip an entry.
+
+    A value must be a JSON object schema.  ``type`` may be absent,
+    ``"object"``, or a list that contains ``"object"`` (``["object",
+    "null"]``); any other type is rejected, because the request path only
+    produces an object and a scalar or array schema would advertise
+    arguments the server can never accept.
+
+    Args:
+        data: Top-level config mapping.
+
+    Returns:
+        Mapping of tool names to their object schemas.  The outer mapping
+        and each schema are copied, so later mutation of the parsed config
+        file data cannot change the returned configuration.
+
+    Raises:
+        ConfigError: If the section or any entry is malformed.
+    """
+    raw = data.get("tool_parameters", {})
+    if not isinstance(raw, dict):
+        raise ConfigError(
+            f"'tool_parameters' must be a mapping, got {type(raw).__name__}."
+        )
+    parameters: dict[str, dict[str, Any]] = {}
+    for tool_name, schema in raw.items():
+        if not isinstance(schema, dict):
+            raise ConfigError(
+                f"'tool_parameters.{tool_name}' must be a mapping, "
+                f"got {type(schema).__name__}."
+            )
+        _validate_parameter_schema(tool_name, schema)
+        parameters[tool_name] = dict(schema)
+    return parameters
+
+
+def _validate_parameter_schema(tool_name: str, schema: dict[str, Any]) -> None:
+    """Require *schema* to describe a JSON object.
+
+    Args:
+        tool_name: Entry name, used in error messages.
+        schema: Raw schema mapping for one route.
+
+    Raises:
+        ConfigError: If ``type`` is not object-like or ``properties`` is
+            not a mapping.
+    """
+    schema_type = schema.get("type")
+    if isinstance(schema_type, list):
+        object_like = "object" in schema_type
+    else:
+        object_like = schema_type in (None, "object")
+    if not object_like:
+        raise ConfigError(
+            f"'tool_parameters.{tool_name}' must describe a JSON object "
+            f"schema, got type {schema_type!r}."
+        )
+    properties = schema.get("properties")
+    if properties is not None and not isinstance(properties, dict):
+        raise ConfigError(
+            f"'tool_parameters.{tool_name}.properties' must be a mapping."
+        )
 
 
 # --- tool source dispatch ----------------------------------------------------
