@@ -93,28 +93,28 @@ class TestTokenBudget:
 
 class TestJsonAwareTruncation:
     def test_a_dict_root_gains_a_truncation_key_with_counts(self):
-        text = json.dumps({"a": 1, "b": 2})
+        text = json.dumps({f"k{index}": index for index in range(10)})
 
-        tr = truncate_result(text, max_size=15, persist=False)
+        tr = truncate_result(text, max_size=60, persist=False)
 
         data = json.loads(tr.content)
         assert set(data) == {"_truncation"}
         assert data["_truncation"] == {
-            "omitted_items": 2,
-            "omitted_chars": 10,
+            "omitted_items": 10,
+            "omitted_chars": 60,
         }
 
     def test_a_list_root_gains_one_sentinel_and_keeps_parsing(self):
-        text = json.dumps([1, 2, 3, 4, 5])
+        text = json.dumps(list(range(30)))
 
-        tr = truncate_result(text, max_size=10, persist=False)
+        tr = truncate_result(text, max_size=60, persist=False)
 
         data = json.loads(tr.content)
-        assert len(data) == 1
-        assert data[-1]["_truncation"] == {
-            "omitted_items": 5,
-            "omitted_chars": 5,
-        }
+        assert len(data) >= 2
+        assert data[0] == 0
+        assert data[-1]["_truncation"]["omitted_items"] > 0
+        assert data[-1]["_truncation"]["omitted_chars"] > 0
+        assert len(tr.content) <= 60
 
     def test_an_existing_truncation_key_is_not_overwritten(self):
         text = json.dumps({"_truncation": "operator data", "x": "y" * 500})
@@ -144,11 +144,33 @@ class TestJsonAwareTruncation:
         assert isinstance(json.loads(tr.content), str)
         assert len(tr.content) <= 50
 
-    def test_the_result_always_parses_as_json(self):
+    def test_json_output_parses_when_it_fits_the_budget(self):
         text = json.dumps({"items": [{"value": index} for index in range(200)]})
-        for budget in (20, 50, 100, 500, 2000):
+        for budget in (60, 100, 500, 2000):
             tr = truncate_result(text, max_size=budget, persist=False)
+            data = json.loads(tr.content)
+            assert len(tr.content) <= budget
+            assert isinstance(data, dict)
+
+    def test_metadata_that_cannot_fit_falls_back_to_text(self):
+        text = json.dumps({"a": "x" * 100, "b": 1})
+
+        tr = truncate_result(text, max_size=20, persist=False)
+
+        # The omission metadata alone is longer than the budget, so the
+        # document is text-truncated and no longer parses.
+        assert len(tr.content) <= 20
+        assert tr.content == text[:20]
+        with pytest.raises(json.JSONDecodeError):
             json.loads(tr.content)
+
+    def test_deeply_nested_json_falls_back_to_text_without_raising(self):
+        text = "[" * 2000 + "]" * 2000
+
+        tr = truncate_result(text, max_size=80, persist=False)
+
+        assert tr.truncated is True
+        assert len(tr.content) <= 80
 
 
 class TestTextTruncation:
