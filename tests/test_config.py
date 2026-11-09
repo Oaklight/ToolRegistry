@@ -1302,6 +1302,107 @@ class TestToolMetadataOverrides:
 
 
 # ---------------------------------------------------------------------------
+# tool_parameters overrides (issue #165)
+# ---------------------------------------------------------------------------
+
+
+class TestToolParameters:
+    """Parsing and round-tripping of the ``tool_parameters`` section."""
+
+    def test_parse_object_schema(self, tmp_path: Path) -> None:
+        """An object schema is parsed and keyed by the exact tool name."""
+        path = _write(
+            tmp_path,
+            "params.json",
+            '{"mode":"denylist","tool_parameters":{"calc-eval":{'
+            '"type":"object","properties":{"expression":{"type":"string"}},'
+            '"required":["expression"]}}}',
+        )
+        schema = load_config(path).tool_parameters["calc-eval"]
+        assert schema["type"] == "object"
+        assert schema["properties"] == {"expression": {"type": "string"}}
+        assert schema["required"] == ["expression"]
+
+    def test_round_trip_both_formats(self, tmp_path: Path) -> None:
+        """The block survives save/load in JSONC and YAML."""
+        config = ToolConfig(
+            tool_parameters={
+                "calc-eval": {
+                    "type": "object",
+                    "properties": {"expression": {"type": "string"}},
+                }
+            }
+        )
+        for ext in (".json", ".yaml"):
+            path = tmp_path / f"cfg{ext}"
+            save_config(config, path)
+            loaded = load_config(path)
+            assert loaded.tool_parameters == config.tool_parameters
+
+    def test_empty_block_is_omitted(self) -> None:
+        """An empty mapping does not add the key to the written form."""
+        assert "tool_parameters" not in ToolConfig().to_dict()
+
+    def test_unknown_tool_name_is_kept(self, tmp_path: Path) -> None:
+        """A name with no registered tool is stored, not rejected."""
+        path = _write(
+            tmp_path,
+            "unknown.json",
+            '{"mode":"denylist","tool_parameters":{"not-registered-yet":{'
+            '"type":"object","properties":{}}}}',
+        )
+        loaded = load_config(path)
+        assert "not-registered-yet" in loaded.tool_parameters
+
+    def test_rejects_non_mapping_section(self, tmp_path: Path) -> None:
+        path = _write(
+            tmp_path, "bad_section.json", '{"mode":"denylist","tool_parameters":[]}'
+        )
+        with pytest.raises(ConfigError, match="tool_parameters"):
+            load_config(path)
+
+    def test_rejects_non_mapping_entry(self, tmp_path: Path) -> None:
+        path = _write(
+            tmp_path,
+            "bad_entry.json",
+            '{"mode":"denylist","tool_parameters":{"x":["not","an","object"]}}',
+        )
+        with pytest.raises(ConfigError, match=r"tool_parameters\.x"):
+            load_config(path)
+
+    def test_rejects_non_object_schema(self, tmp_path: Path) -> None:
+        """A scalar schema would advertise arguments the server cannot accept."""
+        path = _write(
+            tmp_path,
+            "scalar.json",
+            '{"mode":"denylist","tool_parameters":{"x":{"type":"string"}}}',
+        )
+        with pytest.raises(ConfigError, match="object"):
+            load_config(path)
+
+    def test_rejects_non_mapping_properties(self, tmp_path: Path) -> None:
+        path = _write(
+            tmp_path,
+            "bad_props.json",
+            '{"mode":"denylist","tool_parameters":{"x":{'
+            '"type":"object","properties":[]}}}',
+        )
+        with pytest.raises(ConfigError, match="properties"):
+            load_config(path)
+
+    def test_accepts_nullable_object_type(self, tmp_path: Path) -> None:
+        """``["object","null"]`` is a legal object schema."""
+        path = _write(
+            tmp_path,
+            "nullable.json",
+            '{"mode":"denylist","tool_parameters":{"x":{'
+            '"type":["object","null"],"properties":{}}}}',
+        )
+        schema = load_config(path).tool_parameters["x"]
+        assert schema["type"] == ["object", "null"]
+
+
+# ---------------------------------------------------------------------------
 # Source filters and unknown-key validation (#297)
 # ---------------------------------------------------------------------------
 

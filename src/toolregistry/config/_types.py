@@ -369,6 +369,12 @@ class ToolConfig:
         source: Filesystem path of the config file (for diagnostics).
         tool_metadata: Per-tool metadata overrides keyed by exact tool name.
             Applied after registration; supports ``search_hint`` and ``defer``.
+        tool_parameters: Per-route parameter schema overrides keyed by exact
+            registered tool name.  Each value is a JSON Schema object that
+            replaces the schema the server publishes and validates against
+            for that route only; the registry tool is untouched.  A name
+            that is not registered when the file is loaded is kept, so the
+            consumer can apply it after registration.
     """
 
     mode: Literal["denylist", "allowlist"] = "denylist"
@@ -378,6 +384,7 @@ class ToolConfig:
     source: str = ""
     profiles: dict[str, ProfileConfig] = field(default_factory=dict)
     tool_metadata: dict[str, ToolMetadataOverride] = field(default_factory=dict)
+    tool_parameters: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a config-file-compatible dict.
@@ -400,5 +407,9 @@ class ToolConfig:
                 name: override.to_dict()
                 for name, override in self.tool_metadata.items()
                 if override.to_dict()  # skip empty overrides
+            }
+        if self.tool_parameters:
+            d["tool_parameters"] = {
+                name: dict(schema) for name, schema in self.tool_parameters.items()
             }
         return d
