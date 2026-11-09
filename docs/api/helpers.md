@@ -14,7 +14,7 @@
 
 ## 实用工具
 
-库中通用的实用函数，包括工具名称标准化和用于 OpenAPI 集成的 HTTP 客户端配置。
+`toolregistry.utils` 是兼容层：它重新导出下游包导入的所有辅助函数，因此现有导入保持可用。实现按职责就近放置：工具名称标准化与注册过滤器在 `toolregistry._names`，基础 URL 的 HTTP 客户端与 `HttpClientConfig` 在 `toolregistry._http`，工具结果编码在 `toolregistry._serialisation`。
 
 ::: toolregistry.utils
     options:

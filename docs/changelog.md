@@ -28,6 +28,12 @@ hide:
 
 - **下游服务可持久化来源变更并暴露来源状态**（#436）：`AdminServer(..., source_hook=...)` 与 `enable_admin(source_hook=...)` 接受可选的钩子，提供 `persist(change)`、`writable()` 与 `statuses()`。注册时会向钩子传递结构化的 `SourceChange`（动作、类型、声明、命名空间、选择）；持久化失败返回 `200`，带 `persisted: false`、`persist_error` 与已生效的名称，因为工具已经生效。安装钩子后，`GET /api/sources` 在 `source_status` 中原样附带钩子记录，并给出 `config_writable`；由工具推导的 `sources` 数组与未安装钩子时的响应结构保持不变。见[源持久化钩子](admin/source-hooks.md)。
 
+### 变更
+
+#### 核心
+
+- **`utils.py` 按职责拆分**（#437）：工具名标准化与注册过滤器移至 `toolregistry._names`，基础 URL 的 HTTP 客户端与 `HttpClientConfig` 移至 `toolregistry._http`，工具结果编码移至 `toolregistry._serialisation`。`toolregistry.utils` 重新导出此前的所有名称，因此 `compute_schema_hash`、`ToolResultJSONEncoder` 等下游导入保持不变。`api/helpers.md` 记录新的实现位置，`AGENTS.md` 改为描述真实的包结构，并由一个检查其所列每个路径是否存在的测试固定。
+
 ### 修复
 
 #### 管理面板
