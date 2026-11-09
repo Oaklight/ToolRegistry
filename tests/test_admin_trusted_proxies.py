@@ -70,11 +70,22 @@ class TestForwardedChain:
         assert forwarded_source("", trusted) is None
         assert forwarded_source(" , ", trusted) is None
 
-    def test_a_malformed_hop_makes_the_chain_unusable(self) -> None:
+    def test_a_malformed_hop_right_of_the_client_is_refused(self) -> None:
         trusted = parse_trusted_proxies([TRUSTED_PEER])
-        assert forwarded_source("not-an-ip, 203.0.113.9", trusted) is None
+        # A hop at or right of the client position is proxy-authored, so a
+        # value that does not parse leaves no trustworthy entry: fail closed.
         assert forwarded_source("203.0.113.9, also-bad", trusted) is None
         assert forwarded_source("203.0.113.9:443", trusted) is None
+
+    def test_a_forged_malformed_prefix_does_not_move_the_key(self) -> None:
+        """A client-supplied entry cannot key itself to the proxy address.
+
+        Rejecting the whole chain on a forged malformed entry would hand any
+        client a switch: send garbage, get keyed to the proxy, then burn the
+        bucket shared by everyone behind it (#431 review).
+        """
+        trusted = parse_trusted_proxies([TRUSTED_PEER])
+        assert forwarded_source("not-an-ip, 203.0.113.9", trusted) == "203.0.113.9"
 
     def test_a_chain_of_trusted_hops_is_none(self) -> None:
         trusted = parse_trusted_proxies([TRUSTED_PEER, "10.0.0.0/8"])

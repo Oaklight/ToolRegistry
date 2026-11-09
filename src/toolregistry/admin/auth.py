@@ -77,9 +77,12 @@ def forwarded_source(header: str, trusted: Sequence[IPNetwork]) -> str | None:
         trusted: Networks whose addresses are skipped.
 
     Returns:
-        The client address, or ``None`` when the chain is empty, malformed,
-        or consists only of trusted hops.  The caller falls back to the peer
-        address in that case.
+        The client address, or ``None`` when the chain is empty, when a hop
+        at or right of the client does not parse, or when every hop is
+        trusted.  The caller falls back to the peer address in that case.
+        Hops left of the returned client are never examined: the client can
+        forge them, and the trusted proxy appends its own view to their
+        right, so they cannot affect the key.
     """
     entries = [part.strip() for part in header.split(",") if part.strip()]
     if not entries:
@@ -88,7 +91,9 @@ def forwarded_source(header: str, trusted: Sequence[IPNetwork]) -> str | None:
         try:
             address = ipaddress.ip_address(entry)
         except ValueError:
-            # A malformed hop makes the whole chain untrustworthy.
+            # A malformed hop at or right of the client position makes the
+            # chain untrustworthy.  Hops further left are the client's own
+            # forging space and are never reached.
             return None
         if not any(
             address.version == network.version and address in network
