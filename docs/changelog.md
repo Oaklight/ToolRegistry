@@ -16,15 +16,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-### Added
-
-- **A function-local annotation can be resolved at registration** (#466): `Tool.from_function`, `ToolRegistry.register` and `register_async` accept a keyword-only `localns` — typically `locals()` from the function that defines the tool — and pass it to `get_type_hints`, so an annotation that names a function-local type or an `Annotated`/`Field` pair publishes its real schema instead of an unconstrained one. `@registry.register(localns=...)` returns a decorator; `register_async` is a coroutine and must be awaited, so only the synchronous form has that decorator shape. Without `localns`, resolution is unchanged.
-- **A degraded annotation is named in the tool metadata** (#466): `ToolMetadata.unresolved_parameters` lists the parameters whose annotation could not be resolved to a schema and whose published schema is therefore unconstrained — an unresolvable function-local name, or a type with no JSON projection such as a plain class. It is empty when every parameter got a schema, so a server can report the degradation instead of presenting the empty schema as the contract.
-
-### Changed
-
-- **Breaking:** `set_permission_policy()` requires a `PermissionPolicy` (#467). Any other object raises `TypeError` at the setter. Previously a duck-typed policy was enforced by the in-process path and ignored by `toolregistry-server`, which could allow a call the policy meant to deny; the server's instance check is now a defensive duplicate of one rule rather than a second one.
-
 ## [0.21.0] - 2026-11-09
 
 ### Added
@@ -47,6 +38,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **A config file can carry per-route parameter schemas** (#465): `ToolConfig.tool_parameters` is a top-level block keyed by exact registered tool name, the same keying as `tool_metadata`. Each value must be a JSON Schema object — `type` may be omitted, be `"object"`, or be a list containing `"object"` (for example `["object", "null"]`); a scalar or array schema raises `ConfigError`, and `properties` must be a mapping when present. `load_config()` parses and stores the block but does not apply it, because an override needs the registered tool; a name that is not registered is kept, and the consumer applies or skips it after registration. `to_dict()` emits the block only when non-empty, so existing files round-trip unchanged. See [Declarative Configuration](usage/configuration.md).
 
+- **A function-local annotation can be resolved at registration** (#466): `Tool.from_function`, `ToolRegistry.register` and `register_async` accept a keyword-only `localns` — typically `locals()` from the function that defines the tool — and pass it to `get_type_hints`, so an annotation that names a function-local type or an `Annotated`/`Field` pair publishes its real schema instead of an unconstrained one. `@registry.register(localns=...)` returns a decorator; `register_async` is a coroutine and must be awaited, so only the synchronous form has that decorator shape. Without `localns`, resolution is unchanged.
+
+- **A degraded annotation is named in the tool metadata** (#466): `ToolMetadata.unresolved_parameters` lists the parameters whose annotation could not be resolved to a schema and whose published schema is therefore unconstrained — an unresolvable function-local name, or a type with no JSON projection such as a plain class. It is empty when every parameter got a schema, so a server can report the degradation instead of presenting the empty schema as the contract.
+
 #### Admin panel
 
 - **Admin panel extensions (contract v1)** (#435): `AdminServer(..., extensions=[...])` mounts operator-installed extensions. Each one declares `name`, `title` and `requires_api`, registers routes under `/ext/<name>` through `AdminContext` (`get`, `post`, `put`, `patch`, `delete`), and may add a tab by declaring `nav` together with `assets` and `entry` (plus optional `styles` and `icon`). An extension without `nav` is API-only and needs no assets. `GET /api/extensions` serves the manifest, extension assets are served from `/assets/ext/<name>/` through the existing suffix whitelist and traversal guard, and the shell imports the entry module and calls its `register({container, api, i18n})` export. `requires_api` is checked at startup and in the browser; a mismatch refuses the extension with its name in the message. Extension routes inherit panel authentication, and state-changing `/ext/` requests get the same cross-site guard as `/api/`. See [Admin Panel Extensions](admin/extensions.md).
@@ -60,6 +55,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 #### Core
 
 - **`utils.py` is split by concern** (#437): tool-name normalization and the registration filter moved to `toolregistry._names`, base-URL HTTP clients and `HttpClientConfig` to `toolregistry._http`, and tool-result encoding to `toolregistry._serialisation`. `toolregistry.utils` re-exports every previous name, so downstream imports such as `compute_schema_hash` and `ToolResultJSONEncoder` are unchanged. `api/helpers.md` documents the new homes, and `AGENTS.md` now describes the real package tree, pinned by a test that checks every path it names. The registration filter's warning is now attributed to `_names.py`, where the filter lives.
+
+- **Breaking:** `set_permission_policy()` requires a `PermissionPolicy` (#467). Any other object raises `TypeError` at the setter. Previously a duck-typed policy was enforced by the in-process path and ignored by `toolregistry-server`, which could allow a call the policy meant to deny; the server's instance check is now a defensive duplicate of one rule rather than a second one.
 
 ### Fixed
 
