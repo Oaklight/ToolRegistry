@@ -21,6 +21,11 @@ registration filter in `toolregistry._names`, base-URL HTTP clients and
 `HttpClientConfig` in `toolregistry._http`, and tool-result encoding in
 `toolregistry._serialisation`.
 
+The admin panel's Python-source preview lists only functions defined in the
+module. Because `toolregistry.utils` is now a compatibility surface,
+previewing it no longer lists the moved functions; register those from
+`toolregistry._names`, `toolregistry._http` or `toolregistry._serialisation`.
+
 ::: toolregistry.utils
     options:
         show_source: true

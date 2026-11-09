@@ -32,7 +32,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 #### Core
 
-- **`utils.py` is split by concern** (#437): tool-name normalization and the registration filter moved to `toolregistry._names`, base-URL HTTP clients and `HttpClientConfig` to `toolregistry._http`, and tool-result encoding to `toolregistry._serialisation`. `toolregistry.utils` re-exports every previous name, so downstream imports such as `compute_schema_hash` and `ToolResultJSONEncoder` are unchanged. `api/helpers.md` documents the new homes, and `AGENTS.md` now describes the real package tree, pinned by a test that checks every path it names.
+- **`utils.py` is split by concern** (#437): tool-name normalization and the registration filter moved to `toolregistry._names`, base-URL HTTP clients and `HttpClientConfig` to `toolregistry._http`, and tool-result encoding to `toolregistry._serialisation`. `toolregistry.utils` re-exports every previous name, so downstream imports such as `compute_schema_hash` and `ToolResultJSONEncoder` are unchanged. `api/helpers.md` documents the new homes, and `AGENTS.md` now describes the real package tree, pinned by a test that checks every path it names. The registration filter's warning is now attributed to `_names.py`, where the filter lives.
 
 ### Fixed
 
