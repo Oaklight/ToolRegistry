@@ -539,6 +539,15 @@ class ToolMetadata:
                 f"Invalid natural_backend {self.natural_backend!r}, "
                 f"must be one of {self._VALID_BACKEND}"
             )
+        if self.max_result_size is not None and (
+            isinstance(self.max_result_size, bool)
+            or not isinstance(self.max_result_size, int)
+            or self.max_result_size < 0
+        ):
+            raise ValueError(
+                f"Invalid max_result_size {self.max_result_size!r}, "
+                "must be a non-negative integer or None"
+            )
         if self.max_result_tokens is not None and (
             isinstance(self.max_result_tokens, bool)
             or not isinstance(self.max_result_tokens, int)
