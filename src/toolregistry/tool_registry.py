@@ -17,7 +17,12 @@ from .tool import ToolTag
 if TYPE_CHECKING:
     from .executor import ExecutionBackend
     from .tool import Tool
-from .llm.truncation import CHARS_PER_TOKEN, truncate_result
+from .llm.truncation import (
+    CHARS_PER_TOKEN,
+    DEFAULT_READ_RESULT_LIMIT,
+    ResultStore,
+    truncate_result,
+)
 from .llm.content_blocks import is_content_block_list
 from .permissions import (
     PermissionResult,
@@ -166,6 +171,7 @@ class ToolRegistry(
         *,
         default_max_result_size: int | None = None,
         default_max_result_tokens: int | None = None,
+        persist_large_results: bool = False,
         think_augment: bool = False,
         tool_discovery: bool = False,
         name_sep: Literal["-", "."] = "-",
@@ -187,6 +193,14 @@ class ToolRegistry(
                 estimate of 4). Individual tools can override this via
                 ``ToolMetadata.max_result_tokens``. When both limits are
                 set, the smaller effective one wins. None means no limit.
+            persist_large_results: Store each truncated full result in a
+                private per-run directory and register a ``read_result``
+                tool that pages through it by opaque id.  The truncation
+                header then names an id (``res_<12 hex>``), never a
+                filesystem path.  Defaults to ``False``: nothing is written
+                to disk.  Files are created with mode ``0600``, expire after
+                24 hours, and are evicted oldest-first beyond a 64 MiB
+                quota.
             think_augment: Enable thought-augmented tool calling globally.
                 When ``True``, a ``toolcall_reason`` property is
                 included in every tool's schema so LLMs can articulate
@@ -220,6 +234,8 @@ class ToolRegistry(
         self._execution_mode: Literal["process", "thread"] = "process"
         self._default_max_result_size = default_max_result_size
         self._default_max_result_tokens = default_max_result_tokens
+        self._persist_large_results = persist_large_results
+        self._result_store = ResultStore() if persist_large_results else None
         self._think_augment = think_augment
         self._name_sep: Literal["-", "."] = name_sep
         self._tool_discovery: ToolDiscoveryTool | None = None
@@ -243,8 +259,71 @@ class ToolRegistry(
         # about every change that can move a tool in or out of it.
         self.on_change(self._sync_tool_discovery)
 
+        if persist_large_results:
+            self._register_read_result_tool()
+
         if tool_discovery:
             self.enable_tool_discovery()
+
+    def _register_read_result_tool(self) -> None:
+        """Register the built-in ``read_result`` tool.
+
+        The tool is only registered when *persist_large_results* is on: with
+        no store there is nothing to read, and a tool that always fails
+        would only pollute the model's tool list.
+        """
+        from .tool import Tool, ToolMetadata
+
+        self.register(
+            Tool.from_function(
+                self.read_result,
+                name="read_result",
+                description=(
+                    "Read part of a tool result that was truncated for "
+                    "context. Pass the id from a truncation header "
+                    "('full output: res_...') and page through the full "
+                    "output with offset and limit."
+                ),
+                metadata=ToolMetadata(
+                    defer=False,
+                    read_only_hint=True,
+                    destructive_hint=False,
+                    idempotent_hint=True,
+                    open_world_hint=False,
+                    # The bound method closes over the registry, which owns
+                    # locks and a process pool and therefore cannot be
+                    # pickled.  A thread keeps the read off the event loop
+                    # without the failed pickle attempt a pool submit would
+                    # make.
+                    natural_backend="thread",
+                ),
+            )
+        )
+
+    def read_result(
+        self,
+        id: str,
+        offset: int = 0,
+        limit: int = DEFAULT_READ_RESULT_LIMIT,
+    ) -> str:
+        """Read a slice of a stored, truncated tool result.
+
+        Args:
+            id: Opaque result id from a truncation header (``res_<12 hex>``).
+            offset: Character offset to start at.
+            limit: Maximum number of characters to return.
+
+        Returns:
+            The requested slice of the full result.
+
+        Raises:
+            ValueError: If the id is not a valid result id, is unknown, has
+                expired, or *offset*/*limit* is not a non-negative integer.
+            RuntimeError: If result persistence is not enabled.
+        """
+        if self._result_store is None:
+            raise RuntimeError("result persistence is not enabled")
+        return self._result_store.read(id, offset=offset, limit=limit)
 
     @property
     def name_sep(self) -> Literal["-", "."]:
@@ -1339,7 +1418,13 @@ class ToolRegistry(
         max_size = self._result_char_budget(tool_name)
 
         if max_size is not None:
-            tr = truncate_result(result_str, max_size, tool_name=tool_name)
+            tr = truncate_result(
+                result_str,
+                max_size,
+                tool_name=tool_name,
+                persist=self._persist_large_results,
+                store=self._result_store,
+            )
             return str(tr)
         return result_str
 

@@ -328,9 +328,10 @@ class ToolMetadata:
             ``"remote"`` for tools best served by a remote server
             (e.g. web search), ``"any"`` (default) for location-agnostic tools.
         max_result_size: Maximum result size in characters. When a tool's
-            result exceeds this limit, it is automatically truncated and
-            the full output is persisted to a temporary file. Only
-            effective when executed through
+            result exceeds this limit, it is automatically truncated. The
+            full output is stored in a private per-run directory only when
+            the registry enables ``persist_large_results``; otherwise
+            nothing is written. Only effective when executed through
             ``ToolRegistry.execute_tool_calls()``. None means no limit.
         max_result_tokens: Maximum result size in tokens. Converted to
             characters with a fixed 4-characters-per-token estimate (see

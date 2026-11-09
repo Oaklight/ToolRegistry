@@ -1,10 +1,14 @@
 """Result size management: truncation and persistence for large tool outputs."""
 
-import hashlib
+import contextlib
 import json
 import os
+import re
+import secrets
 import tempfile
+import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
@@ -22,6 +26,20 @@ _MIN_STRING_LIMIT = 64
 
 #: Key that carries omission counts inside a pruned JSON document.
 _METADATA_KEY = "_truncation"
+
+#: Default lifetime of a persisted result, in seconds (24 hours).
+DEFAULT_RESULT_TTL_SECONDS = 24 * 60 * 60.0
+
+#: Default total size of the persistence directory, in bytes (64 MiB).
+DEFAULT_RESULT_QUOTA_BYTES = 64 * 1024 * 1024
+
+#: Characters returned by one ``read_result`` call when *limit* is omitted.
+DEFAULT_READ_RESULT_LIMIT = 8000
+
+#: Characters decoded per step while skipping to a read offset.
+_READ_CHUNK = 65536
+
+_RESULT_ID_PATTERN = re.compile(r"^res_[0-9a-f]{12}$")
 
 
 class TruncationStrategy(str, Enum):
@@ -46,13 +64,19 @@ class TruncatedResult:
         content: The (possibly truncated) text content.
         original_size: Original result size in characters.
         truncated: Whether truncation was applied.
-        full_path: Path to the persisted full result, or None.
+        full_path: Host path to the persisted full result.  For programmatic
+            callers only: :meth:`__str__` never renders it, because the
+            string form is placed in the model context.
+        result_id: Opaque id (``res_<12 hex>``) under which the full result
+            can be read back with the ``read_result`` tool.  ``None`` when
+            the result was not persisted.
     """
 
     content: str
     original_size: int
     truncated: bool = False
     full_path: str | None = None
+    result_id: str | None = None
 
     def __str__(self) -> str:
         if not self.truncated:
@@ -60,38 +84,192 @@ class TruncatedResult:
         header_parts = [
             f"Truncated: {self.original_size} chars -> {len(self.content)} chars"
         ]
-        if self.full_path:
-            header_parts.append(f"full output: {self.full_path}")
+        if self.result_id:
+            header_parts.append(
+                f"full output: {self.result_id} (read it with read_result)"
+            )
+        elif self.full_path:
+            header_parts.append("full output: persisted")
         header = " | ".join(header_parts)
         return f"[{header}]\n{self.content}"
 
 
-def _get_results_dir() -> str:
-    """Return (and create) the directory for persisted full results."""
-    results_dir = os.path.join(tempfile.gettempdir(), "toolregistry_results")
-    os.makedirs(results_dir, exist_ok=True)
-    return results_dir
+class ResultStore:
+    """Per-run storage for full tool results.
 
-
-def _persist_full_result(result_str: str, tool_name: str) -> str:
-    """Write the full result to a temporary file and return its path.
+    Files live in a private directory, are created with mode ``0600``,
+    expire after *ttl* seconds, and are evicted oldest-first when the
+    directory would exceed *quota* bytes.  An id is opaque
+    (``res_<12 hex>``) and the filesystem path is never placed in a
+    truncation header.
 
     Args:
-        result_str: The complete result string.
-        tool_name: Name of the tool (used in the filename).
+        root: Directory to store results in.  ``None`` creates a fresh
+            per-run directory under the system temp dir with mode ``0700``.
+        ttl: Seconds a result stays readable.
+        quota: Total bytes the directory may hold.
+        clock: Wall-clock source, injectable for tests.
 
-    Returns:
-        Absolute path to the persisted file.
+    Raises:
+        ValueError: If *ttl* is not positive or *quota* is negative.
     """
-    results_dir = _get_results_dir()
-    content_hash = hashlib.sha256(result_str.encode()).hexdigest()[:12]
-    timestamp = int(time.time())
-    safe_name = tool_name.replace("/", "_").replace("\\", "_")
-    filename = f"{safe_name}_{timestamp}_{content_hash}.txt"
-    filepath = os.path.join(results_dir, filename)
-    with open(filepath, "w", encoding="utf-8") as f:
-        f.write(result_str)
-    return filepath
+
+    def __init__(
+        self,
+        root: str | None = None,
+        *,
+        ttl: float = DEFAULT_RESULT_TTL_SECONDS,
+        quota: int = DEFAULT_RESULT_QUOTA_BYTES,
+        clock: Callable[[], float] = time.time,
+    ) -> None:
+        if ttl <= 0:
+            raise ValueError("ttl must be positive")
+        if quota < 0:
+            raise ValueError("quota must be non-negative")
+        self.root = (
+            root
+            if root is not None
+            else tempfile.mkdtemp(prefix="toolregistry-results-")
+        )
+        os.makedirs(self.root, mode=0o700, exist_ok=True)
+        self.ttl = ttl
+        self.quota = quota
+        self._clock = clock
+        self._lock = threading.Lock()
+
+    def put(self, text: str) -> tuple[str, str]:
+        """Store *text*, returning ``(result_id, path)``.
+
+        Cleanup runs first: expired files are removed, then the oldest
+        files are evicted until the directory fits the quota.  The file just
+        written is never evicted, even when it alone exceeds the quota.
+        """
+        with self._lock:
+            self._cleanup_locked()
+            for _ in range(8):
+                result_id = f"res_{secrets.token_hex(6)}"
+                path = os.path.join(self.root, f"{result_id}.txt")
+                try:
+                    handle = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                except FileExistsError:
+                    continue
+                try:
+                    with os.fdopen(handle, "w", encoding="utf-8") as stream:
+                        stream.write(text)
+                    # Timestamps follow the store clock so TTL and eviction
+                    # order are testable without sleeping.
+                    now = self._clock()
+                    os.utime(path, (now, now))
+                except BaseException:
+                    with contextlib.suppress(OSError):
+                        os.unlink(path)
+                    raise
+                self._enforce_quota_locked(keep=path)
+                return result_id, path
+        raise RuntimeError("could not allocate a result id")
+
+    def path_for(self, result_id: str) -> str:
+        """Return the host path for *result_id*.
+
+        Raises:
+            ValueError: If *result_id* is not an opaque result id.
+        """
+        if not isinstance(result_id, str) or not _RESULT_ID_PATTERN.fullmatch(
+            result_id
+        ):
+            raise ValueError(f"invalid result id {result_id!r}")
+        return os.path.join(self.root, f"{result_id}.txt")
+
+    def read(
+        self,
+        result_id: str,
+        offset: int = 0,
+        limit: int = DEFAULT_READ_RESULT_LIMIT,
+    ) -> str:
+        """Return one character slice of a stored result.
+
+        Args:
+            result_id: Opaque id returned by :meth:`put`.
+            offset: Character offset to start at.
+            limit: Maximum characters to return.
+
+        Raises:
+            ValueError: If the id is invalid or unknown, the file expired,
+                or *offset*/*limit* is not a non-negative integer.
+        """
+        if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0:
+            raise ValueError("offset must be a non-negative integer")
+        if isinstance(limit, bool) or not isinstance(limit, int) or limit < 0:
+            raise ValueError("limit must be a non-negative integer")
+        path = self.path_for(result_id)
+        try:
+            if self._clock() - os.path.getmtime(path) > self.ttl:
+                with contextlib.suppress(OSError):
+                    os.unlink(path)
+                raise ValueError(f"result id {result_id!r} has expired")
+            with open(path, encoding="utf-8") as stream:
+                remaining = offset
+                while remaining > 0:
+                    skipped = len(stream.read(min(remaining, _READ_CHUNK)))
+                    if skipped == 0:
+                        return ""
+                    remaining -= skipped
+                return stream.read(limit)
+        except FileNotFoundError as exc:
+            raise ValueError(f"unknown result id {result_id!r}") from exc
+
+    def _cleanup_locked(self) -> None:
+        """Remove expired files.  Holds the lock."""
+        now = self._clock()
+        for path in self._files():
+            with contextlib.suppress(OSError):
+                if now - os.path.getmtime(path) > self.ttl:
+                    os.unlink(path)
+
+    def _enforce_quota_locked(self, keep: str) -> None:
+        """Evict the oldest files until the directory fits.  Holds the lock."""
+        entries: list[tuple[float, int, str]] = []
+        for path in self._files():
+            try:
+                stat = os.stat(path)
+            except OSError:
+                continue
+            entries.append((stat.st_mtime, stat.st_size, path))
+        total = sum(size for _, size, _ in entries)
+        for _, size, path in sorted(entries):
+            if total <= self.quota:
+                break
+            if path == keep:
+                continue
+            with contextlib.suppress(OSError):
+                os.unlink(path)
+                total -= size
+
+    def _files(self) -> list[str]:
+        """Return the stored result files, ignoring foreign files."""
+        try:
+            names = os.listdir(self.root)
+        except OSError:
+            return []
+        paths = []
+        for name in names:
+            if name.endswith(".txt") and _RESULT_ID_PATTERN.fullmatch(name[:-4]):
+                paths.append(os.path.join(self.root, name))
+        return paths
+
+
+_DEFAULT_STORE: ResultStore | None = None
+_DEFAULT_STORE_LOCK = threading.Lock()
+
+
+def default_result_store() -> ResultStore:
+    """Return the process-wide store used by ``truncate_result(persist=True)``."""
+    global _DEFAULT_STORE
+    if _DEFAULT_STORE is None:
+        with _DEFAULT_STORE_LOCK:
+            if _DEFAULT_STORE is None:
+                _DEFAULT_STORE = ResultStore()
+    return _DEFAULT_STORE
 
 
 # ---------------------------------------------------------------------------
@@ -350,6 +528,7 @@ def truncate_result(
     strategy: TruncationStrategy = TruncationStrategy.HEAD_TAIL,
     tool_name: str = "",
     persist: bool = True,
+    store: ResultStore | None = None,
 ) -> TruncatedResult:
     """Truncate a string result if it exceeds ``max_size`` characters.
 
@@ -372,8 +551,11 @@ def truncate_result(
         result_str: The full result string.
         max_size: Maximum allowed size in characters.
         strategy: Truncation strategy for non-JSON text.
-        tool_name: Tool name, used for the persisted filename.
-        persist: Whether to write the full result to a temporary file.
+        tool_name: Tool name.  Retained for callers that label results;
+            stored files are named by their opaque result id.
+        persist: Whether to store the full result.
+        store: Store to write to.  ``None`` uses
+            :func:`default_result_store`, a process-wide per-run store.
 
     Returns:
         A ``TruncatedResult`` with the (possibly truncated) content and
@@ -387,8 +569,9 @@ def truncate_result(
         )
 
     full_path = None
+    result_id = None
     if persist:
-        full_path = _persist_full_result(result_str, tool_name)
+        result_id, full_path = (store or default_result_store()).put(result_str)
 
     content = _truncate_json_document(result_str, max_size)
     if content is None:
@@ -399,4 +582,5 @@ def truncate_result(
         original_size=len(result_str),
         truncated=True,
         full_path=full_path,
+        result_id=result_id,
     )
