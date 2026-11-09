@@ -16,6 +16,7 @@ hide:
 
 <p class="tr-badges">
   <a href="https://pypi.org/project/toolregistry/"><img alt="PyPI version" src="https://img.shields.io/pypi/v/toolregistry?labelColor=475569&color=075985"></a>
+  <a href="https://test.pypi.org/project/toolregistry/"><img alt="TestPyPI version" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Ftest.pypi.org%2Fpypi%2Ftoolregistry%2Fjson&query=%24.info.version&label=TestPyPI&labelColor=475569&color=c2410c"></a>
   <a href="https://github.com/Oaklight/ToolRegistry/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Oaklight/ToolRegistry/ci.yml?branch=master&label=CI&labelColor=475569&color=0c4a6e"></a>
   <a href="https://opensource.org/licenses/MIT"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-0c4a6e?labelColor=475569"></a>
   <a href="https://arxiv.org/abs/2507.10593"><img alt="arXiv" src="https://img.shields.io/badge/arXiv-2507.10593-64748b?labelColor=475569"></a>
@@ -81,11 +82,11 @@ pip install "toolregistry[mcp,openapi]"
 
 ## Ecosystem
 
-| Package | Use it when you need |
-|---------|----------------------|
-| **toolregistry** | Core registration, schema generation, execution, permissions, and metadata |
-| [toolregistry-server](https://toolregistry-server.readthedocs.io/) | Serve registries as OpenAPI or MCP services |
-| [toolregistry-hub](https://toolregistry-hub.readthedocs.io/) | Ready-to-use tools for search, fetch, datetime, unit conversion, and more |
+| Package | Use it when you need | TestPyPI |
+|---------|----------------------|----------|
+| **toolregistry** | Core registration, schema generation, execution, permissions, and metadata | [![TestPyPI](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Ftest.pypi.org%2Fpypi%2Ftoolregistry%2Fjson&query=%24.info.version&label=TestPyPI&color=orange)](https://test.pypi.org/project/toolregistry/) |
+| [toolregistry-server](https://toolregistry-server.readthedocs.io/) | Serve registries as OpenAPI or MCP services | [![TestPyPI](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Ftest.pypi.org%2Fpypi%2Ftoolregistry-server%2Fjson&query=%24.info.version&label=TestPyPI&color=orange)](https://test.pypi.org/project/toolregistry-server/) |
+| [toolregistry-hub](https://toolregistry-hub.readthedocs.io/) | Ready-to-use tools for search, fetch, datetime, unit conversion, and more | [![TestPyPI](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Ftest.pypi.org%2Fpypi%2Ftoolregistry-hub%2Fjson&query=%24.info.version&label=TestPyPI&color=orange)](https://test.pypi.org/project/toolregistry-hub/) |
 
 ## Cite
 
