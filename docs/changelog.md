@@ -16,6 +16,15 @@ hide:
 
 ## [Unreleased]
 
+### 新增
+
+- **函数内的注解可在注册时解析**（#466）：`Tool.from_function`、`ToolRegistry.register` 与 `register_async` 接受仅关键字参数 `localns`——通常是定义工具的那个函数的 `locals()`——并把它传给 `get_type_hints`。因此，引用函数内类型或函数内 `Annotated`/`Field` 的注解会发布真实 schema，而不是不受约束的 schema。`@registry.register(localns=...)` 返回装饰器；`register_async` 是协程，必须 await，因此只有同步形式具备这种装饰器用法。不传 `localns` 时解析行为不变。
+- **降级注解会记录在工具元数据中**（#466）：`ToolMetadata.unresolved_parameters` 列出注解无法解析为 schema、因此发布 schema 不受约束的参数——包括无法解析的函数内名称，以及没有 JSON 投影的类型（例如普通类）。每个参数都获得 schema 时为空，服务器因此可以报告该降级，而不是把空 schema 当作契约发布。
+
+### 变更
+
+- **破坏性变更：** `set_permission_policy()` 要求传入 `PermissionPolicy`（#467）。其他对象会在 setter 处抛出 `TypeError`。此前鸭子类型策略在进程内路径会被执行，却被 `toolregistry-server` 忽略，可能放行策略本要拒绝的调用；服务器端的实例检查现在只是同一条规则的防御性重复，而不是第二条规则。
+
 ## [0.21.0] - 2026-11-09
 
 ### 新增
