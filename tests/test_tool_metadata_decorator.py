@@ -7,8 +7,19 @@ tags, deferral, hints or a title: class registration builds every tool through
 
 from __future__ import annotations
 
+import functools
+import inspect
+import types
+
 import pytest
-from toolregistry import Tool, ToolMetadata, ToolRegistry, ToolTag, tool_metadata
+from toolregistry import (
+    Tool,
+    ToolMetadata,
+    ToolRegistry,
+    ToolTag,
+    copy_tool_metadata,
+    tool_metadata,
+)
 
 
 class TestFromFunction:
@@ -170,3 +181,112 @@ class TestValidation:
     def test_non_function_target_is_refused(self) -> None:
         with pytest.raises(TypeError, match="function or method"):
             tool_metadata(defer=True)(object())  # type: ignore[arg-type]
+
+
+def _rebuild(func):
+    """Build a new function object with a narrowed signature (no ``wraps``)."""
+    rebuilt = types.FunctionType(
+        func.__code__,
+        func.__globals__,
+        func.__name__,
+        func.__defaults__,
+        func.__closure__,
+    )
+    rebuilt.__doc__ = func.__doc__
+    signature = inspect.signature(func)
+    rebuilt.__signature__ = signature.replace(  # type: ignore[attr-defined]
+        parameters=[p.replace(annotation=str) for p in signature.parameters.values()]
+    )
+    return rebuilt
+
+
+class TestWrappers:
+    @staticmethod
+    def _declared():
+        @tool_metadata(defer=True, title="Convert", read_only_hint=True)
+        def convert(value: float, unit: str) -> str:
+            """Convert a value."""
+            return f"{value}{unit}"
+
+        return convert
+
+    def test_functools_wraps_keeps_the_declaration(self) -> None:
+        convert = self._declared()
+
+        @functools.wraps(convert)
+        def wrapper(value: float, unit: str) -> str:
+            return convert(value, unit)
+
+        tool = Tool.from_function(wrapper)
+
+        assert tool.metadata.defer is True
+        assert tool.metadata.title == "Convert"
+        assert tool.metadata.read_only_hint is True
+
+    def test_rebuilt_function_loses_the_declaration_without_copy(self) -> None:
+        tool = Tool.from_function(_rebuild(self._declared()))
+
+        assert tool.metadata.defer is False
+        assert tool.metadata.title is None
+
+    def test_copy_restores_the_declaration_on_a_rebuilt_function(self) -> None:
+        convert = self._declared()
+        rebuilt = _rebuild(convert)
+
+        assert copy_tool_metadata(convert, rebuilt) is rebuilt
+        tool = Tool.from_function(rebuilt)
+
+        assert tool.metadata.defer is True
+        assert tool.metadata.title == "Convert"
+        assert tool.metadata.read_only_hint is True
+
+    def test_copy_onto_a_bound_literal_wrapper(self) -> None:
+        convert = self._declared()
+
+        def to_meters(value: float) -> str:
+            """Convert to meters."""
+            return convert(value, "m")
+
+        tool = Tool.from_function(copy_tool_metadata(convert, to_meters))
+
+        assert tool.metadata.defer is True
+        assert tool.callable(2.0) == "2.0m"
+
+    def test_source_wins_and_target_only_fields_are_kept(self) -> None:
+        convert = self._declared()
+
+        @tool_metadata(title="Old", search_hint="units")
+        def target(value: float) -> str:
+            return str(value)
+
+        copy_tool_metadata(convert, target)
+        tool = Tool.from_function(target)
+
+        assert tool.metadata.title == "Convert"
+        assert tool.metadata.search_hint == "units"
+        assert tool.metadata.defer is True
+
+    def test_copy_does_not_share_state_with_the_source(self) -> None:
+        convert = self._declared()
+
+        def target(value: float) -> str:
+            return str(value)
+
+        copy_tool_metadata(convert, target)
+        tool_metadata(title="Changed")(target)
+
+        assert Tool.from_function(convert).metadata.title == "Convert"
+
+    def test_undeclared_source_leaves_target_unchanged(self) -> None:
+        def source() -> str:
+            return "ok"
+
+        def target() -> str:
+            return "ok"
+
+        assert copy_tool_metadata(source, target) is target
+        assert not hasattr(target, "__tool_metadata__")
+
+    def test_non_function_target_is_refused(self) -> None:
+        with pytest.raises(TypeError, match="function or method"):
+            copy_tool_metadata(self._declared(), object())  # type: ignore[arg-type]
