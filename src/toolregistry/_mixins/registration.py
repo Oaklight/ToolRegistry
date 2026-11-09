@@ -7,7 +7,7 @@ import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 from contextlib import AbstractContextManager
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 
 from ..events import ChangeEvent, ChangeEventType, RefreshResult
 from .._names import NameSeparator
@@ -159,6 +159,7 @@ class RegistrationMixin:
         namespace: bool | str | None = None,
         method_name: str | None = None,
         allow_replace: bool = False,
+        localns: Mapping[str, Any] | None = None,
         **kwargs: Any,
     ):
         """Register a tool from any supported source.
@@ -194,6 +195,13 @@ class RegistrationMixin:
                 :attr:`~toolregistry.events.ChangeEventType.REPLACE`
                 change event is sent.  The previous definition is
                 discarded either way; the flag only acknowledges that.
+            localns: Names visible only to the function that defined the
+                annotations, typically ``locals()`` from that function.
+                Forwarded to :meth:`Tool.from_function`.  Native source
+                only.  When *target* is omitted and *localns* is given,
+                ``register`` returns a decorator, so
+                ``@registry.register(localns=locals())`` works; with both
+                omitted it still raises ``TypeError``.
             **kwargs: Additional keyword arguments forwarded to the
                 underlying integration (e.g. ``persistent``, ``headers``,
                 ``allow_private_hosts``, ``traverse_mro``,
@@ -237,6 +245,26 @@ class RegistrationMixin:
             >>> registry.register(MyClass, source="class", namespace="math")
             >>> registry.register("http://localhost:8000", source="mcp")
         """
+        if target is _MISSING and localns is not None:
+            # ``@registry.register(localns=locals())``: the decorator's
+            # arguments are evaluated before the function exists, so this
+            # form has no target yet and returns the decorator instead.
+            # ``register()`` with no arguments still raises, unchanged.
+            def decorator(func: Any) -> Any:
+                return self.register(
+                    func,
+                    description=description,
+                    name=name,
+                    source=source,
+                    namespace=namespace,
+                    method_name=method_name,
+                    allow_replace=allow_replace,
+                    localns=localns,
+                    **kwargs,
+                )
+
+            return decorator
+
         target, resolved, ns = self._resolve_registration(
             target, source, namespace, "register", kwargs
         )
@@ -252,6 +280,7 @@ class RegistrationMixin:
                 namespace=ns,
                 method_name=method_name,
                 allow_replace=allow_replace,
+                localns=localns,
             )
         elif resolved == "class":
             return self._register_class(target, namespace=ns, **kwargs)
@@ -277,6 +306,7 @@ class RegistrationMixin:
         namespace: bool | str | None = None,
         method_name: str | None = None,
         allow_replace: bool = False,
+        localns: Mapping[str, Any] | None = None,
         **kwargs: Any,
     ):
         """Async version of :meth:`register`.
@@ -298,6 +328,7 @@ class RegistrationMixin:
                 namespace=ns,
                 method_name=method_name,
                 allow_replace=allow_replace,
+                localns=localns,
             )
         elif resolved == "class":
             return await self._register_class_async(target, namespace=ns, **kwargs)
@@ -341,6 +372,7 @@ class RegistrationMixin:
         namespace: bool | str | None = None,
         method_name: str | None = None,
         allow_replace: bool = False,
+        localns: Mapping[str, Any] | None = None,
     ):
         """Register a single function or ``Tool`` instance.
 
@@ -353,6 +385,8 @@ class RegistrationMixin:
                 method.
             allow_replace: Acknowledge replacing an existing tool under the
                 same name without warning.
+            localns: Names visible only to the function that defined the
+                annotations; forwarded to ``Tool.from_function``.
         """
         if namespace is True:
             raise ValueError(
@@ -376,6 +410,7 @@ class RegistrationMixin:
                 namespace=ns_str,
                 method_name=method_name,
                 sep=sep,
+                localns=localns,
             )
         registered_name = registered_tool.name
 
