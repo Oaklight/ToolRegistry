@@ -30,6 +30,8 @@ hide:
 
 - **下游服务可持久化来源变更并暴露来源状态**（#436）：`AdminServer(..., source_hook=...)` 与 `enable_admin(source_hook=...)` 接受可选的钩子，提供 `persist(change)`、`writable()` 与 `statuses()`。注册时会向钩子传递结构化的 `SourceChange`（动作、类型、声明、命名空间、选择）；持久化失败返回 `200`，带 `persisted: false`、`persist_error` 与已生效的名称，因为工具已经生效。安装钩子后，`GET /api/sources` 在 `source_status` 中原样附带钩子记录，并给出 `config_writable`；由工具推导的 `sources` 数组与未安装钩子时的响应结构保持不变。见[源持久化钩子](admin/source-hooks.md)。
 
+- **限流可按受信反向代理之后的真实客户端取键**（#431）：`AdminServer(..., trusted_proxies=[...])` 与 `enable_admin(trusted_proxies=[...])` 接受反向代理的地址或 CIDR 网段，并信任其 `X-Forwarded-For`。链路从右往左遍历，跳过受信的跳，第一个非受信地址成为限流键，因此客户端无法通过前置条目自选限流键。不在列表中的对端完全忽略该头；空头或畸形链回退到对端地址。默认留空，与之前完全一致；条目在构造时校验。见[管理面板安全](admin/security.md)。
+
 ### 变更
 
 #### 核心
@@ -41,6 +43,8 @@ hide:
 #### 管理面板
 
 - **扩展导航分组复用外壳的分区标签**（#446）：扩展声明 `nav.group = "manage"` 时，两种语言都显示原始键，因为此前只查 `group.<key>`。`groupLabel` 现在先从 `group.<key>` 回退到外壳的 `nav.<key>`，再回退到原始键，因此网关标签页的分区标题与内置的“Manage”/“管理”一致。未知键仍按原样显示。
+
+- **并发的认证尝试无法绕过限流**（#431，源自 #429 的评审）：限流器在令牌比较之前于同一把锁内为每次尝试预留名额，成功后释放，因此窗口为空时并发打开的连接无法全部通过并并行猜测。成功会释放在此之前的失败记录，而之后由仍在处理中的请求预留的失败仍计入。见[管理面板安全](admin/security.md)。
 
 ## [0.20.1] - 2026-11-08
 
