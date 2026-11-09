@@ -1,5 +1,5 @@
 # /// zerodep
-# version = "0.7.2"
+# version = "0.7.3"
 # deps = []
 # tier = "subsystem"
 # category = "network"
@@ -51,6 +51,20 @@ Redirects:
     returned unread; drain or close it before the connection returns to the
     pool) and a redirect reached after a Digest-auth retry.  The default
     follows redirects up to ``max_redirects``.
+
+Address pinning:
+    ``resolve_to`` lets a caller that has already validated a name's
+    addresses pin the TCP peer to one of them (or try several in order)
+    while the URL host still provides the ``Host`` header, TLS SNI and
+    certificate verification.  It exists for DNS-rebinding protection: the
+    caller resolves and checks the address, and this module connects to it
+    without resolving again.  The caller owns the policy.  Each entry must
+    be an IP literal: a hostname is refused with ``ValueError`` because the
+    socket layer would resolve it, silently turning the pin back into a
+    normal lookup.  ``resolve_to`` cannot be combined with ``proxy`` --
+    the proxy resolves the name, so the pin would be unenforceable -- and a
+    redirect that changes scheme, host or port drops the pin for the rest
+    of the chain.
 """
 
 # ── Imports ──
@@ -62,6 +76,7 @@ import base64
 import hashlib
 import http.client
 import http.cookies
+import ipaddress
 import json as _json
 import logging
 import os
@@ -74,7 +89,7 @@ import time
 import warnings
 import weakref
 import zlib
-from collections.abc import AsyncIterator, Callable, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator, Sequence
 from typing import IO, Any
 from urllib.parse import quote, urlencode, urljoin, urlparse
 
@@ -1393,7 +1408,7 @@ class _SyncConnectionPool:
         idle_timeout: float = DEFAULT_POOL_IDLE_TIMEOUT,
     ) -> None:
         self._pool: dict[
-            tuple[str, int, bool],
+            tuple[str, int, bool, bool, tuple[str, ...] | None],
             list[tuple[http.client.HTTPConnection, float]],
         ] = {}
         self._pool_size = pool_size
@@ -1408,6 +1423,7 @@ class _SyncConnectionPool:
         is_https: bool,
         timeout: float,
         verify: bool,
+        resolve_to: tuple[str, ...] | None = None,
     ) -> http.client.HTTPConnection | None:
         """Acquire a connection from the pool if available.
 
@@ -1417,11 +1433,14 @@ class _SyncConnectionPool:
             is_https: Whether the connection uses TLS.
             timeout: Connection timeout.
             verify: Whether to verify TLS certificates.
+            resolve_to: The pinned address list, if any.  It is part of the
+                key so a pinned connection is never handed to an unpinned
+                request, or to a request pinned elsewhere.
 
         Returns:
             A reusable connection or None.
         """
-        key = (host, port, is_https, verify)
+        key = (host, port, is_https, verify, resolve_to)
         now = time.monotonic()
         with self._lock:
             conns = self._pool.get(key, [])
@@ -1455,6 +1474,7 @@ class _SyncConnectionPool:
         conn: http.client.HTTPConnection,
         *,
         verify: bool = True,
+        resolve_to: tuple[str, ...] | None = None,
     ) -> None:
         """Return a connection to the pool.
 
@@ -1466,8 +1486,10 @@ class _SyncConnectionPool:
             verify: Whether the connection verifies TLS certificates.  It is
                 part of the key so a connection built with ``verify=False``
                 is never handed to a verifying request.
+            resolve_to: The pinned address list, if any.  Part of the key for
+                the same reason.
         """
-        key = (host, port, is_https, verify)
+        key = (host, port, is_https, verify, resolve_to)
         with self._lock:
             conns = self._pool.setdefault(key, [])
             if len(conns) < self._pool_size:
@@ -1571,7 +1593,7 @@ class _AsyncConnectionPool:
         idle_timeout: float = DEFAULT_POOL_IDLE_TIMEOUT,
     ) -> None:
         self._pool: dict[
-            tuple[str, int, bool],
+            tuple[str, int, bool, bool, tuple[str, ...] | None],
             list[
                 tuple[
                     asyncio.StreamReader,
@@ -1592,6 +1614,7 @@ class _AsyncConnectionPool:
         is_https: bool,
         timeout: float,
         verify: bool,
+        resolve_to: tuple[str, ...] | None = None,
     ) -> tuple[asyncio.StreamReader, asyncio.StreamWriter] | None:
         """Acquire a connection from the pool if available.
 
@@ -1601,11 +1624,14 @@ class _AsyncConnectionPool:
             is_https: Whether the connection uses TLS.
             timeout: Connection timeout.
             verify: Whether to verify TLS certificates.
+            resolve_to: The pinned address list, if any.  It is part of the
+                key so a pinned connection is never handed to an unpinned
+                request, or to a request pinned elsewhere.
 
         Returns:
             A (reader, writer) tuple or None.
         """
-        key = (host, port, is_https, verify)
+        key = (host, port, is_https, verify, resolve_to)
         now = time.monotonic()
         async with self._lock:
             conns = self._pool.get(key, [])
@@ -1638,6 +1664,7 @@ class _AsyncConnectionPool:
         writer: asyncio.StreamWriter,
         *,
         verify: bool = True,
+        resolve_to: tuple[str, ...] | None = None,
     ) -> None:
         """Return a connection to the pool.
 
@@ -1650,8 +1677,10 @@ class _AsyncConnectionPool:
             verify: Whether the connection verifies TLS certificates.  It is
                 part of the key so an unverified connection is never handed to
                 a verifying request.
+            resolve_to: The pinned address list, if any.  Part of the key for
+                the same reason.
         """
-        key = (host, port, is_https, verify)
+        key = (host, port, is_https, verify, resolve_to)
         async with self._lock:
             conns = self._pool.setdefault(key, [])
             if len(conns) < self._pool_size:
@@ -2188,6 +2217,91 @@ def _origin(url: str) -> tuple[str, str, int]:
     return scheme.lower(), host.lower(), port
 
 
+#: A caller-supplied address, or ordered list of addresses, to connect to
+#: while the URL host keeps providing ``Host``, TLS SNI and certificate
+#: verification.
+ResolveTo = str | Sequence[str] | None
+
+
+def _normalize_resolve_to(resolve_to: ResolveTo) -> tuple[str, ...] | None:
+    """Normalize ``resolve_to`` to an ordered tuple of IP addresses.
+
+    Args:
+        resolve_to: ``None``, one address, or a sequence of addresses.  A
+            single string is accepted for convenience.
+
+    Returns:
+        ``None`` when no pin was requested, otherwise a non-empty tuple.
+        The caller is responsible for choosing acceptable addresses; this
+        module does not re-check the policy (see #305).
+
+    Raises:
+        ValueError: If the sequence is empty, or an entry is not an IP
+            address.  A hostname entry would be resolved by the socket
+            layer, silently downgrading the pin to a normal lookup, which is
+            the behaviour this option exists to prevent.
+    """
+    if resolve_to is None:
+        return None
+    if isinstance(resolve_to, str):
+        addresses = (resolve_to,)
+    else:
+        addresses = tuple(resolve_to)
+    if not addresses:
+        raise ValueError("resolve_to must contain at least one address")
+    normalized = tuple(str(address) for address in addresses)
+    for address in normalized:
+        try:
+            ipaddress.ip_address(address)
+        except ValueError as exc:
+            raise ValueError(
+                f"resolve_to entry {address!r} is not an IP address"
+            ) from exc
+    return normalized
+
+
+def _reject_proxy_with_resolve_to(resolve_to: object, proxy: str | None) -> None:
+    """Reject address pinning through a proxy, which resolves the name itself.
+
+    The check runs on the raw value, before normalization, so an empty
+    address list is refused on the same terms as a populated one: the
+    behaviour must not depend on the list's contents.
+
+    Args:
+        resolve_to: The caller's ``resolve_to`` value.
+        proxy: The configured proxy URL, or ``None``.
+
+    Raises:
+        ValueError: If both are set.  A proxy resolves the destination host,
+            so the client cannot enforce the pinned address; this fails
+            closed instead of reporting a guarantee it does not provide.
+    """
+    if resolve_to is not None and proxy is not None:
+        raise ValueError(
+            "resolve_to cannot be combined with proxy: the proxy resolves "
+            "the destination host, so the client cannot enforce the pinned "
+            "address"
+        )
+
+
+def _redact_pinned(text: str, addresses: Sequence[str] | None, host: str) -> str:
+    """Remove pinned addresses from an error message.
+
+    A transport error may embed the address it failed to reach.  The caller
+    supplied that address and already knows it, but the message is the wrong
+    place for it: it can end up in a log or an HTTP error body.  An address
+    equal to the URL host is left alone -- that is the host the message
+    already names, not leaked pin material.
+    """
+    if not addresses:
+        return text
+    for address in addresses:
+        if address == host:
+            continue
+        text = text.replace(address, "<pinned>")
+    return text
+
+
 def _strip_redirect_credentials(
     req_headers: CaseInsensitiveDict, source_url: str, target_url: str
 ) -> None:
@@ -2364,6 +2478,103 @@ def _make_ssl_context(verify: bool) -> ssl.SSLContext:
 # -- Sync transport helpers --
 
 
+def _connect_to_addresses(
+    addresses: Sequence[str],
+    port: int,
+    timeout: float,
+    source_address: tuple[str, int] | None = None,
+) -> socket.socket:
+    """Connect to the first reachable address in *addresses*.
+
+    The addresses are tried in order.  Each attempt uses its own ``timeout``
+    budget, so a caller that pins several unreachable addresses can wait for
+    the sum of them.
+
+    Args:
+        addresses: Validated addresses to try, in order.
+        port: Destination port from the URL.
+        timeout: Connect timeout per attempt.
+        source_address: Optional local address, for ``http.client`` parity.
+
+    Returns:
+        A connected socket.
+
+    Raises:
+        OSError: The last connect error, when every address failed.
+    """
+    last_error: OSError | None = None
+    for address in addresses:
+        try:
+            return socket.create_connection((address, port), timeout, source_address)
+        except OSError as exc:
+            last_error = exc
+    assert last_error is not None
+    raise last_error
+
+
+class _PinnedHTTPConnection(http.client.HTTPConnection):
+    """``HTTPConnection`` that connects to caller-supplied addresses.
+
+    ``host`` stays the URL host, so the ``Host`` header is unchanged; only
+    the TCP peer comes from the pinned list.
+    """
+
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        *,
+        addresses: Sequence[str],
+        timeout: float,
+    ) -> None:
+        super().__init__(host, port, timeout=timeout)
+        self._pinned_addresses = addresses
+        self._create_connection = self._create_pinned_connection
+
+    def _create_pinned_connection(
+        self,
+        address: tuple[str, int],
+        timeout: float,
+        source_address: tuple[str, int] | None = None,
+    ) -> socket.socket:
+        """Replace ``socket.create_connection`` for this connection."""
+        return _connect_to_addresses(
+            self._pinned_addresses, address[1], timeout, source_address
+        )
+
+
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    """``HTTPSConnection`` that connects to caller-supplied addresses.
+
+    ``host`` stays the URL host, so TLS SNI and certificate verification use
+    it even though the TCP peer is pinned.
+    """
+
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        *,
+        addresses: Sequence[str],
+        timeout: float,
+        context: ssl.SSLContext | None = None,
+    ) -> None:
+        super().__init__(host, port, timeout=timeout, context=context)
+        self._pinned_addresses = addresses
+        self._create_connection = self._create_pinned_connection
+
+    def _create_pinned_connection(
+        self,
+        address: tuple[str, int],
+        timeout: float,
+        source_address: tuple[str, int] | None = None,
+    ) -> socket.socket:
+        """Replace ``socket.create_connection`` for this connection."""
+        return _connect_to_addresses(
+            self._pinned_addresses, address[1], timeout, source_address
+        )
+
+
 def _sync_connect_via_proxy(
     host: str,
     port: int,
@@ -2463,14 +2674,34 @@ def _sync_acquire_connection(
     _pool: _SyncConnectionPool | None,
     req_headers: dict[str, str],
     url: str,
+    resolve_to: tuple[str, ...] | None = None,
 ) -> tuple[http.client.HTTPConnection, str, bool]:
     """Acquire a sync HTTP connection via proxy, pool, or direct creation.
+
+    Args:
+        host: URL host, used for ``Host``, SNI and certificate verification.
+        port: URL port.
+        path: Request path.
+        is_https: Whether the request uses TLS.
+        timeout: Connect and socket timeout.
+        verify: Whether to verify TLS certificates.
+        proxy: Proxy URL, or ``None``.
+        _pool: Connection pool, or ``None``.
+        req_headers: Request headers, updated for keep-alive.
+        url: Full request URL, used for proxied requests.
+        resolve_to: Pinned addresses, or ``None``.
 
     Returns:
         (connection, request_path, reused) -- *reused* is True when the
         connection came from the pool and may therefore be stale.
+
+    Raises:
+        ValueError: If *resolve_to* is set together with *proxy*.  The
+            request loop rejects the combination earlier; this keeps the
+            helper safe on its own.
     """
     if proxy:
+        _reject_proxy_with_resolve_to(resolve_to, proxy)
         if _is_socks_proxy(proxy):
             return (
                 *_sync_connect_via_socks5(
@@ -2484,7 +2715,7 @@ def _sync_acquire_connection(
         return conn, request_path, False
 
     if _pool:
-        pooled_conn = _pool.acquire(host, port, is_https, timeout, verify)
+        pooled_conn = _pool.acquire(host, port, is_https, timeout, verify, resolve_to)
         if pooled_conn is not None:
             req_headers["Connection"] = "keep-alive"
             # ``http.client`` fixes the socket timeout when the connection is
@@ -2496,6 +2727,17 @@ def _sync_acquire_connection(
             return pooled_conn, path, True
 
     # Direct connection
+    if resolve_to is not None:
+        if is_https:
+            ctx = _make_ssl_context(verify)
+            conn = _PinnedHTTPSConnection(
+                host, port, addresses=resolve_to, timeout=timeout, context=ctx
+            )
+        else:
+            conn = _PinnedHTTPConnection(
+                host, port, addresses=resolve_to, timeout=timeout
+            )
+        return conn, path, False
     if is_https:
         ctx = _make_ssl_context(verify)
         conn = http.client.HTTPSConnection(host, port, timeout=timeout, context=ctx)
@@ -2543,6 +2785,7 @@ def _sync_release_or_close(
     conn: http.client.HTTPConnection,
     verify: bool = True,
     resp_version: int | None = None,
+    resolve_to: tuple[str, ...] | None = None,
 ) -> None:
     """Release a sync connection back to the pool or close it.
 
@@ -2563,7 +2806,7 @@ def _sync_release_or_close(
         and not stream
         and _response_is_persistent(resp_headers, resp_version)
     ):
-        _pool.release(host, port, is_https, conn, verify=verify)
+        _pool.release(host, port, is_https, conn, verify=verify, resolve_to=resolve_to)
     else:
         conn.close()
 
@@ -2695,8 +2938,13 @@ def _wrap_sync_errors(
     port: int,
     url: str,
     timeout: float,
+    pinned: Sequence[str] | None = None,
 ) -> HttpClientError:
-    """Translate low-level sync exceptions into httpclient exceptions."""
+    """Translate low-level sync exceptions into httpclient exceptions.
+
+    ``pinned`` is redacted from the message: the caller supplied those
+    addresses, and a transport error is not the place to repeat them.
+    """
     if isinstance(
         exc,
         (
@@ -2714,8 +2962,9 @@ def _wrap_sync_errors(
             timeout=timeout,
         )
     if isinstance(exc, (OSError, http.client.HTTPException)):
+        detail = _redact_pinned(str(exc), pinned, host)
         return HttpConnectionError(
-            f"Connection to {host}:{port} failed: {exc}",
+            f"Connection to {host}:{port} failed: {detail}",
             host=host,
             port=port,
         )
@@ -2744,12 +2993,22 @@ def _sync_request(
     stream: bool = False,
     auth: tuple[str, str] | Auth | None = None,
     proxy: str | None = None,
+    resolve_to: ResolveTo = None,
     cookies: dict[str, str] | None = None,
     on_timing: TimingHook | None = None,
     max_response_size: int | None = None,
     _pool: _SyncConnectionPool | None = _DEFAULT_SYNC_POOL,
 ) -> Response | StreamingResponse:
     """Perform a synchronous HTTP request.
+
+    ``resolve_to`` connects to the caller-supplied IP address (or addresses,
+    in order) while the URL host still provides ``Host``, TLS SNI and
+    certificate verification.  The caller is responsible for choosing the
+    addresses; this module does not re-check the policy.  An entry that is
+    not an IP literal raises ``ValueError``.  It cannot be combined
+    with ``proxy``: the proxy resolves the name, so the pin is unenforceable.
+    A redirect that changes scheme, host or port drops the pin for the rest
+    of the chain.
 
     Phase structure (mirrors _async_request):
         1-3. Request preparation (URL, body, headers, auth)
@@ -2772,6 +3031,13 @@ def _sync_request(
         method, url, headers, data, json, files, params, auth, cookies
     )
 
+    _reject_proxy_with_resolve_to(resolve_to, proxy)
+    pinned = _normalize_resolve_to(resolve_to)
+    pinned_origin: tuple[str, str, int] | None = None
+    if pinned is not None:
+        scheme0, host0, port0, _, _ = _parse_url(url)
+        pinned_origin = (scheme0, host0, port0)
+
     credential_origin = _origin(url)
     same_origin = True
     redirects = 0
@@ -2781,6 +3047,11 @@ def _sync_request(
     accumulated_set_cookies: list[str] = []
     while True:
         scheme, host, port, path, is_https = _parse_url(url)
+        # A redirect that changes origin must not pin the new host to the
+        # address validated for the old one.  Stay dropped for the chain,
+        # like the credential rule.
+        if pinned is not None and (scheme, host, port) != pinned_origin:
+            pinned = None
         close_conn = True
         completed = False
         resp_version: int | None = None
@@ -2797,6 +3068,7 @@ def _sync_request(
                 pool,
                 req_headers,
                 url,
+                pinned,
             )
             if pool and not proxy:
                 req_headers.setdefault("Connection", "keep-alive")
@@ -2900,6 +3172,7 @@ def _sync_request(
                         conn,
                         verify,
                         resp_version,
+                        pinned,
                     )
                 elif close_conn:
                     # The body was not fully read (an error, or a
@@ -2908,7 +3181,7 @@ def _sync_request(
                     # keeps the exception would keep the fd alive.
                     conn.close()
         except Exception as exc:
-            wrapped = _wrap_sync_errors(exc, host, port, url, timeout)
+            wrapped = _wrap_sync_errors(exc, host, port, url, timeout, pinned)
             if wrapped is exc:
                 raise
             raise wrapped from exc
@@ -3165,6 +3438,54 @@ async def _async_connect_via_socks5(
     return reader, writer
 
 
+async def _async_open_pinned(
+    addresses: Sequence[str],
+    port: int,
+    timeout: float,
+    ssl_context: ssl.SSLContext | None,
+    server_hostname: str,
+) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
+    """Open a connection to the first reachable pinned address.
+
+    ``server_hostname`` is the URL host passed verbatim from
+    :func:`_parse_url`: it is used for TLS SNI and certificate verification
+    even though the TCP peer comes from *addresses*.  Passing it explicitly
+    is required, because asyncio would otherwise verify the pinned IP.
+
+    Args:
+        addresses: Validated addresses to try, in order.
+        port: Destination port from the URL.
+        timeout: Connect timeout per attempt.
+        ssl_context: TLS context for HTTPS, or ``None`` for plain HTTP.
+        server_hostname: URL host for SNI and verification.
+
+    Returns:
+        A connected (reader, writer) pair.
+
+    Raises:
+        OSError: The last connect error, when every address failed.
+        asyncio.TimeoutError: The last attempt timed out.
+    """
+    last_error: BaseException | None = None
+    for address in addresses:
+        try:
+            return await asyncio.wait_for(
+                asyncio.open_connection(
+                    address,
+                    port,
+                    ssl=ssl_context,
+                    server_hostname=(
+                        server_hostname if ssl_context is not None else None
+                    ),
+                ),
+                timeout=timeout,
+            )
+        except (OSError, asyncio.TimeoutError) as exc:
+            last_error = exc
+    assert last_error is not None
+    raise last_error
+
+
 async def _async_acquire_connection(
     host: str,
     port: int,
@@ -3176,17 +3497,35 @@ async def _async_acquire_connection(
     _pool: _AsyncConnectionPool | None,
     req_headers: dict[str, str],
     url: str,
+    resolve_to: tuple[str, ...] | None = None,
 ) -> tuple[asyncio.StreamReader, asyncio.StreamWriter, str, bool]:
     """Acquire an async connection via proxy, pool, or direct creation.
 
     Wraps connection errors into HttpConnectionError / HttpTimeoutError.
 
+    Args:
+        host: URL host, used for ``Host``, SNI and certificate verification.
+        port: URL port.
+        path: Request path.
+        is_https: Whether the request uses TLS.
+        timeout: Connect timeout.
+        verify: Whether to verify TLS certificates.
+        proxy: Proxy URL, or ``None``.
+        _pool: Connection pool, or ``None``.
+        req_headers: Request headers, updated for keep-alive.
+        url: Full request URL, used for proxied requests.
+        resolve_to: Pinned addresses, or ``None``.
+
     Returns:
         (reader, writer, request_path, reused) -- *reused* is True when the
         connection came from the pool and may therefore be stale.
+
+    Raises:
+        ValueError: If *resolve_to* is set together with *proxy*.
     """
     try:
         if proxy:
+            _reject_proxy_with_resolve_to(resolve_to, proxy)
             if _is_socks_proxy(proxy):
                 reader, writer = await _async_connect_via_socks5(
                     host, port, timeout, verify, is_https, proxy
@@ -3209,7 +3548,9 @@ async def _async_acquire_connection(
             return reader, writer, path, False
 
         if _pool:
-            result = await _pool.acquire(host, port, is_https, timeout, verify)
+            result = await _pool.acquire(
+                host, port, is_https, timeout, verify, resolve_to
+            )
             if result is not None:
                 reader, writer = result
                 req_headers["Connection"] = "keep-alive"
@@ -3217,17 +3558,23 @@ async def _async_acquire_connection(
 
         # Direct connection
         ctx = _make_ssl_context(verify) if is_https else None
-        reader, writer = await asyncio.wait_for(
-            asyncio.open_connection(host, port, ssl=ctx),
-            timeout=timeout,
-        )
+        if resolve_to is not None:
+            reader, writer = await _async_open_pinned(
+                resolve_to, port, timeout, ctx, host
+            )
+        else:
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(host, port, ssl=ctx),
+                timeout=timeout,
+            )
         return reader, writer, path, False
     except asyncio.TimeoutError:
         msg = f"Connection to {host}:{port} timed out after {timeout}s"
         raise HttpTimeoutError(msg, url=url, timeout=timeout)
     except OSError as exc:
+        detail = _redact_pinned(str(exc), resolve_to, host)
         raise HttpConnectionError(
-            f"Connection to {host}:{port} failed: {exc}",
+            f"Connection to {host}:{port} failed: {detail}",
             host=host,
             port=port,
         ) from exc
@@ -3279,6 +3626,7 @@ async def _async_release_or_close(
     writer: asyncio.StreamWriter,
     verify: bool = True,
     resp_version: int | None = None,
+    resolve_to: tuple[str, ...] | None = None,
 ) -> None:
     """Release an async connection back to the pool or close it.
 
@@ -3299,7 +3647,9 @@ async def _async_release_or_close(
         and not stream
         and _response_is_persistent(resp_headers, resp_version)
     ):
-        await _pool.release(host, port, is_https, reader, writer, verify=verify)
+        await _pool.release(
+            host, port, is_https, reader, writer, verify=verify, resolve_to=resolve_to
+        )
     else:
         writer.close()
         # Tier 3: best-effort silent -- wait_closed on direct close
@@ -3372,12 +3722,22 @@ async def _async_request(
     stream: bool = False,
     auth: tuple[str, str] | Auth | None = None,
     proxy: str | None = None,
+    resolve_to: ResolveTo = None,
     cookies: dict[str, str] | None = None,
     on_timing: TimingHook | None = None,
     max_response_size: int | None = None,
     _pool: _AsyncConnectionPool | None = None,
 ) -> Response | StreamingResponse:
     """Perform an asynchronous HTTP request using asyncio streams.
+
+    ``resolve_to`` connects to the caller-supplied IP address (or addresses,
+    in order) while the URL host still provides ``Host``, TLS SNI and
+    certificate verification.  The caller is responsible for choosing the
+    addresses; this module does not re-check the policy.  An entry that is
+    not an IP literal raises ``ValueError``.  It cannot be combined
+    with ``proxy``: the proxy resolves the name, so the pin is unenforceable.
+    A redirect that changes scheme, host or port drops the pin for the rest
+    of the chain.
 
     Phase structure (mirrors _sync_request):
         1-3. Request preparation (URL, body, headers, auth)
@@ -3400,6 +3760,13 @@ async def _async_request(
         method, url, headers, data, json, files, params, auth, cookies
     )
 
+    _reject_proxy_with_resolve_to(resolve_to, proxy)
+    pinned = _normalize_resolve_to(resolve_to)
+    pinned_origin: tuple[str, str, int] | None = None
+    if pinned is not None:
+        scheme0, host0, port0, _, _ = _parse_url(url)
+        pinned_origin = (scheme0, host0, port0)
+
     credential_origin = _origin(url)
     same_origin = True
     redirects = 0
@@ -3409,9 +3776,24 @@ async def _async_request(
     accumulated_set_cookies: list[str] = []
     while True:
         scheme, host, port, path, is_https = _parse_url(url)
+        # A redirect that changes origin must not pin the new host to the
+        # address validated for the old one.  Stay dropped for the chain,
+        # like the credential rule.
+        if pinned is not None and (scheme, host, port) != pinned_origin:
+            pinned = None
 
         reader, writer, request_path, reused = await _async_acquire_connection(
-            host, port, path, is_https, timeout, verify, proxy, pool, req_headers, url
+            host,
+            port,
+            path,
+            is_https,
+            timeout,
+            verify,
+            proxy,
+            pool,
+            req_headers,
+            url,
+            pinned,
         )
         if pool and not proxy:
             req_headers.setdefault("Connection", "keep-alive")
@@ -3572,6 +3954,7 @@ async def _async_request(
                     writer,
                     verify,
                     resp_version,
+                    pinned,
                 )
             elif close_writer:
                 # The body was not fully read; close the transport now
@@ -3838,6 +4221,13 @@ class Client:
     drain or close it to return the connection to the pool.  The keyword is
     also accepted per request.
 
+    ``resolve_to`` pins the TCP peer to a caller-validated IP address, or to
+    an ordered list of IP addresses tried until one connects, while the URL
+    host still provides ``Host``, TLS SNI and certificate verification.  The
+    caller chooses the addresses.  A hostname entry raises ``ValueError``
+    rather than being resolved.  It cannot be combined with ``proxy``: that
+    raises ``ValueError`` at construction.
+
     Usage::
 
         with Client(headers={"Authorization": "Bearer token"}) as c:
@@ -3855,6 +4245,7 @@ class Client:
         verify: bool = True,
         auth: tuple[str, str] | Auth | None = None,
         proxy: str | None = None,
+        resolve_to: ResolveTo = None,
         pool_size: int = DEFAULT_POOL_SIZE,
         max_total_connections: int = DEFAULT_MAX_TOTAL_CONNECTIONS,
         pool_idle_timeout: float = DEFAULT_POOL_IDLE_TIMEOUT,
@@ -3868,6 +4259,8 @@ class Client:
         self._verify = verify
         self._auth = auth
         self._proxy = proxy
+        _reject_proxy_with_resolve_to(resolve_to, proxy)
+        self._resolve_to = _normalize_resolve_to(resolve_to)
         _validate_max_response_size(max_response_size)
         self._max_response_size = max_response_size
         self._pool = _SyncConnectionPool(
@@ -3892,6 +4285,7 @@ class Client:
         kwargs.setdefault("verify", self._verify)
         kwargs.setdefault("auth", self._auth)
         kwargs.setdefault("proxy", self._proxy)
+        kwargs.setdefault("resolve_to", self._resolve_to)
         kwargs.setdefault("max_response_size", self._max_response_size)
         kwargs["_pool"] = self._pool
         kwargs["headers"] = _merge_headers(self._base_headers, kwargs.get("headers"))
@@ -3965,6 +4359,13 @@ class AsyncClient:
     drain or close it to return the connection to the pool.  The keyword is
     also accepted per request.
 
+    ``resolve_to`` pins the TCP peer to a caller-validated IP address, or to
+    an ordered list of IP addresses tried until one connects, while the URL
+    host still provides ``Host``, TLS SNI and certificate verification.  The
+    caller chooses the addresses.  A hostname entry raises ``ValueError``
+    rather than being resolved.  It cannot be combined with ``proxy``: that
+    raises ``ValueError`` at construction.
+
     Usage::
 
         async with AsyncClient(headers={"Authorization": "Bearer token"}) as c:
@@ -3982,6 +4383,7 @@ class AsyncClient:
         verify: bool = True,
         auth: tuple[str, str] | Auth | None = None,
         proxy: str | None = None,
+        resolve_to: ResolveTo = None,
         pool_size: int = DEFAULT_POOL_SIZE,
         max_total_connections: int = DEFAULT_MAX_TOTAL_CONNECTIONS,
         pool_idle_timeout: float = DEFAULT_POOL_IDLE_TIMEOUT,
@@ -3995,6 +4397,8 @@ class AsyncClient:
         self._verify = verify
         self._auth = auth
         self._proxy = proxy
+        _reject_proxy_with_resolve_to(resolve_to, proxy)
+        self._resolve_to = _normalize_resolve_to(resolve_to)
         _validate_max_response_size(max_response_size)
         self._max_response_size = max_response_size
         self._pool = _AsyncConnectionPool(
@@ -4019,6 +4423,7 @@ class AsyncClient:
         kwargs.setdefault("verify", self._verify)
         kwargs.setdefault("auth", self._auth)
         kwargs.setdefault("proxy", self._proxy)
+        kwargs.setdefault("resolve_to", self._resolve_to)
         kwargs.setdefault("max_response_size", self._max_response_size)
         kwargs["_pool"] = self._pool
         kwargs["headers"] = _merge_headers(self._base_headers, kwargs.get("headers"))
