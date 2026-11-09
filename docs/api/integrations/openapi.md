@@ -74,6 +74,28 @@ OpenAPI 集成旨在基于 OpenAPI 规范自动发现和注册 REST API 端点�
         show_root_toc_entry: false
         merge_init_into_class: true
 
+## 刷新文档
+
+`OpenAPIIntegration.refresh()` 使用已保存的 ETag 重新读取注册时的文档。
+`304` 返回 `skipped` 且不做任何改动：不重建路由，也不更新
+`last_refreshed_at`。文档发生变化时会与现有工具做 diff：运维手动禁用的名称
+仍保持禁用，已消失的路径会被注销，定义未变的工具保留其注册表状态。
+
+base URL 会跟随文档，但有边界。注册时文档产生的 URL 会被记住；只有当前客户端
+配置仍等于该记忆值时，刷新才会采纳移动后的 `servers[0]`——调用方显式提供的
+base URL 永远不会被替换。采纳会重建每个工具的包装器，包括定义未变的操作；这种
+替换不计入 `updated`，而由 `RefreshResult.base_url_changed` 表示。若新文档的
+`servers[]` 条目被出站地址策略拒绝，则抛出 `UnsafeAddressError`，工具、配置与
+已保存的文档都保持不变。
+
+`forget_tracked_tools(names)` 供「在两次刷新之间移除了工具」的调用方使用——例如
+校验步骤丢掉了 schema 无法接受的工具。没有它，下一次刷新会认为该名称仍被跟踪但
+不在注册表中，从而永远不会重新注册；调用后，文档修好时名称会回来。它只修改跟踪
+集合：注册表与事件由调用方自己处理。
+
+`ToolRegistry.openapi_integrations` 按创建顺序返回这些集成，因此刚完成注册的
+调用方可以直接取最后一个元素，而不必读取私有列表。
+
 ## 模块工具
 
 ### OpenAPI 工具函数

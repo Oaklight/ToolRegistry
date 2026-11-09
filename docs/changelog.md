@@ -26,6 +26,10 @@ hide:
 
 - **出站策略可以返回它批准的地址**（#454）：`toolregistry.netpolicy.resolve_outbound_url(url)` 与 `resolve_outbound_url_async(url)` 执行与 `validate_outbound_url` 相同的检查，并返回 `(url, addresses)`，使能固定连接地址的传输层无需再解析一次主机名——那正是检查与拨号之间的 DNS 重绑定窗口。成功缓存把判定过的地址与过期时间一起保存，因此缓存命中返回的是当初通过检查的地址，而不是最新答案；未经检查的解析（`allow_private_hosts=True`）不进入缓存，且 resolve 系列在该情况下仍会解析，因为调用方需要地址。validate 系列保持不变。见[出站地址策略](api/core/netpolicy.md)。
 
+- **已注册的 OpenAPI 集成可读取**（#458）：`ToolRegistry.openapi_integrations` 按创建顺序返回不可变元组，最后一个元素就是拥有最新 spec URL 与 ETag 的集成，因此刚完成注册、需要刷新的调用方不必再读取私有列表。元组是快照；集成对象本身是实时的，刷新它仍会影响注册表。
+
+- **刷新会采纳移动后的 `servers[0]`，被丢弃的工具也能回来**（#457）：`OpenAPIIntegration.refresh()` 从刷新后的文档推导 base URL，只在当前 base URL 本就来自注册文档时才采纳，调用方显式提供的覆盖会被保留。采纳会重建全部工具包装器（包括未变化的操作），并通过新增的 `RefreshResult.base_url_changed` 而不是 `updated` 报告。若 `servers[]` 条目被出站策略拒绝，则抛出 `UnsafeAddressError`，工具、配置与已保存的文档都保持不变。`forget_tracked_tools(names)` 让「在两次刷新之间移除了工具」的调用方能在下次刷新时重新注册。见 [OpenAPI 集成](api/integrations/openapi.md)。
+
 #### 管理面板
 
 - **管理面板扩展（契约 v1）**（#435）：`AdminServer(..., extensions=[...])` 可挂载运维方安装的扩展。每个扩展声明 `name`、`title` 与 `requires_api`，通过 `AdminContext`（`get`、`post`、`put`、`patch`、`delete`）在 `/ext/<name>` 下注册路由；若需标签页，再声明 `nav` 与 `assets`、`entry`（可选 `styles` 与 `icon`）。没有 `nav` 的扩展是纯 API 扩展，无需资源目录。`GET /api/extensions` 提供清单；扩展资源经现有的后缀白名单与路径穿越防护从 `/assets/ext/<name>/` 提供；页面外壳导入入口模块并调用其 `register({container, api, i18n})` 导出。`requires_api` 在服务端启动时与浏览器中都会校验，不匹配会拒绝该扩展并在消息中给出扩展名。扩展路由继承面板认证，`/ext/` 的状态变更请求与 `/api/` 一样受跨站防护。见[管理面板扩展](admin/extensions.md)。
