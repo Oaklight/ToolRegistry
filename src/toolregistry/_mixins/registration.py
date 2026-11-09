@@ -201,7 +201,9 @@ class RegistrationMixin:
                 only.  When *target* is omitted and *localns* is given,
                 ``register`` returns a decorator, so
                 ``@registry.register(localns=locals())`` works; with both
-                omitted it still raises ``TypeError``.
+                omitted it still raises ``TypeError``.  Only this
+                synchronous method returns a decorator:
+                :meth:`register_async` is a coroutine and must be awaited.
             **kwargs: Additional keyword arguments forwarded to the
                 underlying integration (e.g. ``persistent``, ``headers``,
                 ``allow_private_hosts``, ``traverse_mro``,
@@ -311,7 +313,11 @@ class RegistrationMixin:
     ):
         """Async version of :meth:`register`.
 
-        See :meth:`register` for full documentation.
+        See :meth:`register` for full documentation.  Unlike the synchronous
+        form, this coroutine never returns a decorator: calling it returns
+        the awaitable, so ``@registry.register_async`` cannot take
+        arguments.  *localns* is still forwarded for an awaited call:
+        ``await registry.register_async(func, localns=locals())``.
         """
         target, resolved, ns = self._resolve_registration(
             target, source, namespace, "register_async", kwargs
