@@ -3,6 +3,7 @@
 import os
 
 from toolregistry.llm.truncation import (
+    ResultStore,
     TruncatedResult,
     TruncationStrategy,
     truncate_result,
@@ -18,8 +19,12 @@ class TestTruncatedResult:
 
         assert str(tr) == "hello"
 
-    def test_str_truncated_with_path(self):
-        """Test __str__ for a truncated result with a persisted file."""
+    def test_str_truncated_never_leaks_the_path(self):
+        """Test __str__ for a truncated result with a persisted file.
+
+        The string form goes into the model context, so it must not contain
+        a filesystem path.
+        """
         tr = TruncatedResult(
             content="hel...",
             original_size=100,
@@ -29,8 +34,22 @@ class TestTruncatedResult:
         result = str(tr)
 
         assert "Truncated: 100 chars -> 6 chars" in result
-        assert "/tmp/toolregistry_results/test.txt" in result
+        assert "/tmp/toolregistry_results/test.txt" not in result
+        assert "full output: persisted" in result
         assert "hel..." in result
+
+    def test_str_truncated_with_result_id(self):
+        """Test __str__ names the id and the tool that reads it."""
+        tr = TruncatedResult(
+            content="hel...",
+            original_size=100,
+            truncated=True,
+            result_id="res_0123456789ab",
+        )
+        result = str(tr)
+
+        assert "full output: res_0123456789ab (read it with read_result)" in result
+        assert "persisted" not in result
 
     def test_str_truncated_without_path(self):
         """Test __str__ for a truncated result without persistence."""
@@ -116,21 +135,30 @@ class TestTruncateResult:
         assert tr.truncated is True
         assert len(tr.content) == 5
 
-    def test_persist_full_result(self):
-        """Test that persistence writes the full result to a temp file."""
+    def test_persist_full_result(self, tmp_path):
+        """Test that persistence stores the full result with mode 0600."""
+        store = ResultStore(root=str(tmp_path))
         text = "x" * 200
-        tr = truncate_result(text, max_size=50, tool_name="test_tool", persist=True)
+        tr = truncate_result(
+            text,
+            max_size=50,
+            tool_name="test_tool",
+            persist=True,
+            store=store,
+        )
 
         assert tr.truncated is True
+        assert tr.result_id is not None
         assert tr.full_path is not None
         assert os.path.exists(tr.full_path)
+        assert os.stat(tr.full_path).st_mode & 0o777 == 0o600
 
         with open(tr.full_path, encoding="utf-8") as f:
             persisted = f.read()
         assert persisted == text
 
-        # Cleanup
-        os.remove(tr.full_path)
+        # The path stays out of the string form placed in model context.
+        assert tr.full_path not in str(tr)
 
     def test_no_persist(self):
         """Test that persist=False skips file writing."""
