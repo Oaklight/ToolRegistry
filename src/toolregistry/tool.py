@@ -760,6 +760,35 @@ def tool_metadata(**fields: Any) -> Callable[[_F], _F]:
         A boolean field whose default is ``False`` therefore cannot be held
         at ``False`` against a decorator that declares ``True``; do not
         declare that field in that case.
+
+        ``functools.wraps`` keeps the declaration, because it copies the
+        wrapped function's ``__dict__`` onto the wrapper.  A helper that
+        builds a *new* function object instead (for example
+        ``types.FunctionType`` with a narrowed ``inspect.Signature``, or a
+        function that binds a literal argument) drops it.  Such helpers must
+        call :func:`copy_tool_metadata` on the function they return:
+
+        ```python
+        import functools
+
+        from toolregistry import copy_tool_metadata, tool_metadata
+
+        @tool_metadata(read_only_hint=True)
+        def convert(value: float, unit: str) -> float:
+            ...
+
+        def bind_unit(func, unit):
+            def bound(value: float) -> float:
+                return func(value, unit)
+
+            return copy_tool_metadata(func, bound)
+
+        to_meters = bind_unit(convert, "m")  # still read_only_hint=True
+
+        @functools.wraps(convert)  # keeps the declaration on its own
+        def logged(value: float, unit: str) -> float:
+            return convert(value, unit)
+        ```
     """
     unknown = set(fields) - DECLARABLE_TOOL_METADATA_FIELDS
     if unknown:
@@ -783,6 +812,34 @@ def tool_metadata(**fields: Any) -> Callable[[_F], _F]:
         return func
 
     return decorator
+
+
+def copy_tool_metadata(source: Callable[..., Any], target: _F) -> _F:
+    """Copy the ``@tool_metadata`` declaration of *source* onto *target*.
+
+    Use this in any wrapper that returns a new function object rather than
+    one produced by ``functools.wraps`` (which already keeps the
+    declaration).  See :func:`tool_metadata` for an example.
+
+    The declaration is merged into whatever *target* already declares, and
+    *source* wins on a conflict, as if *source*'s ``@tool_metadata`` were
+    stacked on top of *target*.  If *source* declares nothing, *target* is
+    left unchanged.
+
+    Args:
+        source: The function whose declaration should be preserved.
+        target: The new function object, usually the wrapper being returned.
+
+    Returns:
+        *target*, so the call can be used as the wrapper's return value.
+
+    Raises:
+        TypeError: If *target* does not accept attributes.
+    """
+    declared = _declared_tool_metadata(source)
+    if not declared:
+        return target
+    return tool_metadata(**declared)(target)
 
 
 def _declared_tool_metadata(func: Callable[..., Any]) -> dict[str, Any]:

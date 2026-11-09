@@ -49,7 +49,7 @@ from .llm.discovery import (
     ToolDiscoveryTool,
 )
 from .llm.tool_calls import ErrorResult, ResultList, ToolCallResult
-from .tool import Tool, ToolMetadata, ToolTag, tool_metadata
+from .tool import Tool, ToolMetadata, ToolTag, copy_tool_metadata, tool_metadata
 from .tool_registry import ToolRegistry
 
 __all__ = [
@@ -94,6 +94,7 @@ __all__ = [
     "ToolDiscoveryTool",
     "ToolTag",
     "tool_metadata",
+    "copy_tool_metadata",
     "SchemaChangeKind",
     "SchemaErrorDetail",
     "SchemaValidationError",
