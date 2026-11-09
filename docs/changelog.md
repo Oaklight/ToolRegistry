@@ -16,15 +16,6 @@ hide:
 
 ## [Unreleased]
 
-### 新增
-
-- **函数内的注解可在注册时解析**（#466）：`Tool.from_function`、`ToolRegistry.register` 与 `register_async` 接受仅关键字参数 `localns`——通常是定义工具的那个函数的 `locals()`——并把它传给 `get_type_hints`。因此，引用函数内类型或函数内 `Annotated`/`Field` 的注解会发布真实 schema，而不是不受约束的 schema。`@registry.register(localns=...)` 返回装饰器；`register_async` 是协程，必须 await，因此只有同步形式具备这种装饰器用法。不传 `localns` 时解析行为不变。
-- **降级注解会记录在工具元数据中**（#466）：`ToolMetadata.unresolved_parameters` 列出注解无法解析为 schema、因此发布 schema 不受约束的参数——包括无法解析的函数内名称，以及没有 JSON 投影的类型（例如普通类）。每个参数都获得 schema 时为空，服务器因此可以报告该降级，而不是把空 schema 当作契约发布。
-
-### 变更
-
-- **破坏性变更：** `set_permission_policy()` 要求传入 `PermissionPolicy`（#467）。其他对象会在 setter 处抛出 `TypeError`。此前鸭子类型策略在进程内路径会被执行，却被 `toolregistry-server` 忽略，可能放行策略本要拒绝的调用；服务器端的实例检查现在只是同一条规则的防御性重复，而不是第二条规则。
-
 ## [0.21.0] - 2026-11-09
 
 ### 新增
@@ -47,6 +38,10 @@ hide:
 
 - **配置文件可声明按路由的参数 schema**（#465）：`ToolConfig.tool_parameters` 是顶层块，按精确的已注册工具名索引，与 `tool_metadata` 的键相同。每个值必须是 JSON Schema 对象：`type` 可省略、为 `"object"`，或为包含 `"object"` 的列表（例如 `["object", "null"]`）；标量或数组类型会抛出 `ConfigError`，`properties` 出现时必须是映射。`load_config()` 解析并保存该块但不应用它，因为覆盖需要已注册的工具；未注册的名称会被保留，由消费方在注册后应用或跳过。`to_dict()` 仅在块非空时输出，因此现有配置文件的往返结果不变。见[声明式配置](usage/configuration.md)。
 
+- **函数内的注解可在注册时解析**（#466）：`Tool.from_function`、`ToolRegistry.register` 与 `register_async` 接受仅关键字参数 `localns`——通常是定义工具的那个函数的 `locals()`——并把它传给 `get_type_hints`。因此，引用函数内类型或函数内 `Annotated`/`Field` 的注解会发布真实 schema，而不是不受约束的 schema。`@registry.register(localns=...)` 返回装饰器；`register_async` 是协程，必须 await，因此只有同步形式具备这种装饰器用法。不传 `localns` 时解析行为不变。
+
+- **降级注解会记录在工具元数据中**（#466）：`ToolMetadata.unresolved_parameters` 列出注解无法解析为 schema、因此发布 schema 不受约束的参数——包括无法解析的函数内名称，以及没有 JSON 投影的类型（例如普通类）。每个参数都获得 schema 时为空，服务器因此可以报告该降级，而不是把空 schema 当作契约发布。
+
 #### 管理面板
 
 - **管理面板扩展（契约 v1）**（#435）：`AdminServer(..., extensions=[...])` 可挂载运维方安装的扩展。每个扩展声明 `name`、`title` 与 `requires_api`，通过 `AdminContext`（`get`、`post`、`put`、`patch`、`delete`）在 `/ext/<name>` 下注册路由；若需标签页，再声明 `nav` 与 `assets`、`entry`（可选 `styles` 与 `icon`）。没有 `nav` 的扩展是纯 API 扩展，无需资源目录。`GET /api/extensions` 提供清单；扩展资源经现有的后缀白名单与路径穿越防护从 `/assets/ext/<name>/` 提供；页面外壳导入入口模块并调用其 `register({container, api, i18n})` 导出。`requires_api` 在服务端启动时与浏览器中都会校验，不匹配会拒绝该扩展并在消息中给出扩展名。扩展路由继承面板认证，`/ext/` 的状态变更请求与 `/api/` 一样受跨站防护。见[管理面板扩展](admin/extensions.md)。
@@ -60,6 +55,8 @@ hide:
 #### 核心
 
 - **`utils.py` 按职责拆分**（#437）：工具名标准化与注册过滤器移至 `toolregistry._names`，基础 URL 的 HTTP 客户端与 `HttpClientConfig` 移至 `toolregistry._http`，工具结果编码移至 `toolregistry._serialisation`。`toolregistry.utils` 重新导出此前的所有名称，因此 `compute_schema_hash`、`ToolResultJSONEncoder` 等下游导入保持不变。`api/helpers.md` 记录新的实现位置，`AGENTS.md` 改为描述真实的包结构，并由一个检查其所列每个路径是否存在的测试固定。注册过滤器的警告现在归属到过滤器所在的 `_names.py`。
+
+- **破坏性变更：** `set_permission_policy()` 要求传入 `PermissionPolicy`（#467）。其他对象会在 setter 处抛出 `TypeError`。此前鸭子类型策略在进程内路径会被执行，却被 `toolregistry-server` 忽略，可能放行策略本要拒绝的调用；服务器端的实例检查现在只是同一条规则的防御性重复，而不是第二条规则。
 
 ### 修复
 
