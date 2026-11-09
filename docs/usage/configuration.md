@@ -260,6 +260,42 @@ Unknown keys on a source entry (or under `auth`) are rejected at load time
 with a `ConfigError` naming the entry and the offending keys, instead of
 being silently ignored.
 
+## Per-Route Parameter Overrides
+
+`tool_parameters` replaces the published parameter schema for individual
+registered tools. It is a top-level block keyed by the exact registered tool
+name, the same keying as `tool_metadata`:
+
+```yaml
+tool_parameters:
+  calculator-evaluate:
+    type: object
+    properties:
+      expression:
+        type: string
+      precision:
+        type: integer
+    required: [expression]
+```
+
+Each value must describe a JSON object. `type` may be omitted, be `"object"`,
+or be a list that contains `"object"` (for example `["object", "null"]`); a
+scalar or array schema raises `ConfigError`, because the request path only
+produces an object and a narrower schema would reject every call. When
+`properties` is present it must be a mapping.
+
+`load_config()` parses and stores the block but does not apply it: an override
+needs the tool to be registered, so the consumer applies it after registration,
+and a name with no registered tool is kept as written rather than rejected.
+Whether an override is compatible with the tool's own schema is the consumer's
+decision. The block is written back only when it is non-empty, so existing
+config files round-trip unchanged.
+
+!!! note
+    Core owns the config schema, so the block is defined here. Applying it to
+    routes — and refusing an override the tool cannot accept — is the
+    consumer's job, for example the ToolRegistry server's route table.
+
 ## Parsed Types
 
 `load_config()` returns a `ToolConfig` frozen dataclass:
