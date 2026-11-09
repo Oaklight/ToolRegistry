@@ -53,12 +53,39 @@ def parse_trusted_proxies(entries: Sequence[str]) -> tuple[IPNetwork, ...]:
     return tuple(networks)
 
 
-def address_in_networks(address: str, networks: Sequence[IPNetwork]) -> bool:
-    """Return whether *address* belongs to any of *networks*."""
+def normalize_address(address: str) -> str | None:
+    """Return the canonical text form of *address*, or ``None`` if invalid.
+
+    An IPv4-mapped IPv6 address (``::ffff:127.0.0.1``) is reported as its
+    IPv4 form.  A dual-stack listener reports IPv4 peers that way, and the
+    throttle key must not depend on which listener accepted the connection.
+
+    Args:
+        address: An IPv4 or IPv6 address in text form.
+
+    Returns:
+        The canonical address, with mapped IPv6 addresses reduced to IPv4,
+        or ``None`` when *address* does not parse.
+    """
     try:
-        parsed = ipaddress.ip_address(address)
+        parsed = ipaddress.ip_address(address.strip())
     except ValueError:
+        return None
+    if isinstance(parsed, ipaddress.IPv6Address) and parsed.ipv4_mapped is not None:
+        return str(parsed.ipv4_mapped)
+    return str(parsed)
+
+
+def address_in_networks(address: str, networks: Sequence[IPNetwork]) -> bool:
+    """Return whether *address* belongs to any of *networks*.
+
+    The address is normalized first, so an IPv4-mapped IPv6 address matches
+    the IPv4 networks it represents.
+    """
+    normalized = normalize_address(address)
+    if normalized is None:
         return False
+    parsed = ipaddress.ip_address(normalized)
     return any(
         parsed.version == network.version and parsed in network for network in networks
     )
@@ -70,7 +97,8 @@ def forwarded_source(header: str, trusted: Sequence[IPNetwork]) -> str | None:
     The chain is walked right to left, skipping hops that are themselves
     trusted; the first untrusted address is the client.  That is the only
     order a client cannot steer by prepending entries, because the trusted
-    proxy appends the hop it actually saw.
+    proxy appends the hop it actually saw.  Addresses are normalized, so an
+    IPv4-mapped hop matches an IPv4 trusted network and yields the IPv4 key.
 
     Args:
         header: The raw header value, possibly empty.
@@ -88,18 +116,14 @@ def forwarded_source(header: str, trusted: Sequence[IPNetwork]) -> str | None:
     if not entries:
         return None
     for entry in reversed(entries):
-        try:
-            address = ipaddress.ip_address(entry)
-        except ValueError:
+        address = normalize_address(entry)
+        if address is None:
             # A malformed hop at or right of the client position makes the
             # chain untrustworthy.  Hops further left are the client's own
             # forging space and are never reached.
             return None
-        if not any(
-            address.version == network.version and address in network
-            for network in trusted
-        ):
-            return str(address)
+        if not address_in_networks(address, trusted):
+            return address
     return None
 
 

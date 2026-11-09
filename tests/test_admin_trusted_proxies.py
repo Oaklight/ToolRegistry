@@ -15,6 +15,7 @@ from toolregistry._vendor.httpserver import Request
 from toolregistry.admin.auth import (
     address_in_networks,
     forwarded_source,
+    normalize_address,
     parse_trusted_proxies,
 )
 from toolregistry.admin.handlers import _client_source
@@ -48,6 +49,24 @@ class TestParsing:
     def test_a_mixed_family_comparison_is_false(self) -> None:
         networks = parse_trusted_proxies(["127.0.0.1"])
         assert not address_in_networks("::1", networks)
+
+    def test_a_mapped_address_matches_an_ipv4_network(self) -> None:
+        """A dual-stack listener reports IPv4 peers as ``::ffff:a.b.c.d``."""
+        assert address_in_networks(
+            "::ffff:127.0.0.1", parse_trusted_proxies(["127.0.0.1"])
+        )
+        assert address_in_networks(
+            "::ffff:10.2.3.4", parse_trusted_proxies(["10.0.0.0/8"])
+        )
+
+    def test_a_mapped_address_normalizes_to_ipv4(self) -> None:
+        assert normalize_address("::ffff:127.0.0.1") == "127.0.0.1"
+        assert normalize_address("::FFFF:198.51.100.9") == "198.51.100.9"
+        assert normalize_address("not-an-ip") is None
+
+    def test_plain_addresses_are_unchanged(self) -> None:
+        assert normalize_address("203.0.113.9") == "203.0.113.9"
+        assert normalize_address("2001:db8::1") == "2001:db8::1"
 
 
 class TestForwardedChain:
@@ -91,6 +110,14 @@ class TestForwardedChain:
         trusted = parse_trusted_proxies([TRUSTED_PEER, "10.0.0.0/8"])
         assert forwarded_source("10.0.0.5, 10.0.0.6", trusted) is None
 
+    def test_a_mapped_hop_yields_the_ipv4_key(self) -> None:
+        trusted = parse_trusted_proxies([TRUSTED_PEER])
+        assert forwarded_source("::ffff:198.51.100.9", trusted) == "198.51.100.9"
+
+    def test_a_mapped_trusted_hop_is_skipped(self) -> None:
+        trusted = parse_trusted_proxies([TRUSTED_PEER])
+        assert forwarded_source(f"{CLIENT}, ::ffff:127.0.0.1", trusted) == CLIENT
+
 
 class TestClientSource:
     def test_a_trusted_peer_uses_the_rightmost_untrusted_hop(self) -> None:
@@ -124,6 +151,18 @@ class TestClientSource:
             "GET", "/api/tools", "", {"x-forwarded-for": CLIENT}, b"", None, app
         )
         assert _client_source(request) == "unknown"
+
+    def test_a_mapped_trusted_peer_resolves_the_header(self) -> None:
+        request = _request("::ffff:127.0.0.1", CLIENT, [TRUSTED_PEER])
+        assert _client_source(request) == CLIENT
+
+    def test_a_mapped_untrusted_peer_keys_on_the_ipv4_form(self) -> None:
+        request = _request("::ffff:203.0.113.50", "1.2.3.4", [TRUSTED_PEER])
+        assert _client_source(request) == "203.0.113.50"
+
+    def test_a_plain_ipv6_peer_is_unchanged(self) -> None:
+        request = _request("2001:db8::1", None, ["2001:db8::/32"])
+        assert _client_source(request) == "2001:db8::1"
 
 
 class TestServerWiring:

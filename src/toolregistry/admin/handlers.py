@@ -18,7 +18,12 @@ from typing import TYPE_CHECKING, Any, cast
 from .._vendor.httpserver import HTTPException, Request, Response
 from ..utils import ToolResultJSONEncoder
 
-from .auth import AuthFailureLimiter, address_in_networks, forwarded_source
+from .auth import (
+    AuthFailureLimiter,
+    address_in_networks,
+    forwarded_source,
+    normalize_address,
+)
 from .extensions import ADMIN_EXTENSION_API
 from .server import _host_name
 from .source_hook import SourceChange
@@ -304,8 +309,9 @@ def _client_source(request: Request) -> str:
     client that prepends entries, because the trusted proxy appends the hop
     it actually saw.  A peer that is not trusted ignores the header
     entirely; an empty or malformed chain falls back to the peer address.
-    The port is never part of the key, because a client can change it by
-    reconnecting.
+    The peer is normalized first, so a dual-stack listener reporting
+    ``::ffff:127.0.0.1`` keys the client as ``127.0.0.1``.  The port is
+    never part of the key, because a client can change it by reconnecting.
 
     Args:
         request: The incoming request.
@@ -315,7 +321,8 @@ def _client_source(request: Request) -> str:
         does not report a peer.
     """
     address = getattr(request, "client_addr", None)
-    peer = str(address[0]) if address else "unknown"
+    raw_peer = str(address[0]) if address else "unknown"
+    peer = normalize_address(raw_peer) or raw_peer
     trusted = getattr(_app(request), "trusted_proxies", ())
     if not trusted or peer == "unknown":
         return peer
