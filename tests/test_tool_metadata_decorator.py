@@ -155,7 +155,10 @@ class TestClassRegistration:
 
 
 class TestValidation:
-    @pytest.mark.parametrize("name", ["is_async", "source", "schema_hash"])
+    @pytest.mark.parametrize(
+        "name",
+        ["is_async", "source", "source_detail", "schema_hash", "last_refreshed_at"],
+    )
     def test_pipeline_fields_are_refused(self, name: str) -> None:
         with pytest.raises(TypeError, match="Cannot declare"):
             tool_metadata(**{name: True})
