@@ -354,8 +354,9 @@ class TestOpenAPIBaseUrlRefresh:
     MOVED = "https://8.8.8.8/v2"
     PRIVATE = "http://10.0.0.5/internal"
 
-    def _spec(self, url, base=None):
-        return {**(base or SPEC_V1), "servers": [{"url": url}]}
+    def _spec(self, url, base=None, extra=()):
+        servers = [{"url": url}] + [{"url": item} for item in extra]
+        return {**(base or SPEC_V1), "servers": servers}
 
     def _register_derived(self, registry, url=None):
         """Register the way the admin layer does: base URL from servers[0]."""
@@ -405,6 +406,73 @@ class TestOpenAPIBaseUrlRefresh:
 
         assert result.base_url_changed is True
         assert integration._client_config.base_url == third
+
+    def test_unused_server_entries_are_not_validated(self):
+        """A generated spec's loopback fallback must not fail every refresh."""
+        registry = ToolRegistry()
+        spec = self._spec(self.ORIGIN, extra=("http://localhost:8080",))
+        registry.register_from_openapi(HttpClientConfig(base_url=self.ORIGIN), spec)
+        integration = registry.openapi_integrations[-1]
+
+        result = registry.refresh_from_openapi(openapi_spec=spec)
+
+        assert result.base_url_changed is False
+        assert integration._client_config.base_url == self.ORIGIN
+
+    def test_a_moved_public_entry_is_adopted_with_an_unused_loopback(self):
+        registry = ToolRegistry()
+        spec = self._spec(self.ORIGIN, extra=("http://localhost:8080",))
+        registry.register_from_openapi(HttpClientConfig(base_url=self.ORIGIN), spec)
+        integration = registry.openapi_integrations[-1]
+
+        moved = self._spec(self.MOVED, extra=("http://localhost:8080",))
+        result = registry.refresh_from_openapi(openapi_spec=moved)
+
+        assert result.base_url_changed is True
+        assert integration._client_config.base_url == self.MOVED
+
+    def test_a_templated_first_entry_is_never_adopted(self):
+        """A server-variable template must not fail every refresh."""
+        registry = ToolRegistry()
+        integration = self._register_derived(registry)
+        templated = self._spec("https://{region}.example.com", base=SPEC_V2_ADDED)
+
+        result = registry.refresh_from_openapi(openapi_spec=templated)
+
+        assert result.base_url_changed is False
+        assert integration._client_config.base_url == self.ORIGIN
+        # The rest of the document still applies.
+        assert "create_item" in result.added
+        assert "create_item" in registry._tools
+
+    def test_a_concrete_entry_after_a_templated_one_is_adopted(self):
+        registry = ToolRegistry()
+        integration = self._register_derived(registry)
+        registry.refresh_from_openapi(
+            openapi_spec=self._spec("https://{region}.example.com")
+        )
+
+        result = registry.refresh_from_openapi(openapi_spec=self._spec(self.MOVED))
+
+        assert result.base_url_changed is True
+        assert integration._client_config.base_url == self.MOVED
+
+    def test_an_explicit_override_ignores_refused_servers(self):
+        """The document's servers are irrelevant when the caller chose one."""
+        registry = ToolRegistry()
+        override = "http://test.example.com"
+        registry.register_from_openapi(
+            HttpClientConfig(base_url=override), self._spec(self.ORIGIN)
+        )
+        integration = registry.openapi_integrations[-1]
+
+        # servers[0] is a private address, but it is never adopted.
+        result = registry.refresh_from_openapi(
+            openapi_spec=self._spec(self.PRIVATE, base=SPEC_V2_ADDED)
+        )
+
+        assert result.base_url_changed is False
+        assert integration._client_config.base_url == override
 
     def test_a_move_to_a_private_address_is_refused(self):
         registry = ToolRegistry()

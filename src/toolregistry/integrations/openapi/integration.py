@@ -6,7 +6,7 @@ from typing import Any
 from ...errors import ResponseTooLargeError
 from ...events import ChangeEvent, ChangeEventType, RefreshResult
 from ...schema_diff import SchemaChangeKind, classify_tool_change
-from ..._netpolicy import UnsafeAddressError
+from ..._netpolicy import UnsafeAddressError, validate_outbound_url
 
 from ..._names import NameSeparator, qualified_tool_name
 from ...tool import Tool, ToolMetadata
@@ -19,11 +19,7 @@ from ...utils import (
     normalize_tool_name,
     utc_iso_now,
 )
-from .utils import (
-    check_spec_servers,
-    extract_base_url_from_specs,
-    redact_url_userinfo,
-)
+from .utils import first_server_url, redact_url_userinfo
 
 
 def _operation_id(spec: dict[str, Any], path: str, method: str) -> str:
@@ -432,13 +428,12 @@ class OpenAPIIntegration:
             self._persistent = persistent
             self._spec_url = spec_url
             self._openapi_spec = openapi_spec
-            # Remember the URL the document itself produced.  A refresh
-            # adopts a moved ``servers[0]`` only while the client config
-            # still equals this value; an explicit override never does.
-            self._spec_base_url = extract_base_url_from_specs(
-                openapi_spec,
-                allow_private_hosts=client_config.allow_private_hosts,
-            )
+            # Remember what the document named at ``servers[0]``.  A refresh
+            # adopts a moved value only while the client config still equals
+            # this one; an explicit override never does.  Nothing is
+            # validated here: registration does not dial the URL, and the
+            # candidate is checked only when a refresh adopts it.
+            self._spec_base_url = first_server_url(openapi_spec)
 
             resolved_ns = (
                 namespace
@@ -788,12 +783,20 @@ class OpenAPIIntegration:
     ) -> tuple[HttpClientConfig, bool]:
         """Return the client config a refresh should build tools against.
 
-        A moved ``servers[0]`` is adopted only when the stored config's base
-        URL was itself derived from the registration document — that is,
-        when it still equals the URL that document produced.  A caller's
-        explicit base URL differs and is kept.  The rule is evaluated on
-        every refresh, so a document-derived URL keeps following the
-        document.
+        Only the base URL that will actually be dialed is validated.  A
+        moved ``servers[0]`` is adopted when the stored config's base URL
+        was itself derived from the document (it still equals the URL the
+        registration document named); the adopted value is checked against
+        the outbound address policy at that point.  When the config carries
+        an explicit base URL, the document never replaces it, so the
+        document's ``servers`` are not validated and cannot fail the
+        refresh.  Entries that are not adopted are never checked or
+        resolved.
+
+        A templated ``servers[0]`` (``https://{region}.example.com``) cannot
+        be validated before substitution, so it is never adopted or checked:
+        the current base URL stays and the rest of the refresh still
+        applies.  A later concrete entry is adoptable again.
 
         Args:
             openapi_spec: The spec obtained for this refresh.
@@ -807,30 +810,33 @@ class OpenAPIIntegration:
             tool map has been applied.
 
         Raises:
-            UnsafeAddressError: If the new document's ``servers[]`` entry is
+            UnsafeAddressError: If the candidate that would be adopted is
                 refused by the outbound address policy.  The refresh must
                 leave the tools and the config untouched, and the caller
                 must surface the refusal rather than report "no changes".
                 The raised error is the base class, so no resolved address
                 travels with it.
         """
+        candidate = first_server_url(openapi_spec)
+        if candidate is None or "{" in candidate or "}" in candidate:
+            # A server-variable template cannot be resolved before
+            # substitution, so it can be neither validated nor adopted.
+            # Keep the current base URL and let the rest of the refresh
+            # apply; a document that later names a concrete entry is
+            # adoptable again.
+            return client_config, False
+        if (
+            candidate == client_config.base_url
+            or client_config.base_url != self._spec_base_url
+        ):
+            return client_config, False
         try:
-            check_spec_servers(
-                openapi_spec,
+            validate_outbound_url(
+                candidate,
                 allow_private_hosts=client_config.allow_private_hosts,
             )
         except UnsafeAddressError as exc:
             raise UnsafeAddressError(str(exc)) from exc
-        candidate = extract_base_url_from_specs(
-            openapi_spec,
-            allow_private_hosts=client_config.allow_private_hosts,
-        )
-        if (
-            candidate is None
-            or candidate == client_config.base_url
-            or client_config.base_url != self._spec_base_url
-        ):
-            return client_config, False
         return client_config.with_base_url(candidate), True
 
     async def refresh_async(
@@ -842,10 +848,13 @@ class OpenAPIIntegration:
         A ``servers[0]`` that moved is adopted as the new base URL, but only
         when the current base URL was itself derived from the document (it
         still equals the URL the registration spec produced).  An explicit
-        base URL passed by the caller is kept.  If the new document's
-        ``servers[]`` entry is refused by the outbound address policy, this
-        raises :class:`~toolregistry.netpolicy.UnsafeAddressError` and leaves
-        both the tools and the base URL untouched.
+        base URL passed by the caller is kept, and the document's
+        ``servers`` are then irrelevant: they are not validated and cannot
+        fail the refresh.  Only a candidate that is about to be adopted is
+        checked against the outbound address policy; a refusal raises and
+        leaves both the tools and the base URL untouched.  A templated
+        ``servers[0]`` is never adopted or checked, because it cannot be
+        resolved before substitution.
 
         Args:
             openapi_spec: A pre-parsed spec dict.  When ``None``, the spec is
@@ -857,8 +866,8 @@ class OpenAPIIntegration:
 
         Raises:
             ValueError: If no spec can be obtained (no URL and no stored spec).
-            UnsafeAddressError: If the refreshed document names a
-                ``servers[]`` entry the outbound address policy refuses.
+            UnsafeAddressError: If the base URL the refresh would adopt is
+                refused by the outbound address policy.
         """
         # The spec URL and the configured base URL can both carry userinfo.
         # The value is returned to callers and shown in the admin panel, so

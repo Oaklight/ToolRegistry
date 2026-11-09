@@ -79,6 +79,31 @@ def _parse_spec_content(content: str) -> Any:
         return yaml_load(content)
 
 
+def first_server_url(openapi_spec: dict[str, Any]) -> str | None:
+    """Return ``servers[0].url`` when it is an HTTP(S) URL, unchecked.
+
+    This only reads the entry that a caller may dial.  Whoever adopts the
+    value must validate it against the outbound address policy first; the
+    helper exists so a stored base URL can be derived without resolving
+    entries that will never be requested.
+
+    Args:
+        openapi_spec: The parsed OpenAPI specification.
+
+    Returns:
+        The first server URL without a trailing slash, or ``None`` when the
+        document names no server or the entry is not an HTTP(S) URL.
+    """
+    servers = openapi_spec.get("servers", [])
+    if not servers:
+        return None
+    server_url = servers[0].get("url", "").strip()
+    parsed_url = urlparse(server_url)
+    if parsed_url.scheme not in _SPEC_URL_SCHEMES or not parsed_url.netloc:
+        return None
+    return server_url.rstrip("/")
+
+
 def extract_base_url_from_specs(
     openapi_spec: dict[str, Any],
     *,
@@ -101,12 +126,8 @@ def extract_base_url_from_specs(
         The validated base API URL from ``servers[0]``, or ``None`` when the
         first entry is not an HTTP(S) URL or any entry is refused.
     """
-    servers = openapi_spec.get("servers", [])
-    if not servers:
-        return None
-    server_url = servers[0].get("url", "").strip()
-    parsed_url = urlparse(server_url)
-    if parsed_url.scheme not in _SPEC_URL_SCHEMES or not parsed_url.netloc:
+    server_url = first_server_url(openapi_spec)
+    if server_url is None:
         return None
 
     try:
@@ -114,7 +135,7 @@ def extract_base_url_from_specs(
     except UnsafeAddressError:
         return None
 
-    return server_url.rstrip("/")
+    return server_url
 
 
 def check_spec_servers(
