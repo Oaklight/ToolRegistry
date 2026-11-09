@@ -30,6 +30,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **A downstream server can persist source changes and expose source status** (#436): `AdminServer(..., source_hook=...)` and `enable_admin(source_hook=...)` accept an optional hook with `persist(change)`, `writable()` and `statuses()`. Registration hands the hook a structured `SourceChange` (action, kind, declaration, namespace, selection); a persist failure answers `200` with `persisted: false`, `persist_error` and the names that landed, because the tools are already live. With a hook, `GET /api/sources` adds the hook's records verbatim under `source_status` plus `config_writable`; the tool-derived `sources` array and the no-hook response shapes are unchanged. See [Source persistence hook](admin/source-hooks.md).
 
+- **The auth throttle can key on the client behind a trusted reverse proxy** (#431): `AdminServer(..., trusted_proxies=[...])` and `enable_admin(trusted_proxies=[...])` accept addresses or CIDR ranges of reverse proxies whose `X-Forwarded-For` header is believed. The chain is walked right to left, trusted hops are skipped, and the first untrusted address becomes the throttle key, so a client cannot choose its key by prepending entries. A peer that is not listed ignores the header entirely, and an empty or malformed chain falls back to the peer address. Empty (the default) keeps the peer address, exactly as before, and entries are validated at construction. See [Admin panel security](admin/security.md).
+
 ### Changed
 
 #### Core
@@ -41,6 +43,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 #### Admin panel
 
 - **An extension nav group reuses the shell's section label** (#446): an extension declaring `nav.group = "manage"` rendered the literal key in both languages because only `group.<key>` was consulted. `groupLabel` now falls back from `group.<key>` to the shell's `nav.<key>` before the raw key, so the gateway tab's header matches the built-in "Manage" / "管理" section. An unknown key still renders literally.
+
+- **A burst of concurrent authentications cannot outrun the throttle** (#431, from the #429 review): the limiter reserves each attempt under one lock before the token comparison and releases it on success, so connections opened while the window is empty cannot all pass and guess in parallel. A success releases the failures recorded before it, while a failure reserved later by a request still in flight stays counted. See [Admin panel security](admin/security.md).
 
 ## [0.20.1] - 2026-11-08
 

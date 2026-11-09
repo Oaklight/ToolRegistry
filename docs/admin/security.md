@@ -26,27 +26,46 @@ rejected token is retried only once, so a typo cannot loop the dialog.
 ### Authentication Throttling
 
 Failed authentication is throttled per client source. Five failed attempts
-from one peer address inside 60 seconds get `429 Too Many Requests` with a
-`Retry-After` header (whole seconds, at least 1), and the check runs **before**
-the token comparison, so guessing a low-entropy operator-supplied token costs
-a window of wait rather than one comparison per attempt.
+from one source inside 60 seconds get `429 Too Many Requests` with a
+`Retry-After` header (whole seconds, at least 1). Each attempt reserves a slot
+under one lock **before** the token comparison, so a burst of connections
+opened while the window is empty cannot all pass and guess in parallel, and
+one comparison's worth of work is all a blocked source gets.
 
-- A malformed `Authorization` header and a wrong token each count as one
-  failure. A request with no credentials does not count, because a browser
-  that has not logged in yet is not guessing.
+- A malformed `Authorization` header and a wrong token each leave their
+  reservation in place and count as one failure.
 - A successful request — a valid Bearer token or a valid session cookie —
-  clears the record for that source.
+  releases its reservation together with the failures recorded before it; a
+  failure reserved after it, by a request still in flight, stays.
+- A request with no credentials releases its reservation, because a browser
+  that has not logged in yet is not guessing.
 - The table holds at most 1024 sources. Expired entries are pruned when a
   source is accessed, and the least recently used source is evicted when a new
   one would exceed the bound, so varying the source address cannot grow memory
   without limit.
 
-The rate-limit key is the TCP peer address. A forwarding header is not
-consulted: it is client-controlled, and the panel has no trusted-proxy
-setting (#431). Behind a reverse proxy every client therefore shares one key
-and is throttled together. Terminate authentication at the proxy, or keep the
-proxy's own rate limit, rather than expecting the panel to distinguish
-clients it cannot see.
+The key is the TCP peer address by default. Behind a reverse proxy every
+client shares the proxy's address and is throttled together, so list the
+proxies whose forwarding header may be believed:
+
+```python
+from toolregistry import ToolRegistry
+
+registry = ToolRegistry()
+registry.enable_admin(trusted_proxies=["127.0.0.1", "10.0.0.0/8"])
+```
+
+Entries are addresses or CIDR ranges and are validated at construction
+(`AdminServer(..., trusted_proxies=...)` takes the same argument). When the
+peer is trusted, `X-Forwarded-For` is walked right to left, trusted hops are
+skipped, and the first untrusted address becomes the key. Prepended entries
+cannot steer that choice, because the trusted proxy appends the hop it
+actually saw. A peer that is not in the list ignores the header entirely, and
+an empty or malformed chain falls back to the peer address.
+
+The proxy must *replace* an inbound `X-Forwarded-For` with the address it saw,
+not append to it. The panel never resolves the address, so run the proxy on
+the same host or trust only addresses that clients cannot reach directly.
 
 ## Cross-Origin Access
 
