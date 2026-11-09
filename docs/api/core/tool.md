@@ -56,6 +56,12 @@ Tool 类遵循数据传输对象模式，包含以下关键组件：
         show_root_heading: true
         show_root_toc_entry: false
 
+::: toolregistry.copy_tool_metadata
+    options:
+        show_source: false
+        show_root_heading: true
+        show_root_toc_entry: false
+
 ## 使用示例
 
 ### 基本工具创建
@@ -228,6 +234,37 @@ dataclass 默认值上的字段。默认值为 `False` 的字段（例如 `defer
 叠加多个装饰器会合并声明，冲突时外层优先。绑定方法会把属性访问委托给底层函数，
 因此不需要额外的类扫描。`@tool_metadata` 必须位于 `@staticmethod` 之下，因为
 外层的 `staticmethod` 对象不接受该属性。
+
+### 把声明复制到重建的函数上
+
+`functools.wraps` 会复制被包装函数的 `__dict__`，因此声明得以保留。若包装器
+改为新建函数对象（绑定字面量、去掉某个参数、包装绑定方法等），声明就会丢失。
+`copy_tool_metadata(source, target)` 会把 `source` 的声明应用到新函数上：
+
+```python
+from toolregistry import copy_tool_metadata, tool_metadata
+
+@tool_metadata(tags={"network"}, title="Web Search")
+def search(query: str) -> list[str]:
+    """Search the web."""
+    return [query]
+
+def search_site(site: str):
+    def wrapped(query: str) -> list[str]:
+        """Search one site."""
+        return search(f"site:{site} {query}")
+
+    return copy_tool_metadata(search, wrapped)
+
+print(getattr(search_site("example.com"), "__tool_metadata__"))
+# {'tags': {'network'}, 'title': 'Web Search'}
+```
+
+声明会合并进 `target` 已有的声明，冲突时 `source` 优先——效果等同于把
+`source` 的装饰器叠加在 `target` 的声明之上。`source` 没有声明时 `target`
+保持不变，也不会新增属性；`target` 不接受属性时抛出 `TypeError`。值按引用
+复制，因此可变的声明值（例如 `tags` 集合）与 `source` 共享，复制后不要再
+修改它。
 
 ### 替换参数字段
 

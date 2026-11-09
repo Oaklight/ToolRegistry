@@ -1,7 +1,7 @@
 @import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Sans+SC:wght@400;500;600;700&family=Iosevka:wght@400;500;600;700&display=swap");
 
 :root {
-  --md-text-font: "IBM Plex Sans SC";
+  --md-text-font: "IBM Plex Sans";
   --md-code-font: "Iosevka";
   --md-primary-fg-color: #075985;
   --md-primary-fg-color--light: #0e7490;
@@ -25,6 +25,11 @@
   --toolregistry-soft-hover: rgba(125, 211, 252, 0.18);
   --toolregistry-glow: rgba(125, 211, 252, 0.14);
   --toolregistry-wash: rgba(148, 163, 184, 0.10);
+}
+
+:root[lang="zh"],
+[lang="zh"] {
+  --md-text-font: "IBM Plex Sans SC";
 }
 
 .md-content__inner:has(> .tr-hero:first-child) {

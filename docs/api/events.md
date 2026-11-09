@@ -151,6 +151,7 @@ def block_destructive(tool_name: str, tool, registry) -> str | None:
 
 registry.add_post_register_hook(block_destructive)
 
+# 从此处开始注册的所有工具都会被该钩子检查
 from toolregistry import ToolMetadata, ToolTag
 
 def delete_all_files() -> None:

@@ -22,6 +22,8 @@ hide:
 
 - **可在定义处声明工具元数据**（#442）：`@tool_metadata(...)` 把 `ToolMetadata` 声明保存在函数上，由 `Tool.from_function` 应用。类注册不向构造函数传递元数据，因此这是为类成员声明标签、延迟加载、提示或标题的唯一通道；绑定方法会把属性访问委托给函数，无需新增类扫描。显式的 `metadata=` 参数优先，装饰器只填充该参数留在 dataclass 默认值上的字段。`is_async` 始终由函数自动检测；由流水线拥有的来源与 schema 字段不可声明。见[工具](api/core/tool.md)。
 
+- **重建函数的包装器可保留元数据声明**（#449）：`copy_tool_metadata(source, target)` 把 `source` 的 `@tool_metadata` 声明应用到新的函数对象上，供无法使用 `functools.wraps` 的包装器使用。声明会合并进 `target` 已有的声明，冲突时 `source` 优先，与装饰器叠加顺序一致；`source` 没有声明时 `target` 保持不变；`target` 不接受属性时抛出 `TypeError`。见[工具](api/core/tool.md)。
+
 #### 管理面板
 
 - **管理面板扩展（契约 v1）**（#435）：`AdminServer(..., extensions=[...])` 可挂载运维方安装的扩展。每个扩展声明 `name`、`title` 与 `requires_api`，通过 `AdminContext`（`get`、`post`、`put`、`patch`、`delete`）在 `/ext/<name>` 下注册路由；若需标签页，再声明 `nav` 与 `assets`、`entry`（可选 `styles` 与 `icon`）。没有 `nav` 的扩展是纯 API 扩展，无需资源目录。`GET /api/extensions` 提供清单；扩展资源经现有的后缀白名单与路径穿越防护从 `/assets/ext/<name>/` 提供；页面外壳导入入口模块并调用其 `register({container, api, i18n})` 导出。`requires_api` 在服务端启动时与浏览器中都会校验，不匹配会拒绝该扩展并在消息中给出扩展名。扩展路由继承面板认证，`/ext/` 的状态变更请求与 `/api/` 一样受跨站防护。见[管理面板扩展](admin/extensions.md)。
