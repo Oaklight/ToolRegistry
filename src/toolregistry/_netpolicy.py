@@ -31,6 +31,8 @@ __all__ = [
     "PrivateAddressError",
     "UnsafeAddressError",
     "clear_address_cache",
+    "resolve_outbound_url",
+    "resolve_outbound_url_async",
     "validate_outbound_url",
     "validate_outbound_url_async",
 ]
@@ -51,8 +53,10 @@ CACHE_TTL_SECONDS = 60.0
 #: Seconds the async resolver waits before failing closed.
 RESOLVE_TIMEOUT_SECONDS = 5.0
 
-#: ``(scheme, host, port) -> monotonic expiry`` for successful checks.
-_cache: dict[tuple[str, str, int], float] = {}
+#: ``(scheme, host, port) -> (monotonic expiry, checked addresses)`` for
+#: successful checks.  The addresses travel with the entry so a cache hit can
+#: hand the caller exactly what was approved, instead of resolving again.
+_cache: dict[tuple[str, str, int], tuple[float, tuple[str, ...]]] = {}
 _cache_lock = threading.Lock()
 
 #: IPv4 and IPv6 ranges that ``is_global`` alone cannot be trusted to refuse.
@@ -308,16 +312,146 @@ async def _resolve_async(
     return _addresses(infos)
 
 
-def _cache_get(scheme: str, host: str, port: int) -> bool:
+def _cache_get(scheme: str, host: str, port: int) -> tuple[str, ...] | None:
+    """Return the addresses a cached success checked, or ``None``.
+
+    The entry stores the addresses that were judged public, so a cache hit
+    hands them back instead of resolving the name a second time.
+    """
     key = (scheme, host.lower(), port)
     with _cache_lock:
-        expires = _cache.get(key)
-    return expires is not None and expires > time.monotonic()
+        entry = _cache.get(key)
+    if entry is None:
+        return None
+    expires, addresses = entry
+    if expires <= time.monotonic():
+        return None
+    return addresses
 
 
-def _cache_put(scheme: str, host: str, port: int) -> None:
+def _cache_put(
+    scheme: str,
+    host: str,
+    port: int,
+    addresses: Sequence[str],
+) -> None:
+    """Cache a successful check together with the addresses it approved."""
     with _cache_lock:
-        _cache[(scheme, host.lower(), port)] = time.monotonic() + CACHE_TTL_SECONDS
+        _cache[(scheme, host.lower(), port)] = (
+            time.monotonic() + CACHE_TTL_SECONDS,
+            tuple(addresses),
+        )
+
+
+def resolve_outbound_url(
+    url: str, *, allow_private_hosts: bool = False
+) -> tuple[str, tuple[str, ...]]:
+    """Return *url* and the addresses the policy checked for its host.
+
+    The arguments are validated exactly as :func:`validate_outbound_url`
+    validates them.  The difference is the result: this function also returns
+    the addresses, so a caller that can pin a connection to them does not
+    have to resolve the name again — the second resolution is the rebinding
+    window described in the module docstring.
+
+    With ``allow_private_hosts=True`` the host is still resolved, because the
+    caller needs the addresses to pin; only the public-address judgement is
+    skipped.  :func:`validate_outbound_url` instead returns immediately in
+    that case, without any DNS lookup.  An IP-literal host is not resolved and
+    returns its literal as the single address.
+
+    Args:
+        url: The URL an integration is about to fetch.
+        allow_private_hosts: Accept a non-public address.  Defaults to
+            ``False``.
+
+    Returns:
+        ``(url, addresses)``, where *addresses* are the ones that were
+        checked (or, when *allow_private_hosts* is set, the ones the resolver
+        returned).
+
+    Raises:
+        UnsafeAddressError: If the URL is malformed, its scheme is not in
+            :data:`SCHEMES`, its host does not resolve, or (unless
+            *allow_private_hosts*) any resolved address is not globally
+            reachable.
+    """
+    scheme, host, port = _parse(url)
+    literal = _literal(host)
+    if literal is not None:
+        if not allow_private_hosts:
+            _check(host, [literal])
+        return url, (literal,)
+
+    cached = _cache_get(scheme, host, port)
+    if cached is not None:
+        return url, cached
+
+    try:
+        addresses = _resolve(host, port)
+    except OSError as exc:
+        raise UnsafeAddressError(f"Could not resolve '{host}': {exc}") from exc
+    if not addresses:
+        raise UnsafeAddressError(f"Could not resolve '{host}': no address")
+    if not allow_private_hosts:
+        _check(host, addresses)
+        # Only a checked success is cached: an opted-out lookup may have
+        # returned a private address and must not satisfy a later check.
+        _cache_put(scheme, host, port, addresses)
+    return url, tuple(addresses)
+
+
+async def resolve_outbound_url_async(
+    url: str,
+    *,
+    allow_private_hosts: bool = False,
+    timeout: float = RESOLVE_TIMEOUT_SECONDS,
+) -> tuple[str, tuple[str, ...]]:
+    """Async twin of :func:`resolve_outbound_url`.
+
+    The resolver runs through the event loop; *timeout* bounds the wait and
+    fails closed.  As in the sync function, ``allow_private_hosts=True`` still
+    resolves, while :func:`validate_outbound_url_async` returns without a
+    lookup.
+
+    Args:
+        url: The URL an integration is about to fetch.
+        allow_private_hosts: Accept a non-public address.  Defaults to
+            ``False``.
+        timeout: Seconds to wait for the resolver.
+
+    Returns:
+        ``(url, addresses)``, where *addresses* are the ones that were
+        checked (or, when *allow_private_hosts* is set, the ones the resolver
+        returned).
+
+    Raises:
+        UnsafeAddressError: If the URL is malformed, its scheme is not in
+            :data:`SCHEMES`, its host does not resolve, resolution times out,
+            or (unless *allow_private_hosts*) any resolved address is not
+            globally reachable.
+    """
+    scheme, host, port = _parse(url)
+    literal = _literal(host)
+    if literal is not None:
+        if not allow_private_hosts:
+            _check(host, [literal])
+        return url, (literal,)
+
+    cached = _cache_get(scheme, host, port)
+    if cached is not None:
+        return url, cached
+
+    try:
+        addresses = await _resolve_async(host, port, timeout)
+    except (OSError, asyncio.TimeoutError) as exc:
+        raise UnsafeAddressError(f"Could not resolve '{host}': {exc}") from exc
+    if not addresses:
+        raise UnsafeAddressError(f"Could not resolve '{host}': no address")
+    if not allow_private_hosts:
+        _check(host, addresses)
+        _cache_put(scheme, host, port, addresses)
+    return url, tuple(addresses)
 
 
 def validate_outbound_url(url: str, *, allow_private_hosts: bool = False) -> str:
@@ -325,6 +459,10 @@ def validate_outbound_url(url: str, *, allow_private_hosts: bool = False) -> str
 
     The host is resolved on the calling thread.  Async callers use
     :func:`validate_outbound_url_async` so the event loop is not blocked.
+
+    With ``allow_private_hosts=True`` this returns without resolving the
+    name, so no DNS lookup happens.  :func:`resolve_outbound_url` differs: it
+    still resolves in that case, because its caller needs the addresses.
 
     Args:
         url: The URL an integration is about to fetch.
@@ -339,23 +477,12 @@ def validate_outbound_url(url: str, *, allow_private_hosts: bool = False) -> str
             *allow_private_hosts*) any resolved address is not globally
             reachable.
     """
-    scheme, host, port = _parse(url)
-    literal = _literal(host)
-    if literal is not None:
-        if not allow_private_hosts:
-            _check(host, [literal])
-        return url
+    _parse(url)
     if allow_private_hosts:
+        # Preserve the original behaviour: the opt-out does not resolve.
         return url
-    if _cache_get(scheme, host, port):
-        return url
-    try:
-        addresses = _resolve(host, port)
-    except OSError as exc:
-        raise UnsafeAddressError(f"Could not resolve '{host}': {exc}") from exc
-    _check(host, addresses)
-    _cache_put(scheme, host, port)
-    return url
+    resolved, _ = resolve_outbound_url(url)
+    return resolved
 
 
 async def validate_outbound_url_async(
@@ -368,6 +495,10 @@ async def validate_outbound_url_async(
 
     The resolver runs through the event loop, so a slow name server does not
     block other tasks; *timeout* bounds the wait and fails closed.
+
+    With ``allow_private_hosts=True`` this returns without resolving the
+    name, so no DNS lookup happens.  :func:`resolve_outbound_url_async`
+    differs: it still resolves in that case.
 
     Args:
         url: The URL an integration is about to fetch.
@@ -383,20 +514,8 @@ async def validate_outbound_url_async(
             out, or (unless *allow_private_hosts*) any resolved address is
             not globally reachable.
     """
-    scheme, host, port = _parse(url)
-    literal = _literal(host)
-    if literal is not None:
-        if not allow_private_hosts:
-            _check(host, [literal])
-        return url
+    _parse(url)
     if allow_private_hosts:
         return url
-    if _cache_get(scheme, host, port):
-        return url
-    try:
-        addresses = await _resolve_async(host, port, timeout)
-    except (OSError, asyncio.TimeoutError) as exc:
-        raise UnsafeAddressError(f"Could not resolve '{host}': {exc}") from exc
-    _check(host, addresses)
-    _cache_put(scheme, host, port)
-    return url
+    resolved, _ = await resolve_outbound_url_async(url, timeout=timeout)
+    return resolved
