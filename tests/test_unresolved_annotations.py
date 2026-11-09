@@ -75,6 +75,19 @@ def test_register_without_localns_still_reports_the_degradation() -> None:
     assert tool.metadata.unresolved_parameters == ("model", "x")
 
 
+@pytest.mark.asyncio
+async def test_register_async_forwards_localns() -> None:
+    func, namespace = _local_tool()
+    registry = ToolRegistry()
+
+    await registry.register_async(func, localns=namespace)
+
+    tool = registry.get_tool("bounded")
+    assert tool is not None
+    assert tool.metadata.unresolved_parameters == ()
+    assert tool.parameters["properties"]["x"]["minimum"] == 0
+
+
 def test_the_decorator_form_forwards_localns() -> None:
     registry = ToolRegistry()
 
