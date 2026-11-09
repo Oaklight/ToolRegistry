@@ -28,7 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **The registered OpenAPI integrations are readable** (#458): `ToolRegistry.openapi_integrations` returns an immutable tuple in creation order, and the last element is the integration that owns the newest spec URL and ETag, so a caller that refreshes a source it just registered no longer reads a private list. The tuple is a snapshot; the integration objects are live, so refreshing one still affects the registry.
 
-- **A refresh adopts a moved `servers[0]`, and a dropped tool can come back** (#457): `OpenAPIIntegration.refresh()` derives the base URL from the refreshed document and adopts it when the current base URL was itself derived from the registration document, keeping an explicit caller override. Adoption rebuilds every tool wrapper, including operations that did not change, and reports it through the new `RefreshResult.base_url_changed` rather than `updated`. A `servers[]` entry the outbound policy refuses raises `UnsafeAddressError` and leaves the tools, the config and the stored document untouched. `forget_tracked_tools(names)` lets a caller that removed a tool between refreshes have the next one register it again. See [OpenAPI Integration](api/integrations/openapi.md).
+- **A refresh adopts a moved `servers[0]`, and a dropped tool can come back** (#457): `OpenAPIIntegration.refresh()` derives the base URL from the refreshed document and adopts it when the current base URL was itself derived from the registration document, keeping an explicit caller override. Adoption rebuilds every tool wrapper, including operations that did not change, and reports it through the new `RefreshResult.base_url_changed` rather than `updated`. A candidate the outbound policy refuses raises `UnsafeAddressError` and leaves the tools, the config and the stored document untouched. `forget_tracked_tools(names)` lets a caller that removed a tool between refreshes have the next one register it again. See [OpenAPI Integration](api/integrations/openapi.md).
 
 #### Admin panel
 
@@ -45,6 +45,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **`utils.py` is split by concern** (#437): tool-name normalization and the registration filter moved to `toolregistry._names`, base-URL HTTP clients and `HttpClientConfig` to `toolregistry._http`, and tool-result encoding to `toolregistry._serialisation`. `toolregistry.utils` re-exports every previous name, so downstream imports such as `compute_schema_hash` and `ToolResultJSONEncoder` are unchanged. `api/helpers.md` documents the new homes, and `AGENTS.md` now describes the real package tree, pinned by a test that checks every path it names. The registration filter's warning is now attributed to `_names.py`, where the filter lives.
 
 ### Fixed
+
+#### Core
+
+- **A refresh validates only the base URL it adopts** (#460, refining #457): `OpenAPIIntegration.refresh()` checks the outbound address policy for the candidate it is about to adopt and nothing else. A document that lists a fallback such as `http://localhost:8080` at `servers[1]` refreshes normally instead of failing every time, an explicit caller base URL makes the document's `servers` irrelevant, and a templated `servers[0]` (`https://{region}.example.com`) is neither validated nor adopted, so the rest of the document still applies. Registration records `servers[0]` through the new unchecked `first_server_url` helper; a refused candidate still raises `UnsafeAddressError` with the tools, the config and the stored document untouched. See [OpenAPI Integration](api/integrations/openapi.md).
 
 #### Admin panel
 

@@ -84,14 +84,19 @@ disabled, a path that disappeared is unregistered, and a tool whose
 definition did not change keeps its registry state.
 
 The base URL follows the document, within a limit. The URL the registration
-document produced is remembered, and a refresh adopts a moved `servers[0]`
-only while the client config still points at that remembered value — a base
-URL the caller supplied explicitly is never replaced. Adoption rebuilds every
+document named at `servers[0]` is remembered, and a refresh adopts a moved
+`servers[0]` only while the client config still points at that remembered
+value — a base URL the caller supplied explicitly is never replaced. Only the
+entry a refresh would adopt is checked against the outbound address policy;
+entries that are never dialed are neither validated nor resolved, and an
+explicit override makes the document's `servers` irrelevant to the refresh. A
+templated entry such as `https://{region}.example.com` cannot be resolved
+before substitution, so it is never adopted or checked: the current base URL
+stays and the rest of the document still applies. Adoption rebuilds every
 tool's wrapper, including operations whose definition did not change; that
 replacement is not counted in `updated`, and `RefreshResult.base_url_changed`
-reports it instead. A document whose `servers[]` entry is refused by the
-outbound address policy raises `UnsafeAddressError` and leaves the tools, the
-config and the stored document untouched.
+reports it instead. A candidate that is refused raises `UnsafeAddressError`
+and leaves the tools, the config and the stored document untouched.
 
 `forget_tracked_tools(names)` is the hook for a caller that removes a tool
 between refreshes — for example a validation step that drops a tool whose
