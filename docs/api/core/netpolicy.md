@@ -17,6 +17,8 @@ validate_outbound_url("http://127.0.0.1:8000/spec.json")       # PrivateAddressE
 |------|------|
 | `validate_outbound_url(url, *, allow_private_hosts=False)` | 解析 `url` 的主机名并原样返回 `url`，否则抛出异常 |
 | `validate_outbound_url_async(url, *, allow_private_hosts=False, timeout=5.0)` | 相同的检查，通过事件循环解析 |
+| `resolve_outbound_url(url, *, allow_private_hosts=False)` | 相同的检查，并返回 `(url, addresses)` 及它所判定的地址 |
+| `resolve_outbound_url_async(url, *, allow_private_hosts=False, timeout=5.0)` | 上者的异步版本 |
 | `SCHEMES` | `frozenset({"http", "https", "ws", "wss"})` |
 | `UnsafeAddressError` | 基类，是 `ValueError` 的子类 |
 | `PrivateAddressError` | 子类，主机解析到非公网地址时抛出 |
@@ -30,6 +32,32 @@ def validate_outbound_url(url: str, *, allow_private_hosts: bool = False) -> str
 
 同步版本在调用线程上解析。异步调用方应使用
 `validate_outbound_url_async`，以免阻塞事件循环；两种形式共享同一个缓存。
+
+### `resolve_outbound_url`
+
+```python
+def resolve_outbound_url(url: str, *, allow_private_hosts: bool = False) -> tuple[str, tuple[str, ...]]: ...
+```
+
+策略与 `validate_outbound_url` 完全相同；返回值还带上被判定过的地址，顺序与
+解析器返回一致。能够固定连接地址的传输层——例如 `httpclient` 的
+`resolve_to`——可以直接使用这些地址，而不必再解析一次主机名。那第二次解析正是
+检查与拨号之间的 DNS 重绑定窗口。
+
+```python
+from toolregistry.netpolicy import resolve_outbound_url
+
+url, addresses = resolve_outbound_url("https://api.example.com/spec.json")
+# 把 addresses 交给支持固定连接地址的传输层。
+```
+
+主机是 IP 字面量时，原样作为唯一地址返回。缓存命中时返回的是当初通过检查的
+地址，而不是解析器的最新答案，因此缓存窗口内的重绑定无法改写已固定的连接。
+解析器返回空列表时与解析失败一样被拒绝。
+
+与 validate 系列有一处差异：`allow_private_hosts=True` 时 resolve 系列仍会解析，
+因为调用方需要地址；而 `validate_outbound_url` 在该情况下直接返回、不做任何 DNS
+查询。未经检查的解析结果不会进入缓存，因此无法让后续的校验调用通过缓存放行。
 
 ### 异常
 
