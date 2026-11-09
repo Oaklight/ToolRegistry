@@ -5,12 +5,14 @@ using constant-time comparison to prevent timing attacks.
 """
 
 import collections
+import dataclasses
 import hashlib
 import hmac
+import ipaddress
 import secrets
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 
 #: Failed admin authentications a single client source may make inside
 #: :data:`AUTH_FAILURE_WINDOW_SECONDS` before the panel answers 429.
@@ -23,16 +25,108 @@ AUTH_FAILURE_WINDOW_SECONDS = 60.0
 #: cheap to vary, so the table must not grow with the number of sources seen.
 AUTH_FAILURE_MAX_SOURCES = 1024
 
+IPNetwork = ipaddress.IPv4Network | ipaddress.IPv6Network
+
+
+def parse_trusted_proxies(entries: Sequence[str]) -> tuple[IPNetwork, ...]:
+    """Parse the addresses or CIDR ranges a reverse proxy connects from.
+
+    Args:
+        entries: Exact addresses (``"127.0.0.1"``) or CIDR ranges
+            (``"127.0.0.0/8"``).  A bare address is treated as a single-host
+            range.
+
+    Returns:
+        The parsed networks, in the order given.
+
+    Raises:
+        ValueError: If an entry is not an IP address or CIDR range.
+    """
+    networks: list[IPNetwork] = []
+    for entry in entries:
+        try:
+            networks.append(ipaddress.ip_network(entry.strip(), strict=False))
+        except ValueError as exc:
+            raise ValueError(
+                f"trusted proxy {entry!r} is not an IP address or CIDR range"
+            ) from exc
+    return tuple(networks)
+
+
+def address_in_networks(address: str, networks: Sequence[IPNetwork]) -> bool:
+    """Return whether *address* belongs to any of *networks*."""
+    try:
+        parsed = ipaddress.ip_address(address)
+    except ValueError:
+        return False
+    return any(
+        parsed.version == network.version and parsed in network for network in networks
+    )
+
+
+def forwarded_source(header: str, trusted: Sequence[IPNetwork]) -> str | None:
+    """Return the client address from an ``X-Forwarded-For`` chain.
+
+    The chain is walked right to left, skipping hops that are themselves
+    trusted; the first untrusted address is the client.  That is the only
+    order a client cannot steer by prepending entries, because the trusted
+    proxy appends the hop it actually saw.
+
+    Args:
+        header: The raw header value, possibly empty.
+        trusted: Networks whose addresses are skipped.
+
+    Returns:
+        The client address, or ``None`` when the chain is empty, malformed,
+        or consists only of trusted hops.  The caller falls back to the peer
+        address in that case.
+    """
+    entries = [part.strip() for part in header.split(",") if part.strip()]
+    if not entries:
+        return None
+    for entry in reversed(entries):
+        try:
+            address = ipaddress.ip_address(entry)
+        except ValueError:
+            # A malformed hop makes the whole chain untrustworthy.
+            return None
+        if not any(
+            address.version == network.version and address in network
+            for network in trusted
+        ):
+            return str(address)
+    return None
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class AuthAttempt:
+    """One reserved authentication attempt.
+
+    Attributes:
+        source: Client source key the attempt was reserved for.
+        sequence: Reservation order.  A success releases this attempt and
+            the failures that preceded it, but not failures reserved later.
+    """
+
+    source: str
+    sequence: int
+
 
 class AuthFailureLimiter:
     """Sliding-window throttle over failed admin authentications.
 
     The admin token is a low-entropy shared secret when an operator supplies
     one by hand, so an unthrottled endpoint lets a client try candidates at
-    the speed of the network.  This limiter records the time of each failed
-    attempt per client source (the peer address) and reports the source as
-    blocked once the window holds :data:`AUTH_FAILURE_LIMIT` failures.  A
-    blocked request is answered with 429 before the token comparison runs.
+    the speed of the network.  This limiter reserves one slot per
+    authentication attempt and reports the source as blocked once the window
+    holds :data:`AUTH_FAILURE_LIMIT` unresolved attempts.  A blocked request
+    is answered with 429 before the token comparison runs.
+
+    :meth:`begin` reads the count and appends the reservation under one lock,
+    so a burst of concurrent connections opened while the window is empty
+    cannot all pass: at most ``limit`` reservations exist at once.  A failed
+    authentication leaves its reservation in place; a successful one calls
+    :meth:`release`.
 
     Memory is bounded.  At most ``max_sources`` sources are tracked: expired
     entries are pruned when a source is accessed, and the least recently used
@@ -45,9 +139,10 @@ class AuthFailureLimiter:
     requests reach these methods from several threads; every read-modify-write
     runs under one lock so no failure is lost and no source is left dangling.
 
-    The key is the TCP peer address.  Behind a reverse proxy every client
-    shares the proxy's address, so the whole proxy is throttled together;
-    trusted-proxy handling is deliberately out of scope (#431).
+    The key is the resolved client source: the TCP peer address, or the
+    rightmost untrusted ``X-Forwarded-For`` hop when the peer is a trusted
+    proxy.  Resolution lives in the admin handlers; this class treats the key
+    as opaque.
 
     Args:
         limit: Failures inside *window* that block a source.
@@ -57,14 +152,13 @@ class AuthFailureLimiter:
 
     Example:
         >>> limiter = AuthFailureLimiter()
-        >>> limiter.retry_after("203.0.113.7") is None
+        >>> limiter.begin("203.0.113.7") is not None
         True
-        >>> for _ in range(AUTH_FAILURE_LIMIT):
-        ...     limiter.record_failure("203.0.113.7")
+        >>> for _ in range(AUTH_FAILURE_LIMIT - 1):
+        ...     limiter.begin("203.0.113.7")
+        >>> limiter.begin("203.0.113.7") is None
+        True
         >>> limiter.retry_after("203.0.113.7") is not None
-        True
-        >>> limiter.clear("203.0.113.7")
-        >>> limiter.retry_after("203.0.113.7") is None
         True
     """
 
@@ -87,15 +181,76 @@ class AuthFailureLimiter:
         self._max_sources = max_sources
         self._clock = clock
         self._lock = threading.Lock()
-        self._failures: collections.OrderedDict[str, collections.deque[float]] = (
-            collections.OrderedDict()
-        )
+        self._sequence = 0
+        #: ``source -> deque[(sequence, timestamp)]``, oldest first.
+        self._failures: collections.OrderedDict[
+            str, collections.deque[tuple[int, float]]
+        ] = collections.OrderedDict()
+
+    def begin(self, source: str) -> AuthAttempt | None:
+        """Reserve one authentication attempt for *source*.
+
+        The count is read and the reservation appended under one lock, so a
+        burst of concurrent requests cannot all observe an empty window.
+        A failed authentication leaves the reservation in place; a
+        successful one must call :meth:`release`.
+
+        Args:
+            source: Client source key, normally the resolved client address.
+
+        Returns:
+            The reserved attempt, or ``None`` when the source is blocked.
+        """
+        with self._lock:
+            now = self._clock()
+            entries = self._failures.get(source)
+            if entries is not None:
+                self._prune_locked(source, entries)
+                entries = self._failures.get(source)
+            if entries is not None and len(entries) >= self._limit:
+                self._failures.move_to_end(source)
+                return None
+            if entries is None:
+                if len(self._failures) >= self._max_sources:
+                    self._evict_locked(now)
+                entries = collections.deque()
+                self._failures[source] = entries
+            else:
+                self._failures.move_to_end(source)
+            self._sequence += 1
+            entries.append((self._sequence, now))
+            return AuthAttempt(source, self._sequence)
+
+    def release(self, attempt: AuthAttempt) -> None:
+        """Release *attempt* after a successful authentication.
+
+        The attempt and every failure reserved before it leave the window,
+        restoring the "a successful login clears the count" behaviour.  A
+        failure reserved after this attempt stays, so a success racing with a
+        concurrent burst cannot erase it.
+
+        Args:
+            attempt: The attempt returned by :meth:`begin`.
+        """
+        with self._lock:
+            entries = self._failures.get(attempt.source)
+            if entries is None:
+                return
+            kept = collections.deque(
+                entry for entry in entries if entry[0] > attempt.sequence
+            )
+            if kept:
+                self._failures[attempt.source] = kept
+                self._failures.move_to_end(attempt.source)
+            else:
+                self._failures.pop(attempt.source, None)
 
     def retry_after(self, source: str) -> float | None:
         """Return the seconds *source* must wait, or ``None`` if it may try.
 
         Accessing a source prunes its expired failures, so a window that has
-        passed always unblocks it.
+        passed always unblocks it.  This is an advisory read for the
+        ``Retry-After`` header; admission is decided by :meth:`begin`.
 
         Args:
             source: Client source key, normally the peer address.
@@ -105,40 +260,44 @@ class AuthFailureLimiter:
             ``None`` when the source is not blocked.
         """
         with self._lock:
-            failures = self._failures.get(source)
-            if failures is None:
+            entries = self._failures.get(source)
+            if entries is None:
                 return None
-            self._prune_locked(source, failures)
-            if not failures:
+            self._prune_locked(source, entries)
+            if not entries:
                 return None
             self._failures.move_to_end(source)
-            if len(failures) < self._limit:
+            if len(entries) < self._limit:
                 return None
-            wait = failures[0] + self._window - self._clock()
+            wait = entries[0][1] + self._window - self._clock()
             return wait if wait > 0 else None
 
     def record_failure(self, source: str) -> None:
         """Record one failed authentication for *source*.
+
+        Kept for callers that record a failure outside the reservation flow.
+        The admin handlers use :meth:`begin` instead.
 
         Args:
             source: Client source key, normally the peer address.
         """
         with self._lock:
             now = self._clock()
-            failures = self._failures.get(source)
-            if failures is None:
+            entries = self._failures.get(source)
+            if entries is None:
                 if len(self._failures) >= self._max_sources:
                     self._evict_locked(now)
-                failures = collections.deque()
-                self._failures[source] = failures
+                entries = collections.deque()
+                self._failures[source] = entries
             else:
                 self._failures.move_to_end(source)
-            failures.append(now)
-            while len(failures) > self._limit:
-                failures.popleft()
+            self._sequence += 1
+            entries.append((self._sequence, now))
+            while len(entries) > self._limit:
+                entries.popleft()
 
     def clear(self, source: str) -> None:
-        """Forget the failures recorded for *source*, after a success.
+        """Forget the failures recorded for *source*.
 
         Args:
             source: Client source key, normally the peer address.
@@ -146,12 +305,14 @@ class AuthFailureLimiter:
         with self._lock:
             self._failures.pop(source, None)
 
-    def _prune_locked(self, source: str, failures: collections.deque[float]) -> None:
+    def _prune_locked(
+        self, source: str, entries: collections.deque[tuple[int, float]]
+    ) -> None:
         """Drop timestamps that have left the window.  Holds the lock."""
         cutoff = self._clock() - self._window
-        while failures and failures[0] <= cutoff:
-            failures.popleft()
-        if not failures:
+        while entries and entries[0][1] <= cutoff:
+            entries.popleft()
+        if not entries:
             self._failures.pop(source, None)
 
     def _evict_locked(self, now: float) -> None:

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Iterable, Sequence
 
     from ..admin import AdminExtension, AdminInfo, AdminServer, SourcePersistenceHook
     from ..config import ToolConfig
@@ -30,6 +30,7 @@ class AdminMixin:
         allow_private_hosts: bool = False,
         extensions: Iterable[AdminExtension] | None = None,
         source_hook: SourcePersistenceHook | None = None,
+        trusted_proxies: Sequence[str] = (),
     ) -> AdminInfo:
         """Enable the admin panel.
 
@@ -61,6 +62,10 @@ class AdminMixin:
                 exposes its records in ``GET /api/sources``.  Defaults to
                 none: nothing is persisted and the response shapes are
                 unchanged.
+            trusted_proxies: Addresses or CIDR ranges of reverse proxies
+                whose ``X-Forwarded-For`` header is trusted for the
+                authentication throttle key.  Empty keeps the peer
+                address as the key; see :class:`~toolregistry.admin.AdminServer`.
 
         Returns:
             AdminInfo containing server details including URL and token.
@@ -95,6 +100,7 @@ class AdminMixin:
             allow_private_hosts=allow_private_hosts,
             extensions=extensions,
             source_hook=source_hook,
+            trusted_proxies=trusted_proxies,
         )
         return self._admin_server.start()
 

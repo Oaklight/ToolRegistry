@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any, cast
 from .._vendor.httpserver import HTTPException, Request, Response
 from ..utils import ToolResultJSONEncoder
 
-from .auth import AuthFailureLimiter
+from .auth import AuthFailureLimiter, address_in_networks, forwarded_source
 from .extensions import ADMIN_EXTENSION_API
 from .server import _host_name
 from .source_hook import SourceChange
@@ -297,23 +297,32 @@ def _reject_cross_site(request: Request) -> Response | None:
 def _client_source(request: Request) -> str:
     """Return the rate-limit key for *request*.
 
-    The peer address alone is used.  The port changes with every connection,
-    so keying on it would let a client rotate keys by reconnecting.  A
-    forwarding header is not consulted: it is client-controlled, and a
-    trusted-proxy setting does not exist yet (#431).  Behind a reverse proxy
-    every client therefore shares one key.
+    The key is the peer address.  When the peer is listed in the app's
+    ``trusted_proxies``, the ``X-Forwarded-For`` chain is resolved instead:
+    the chain is walked right to left, trusted hops are skipped, and the
+    first untrusted address is used.  That order cannot be steered by a
+    client that prepends entries, because the trusted proxy appends the hop
+    it actually saw.  A peer that is not trusted ignores the header
+    entirely; an empty or malformed chain falls back to the peer address.
+    The port is never part of the key, because a client can change it by
+    reconnecting.
 
     Args:
         request: The incoming request.
 
     Returns:
-        The peer address, or ``"unknown"`` when the transport does not
-        report one.
+        The resolved client address, or ``"unknown"`` when the transport
+        does not report a peer.
     """
     address = getattr(request, "client_addr", None)
-    if not address:
-        return "unknown"
-    return str(address[0])
+    peer = str(address[0]) if address else "unknown"
+    trusted = getattr(_app(request), "trusted_proxies", ())
+    if not trusted or peer == "unknown":
+        return peer
+    if not address_in_networks(peer, trusted):
+        return peer
+    forwarded = forwarded_source(request.headers.get("x-forwarded-for", ""), trusted)
+    return forwarded or peer
 
 
 #: Guards creation of the per-app limiter.  Before-request hooks run through
@@ -384,35 +393,36 @@ def _auth_check(request: Request) -> Response | None:
 
     # Refuse a source that has produced too many failures before the token
     # comparison runs, so guessing a low-entropy token costs a window of
-    # wait rather than one comparison per attempt.  A success clears the
-    # record; a missing credential does not count, because a browser that
-    # has not logged in yet is not guessing.
+    # wait rather than one comparison per attempt.  The reservation is
+    # atomic: a burst of concurrent connections cannot all read the same
+    # empty window and pass.  A failure leaves its reservation in place, a
+    # success releases it, and a request that carries no credential at all
+    # releases it (a browser that has not logged in yet is not guessing).
     limiter = _auth_limiter(app)
     source = _client_source(request)
-    retry_after = limiter.retry_after(source)
-    if retry_after is not None:
+    attempt = limiter.begin(source)
+    if attempt is None:
+        retry_after = limiter.retry_after(source)
         resp = _error_response(
             429,
             "Too Many Requests",
             "Too many failed authentication attempts; retry later",
         )
-        resp.headers["Retry-After"] = str(max(1, math.ceil(retry_after)))
+        resp.headers["Retry-After"] = str(max(1, math.ceil(retry_after or 1)))
         return _add_cors(request, resp)
 
     # Try Bearer token first
     if auth_header:
         parts = auth_header.split(" ", 1)
         if len(parts) != 2 or parts[0].lower() != "bearer":
-            limiter.record_failure(source)
             resp = _error_response(401, "Unauthorized", "Invalid Authorization format")
             resp.headers["WWW-Authenticate"] = 'Bearer realm="admin"'
             return _add_cors(request, resp)
         if not auth.verify(parts[1]):
-            limiter.record_failure(source)
             resp = _error_response(401, "Unauthorized", "Invalid token")
             resp.headers["WWW-Authenticate"] = 'Bearer realm="admin"'
             return _add_cors(request, resp)
-        limiter.clear(source)
+        limiter.release(attempt)
         setattr(request.state, "set_session_cookie", True)
         return None
 
@@ -420,10 +430,11 @@ def _auth_check(request: Request) -> Response | None:
     if session is not None:
         cookie_val = request.cookies.get(session.cookie_name, "")
         if cookie_val and session.verify(cookie_val):
-            limiter.clear(source)
+            limiter.release(attempt)
             setattr(request.state, "set_session_cookie", True)
             return None
 
+    limiter.release(attempt)
     resp = _error_response(401, "Unauthorized", "Missing credentials")
     resp.headers["WWW-Authenticate"] = 'Bearer realm="admin"'
     return _add_cors(request, resp)

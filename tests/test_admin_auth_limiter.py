@@ -13,6 +13,7 @@ from toolregistry.admin.auth import (
     AUTH_FAILURE_LIMIT,
     AUTH_FAILURE_MAX_SOURCES,
     AUTH_FAILURE_WINDOW_SECONDS,
+    AuthAttempt,
     AuthFailureLimiter,
 )
 
@@ -107,6 +108,60 @@ class TestSlidingWindow:
         assert len(limiter._failures[SOURCE]) <= AUTH_FAILURE_LIMIT
 
 
+class TestReservations:
+    """``begin`` reserves under the lock; ``release`` records a success."""
+
+    def test_begin_allows_the_limit_then_blocks(self, limiter) -> None:
+        attempts = [limiter.begin(SOURCE) for _ in range(AUTH_FAILURE_LIMIT)]
+        assert all(attempt is not None for attempt in attempts)
+        assert limiter.begin(SOURCE) is None
+        assert limiter.retry_after(SOURCE) is not None
+
+    def test_a_blocked_source_is_admitted_after_the_window(
+        self, limiter, clock
+    ) -> None:
+        for _ in range(AUTH_FAILURE_LIMIT):
+            limiter.begin(SOURCE)
+        assert limiter.begin(SOURCE) is None
+
+        clock.advance(AUTH_FAILURE_WINDOW_SECONDS)
+        assert limiter.begin(SOURCE) is not None
+
+    def test_release_clears_the_attempt_and_earlier_failures(self, limiter) -> None:
+        for _ in range(AUTH_FAILURE_LIMIT - 1):
+            limiter.begin(SOURCE)
+        success = limiter.begin(SOURCE)
+        assert success is not None
+
+        limiter.release(success)
+        # The success clears every failure reserved before it, so the count
+        # starts from zero again instead of leaving the source one short.
+        assert limiter.retry_after(SOURCE) is None
+        assert SOURCE not in limiter._failures
+
+        for _ in range(AUTH_FAILURE_LIMIT - 1):
+            assert limiter.begin(SOURCE) is not None
+        assert limiter.retry_after(SOURCE) is None
+
+    def test_release_keeps_failures_reserved_after_it(self, limiter) -> None:
+        success = limiter.begin(SOURCE)
+        later = [limiter.begin(SOURCE) for _ in range(2)]
+        assert success is not None
+        assert all(attempt is not None for attempt in later)
+
+        limiter.release(success)
+        # A success racing with a concurrent burst must not erase the
+        # failures the other attempts reserved.
+        assert len(limiter._failures[SOURCE]) == 2
+
+    def test_release_of_an_unknown_source_is_a_no_op(self, limiter) -> None:
+        attempt = limiter.begin(SOURCE)
+        assert attempt is not None
+        limiter.release(attempt)
+        limiter.release(attempt)
+        assert limiter.retry_after(SOURCE) is None
+
+
 class TestMemoryBound:
     def test_the_table_does_not_grow_past_max_sources(self) -> None:
         limiter = AuthFailureLimiter(max_sources=4)
@@ -187,3 +242,21 @@ class TestThreadSafety:
         limiter.clear(SOURCE)
         limiter.record_failure(SOURCE)
         assert len(limiter._failures[SOURCE]) == 1
+
+    def test_a_burst_cannot_admit_more_than_the_limit(self) -> None:
+        """A check-then-record race would admit all ``limit + 1`` requests."""
+        workers = AUTH_FAILURE_LIMIT + 1
+        limiter = AuthFailureLimiter()
+        barrier = threading.Barrier(workers)
+
+        def attempt(_: int) -> AuthAttempt | None:
+            barrier.wait()
+            return limiter.begin(SOURCE)
+
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            attempts = list(pool.map(attempt, range(workers)))
+
+        admitted = [attempt for attempt in attempts if attempt is not None]
+        assert len(admitted) == AUTH_FAILURE_LIMIT
+        assert len(limiter._failures[SOURCE]) == AUTH_FAILURE_LIMIT
+        assert limiter.begin(SOURCE) is None
