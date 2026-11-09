@@ -28,6 +28,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **A downstream server can persist source changes and expose source status** (#436): `AdminServer(..., source_hook=...)` and `enable_admin(source_hook=...)` accept an optional hook with `persist(change)`, `writable()` and `statuses()`. Registration hands the hook a structured `SourceChange` (action, kind, declaration, namespace, selection); a persist failure answers `200` with `persisted: false`, `persist_error` and the names that landed, because the tools are already live. With a hook, `GET /api/sources` adds the hook's records verbatim under `source_status` plus `config_writable`; the tool-derived `sources` array and the no-hook response shapes are unchanged. See [Source persistence hook](admin/source-hooks.md).
 
+### Changed
+
+#### Core
+
+- **`utils.py` is split by concern** (#437): tool-name normalization and the registration filter moved to `toolregistry._names`, base-URL HTTP clients and `HttpClientConfig` to `toolregistry._http`, and tool-result encoding to `toolregistry._serialisation`. `toolregistry.utils` re-exports every previous name, so downstream imports such as `compute_schema_hash` and `ToolResultJSONEncoder` are unchanged. `api/helpers.md` documents the new homes, and `AGENTS.md` now describes the real package tree, pinned by a test that checks every path it names.
+
 ### Fixed
 
 #### Admin panel

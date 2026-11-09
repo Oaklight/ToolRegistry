@@ -14,7 +14,12 @@ Parameter validation and schema generation for tool functions. `ArgModelBase` dy
 
 ## Utilities
 
-Common utility functions used across the library, including tool name normalization and HTTP client configuration for OpenAPI integrations.
+`toolregistry.utils` is the compatibility surface: it re-exports every helper
+that downstream packages import, so existing imports keep working. The
+implementations live next to their concern: tool-name normalization and the
+registration filter in `toolregistry._names`, base-URL HTTP clients and
+`HttpClientConfig` in `toolregistry._http`, and tool-result encoding in
+`toolregistry._serialisation`.
 
 ::: toolregistry.utils
     options:
