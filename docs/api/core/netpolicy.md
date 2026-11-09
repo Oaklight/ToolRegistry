@@ -19,6 +19,8 @@ validate_outbound_url("http://127.0.0.1:8000/spec.json")       # PrivateAddressE
 |--------|---------|
 | `validate_outbound_url(url, *, allow_private_hosts=False)` | Resolve `url`'s host and return `url` unchanged, or raise |
 | `validate_outbound_url_async(url, *, allow_private_hosts=False, timeout=5.0)` | Same check, resolved through the event loop |
+| `resolve_outbound_url(url, *, allow_private_hosts=False)` | Same check, and return `(url, addresses)` with the addresses it judged |
+| `resolve_outbound_url_async(url, *, allow_private_hosts=False, timeout=5.0)` | Async twin of the above |
 | `SCHEMES` | `frozenset({"http", "https", "ws", "wss"})` |
 | `UnsafeAddressError` | Base class, a `ValueError` |
 | `PrivateAddressError` | Subclass, raised when the host resolves to a non-public address |
@@ -33,6 +35,35 @@ def validate_outbound_url(url: str, *, allow_private_hosts: bool = False) -> str
 The synchronous form resolves on the calling thread. Async callers use
 `validate_outbound_url_async` so the event loop is not blocked; both forms
 share one cache.
+
+### `resolve_outbound_url`
+
+```python
+def resolve_outbound_url(url: str, *, allow_private_hosts: bool = False) -> tuple[str, tuple[str, ...]]: ...
+```
+
+The policy is identical to `validate_outbound_url`; the result also carries
+the addresses that were judged, in resolver order. A transport that can pin
+the connect address — `httpclient`'s `resolve_to`, for example — takes them
+instead of resolving the name again. That second resolution is the DNS
+rebinding window between the check and the dial.
+
+```python
+from toolregistry.netpolicy import resolve_outbound_url
+
+url, addresses = resolve_outbound_url("https://api.example.com/spec.json")
+# Pass `addresses` to a transport that accepts a pinned connect address.
+```
+
+An IP-literal host returns its literal as the only address. A cache hit
+returns the addresses the cached check approved, not a fresh resolver answer,
+so a rebinding inside the cache window cannot redirect a pinned connection.
+An empty resolver answer is refused like any other failed lookup.
+
+One difference from the validate pair: with `allow_private_hosts=True` the
+resolve pair still resolves, because the caller needs the addresses, while
+`validate_outbound_url` returns without a DNS lookup. An unchecked lookup is
+never cached, so it cannot satisfy a later validating call.
 
 ### Errors
 
