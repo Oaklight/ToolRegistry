@@ -332,6 +332,13 @@ class ToolMetadata:
             the full output is persisted to a temporary file. Only
             effective when executed through
             ``ToolRegistry.execute_tool_calls()``. None means no limit.
+        max_result_tokens: Maximum result size in tokens. Converted to
+            characters with a fixed 4-characters-per-token estimate (see
+            :data:`toolregistry.llm.truncation.CHARS_PER_TOKEN`); this is an
+            order-of-magnitude guard, not a tokenizer. When both this and
+            :attr:`max_result_size` are set, the smaller effective limit
+            wins. None means no limit. Appended last so positional
+            construction of this dataclass keeps working.
         tags: Predefined tags from ToolTag enum.
         custom_tags: User-defined free-form string tags.
         source: Origin of the tool (e.g. ``"native"``, ``"mcp"``,
@@ -500,6 +507,17 @@ class ToolMetadata:
     protocol default is ``true``.
     """
 
+    max_result_tokens: int | None = None
+    """Maximum result size in tokens.
+
+    Converted to characters with
+    :data:`toolregistry.llm.truncation.CHARS_PER_TOKEN` — a fixed estimate
+    of 4 characters per token, not a tokenizer.  When
+    :attr:`max_result_size` is also set, the smaller effective limit wins.
+    ``None`` means no limit.  Declared last so positional construction of
+    this dataclass keeps working.
+    """
+
     _VALID_LOCALITY = {"local", "remote", "any"}
     _VALID_BACKEND = {"inline", "thread", "process", None}
 
@@ -519,6 +537,15 @@ class ToolMetadata:
             raise ValueError(
                 f"Invalid natural_backend {self.natural_backend!r}, "
                 f"must be one of {self._VALID_BACKEND}"
+            )
+        if self.max_result_tokens is not None and (
+            isinstance(self.max_result_tokens, bool)
+            or not isinstance(self.max_result_tokens, int)
+            or self.max_result_tokens < 0
+        ):
+            raise ValueError(
+                f"Invalid max_result_tokens {self.max_result_tokens!r}, "
+                "must be a non-negative integer or None"
             )
         for field_name in HINT_METADATA_FIELDS:
             validate_metadata_field(field_name, getattr(self, field_name))

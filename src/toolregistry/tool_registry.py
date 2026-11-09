@@ -17,7 +17,7 @@ from .tool import ToolTag
 if TYPE_CHECKING:
     from .executor import ExecutionBackend
     from .tool import Tool
-from .llm.truncation import truncate_result
+from .llm.truncation import CHARS_PER_TOKEN, truncate_result
 from .llm.content_blocks import is_content_block_list
 from .permissions import (
     PermissionResult,
@@ -165,6 +165,7 @@ class ToolRegistry(
         name: str | None = None,
         *,
         default_max_result_size: int | None = None,
+        default_max_result_tokens: int | None = None,
         think_augment: bool = False,
         tool_discovery: bool = False,
         name_sep: Literal["-", "."] = "-",
@@ -180,6 +181,12 @@ class ToolRegistry(
             default_max_result_size: Default maximum result size in characters
                 for all tools. Individual tools can override this via
                 ``ToolMetadata.max_result_size``. None means no limit.
+            default_max_result_tokens: Default maximum result size in tokens
+                for all tools, converted to characters with
+                :data:`toolregistry.llm.truncation.CHARS_PER_TOKEN` (a fixed
+                estimate of 4). Individual tools can override this via
+                ``ToolMetadata.max_result_tokens``. When both limits are
+                set, the smaller effective one wins. None means no limit.
             think_augment: Enable thought-augmented tool calling globally.
                 When ``True``, a ``toolcall_reason`` property is
                 included in every tool's schema so LLMs can articulate
@@ -212,6 +219,7 @@ class ToolRegistry(
         self._inline_backend = InlineBackend()
         self._execution_mode: Literal["process", "thread"] = "process"
         self._default_max_result_size = default_max_result_size
+        self._default_max_result_tokens = default_max_result_tokens
         self._think_augment = think_augment
         self._name_sep: Literal["-", "."] = name_sep
         self._tool_discovery: ToolDiscoveryTool | None = None
@@ -1316,14 +1324,8 @@ class ToolRegistry(
         """
         # Preserve multimodal content block lists
         if is_content_block_list(result):
-            # Truncate only text blocks if max_result_size is set
-            tool_obj = self._tools.get(tool_name)
-            max_size = None
-            if tool_obj and tool_obj.metadata.max_result_size is not None:
-                max_size = tool_obj.metadata.max_result_size
-            elif self._default_max_result_size is not None:
-                max_size = self._default_max_result_size
-
+            # Truncate only text blocks if a result budget is set
+            max_size = self._result_char_budget(tool_name)
             if max_size is not None:
                 result = self._truncate_content_blocks(result, max_size, tool_name)
             return result
@@ -1334,17 +1336,47 @@ class ToolRegistry(
         result_str = encode_tool_result(result, tool_name=tool_name)
 
         # Determine effective max size
-        tool_obj = self._tools.get(tool_name)
-        max_size = None
-        if tool_obj and tool_obj.metadata.max_result_size is not None:
-            max_size = tool_obj.metadata.max_result_size
-        elif self._default_max_result_size is not None:
-            max_size = self._default_max_result_size
+        max_size = self._result_char_budget(tool_name)
 
         if max_size is not None:
             tr = truncate_result(result_str, max_size, tool_name=tool_name)
             return str(tr)
         return result_str
+
+    def _result_char_budget(self, tool_name: str) -> int | None:
+        """Return the effective character budget for *tool_name*.
+
+        A tool-level ``max_result_size`` or ``max_result_tokens`` overrides
+        the registry default for that field.  The token limit is converted
+        with :data:`~toolregistry.llm.truncation.CHARS_PER_TOKEN`; when both
+        a character and a token limit apply, the smaller one wins.
+
+        Args:
+            tool_name: Name of the tool being finalized.
+
+        Returns:
+            The character budget, or ``None`` when no limit applies.
+        """
+        tool_obj = self._tools.get(tool_name)
+        limits: list[int] = []
+
+        max_size = None
+        if tool_obj is not None and tool_obj.metadata.max_result_size is not None:
+            max_size = tool_obj.metadata.max_result_size
+        elif self._default_max_result_size is not None:
+            max_size = self._default_max_result_size
+        if max_size is not None:
+            limits.append(max_size)
+
+        max_tokens = None
+        if tool_obj is not None and tool_obj.metadata.max_result_tokens is not None:
+            max_tokens = tool_obj.metadata.max_result_tokens
+        elif self._default_max_result_tokens is not None:
+            max_tokens = self._default_max_result_tokens
+        if max_tokens is not None:
+            limits.append(max_tokens * CHARS_PER_TOKEN)
+
+        return min(limits) if limits else None
 
     @staticmethod
     def _truncate_content_blocks(blocks: list, max_size: int, tool_name: str) -> list:
@@ -1367,22 +1399,30 @@ class ToolRegistry(
         if total_text <= max_size:
             return blocks
 
+        # Allocate the budget proportionally to each text block's size, then
+        # hand any rounding remainder to the earliest blocks.  A text block
+        # is therefore truncated against its own share, not against whatever
+        # an earlier block left over.
+        text_lengths = [
+            len(b.get("text", "")) for b in blocks if b.get("type") == "text"
+        ]
+        budgets = [max_size * length // total_text for length in text_lengths]
+        for index in range(max_size - sum(budgets)):
+            budgets[index % len(budgets)] += 1
+
         truncated: list = []
-        remaining = max_size
+        next_budget = iter(budgets)
         for block in blocks:
             if block.get("type") != "text":
                 truncated.append(block)
                 continue
             text = block.get("text", "")
-            if len(text) <= remaining:
+            budget = next(next_budget)
+            if len(text) <= budget:
                 truncated.append(block)
-                remaining -= len(text)
-            else:
-                tr = truncate_result(
-                    text, remaining, tool_name=tool_name, persist=False
-                )
-                truncated.append({"type": "text", "text": tr.content})
-                remaining = 0
+                continue
+            tr = truncate_result(text, budget, tool_name=tool_name, persist=False)
+            truncated.append({"type": "text", "text": tr.content})
         return truncated
 
     def set_default_execution_mode(self, mode: Literal["thread", "process"]) -> None:

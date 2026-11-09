@@ -620,6 +620,7 @@ def _get_tool(request: Request, name: str) -> Response:
             "timeout": tool.metadata.timeout,
             "locality": tool.metadata.locality,
             "max_result_size": tool.metadata.max_result_size,
+            "max_result_tokens": tool.metadata.max_result_tokens,
             "tags": sorted(str(t) for t in tool.metadata.tags),
             "custom_tags": sorted(tool.metadata.custom_tags),
             "source": tool.metadata.source,
