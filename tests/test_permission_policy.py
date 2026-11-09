@@ -3,6 +3,8 @@ and execute_tool_calls integration."""
 
 import json
 
+import pytest
+
 from toolregistry import (
     PermissionPolicy,
     PermissionRequest,
@@ -401,3 +403,31 @@ class TestPermissionEvents:
         asked = [e for e in events if e.event_type == ChangeEventType.PERMISSION_ASKED]
         assert len(asked) == 1
         assert asked[0].tool_name == name
+
+
+class TestSetPermissionPolicyContract:
+    """The setter accepts only a real ``PermissionPolicy`` (#467)."""
+
+    def test_a_duck_typed_policy_is_rejected(self) -> None:
+        reg, _name = _registry_with_tool()
+
+        class DuckPolicy:
+            def evaluate(self, tool, parameters):
+                return PermissionResult.ALLOW
+
+        with pytest.raises(TypeError, match="PermissionPolicy"):
+            reg.set_permission_policy(DuckPolicy())
+
+        assert reg.get_permission_policy() is None
+
+    def test_a_real_policy_still_works_including_ask(self) -> None:
+        reg, name = _registry_with_tool(tags={ToolTag.DESTRUCTIVE})
+        handler = _RecordingHandler(PermissionResult.ALLOW)
+        policy = PermissionPolicy(rules=[ASK_DESTRUCTIVE], handler=handler)
+
+        reg.set_permission_policy(policy)
+
+        assert reg.get_permission_policy() is policy
+        results = reg.execute_tool_calls([_make_tool_call(name, {"a": 1, "b": 2})])
+        assert str(results[f"call_{name}"].result) == "3"
+        assert len(handler.requests) == 1

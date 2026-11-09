@@ -86,9 +86,26 @@ class PermissionsMixin:
         handler is resolved as: policy handler > registry-level
         handler > fallback.
 
+        The policy must be a :class:`PermissionPolicy` instance.  Earlier
+        releases stored any object, so a duck-typed policy was evaluated by
+        this library but ignored by ``toolregistry-server``, which enforces
+        an instance check of its own; the same process could then allow a
+        call the policy was meant to deny.  Checking the type here makes
+        both paths agree.  This is a deliberate breaking change for callers
+        that passed a duck-typed policy.
+
         Args:
             policy: The permission policy to apply.
+
+        Raises:
+            TypeError: If *policy* is not a
+                :class:`~toolregistry.permissions.PermissionPolicy`.
         """
+        if not isinstance(policy, PermissionPolicy):
+            raise TypeError(
+                "permission policy must be a PermissionPolicy instance, "
+                f"got {type(policy).__name__}"
+            )
         self._permission_policy = policy
 
     def get_permission_policy(self) -> PermissionPolicy | None:
