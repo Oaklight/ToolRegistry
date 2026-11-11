@@ -16,6 +16,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **The admin panel signs in from a page and has a sign-out control** (#281): the panel no longer asks for the token with a native prompt. `<body data-auth>` gates the shell (`pending`, `login`, `ok`) and CSS hides it until the server accepts a credential, so no part of the layout is visible behind the form, and a rejected or locked-out attempt stays on the sign-in page with the reason. The page carries a reveal toggle, a Caps Lock hint, and its own light/dark and language controls; both preferences read the same `localStorage` entries as the panel, so they work before sign-in, and a second language turns the language control into a menu. Sign-out deletes the session cookie: `POST /api/logout` suppresses the sliding-cookie reissue that every authenticated response performs and that otherwise re-created the cookie after deleting it.
+
 ## [0.21.0] - 2026-11-09
 
 ### Added
